@@ -18,7 +18,7 @@ If you are experiencing undocumented problems with Rellic then ask for help in t
 
 Rellic is supported on Linux platforms and has been tested on Ubuntu 16.04.
 
-<!-- ## Dependencies
+## Dependencies
 
 Most of Rellic's dependencies can be provided by the [cxx-common](https://github.com/trailofbits/cxx-common) repository. Trail of Bits hosts downloadable, pre-built versions of cxx-common, which makes it substantially easier to get up and running with Rellic. Nonetheless, the following table represents most of Rellic's dependencies.
 
@@ -49,12 +49,14 @@ sudo apt-get install \
      git \
      python2.7 \
      wget \
-     realpath \
+     curl \
      build-essential \
      libtinfo-dev \
-     python-dev \
-     libz-dev \
-     lsb-release
+     lsb-release \
+     zlib1g-dev
+
+# Ubuntu 14.04, 16.04
+sudo apt-get install realpath
 ```
 
 The next step is to clone the Remill repository. We then clone the Rellic repository into the tools subdirectory of Remill. This is kind of like how Clang and LLVM are distributed separately, and the Clang source code needs to be put into LLVM's tools directory.
@@ -76,4 +78,4 @@ To try out Fcd+Remill you can do the following, given an `amd64/linux` binary of
 
 ```shell
 ./remill-build/tools/rellic/rellic-decomp -arch amd64 -os linux --input mybitcode.bc
-``` -->
+```

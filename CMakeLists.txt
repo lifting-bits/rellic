@@ -94,8 +94,8 @@ list(APPEND PROJECT_DEFINITIONS ${LLVM_DEFINITIONS})
 list(APPEND PROJECT_INCLUDEDIRECTORIES ${LLVM_INCLUDE_DIRS})
 
 # clang
-find_package(Clang)
-set(CLANG_LIBS libclang clangIndex clangCodeGen clangASTMatchers)
+find_package(Clang REQUIRED)
+set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3

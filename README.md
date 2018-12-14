@@ -74,8 +74,8 @@ cd ../../
 ./remill/scripts/build.sh
 ```
 
-To try out Fcd+Remill you can do the following, given an `amd64/linux` binary of your choice.
+To try out Rellic you can do the following, given a LLVM bitcode file of your choice.
 
 ```shell
-./remill-build/tools/rellic/rellic-decomp -arch amd64 -os linux --input mybitcode.bc
+./remill-build/tools/rellic/rellic-decomp --input mybitcode.bc --output /dev/stdout
 ```

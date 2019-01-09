@@ -67,7 +67,6 @@ git clone https://github.com/trailofbits/rellic.git
 Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be built in the `rellic-build` directory.
 
 ```shell
-cd ../../
 ./rellic/scripts/build.sh
 ```
 

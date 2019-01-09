@@ -2,7 +2,7 @@
 
 Rellic is an implementation of the [pattern-independent structuring](https://github.com/trailofbits/rellic/blob/master/docs/NoMoreGotos.pdf) algorithm to produce a goto-free C output from LLVM bitcode.
 
-The design philosophy behind the project is to provide a relatively small and easily hackable codebase with great interoperability with other LLVM and Remill-based projects.
+The design philosophy behind the project is to provide a relatively small and easily hackable codebase with great interoperability with other LLVM and [Remill](https://github.com/trailofbits/remill) projects.
 
 ## Build Status
 
@@ -16,7 +16,7 @@ If you are experiencing undocumented problems with Rellic then ask for help in t
 
 ## Supported Platforms
 
-Rellic is supported on Linux platforms and has been tested on Ubuntu 16.04.
+Rellic is supported on Linux platforms and has been tested on Ubuntu 18.04.
 
 ## Dependencies
 
@@ -30,7 +30,6 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | [Google Log](https://github.com/google/glog) | Latest |
 | [LLVM](http://llvm.org/) | 3.5+|
 | [Clang](http://clang.llvm.org/) | 3.5+|
-| [Remill](https://github.com/trailofbits/remill) | Latest |
 | [Z3](https://github.com/Z3Prover/z3) | 4.7.1 |
 
 ## Getting and Building the Code
@@ -59,23 +58,21 @@ sudo apt-get install \
 sudo apt-get install realpath
 ```
 
-The next step is to clone the Remill repository. We then clone the Rellic repository into the tools subdirectory of Remill. This is kind of like how Clang and LLVM are distributed separately, and the Clang source code needs to be put into LLVM's tools directory.
+The next step is to clone the Rellic repository.
 
 ```shell
-git clone https://github.com/trailofbits/remill.git
-cd remill/tools/
 git clone https://github.com/trailofbits/rellic.git
 ```
 
-Finally, we build Remill along with Rellic. This script will create another directory, `remill-build`, in the current working directory. All remaining dependencies needed by Remill will be built in the `remill-build` directory.
+Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be built in the `rellic-build` directory.
 
 ```shell
 cd ../../
-./remill/scripts/build.sh
+./rellic/scripts/build.sh
 ```
 
 To try out Rellic you can do the following, given a LLVM bitcode file of your choice.
 
 ```shell
-./remill-build/tools/rellic/rellic-decomp --input mybitcode.bc --output /dev/stdout
+./rellic-build/rellic-decomp --input mybitcode.bc --output /dev/stdout
 ```

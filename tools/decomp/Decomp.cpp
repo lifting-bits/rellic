@@ -25,9 +25,6 @@
 
 #include <clang/Basic/TargetInfo.h>
 
-#include <remill/BC/Util.h>
-#include <remill/BC/Version.h>
-
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/GenerateAST.h"
@@ -36,6 +33,8 @@
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombiner.h"
 #include "rellic/AST/Z3CondSimplify.h"
+
+#include "rellic/BC/Util.h"
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR
@@ -176,10 +175,10 @@ int main(int argc, char* argv[]) {
 
   LOG_IF(ERROR, FLAGS_input.empty())
       << "Must specify the path to an input LLVM bitcode file.";
-  
+
   LOG_IF(ERROR, FLAGS_output.empty())
       << "Must specify the path to an output C file.";
-  
+
   if (FLAGS_input.empty() || FLAGS_output.empty()) {
     std::cerr << google::ProgramUsage();
     return EXIT_FAILURE;
@@ -187,7 +186,7 @@ int main(int argc, char* argv[]) {
 
   std::unique_ptr<llvm::LLVMContext> llvm_ctx(new llvm::LLVMContext);
 
-  auto module = remill::LoadModuleFromFile(llvm_ctx.get(), FLAGS_input);
+  auto module = rellic::LoadModuleFromFile(llvm_ctx.get(), FLAGS_input);
 
   std::error_code ec;
   llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);

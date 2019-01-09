@@ -21,7 +21,7 @@
 
 #include <clang/AST/Expr.h>
 
-#include "remill/BC/Util.h"
+#include "rellic/BC/Util.h"
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/Util.h"
@@ -33,7 +33,7 @@ namespace {
 static clang::QualType GetQualType(clang::ASTContext &ctx, llvm::Type *type,
                                    bool constant = false) {
   // DLOG(INFO) << "GetQualType: " << (constant ? "constant " : "")
-  //            << remill::LLVMThingToString(type);
+  //            << rellic::LLVMThingToString(type);
   clang::QualType result;
   switch (type->getTypeID()) {
     case llvm::Type::VoidTyID:
@@ -100,7 +100,7 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
                                       clang::DeclContext *decl_ctx,
                                       llvm::Constant *constant) {
   DLOG(INFO) << "Creating literal Expr for "
-             << remill::LLVMThingToString(constant);
+             << rellic::LLVMThingToString(constant);
 
   auto type = GetQualType(ast_ctx, constant->getType(), /*constant=*/true);
 
@@ -145,7 +145,7 @@ clang::FunctionDecl *IRToASTVisitor::GetFunctionDecl(llvm::Instruction *inst) {
 
 clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
                                             llvm::Value *val) {
-  DLOG(INFO) << "Getting Expr for " << remill::LLVMThingToString(val);
+  DLOG(INFO) << "Getting Expr for " << rellic::LLVMThingToString(val);
   clang::Expr *result = nullptr;
 
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
@@ -211,7 +211,7 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
 }
 
 void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
-  DLOG(INFO) << "VisitGlobalVar: " << remill::LLVMThingToString(&gvar);
+  DLOG(INFO) << "VisitGlobalVar: " << rellic::LLVMThingToString(&gvar);
   auto &var = decls[&gvar];
   if (!var) {
     auto name = gvar.getName().str();
@@ -313,7 +313,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 // }
 
 void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
-  DLOG(INFO) << "visitCallInst: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitCallInst: " << rellic::LLVMThingToString(&inst);
   auto &callexpr = stmts[&inst];
   if (!callexpr) {
     auto callee = inst.getCalledValue();
@@ -346,7 +346,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
 }
 
 void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
-  DLOG(INFO) << "visitGetElementPtrInst: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitGetElementPtrInst: " << rellic::LLVMThingToString(&inst);
   auto &expr = stmts[&inst];
   if (!expr) {
     auto src_type = inst.getSourceElementType();
@@ -367,7 +367,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
 }
 
 void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
-  DLOG(INFO) << "visitAllocaInst: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitAllocaInst: " << rellic::LLVMThingToString(&inst);
   auto &declstmt = stmts[&inst];
   if (!declstmt) {
     auto &var = decls[&inst];
@@ -392,7 +392,7 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
 }
 
 void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
-  DLOG(INFO) << "visitStoreInst: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitStoreInst: " << rellic::LLVMThingToString(&inst);
   auto &assign = stmts[&inst];
   if (!assign) {
     // Stores in LLVM IR correspond to value assignments in C
@@ -426,7 +426,7 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
-  DLOG(INFO) << "visitLoadInst: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitLoadInst: " << rellic::LLVMThingToString(&inst);
   auto &ref = stmts[&inst];
   if (!ref) {
     auto fdecl = GetFunctionDecl(&inst);
@@ -449,7 +449,7 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
 }
 
 void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
-  DLOG(INFO) << "visitReturnInst: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitReturnInst: " << rellic::LLVMThingToString(&inst);
   auto &retstmt = stmts[&inst];
   if (!retstmt) {
     if (auto retval = inst.getReturnValue()) {
@@ -464,7 +464,7 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
 }
 
 void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
-  DLOG(INFO) << "visitBinaryOperator: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitBinaryOperator: " << rellic::LLVMThingToString(&inst);
   auto &binop = stmts[&inst];
   if (!binop) {
     // Get declaration context
@@ -496,7 +496,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
 }
 
 void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
-  DLOG(INFO) << "visitCmpInst: " << remill::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitCmpInst: " << rellic::LLVMThingToString(&inst);
   auto &cmp = stmts[&inst];
   if (!cmp) {
     // Get declaration context
@@ -526,7 +526,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
 }
 
 // void IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
-//   DLOG(INFO) << "visitInstruction: " << remill::LLVMThingToString(&inst);
+//   DLOG(INFO) << "visitInstruction: " << rellic::LLVMThingToString(&inst);
 // }
 
 }  // namespace rellic

@@ -27,7 +27,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "remill/BC/Util.h"
+#include "rellic/BC/Util.h"
 
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/Util.h"

@@ -19,8 +19,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Z3ConvVisitor.h"
 #include "rellic/AST/Util.h"
+#include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
 
@@ -49,11 +49,11 @@ static unsigned GetZ3SortSize(z3::sort sort) {
 
 static z3::sort GetZ3Sort(clang::ASTContext &ast_ctx, z3::context &z3_ctx,
                           clang::QualType type) {
-  auto bitwidth = ast_ctx.getTypeSize(type);
   // Booleans
   if (type->isBooleanType()) {
     return z3_ctx.bool_sort();
   }
+  auto bitwidth = ast_ctx.getTypeSize(type);
   // Floating points
   if (type->isRealFloatingType()) {
     switch (bitwidth) {
@@ -115,16 +115,18 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
   DLOG(INFO) << "Creating literal clang::Expr for " << z3_expr;
 
   auto sort = z3_expr.get_sort();
-  auto size = GetZ3SortSize(sort);
   auto type = GetQualType(ast_ctx, sort);
+  auto size = ast_ctx.getTypeSize(type);
 
   clang::Expr *result = nullptr;
 
   switch (sort.sort_kind()) {
     case Z3_BOOL_SORT: {
+      type = ast_ctx.UnsignedIntTy;
+      size = ast_ctx.getIntWidth(type);
       llvm::APInt val(size, z3_expr.bool_value() == Z3_L_TRUE ? 1 : 0);
-      result = clang::IntegerLiteral::Create(
-          ast_ctx, val, ast_ctx.UnsignedIntTy, clang::SourceLocation());
+      result = clang::IntegerLiteral::Create(ast_ctx, val, type,
+                                             clang::SourceLocation());
     } break;
 
     case Z3_BV_SORT: {
@@ -333,7 +335,11 @@ bool Z3ConvVisitor::VisitIntegerLiteral(clang::IntegerLiteral *c_lit) {
   DLOG(INFO) << "VisitIntegerLiteral: " << lit_val;
   if (z3_expr_map.find(c_lit) == z3_expr_map.end()) {
     auto z3_sort = GetZ3Sort(*ast_ctx, *z3_ctx, c_lit->getType());
-    InsertZ3Expr(c_lit, z3_ctx->num_val(lit_val, z3_sort));
+    if (z3_sort.is_bool()) {
+      InsertZ3Expr(c_lit, z3_ctx->bool_val(lit_val != 0));
+    } else {
+      InsertZ3Expr(c_lit, z3_ctx->num_val(lit_val, z3_sort));
+    }
   }
   return true;
 }

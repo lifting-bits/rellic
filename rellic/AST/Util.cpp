@@ -138,7 +138,8 @@ clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
   return clang::IntegerLiteral::Create(
-      ctx, llvm::APInt(1, 1), ctx.UnsignedIntTy, clang::SourceLocation());
+      ctx, llvm::APInt(ctx.getIntWidth(ctx.UnsignedIntTy), 1),
+      ctx.UnsignedIntTy, clang::SourceLocation());
 }
 
 }  // namespace rellic

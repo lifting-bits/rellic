@@ -153,6 +153,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     visit(inst);
     stmts[val] = stmts[inst];
     stmts.erase(inst);
+    delete inst;
   }
 
   if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {

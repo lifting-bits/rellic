@@ -58,12 +58,7 @@ namespace {
 static void InitOptPasses(void) {
   auto& pr = *llvm::PassRegistry::getPassRegistry();
   initializeCore(pr);
-  initializeVectorization(pr);
-  initializeIPO(pr);
   initializeAnalysis(pr);
-  initializeTransformUtils(pr);
-  initializeInstCombine(pr);
-  initializeScalarOpts(pr);
 }
 
 static bool InitCompilerInstance(llvm::Module& module,

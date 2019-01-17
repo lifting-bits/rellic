@@ -1,0 +1,7 @@
+language: generic
+sudo: required
+dist: xenial
+os:
+  - linux
+compiler:
+  - gcc

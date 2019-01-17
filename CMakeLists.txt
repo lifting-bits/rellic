@@ -86,7 +86,7 @@ find_package(gflags REQUIRED)
 list(APPEND PROJECT_LIBRARIES gflags)
 
 #
-# target settings
+# decomp target settings
 #
 
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
@@ -111,11 +111,27 @@ add_executable(${RELLIC_DECOMP}
   tools/decomp/Decomp.cpp
 )
 
-#
-# target settings
-#
-
 target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_LIBRARIES})
 target_include_directories(${RELLIC_DECOMP} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
 target_compile_definitions(${RELLIC_DECOMP} PUBLIC ${PROJECT_DEFINITIONS})
 target_compile_options(${RELLIC_DECOMP} PRIVATE ${PROJECT_CXXFLAGS})
+
+#
+# hpp2h target settings
+#
+
+set(RELLIC_HPP2H rellic-hpp2h-${RELLIC_LLVM_VERSION})
+
+add_executable(${RELLIC_HPP2H}
+
+  rellic/AST/Util.cpp
+
+  rellic/BC/Util.cpp
+
+  tools/hpp2h/HppToH.cpp
+)
+
+target_link_libraries(${RELLIC_HPP2H} PRIVATE ${PROJECT_LIBRARIES})
+target_include_directories(${RELLIC_HPP2H} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
+target_compile_definitions(${RELLIC_HPP2H} PUBLIC ${PROJECT_DEFINITIONS})
+target_compile_options(${RELLIC_HPP2H} PRIVATE ${PROJECT_CXXFLAGS})

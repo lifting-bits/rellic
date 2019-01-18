@@ -63,18 +63,10 @@ static void InitOptPasses(void) {
 
 static bool InitCompilerInstance(llvm::Module& module,
                                  clang::CompilerInstance& ins) {
-  auto inv = std::make_shared<clang::CompilerInvocation>();
-
-  const char* tmp[] = {""};
-  ins.setDiagnostics(ins.createDiagnostics(new clang::DiagnosticOptions).get());
-  clang::CompilerInvocation::CreateFromArgs(*inv, tmp, tmp,
-                                            ins.getDiagnostics());
-
-  inv->getTargetOpts().Triple = module.getTargetTriple();
-  ins.setInvocation(inv);
+  ins.createDiagnostics();
+  ins.getTargetOpts().Triple = module.getTargetTriple();
   ins.setTarget(clang::TargetInfo::CreateTargetInfo(
       ins.getDiagnostics(), ins.getInvocation().TargetOpts));
-
   ins.createFileManager();
   ins.createSourceManager(ins.getFileManager());
   ins.createPreprocessor(clang::TU_Complete);

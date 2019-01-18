@@ -25,6 +25,7 @@
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/FrontendOptions.h>
 #include <clang/Parse/ParseAST.h>
 
 #ifndef LLVM_VERSION_STRING
@@ -51,24 +52,12 @@ using namespace clang;
 class FindNamedClassVisitor
     : public RecursiveASTVisitor<FindNamedClassVisitor> {
  public:
-  explicit FindNamedClassVisitor(ASTContext* Context) {
-  }  // : Context(Context) {}
+  explicit FindNamedClassVisitor(ASTContext* Context) {}
 
   bool VisitCXXRecordDecl(CXXRecordDecl* Declaration) {
-    DLOG(INFO) << "SATAN";
-    // if (Declaration->getQualifiedNameAsString() == "n::m::C") {
-    //   FullSourceLoc FullLocation =
-    //       Context->getFullLoc(Declaration->getBeginLoc());
-    //   if (FullLocation.isValid())
-    //     llvm::outs() << "Found declaration at "
-    //                  << FullLocation.getSpellingLineNumber() << ":"
-    //                  << FullLocation.getSpellingColumnNumber() << "\n";
-    // }
+    LOG(INFO) << "Yeet!";
     return true;
   }
-
-  //  private:
-  //   ASTContext* Context;
 };
 
 class FindNamedClassConsumer : public clang::ASTConsumer {
@@ -110,36 +99,40 @@ int main(int argc, char* argv[]) {
   google::ParseCommandLineFlags(&argc, &argv, true);
 
   LOG_IF(ERROR, FLAGS_input.empty())
-      << "Must specify the path to an input LLVM bitcode file.";
+      << "Must specify the path to an input C++ header file.";
 
   LOG_IF(ERROR, FLAGS_output.empty())
-      << "Must specify the path to an output C file.";
+      << "Must specify the path to an output C header file.";
 
   if (FLAGS_input.empty() || FLAGS_output.empty()) {
     std::cerr << google::ProgramUsage();
     return EXIT_FAILURE;
   }
-
+  // Create a compiler
   clang::CompilerInstance ins;
-  auto inv = std::make_shared<clang::CompilerInvocation>();
-  const char* tmp[] = {""};
-  ins.setDiagnostics(ins.createDiagnostics(new clang::DiagnosticOptions).get());
-  clang::CompilerInvocation::CreateFromArgs(*inv, tmp, tmp,
-                                            ins.getDiagnostics());
-  inv->getTargetOpts().Triple = llvm::sys::getDefaultTargetTriple();
-  ins.setInvocation(inv);
+  // Set language to C++
+  ins.getLangOpts().CPlusPlus = 1;
+  // Initialize the compiler
+  ins.createDiagnostics();
+  ins.getTargetOpts().Triple = llvm::sys::getDefaultTargetTriple();
   ins.setTarget(clang::TargetInfo::CreateTargetInfo(
       ins.getDiagnostics(), ins.getInvocation().TargetOpts));
   ins.createFileManager();
   ins.createSourceManager(ins.getFileManager());
   ins.createPreprocessor(clang::TU_Complete);
   ins.createASTContext();
-
-  ins.setASTConsumer(
-      llvm::make_unique<FindNamedClassConsumer>(&ins.getASTContext()));
-
-  clang::ParseAST(ins.getPreprocessor(), &ins.getASTConsumer(),
-                  ins.getASTContext());
+  // Set the input source file
+  clang::FrontendInputFile input(FLAGS_input, clang::InputKind(clang::IK_CXX));
+  ins.InitializeSourceManager(input);
+  // Tell diagnostics we're about to run
+  ins.getDiagnosticClient().BeginSourceFile(ins.getLangOpts(),
+                                            &ins.getPreprocessor());
+  // Run the consumer containing our visitor
+  auto& ast_ctx = ins.getASTContext();
+  FindNamedClassConsumer consumer(&ast_ctx);
+  clang::ParseAST(ins.getPreprocessor(), &consumer, ast_ctx);
+  // Tell diagnostics we're done
+  ins.getDiagnosticClient().EndSourceFile();
 
   google::ShutDownCommandLineFlags();
   google::ShutdownGoogleLogging();

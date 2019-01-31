@@ -239,10 +239,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
     auto tudecl = ast_ctx.getTranslationUnitDecl();
     auto type = llvm::cast<llvm::PointerType>(func.getType())->getElementType();
 
-    decl = clang::FunctionDecl::Create(
-        ast_ctx, tudecl, clang::SourceLocation(), clang::SourceLocation(),
-        clang::DeclarationName(CreateIdentifier(ast_ctx, name)),
-        GetQualType(ast_ctx, type), nullptr, clang::SC_None, false);
+    decl = CreateFunctionDecl(ast_ctx, tudecl, CreateIdentifier(ast_ctx, name),
+                              GetQualType(ast_ctx, type));
 
     if (!func.arg_empty()) {
       auto func_ctx = llvm::cast<clang::FunctionDecl>(decl);
@@ -253,11 +251,9 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
         DLOG(INFO) << "Creating ParmVarDecl for " << arg_name;
 
-        auto param = clang::ParmVarDecl::Create(
-            ast_ctx, func_ctx, clang::SourceLocation(), clang::SourceLocation(),
-            CreateIdentifier(ast_ctx, arg_name),
-            GetQualType(ast_ctx, arg.getType()), nullptr, clang::SC_None,
-            nullptr);
+        auto param = CreateParmVarDecl(ast_ctx, func_ctx,
+                                       CreateIdentifier(ast_ctx, arg_name),
+                                       GetQualType(ast_ctx, arg.getType()));
 
         decls[&arg] = param;
         params.push_back(param);

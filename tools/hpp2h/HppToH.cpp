@@ -18,15 +18,12 @@
 #include <glog/logging.h>
 
 #include <iostream>
-#include <memory>
 
-#include <clang/AST/ASTConsumer.h>
-#include <clang/AST/DeclCXX.h>
-#include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/CompilerInstance.h>
-#include <clang/Frontend/FrontendOptions.h>
 #include <clang/Parse/ParseAST.h>
+
+#include "rellic/AST/CXXToCDecl.h"
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR
@@ -47,30 +44,32 @@ DECLARE_bool(version);
 
 namespace {
 
-using namespace clang;
-
-class FindNamedClassVisitor
-    : public RecursiveASTVisitor<FindNamedClassVisitor> {
- public:
-  explicit FindNamedClassVisitor(ASTContext* Context) {}
-
-  bool VisitCXXRecordDecl(CXXRecordDecl* Declaration) {
-    LOG(INFO) << "Yeet!";
-    return true;
-  }
-};
-
-class FindNamedClassConsumer : public clang::ASTConsumer {
- public:
-  explicit FindNamedClassConsumer(ASTContext* Context) : Visitor(Context) {}
-
-  virtual void HandleTranslationUnit(clang::ASTContext& Context) {
-    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
-  }
-
+class CXXToCDeclConsumer : public clang::ASTConsumer {
  private:
-  FindNamedClassVisitor Visitor;
+  rellic::CXXToCDeclVisitor visitor;
+
+ public:
+  CXXToCDeclConsumer(clang::ASTContext* cxx, clang::ASTContext* c)
+      : visitor(cxx, c) {}
+
+  void HandleTranslationUnit(clang::ASTContext& ctx) {
+    visitor.TraverseDecl(ctx.getTranslationUnitDecl());
+  }
 };
+
+static bool InitCompilerInstance(std::string target_triple,
+                                 clang::CompilerInstance& ins) {
+  ins.createDiagnostics();
+  ins.getTargetOpts().Triple = target_triple;
+  ins.setTarget(clang::TargetInfo::CreateTargetInfo(
+      ins.getDiagnostics(), ins.getInvocation().TargetOpts));
+  ins.createFileManager();
+  ins.createSourceManager(ins.getFileManager());
+  ins.createPreprocessor(clang::TU_Complete);
+  ins.createASTContext();
+
+  return true;
+}
 
 }  // namespace
 
@@ -108,31 +107,36 @@ int main(int argc, char* argv[]) {
     std::cerr << google::ProgramUsage();
     return EXIT_FAILURE;
   }
-  // Create a compiler
-  clang::CompilerInstance ins;
-  // Set language to C++
-  ins.getLangOpts().CPlusPlus = 1;
-  // Initialize the compiler
-  ins.createDiagnostics();
-  ins.getTargetOpts().Triple = llvm::sys::getDefaultTargetTriple();
-  ins.setTarget(clang::TargetInfo::CreateTargetInfo(
-      ins.getDiagnostics(), ins.getInvocation().TargetOpts));
-  ins.createFileManager();
-  ins.createSourceManager(ins.getFileManager());
-  ins.createPreprocessor(clang::TU_Complete);
-  ins.createASTContext();
+
+  std::error_code ec;
+  llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
+  CHECK(!ec) << "Failed to create output file: " << ec.message();
+  
+  // Create compiler instances
+  clang::CompilerInstance cxx_ins;
+  clang::CompilerInstance c_ins;
+  // Set language dialects
+  cxx_ins.getLangOpts().CPlusPlus = 1;
+  c_ins.getLangOpts().C99 = 1;
+  // Initialize
+  auto target = llvm::sys::getDefaultTargetTriple();
+  InitCompilerInstance(target, cxx_ins);
+  InitCompilerInstance(target, c_ins);
   // Set the input source file
   clang::FrontendInputFile input(FLAGS_input, clang::InputKind(clang::IK_CXX));
-  ins.InitializeSourceManager(input);
+  cxx_ins.InitializeSourceManager(input);
   // Tell diagnostics we're about to run
-  ins.getDiagnosticClient().BeginSourceFile(ins.getLangOpts(),
-                                            &ins.getPreprocessor());
+  cxx_ins.getDiagnosticClient().BeginSourceFile(cxx_ins.getLangOpts(),
+                                                &cxx_ins.getPreprocessor());
   // Run the consumer containing our visitor
-  auto& ast_ctx = ins.getASTContext();
-  FindNamedClassConsumer consumer(&ast_ctx);
-  clang::ParseAST(ins.getPreprocessor(), &consumer, ast_ctx);
+  auto& cxx_ast = cxx_ins.getASTContext();
+  auto& c_ast = c_ins.getASTContext();
+  CXXToCDeclConsumer consumer(&cxx_ast, &c_ast);
+  clang::ParseAST(cxx_ins.getPreprocessor(), &consumer, cxx_ast);
   // Tell diagnostics we're done
-  ins.getDiagnosticClient().EndSourceFile();
+  cxx_ins.getDiagnosticClient().EndSourceFile();
+  // Print output
+  c_ast.getTranslationUnitDecl()->print(output);
 
   google::ShutDownCommandLineFlags();
   google::ShutdownGoogleLogging();

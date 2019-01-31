@@ -124,6 +124,7 @@ set(RELLIC_HPP2H rellic-hpp2h-${RELLIC_LLVM_VERSION})
 
 add_executable(${RELLIC_HPP2H}
 
+  rellic/AST/CXXToCDecl.cpp
   rellic/AST/Util.cpp
 
   rellic/BC/Util.cpp

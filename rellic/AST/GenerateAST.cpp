@@ -354,6 +354,8 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
 
   for (auto &func : module.functions()) {
     if (!func.isDeclaration()) {
+      // Clear the region statements from previous functions
+      region_stmts.clear();
       // Get dominator tree
       domtree = &getAnalysis<llvm::DominatorTreeWrapperPass>(func).getDomTree();
       // Get single-entry, single-exit regions

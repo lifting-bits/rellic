@@ -19,10 +19,16 @@
 
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Expr.h>
+#include <clang/Basic/TargetInfo.h>
+#include <clang/Frontend/CompilerInstance.h>
 
 #include <unordered_map>
 
 namespace rellic {
+
+void InitCompilerInstance(
+    clang::CompilerInstance &ins,
+    std::string target_triple = llvm::sys::getDefaultTargetTriple());
 
 using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
 
@@ -83,7 +89,8 @@ clang::FieldDecl *CreateFieldDecl(clang::ASTContext &ctx,
 
 clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                     clang::DeclContext *decl_ctx,
-                                    clang::IdentifierInfo *id);
+                                    clang::IdentifierInfo *id,
+                                    clang::RecordDecl *prev_decl = nullptr);
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 

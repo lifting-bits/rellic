@@ -44,6 +44,18 @@ static clang::Expr *CreateBoolBinOp(clang::ASTContext &ctx,
 
 }  // namespace
 
+void InitCompilerInstance(clang::CompilerInstance &ins,
+                          std::string target_triple) {
+  ins.createDiagnostics();
+  ins.getTargetOpts().Triple = target_triple;
+  ins.setTarget(clang::TargetInfo::CreateTargetInfo(
+      ins.getDiagnostics(), ins.getInvocation().TargetOpts));
+  ins.createFileManager();
+  ins.createSourceManager(ins.getFileManager());
+  ins.createPreprocessor(clang::TU_Complete);
+  ins.createASTContext();
+}
+
 bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map) {
   auto change = false;
   for (auto c_it = stmt->child_begin(); c_it != stmt->child_end(); ++c_it) {
@@ -166,10 +178,11 @@ clang::FieldDecl *CreateFieldDecl(clang::ASTContext &ctx,
 
 clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                     clang::DeclContext *decl_ctx,
-                                    clang::IdentifierInfo *id) {
+                                    clang::IdentifierInfo *id,
+                                    clang::RecordDecl *prev_decl) {
   return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Struct,
                                    decl_ctx, clang::SourceLocation(),
-                                   clang::SourceLocation(), id);
+                                   clang::SourceLocation(), id, prev_decl);
 }
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {

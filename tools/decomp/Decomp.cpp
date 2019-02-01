@@ -61,26 +61,12 @@ static void InitOptPasses(void) {
   initializeAnalysis(pr);
 }
 
-static bool InitCompilerInstance(std::string target_triple,
-                                 clang::CompilerInstance& ins) {
-  ins.createDiagnostics();
-  ins.getTargetOpts().Triple = target_triple;
-  ins.setTarget(clang::TargetInfo::CreateTargetInfo(
-      ins.getDiagnostics(), ins.getInvocation().TargetOpts));
-  ins.createFileManager();
-  ins.createSourceManager(ins.getFileManager());
-  ins.createPreprocessor(clang::TU_Complete);
-  ins.createASTContext();
-
-  return true;
-}
-
 static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
 
   clang::CompilerInstance ins;
-  InitCompilerInstance(module.getTargetTriple(), ins);
+  rellic::InitCompilerInstance(ins, module.getTargetTriple());
 
   rellic::IRToASTVisitor gen(ins);
 

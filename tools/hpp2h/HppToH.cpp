@@ -24,6 +24,7 @@
 #include <clang/Parse/ParseAST.h>
 
 #include "rellic/AST/CXXToCDecl.h"
+#include "rellic/AST/Util.h"
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR
@@ -56,20 +57,6 @@ class CXXToCDeclConsumer : public clang::ASTConsumer {
     visitor.TraverseDecl(ctx.getTranslationUnitDecl());
   }
 };
-
-static bool InitCompilerInstance(std::string target_triple,
-                                 clang::CompilerInstance& ins) {
-  ins.createDiagnostics();
-  ins.getTargetOpts().Triple = target_triple;
-  ins.setTarget(clang::TargetInfo::CreateTargetInfo(
-      ins.getDiagnostics(), ins.getInvocation().TargetOpts));
-  ins.createFileManager();
-  ins.createSourceManager(ins.getFileManager());
-  ins.createPreprocessor(clang::TU_Complete);
-  ins.createASTContext();
-
-  return true;
-}
 
 }  // namespace
 
@@ -111,7 +98,7 @@ int main(int argc, char* argv[]) {
   std::error_code ec;
   llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
   CHECK(!ec) << "Failed to create output file: " << ec.message();
-  
+
   // Create compiler instances
   clang::CompilerInstance cxx_ins;
   clang::CompilerInstance c_ins;
@@ -119,9 +106,8 @@ int main(int argc, char* argv[]) {
   cxx_ins.getLangOpts().CPlusPlus = 1;
   c_ins.getLangOpts().C99 = 1;
   // Initialize
-  auto target = llvm::sys::getDefaultTargetTriple();
-  InitCompilerInstance(target, cxx_ins);
-  InitCompilerInstance(target, c_ins);
+  rellic::InitCompilerInstance(cxx_ins);
+  rellic::InitCompilerInstance(c_ins);
   // Set the input source file
   clang::FrontendInputFile input(FLAGS_input, clang::InputKind(clang::IK_CXX));
   cxx_ins.InitializeSourceManager(input);

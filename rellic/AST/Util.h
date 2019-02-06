@@ -19,12 +19,17 @@
 
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Expr.h>
+#include <clang/Basic/TargetInfo.h>
+#include <clang/Frontend/CompilerInstance.h>
 
 #include <unordered_map>
 
 namespace rellic {
 
 using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
+
+void InitCompilerInstance(clang::CompilerInstance &ins,
+                          std::string target_triple);
 
 bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map);
 

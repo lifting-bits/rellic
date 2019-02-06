@@ -34,7 +34,7 @@ class DeadStmtElim : public llvm::ModulePass,
  public:
   static char ID;
 
-  DeadStmtElim(clang::CompilerInstance &ins, rellic::IRToASTVisitor &ast_gen);
+  DeadStmtElim(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
@@ -42,7 +42,7 @@ class DeadStmtElim : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createDeadStmtElimPass(clang::CompilerInstance &ins,
+llvm::ModulePass *createDeadStmtElimPass(clang::ASTContext &ctx,
                                          rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

@@ -34,7 +34,7 @@ class NestedScopeCombiner : public llvm::ModulePass,
  public:
   static char ID;
 
-  NestedScopeCombiner(clang::CompilerInstance &ins,
+  NestedScopeCombiner(clang::ASTContext &ctx,
                       rellic::IRToASTVisitor &ast_gen);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
@@ -43,7 +43,7 @@ class NestedScopeCombiner : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createNestedScopeCombinerPass(clang::CompilerInstance &ins,
+llvm::ModulePass *createNestedScopeCombinerPass(clang::ASTContext &ctx,
                                                 rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

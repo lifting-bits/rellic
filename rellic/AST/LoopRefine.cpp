@@ -293,10 +293,10 @@ class CondToSeqNegRule
 
 char LoopRefine::ID = 0;
 
-LoopRefine::LoopRefine(clang::CompilerInstance &ins,
+LoopRefine::LoopRefine(clang::ASTContext &ctx,
                        rellic::IRToASTVisitor &ast_gen)
     : ModulePass(LoopRefine::ID),
-      ast_ctx(&ins.getASTContext()),
+      ast_ctx(&ctx),
       ast_gen(&ast_gen) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
@@ -352,8 +352,8 @@ bool LoopRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createLoopRefinePass(clang::CompilerInstance &ins,
+llvm::ModulePass *createLoopRefinePass(clang::ASTContext &ctx,
                                        rellic::IRToASTVisitor &gen) {
-  return new LoopRefine(ins, gen);
+  return new LoopRefine(ctx, gen);
 }
 }  // namespace rellic

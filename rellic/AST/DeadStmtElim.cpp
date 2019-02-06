@@ -24,10 +24,10 @@ namespace rellic {
 
 char DeadStmtElim::ID = 0;
 
-DeadStmtElim::DeadStmtElim(clang::CompilerInstance &ins,
+DeadStmtElim::DeadStmtElim(clang::ASTContext &ctx,
                            rellic::IRToASTVisitor &ast_gen)
     : ModulePass(DeadStmtElim::ID),
-      ast_ctx(&ins.getASTContext()),
+      ast_ctx(&ctx),
       ast_gen(&ast_gen) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
@@ -73,8 +73,8 @@ bool DeadStmtElim::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createDeadStmtElimPass(clang::CompilerInstance &ins,
+llvm::ModulePass *createDeadStmtElimPass(clang::ASTContext &ctx,
                                          rellic::IRToASTVisitor &gen) {
-  return new DeadStmtElim(ins, gen);
+  return new DeadStmtElim(ctx, gen);
 }
 }  // namespace rellic

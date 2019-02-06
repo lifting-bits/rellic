@@ -22,6 +22,7 @@
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Parse/ParseAST.h>
+#include <clang/Serialization/ASTReader.h>
 
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
@@ -43,29 +44,12 @@ DEFINE_string(output, "", "Output file.");
 
 DECLARE_bool(version);
 
-namespace {
-
-class CXXToCDeclConsumer : public clang::ASTConsumer {
- private:
-  rellic::CXXToCDeclVisitor visitor;
-
- public:
-  CXXToCDeclConsumer(clang::ASTContext* cxx, clang::ASTContext* c)
-      : visitor(cxx, c) {}
-
-  void HandleTranslationUnit(clang::ASTContext& ctx) {
-    visitor.TraverseDecl(ctx.getTranslationUnitDecl());
-  }
-};
-
-}  // namespace
-
 int main(int argc, char* argv[]) {
   std::stringstream usage;
   usage << std::endl
         << std::endl
         << "  " << argv[0] << " \\" << std::endl
-        << "    --input INPUT_BC_FILE \\" << std::endl
+        << "    --input INPUT_AST_FILE \\" << std::endl
         << "    --output OUTPUT_C_FILE \\" << std::endl
         << std::endl
 
@@ -100,27 +84,22 @@ int main(int argc, char* argv[]) {
   CHECK(!ec) << "Failed to create output file: " << ec.message();
 
   // Create compiler instances
-  clang::CompilerInstance cxx_ins;
   clang::CompilerInstance c_ins;
-  // Set language dialects
-  cxx_ins.getLangOpts().CPlusPlus = 1;
-  c_ins.getLangOpts().C99 = 1;
+  clang::CompilerInstance cxx_ins;
   // Initialize
-  rellic::InitCompilerInstance(cxx_ins);
   rellic::InitCompilerInstance(c_ins);
-  // Set the input source file
-  clang::FrontendInputFile input(FLAGS_input, clang::InputKind(clang::IK_CXX));
-  cxx_ins.InitializeSourceManager(input);
-  // Tell diagnostics we're about to run
-  cxx_ins.getDiagnosticClient().BeginSourceFile(cxx_ins.getLangOpts(),
-                                                &cxx_ins.getPreprocessor());
-  // Run the consumer containing our visitor
-  auto& cxx_ast = cxx_ins.getASTContext();
+  rellic::InitCompilerInstance(cxx_ins);
+  // Read a CXX AST from our input file
+  cxx_ins.createPCHExternalASTSource(FLAGS_input,
+                                     /* DisablePCHValidation = */ true,
+                                     /* AllowPCHWithCompilerErrors = */ false,
+                                     /* DeserializationListener = */ nullptr,
+                                     /* OwnDeserializationListener = */ false);
+  // Create our conversion visitor
   auto& c_ast = c_ins.getASTContext();
-  CXXToCDeclConsumer consumer(&cxx_ast, &c_ast);
-  clang::ParseAST(cxx_ins.getPreprocessor(), &consumer, cxx_ast);
-  // Tell diagnostics we're done
-  cxx_ins.getDiagnosticClient().EndSourceFile();
+  rellic::CXXToCDeclVisitor visitor(&c_ast);
+  // Run our visitor on the CXX AST
+  visitor.TraverseDecl(cxx_ins.getASTContext().getTranslationUnitDecl());
   // Print output
   c_ast.getTranslationUnitDecl()->print(output);
 

@@ -23,11 +23,10 @@ namespace rellic {
 
 class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
  private:
-  clang::ASTContext *cxx_ast_ctx;
-  clang::ASTContext *c_ast_ctx;
+  clang::ASTContext *ast_ctx;
 
  public:
-  CXXToCDeclVisitor(clang::ASTContext *cxx, clang::ASTContext *c);
+  CXXToCDeclVisitor(clang::ASTContext *c);
 
   bool VisitCXXRecordDecl(clang::CXXRecordDecl *decl);
 };

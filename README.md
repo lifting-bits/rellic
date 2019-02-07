@@ -28,8 +28,8 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | [CMake](https://cmake.org/) | 3.2+ |
 | [Google Flags](https://github.com/google/glog) | Latest |
 | [Google Log](https://github.com/google/glog) | Latest |
-| [LLVM](http://llvm.org/) | 3.5+|
-| [Clang](http://clang.llvm.org/) | 3.5+|
+| [LLVM](http://llvm.org/) | 4.0+|
+| [Clang](http://clang.llvm.org/) | 4.0+|
 | [Z3](https://github.com/Z3Prover/z3) | 4.7.1 |
 
 ## Getting and Building the Code

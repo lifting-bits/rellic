@@ -24,10 +24,10 @@ namespace rellic {
 
 char NestedScopeCombiner::ID = 0;
 
-NestedScopeCombiner::NestedScopeCombiner(clang::CompilerInstance &ins,
+NestedScopeCombiner::NestedScopeCombiner(clang::ASTContext &ctx,
                                          rellic::IRToASTVisitor &ast_gen)
     : ModulePass(NestedScopeCombiner::ID),
-      ast_ctx(&ins.getASTContext()),
+      ast_ctx(&ctx),
       ast_gen(&ast_gen) {}
 
 bool NestedScopeCombiner::VisitIfStmt(clang::IfStmt *ifstmt) {
@@ -69,8 +69,8 @@ bool NestedScopeCombiner::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createNestedScopeCombinerPass(clang::CompilerInstance &ins,
+llvm::ModulePass *createNestedScopeCombinerPass(clang::ASTContext &ctx,
                                                 rellic::IRToASTVisitor &gen) {
-  return new NestedScopeCombiner(ins, gen);
+  return new NestedScopeCombiner(ctx, gen);
 }
 }  // namespace rellic

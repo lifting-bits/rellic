@@ -67,16 +67,18 @@ static bool GeneratePseudocode(llvm::Module& module,
 
   clang::CompilerInstance ins;
   rellic::InitCompilerInstance(ins, module.getTargetTriple());
+  
+  auto& ast_ctx = ins.getASTContext();
 
-  rellic::IRToASTVisitor gen(ins);
+  rellic::IRToASTVisitor gen(ast_ctx);
 
   llvm::legacy::PassManager ast;
-  ast.add(rellic::createGenerateASTPass(ins, gen));
-  ast.add(rellic::createDeadStmtElimPass(ins, gen));
+  ast.add(rellic::createGenerateASTPass(ast_ctx, gen));
+  ast.add(rellic::createDeadStmtElimPass(ast_ctx, gen));
   ast.run(module);
 
   // Simplifier to use during condition-based refinement
-  auto cbr_simplifier = new rellic::Z3CondSimplify(ins, gen);
+  auto cbr_simplifier = new rellic::Z3CondSimplify(ast_ctx, gen);
   cbr_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(cbr_simplifier->GetZ3Context(), "aig") &
@@ -85,20 +87,20 @@ static bool GeneratePseudocode(llvm::Module& module,
 
   llvm::legacy::PassManager cbr;
   cbr.add(cbr_simplifier);
-  cbr.add(rellic::createNestedCondPropPass(ins, gen));
-  cbr.add(rellic::createNestedScopeCombinerPass(ins, gen));
-  cbr.add(rellic::createCondBasedRefinePass(ins, gen));
+  cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+  cbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
+  cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
   while (cbr.run(module))
     ;
 
   llvm::legacy::PassManager loop;
-  loop.add(rellic::createLoopRefinePass(ins, gen));
-  loop.add(rellic::createNestedScopeCombinerPass(ins, gen));
+  loop.add(rellic::createLoopRefinePass(ast_ctx, gen));
+  loop.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
   while (loop.run(module))
     ;
 
   // Simplifier to use during final refinement
-  auto fin_simplifier = new rellic::Z3CondSimplify(ins, gen);
+  auto fin_simplifier = new rellic::Z3CondSimplify(ast_ctx, gen);
   fin_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
@@ -111,12 +113,12 @@ static bool GeneratePseudocode(llvm::Module& module,
 
   llvm::legacy::PassManager fin;
   fin.add(fin_simplifier);
-  fin.add(rellic::createNestedCondPropPass(ins, gen));
-  fin.add(rellic::createNestedScopeCombinerPass(ins, gen));
-  fin.add(rellic::createDeadStmtElimPass(ins, gen));
+  fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+  fin.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
+  fin.add(rellic::createDeadStmtElimPass(ast_ctx, gen));
   fin.run(module);
 
-  ins.getASTContext().getTranslationUnitDecl()->print(output);
+  ast_ctx.getTranslationUnitDecl()->print(output);
 
   return true;
 }

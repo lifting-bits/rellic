@@ -32,6 +32,9 @@ void InitCompilerInstance(
 
 using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
 
+void InitCompilerInstance(clang::CompilerInstance &ins,
+                          std::string target_triple);
+
 bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map);
 
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,

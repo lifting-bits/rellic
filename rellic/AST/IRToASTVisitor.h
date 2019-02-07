@@ -29,7 +29,6 @@ namespace rellic {
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
-  clang::CompilerInstance *cc_ins;
   clang::ASTContext &ast_ctx;
 
   std::unordered_map<llvm::Value *, clang::Decl *> decls;
@@ -39,7 +38,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Expr *GetOperandExpr(clang::DeclContext *decl_ctx, llvm::Value *val);
 
  public:
-  IRToASTVisitor(clang::CompilerInstance &ins);
+  IRToASTVisitor(clang::ASTContext &ctx);
   
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);

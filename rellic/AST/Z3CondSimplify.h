@@ -42,7 +42,7 @@ class Z3CondSimplify : public llvm::ModulePass,
  public:
   static char ID;
 
-  Z3CondSimplify(clang::CompilerInstance &ins, rellic::IRToASTVisitor &ast_gen);
+  Z3CondSimplify(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
   z3::context &GetZ3Context() { return *z3_ctx; }
   
@@ -55,7 +55,7 @@ class Z3CondSimplify : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createZ3CondSimplifyPass(clang::CompilerInstance &ins,
+llvm::ModulePass *createZ3CondSimplifyPass(clang::ASTContext &ctx,
                                            rellic::IRToASTVisitor &gen);
 }  // namespace rellic
 

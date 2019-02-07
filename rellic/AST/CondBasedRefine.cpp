@@ -53,10 +53,10 @@ static void SplitClause(z3::expr expr, z3::expr_vector &clauses) {
 
 char CondBasedRefine::ID = 0;
 
-CondBasedRefine::CondBasedRefine(clang::CompilerInstance &ins,
+CondBasedRefine::CondBasedRefine(clang::ASTContext &ctx,
                                  rellic::IRToASTVisitor &ast_gen)
     : ModulePass(CondBasedRefine::ID),
-      ast_ctx(&ins.getASTContext()),
+      ast_ctx(&ctx),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(ast_ctx, z3_ctx.get())) {}
@@ -184,8 +184,8 @@ bool CondBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createCondBasedRefinePass(clang::CompilerInstance &ins,
+llvm::ModulePass *createCondBasedRefinePass(clang::ASTContext &ctx,
                                             rellic::IRToASTVisitor &gen) {
-  return new CondBasedRefine(ins, gen);
+  return new CondBasedRefine(ctx, gen);
 }
 }  // namespace rellic

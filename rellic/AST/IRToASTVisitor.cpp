@@ -135,8 +135,7 @@ static clang::VarDecl *CreateVarDecl(clang::ASTContext &ast_ctx,
 
 }  // namespace
 
-IRToASTVisitor::IRToASTVisitor(clang::CompilerInstance &ins)
-    : cc_ins(&ins), ast_ctx(cc_ins->getASTContext()) {}
+IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
 
 clang::FunctionDecl *IRToASTVisitor::GetFunctionDecl(llvm::Instruction *inst) {
   return llvm::dyn_cast<clang::FunctionDecl>(

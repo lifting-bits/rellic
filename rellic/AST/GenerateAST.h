@@ -58,14 +58,14 @@ class GenerateAST : public llvm::ModulePass {
  public:
   static char ID;
 
-  GenerateAST(clang::CompilerInstance &ins, rellic::IRToASTVisitor &ast_gen);
+  GenerateAST(clang::ASTContext &ctx, rellic::IRToASTVisitor &gen);
 
   void getAnalysisUsage(llvm::AnalysisUsage &usage) const override;
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createGenerateASTPass(clang::CompilerInstance &ins,
-                                        rellic::IRToASTVisitor &ast_gen);
+llvm::ModulePass *createGenerateASTPass(clang::ASTContext &ctx,
+                                        rellic::IRToASTVisitor &gen);
 }  // namespace rellic
 
 namespace llvm {

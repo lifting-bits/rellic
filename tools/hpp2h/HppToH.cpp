@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
                                      /* OwnDeserializationListener = */ false);
   // Create our conversion visitor
   auto& c_ast = c_ins.getASTContext();
-  rellic::CXXToCDeclVisitor visitor(&c_ast);
+  rellic::CXXToCDeclVisitor visitor(c_ast);
   // Run our visitor on the CXX AST
   visitor.TraverseDecl(cxx_ins.getASTContext().getTranslationUnitDecl());
   // Print output

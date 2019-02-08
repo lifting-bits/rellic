@@ -23,15 +23,27 @@
 namespace rellic {
 
 CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTContext &ctx)
-    : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {}
+    : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {
+  auto &diags = ast_ctx.getDiagnostics();
+  mangle_ctx = clang::ItaniumMangleContext::create(ast_ctx, diags);
+}
+
+std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
+  std::string buffer = decl->getNameAsString();
+  // if (mangle_ctx->shouldMangleCXXName(decl)) {
+  //   llvm::raw_string_ostream stream(buffer);
+  //   mangle_ctx->mangleName(decl, stream);
+  //   stream.str();
+  // }
+  return buffer;
+}
 
 clang::RecordDecl *CXXToCDeclVisitor::GetOrCreateStructDecl(
     clang::CXXRecordDecl *cls) {
   auto &decl = c_decls[cls];
   if (!decl) {
-    decl = CreateStructDecl(ast_ctx, c_tu,
-                            CreateIdentifier(ast_ctx, cls->getName()));
-    c_tu->addDecl(decl);
+    auto id = CreateIdentifier(ast_ctx, cls->getName());
+    decl = CreateStructDecl(ast_ctx, c_tu, id);
   }
   return llvm::cast<clang::RecordDecl>(decl);
 }
@@ -46,8 +58,8 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
     return true;
   }
   // Create a forward decl of a C struct for this methods parent class
-  auto struct_type =
-      GetOrCreateStructDecl(method->getParent())->getTypeForDecl();
+  auto struct_decl = GetOrCreateStructDecl(method->getParent());
+  auto struct_type = struct_decl->getTypeForDecl();
   // Gather necessary types for the C function decl
   auto this_type = ast_ctx.getPointerType(clang::QualType(struct_type, 0));
   std::vector<clang::QualType> param_types({this_type});
@@ -59,9 +71,9 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
       ast_ctx.getFunctionType(method_type->getReturnType(), param_types,
                               method_type->getExtProtoInfo());
   // Declare the C function
-  auto func_decl = CreateFunctionDecl(
-      ast_ctx, c_tu, CreateIdentifier(ast_ctx, method_name), func_type);
-  // Declare it's parameters
+  auto func_id = CreateIdentifier(ast_ctx, GetMangledName(method));
+  auto func_decl = CreateFunctionDecl(ast_ctx, c_tu, func_id, func_type);
+  // Declare parameters
   auto this_decl = CreateParmVarDecl(
       ast_ctx, func_decl, CreateIdentifier(ast_ctx, "this"), this_type);
   std::vector<clang::ParmVarDecl *> param_decls({this_decl});
@@ -80,32 +92,38 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
 bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
   auto class_name = cls->getNameAsString();
   DLOG(INFO) << "VisitCXXRecordDecl: " << class_name;
+  // Process only specializations of class templates
+  if (cls->getDescribedClassTemplate()) {
+    return true;
+  }
   // Get a forward declaration
-  auto struct_dec = GetOrCreateStructDecl(cls);
+  auto struct_decl = GetOrCreateStructDecl(cls);
+  if (cls->isPolymorphic()) {
+    c_tu->addDecl(struct_decl);
+    // Create a vtable
+  }
   // Define the C structure
-  auto struct_def = CreateStructDecl(
-      ast_ctx, c_tu, CreateIdentifier(ast_ctx, class_name), struct_dec);
+  auto struct_id = CreateIdentifier(ast_ctx, class_name);
+  auto struct_defn = CreateStructDecl(ast_ctx, c_tu, struct_id, struct_decl);
   // Add attribute fields
   for (auto field : cls->fields()) {
     auto id = CreateIdentifier(ast_ctx, field->getName());
     auto type = field->getType();
-    struct_def->addDecl(CreateFieldDecl(ast_ctx, struct_def, id, type));
-  }
-  // Add method fields
-  for (auto method : cls->methods()) {
-    CHECK(c_decls.count(method))
-        << "C function declaration for " << method->getNameAsString()
-        << " in class " << class_name << " does not exist";
-    auto func_decl = llvm::cast<clang::FunctionDecl>(c_decls[method]);
-    auto id = CreateIdentifier(ast_ctx, func_decl->getName());
-    auto type = ast_ctx.getPointerType(func_decl->getType());
-    struct_def->addDecl(CreateFieldDecl(ast_ctx, struct_def, id, type));
+    struct_defn->addDecl(CreateFieldDecl(ast_ctx, struct_defn, id, type));
   }
   // Complete the C structure definition
-  struct_def->completeDefinition();
+  struct_defn->completeDefinition();
   // Add the C structure to the C translation unit
-  c_tu->addDecl(struct_def);
-  // Done !
+  c_tu->addDecl(struct_defn);
+  // Add methods to the C translation unit
+  for (auto method : cls->methods()) {
+    auto iter = c_decls.find(method);
+    CHECK(iter != c_decls.end())
+        << "C function declaration for " << method->getNameAsString()
+        << " in class " << class_name << " does not exist";
+    c_tu->addDecl(iter->second);
+  }
+  // Done
   return true;
 }
 

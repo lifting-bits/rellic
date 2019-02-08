@@ -42,11 +42,11 @@
 
 #ifndef RELLIC_VERSION_STRING
 #define RELLIC_VERSION_STRING "unknown"
-#endif  // MCSEMA_VERSION_STRING
+#endif  // RELLIC_BRANCH_NAME
 
 #ifndef RELLIC_BRANCH_NAME
 #define RELLIC_BRANCH_NAME "unknown"
-#endif  // MCSEMA_BRANCH_NAME
+#endif  // RELLIC_BRANCH_NAME
 
 DEFINE_string(input, "", "Input LLVM bitcode file.");
 DEFINE_string(output, "", "Output file.");

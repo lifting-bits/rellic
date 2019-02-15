@@ -23,18 +23,18 @@
 namespace rellic {
 
 CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTContext &ctx)
-    : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {
-  auto &diags = ast_ctx.getDiagnostics();
-  mangle_ctx = clang::ItaniumMangleContext::create(ast_ctx, diags);
-}
+    : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {}
 
 std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
+  auto &cxx_ast_ctx = decl->getASTContext();
+  auto &cxx_diags = cxx_ast_ctx.getDiagnostics();
+  auto mangler = clang::ItaniumMangleContext::create(cxx_ast_ctx, cxx_diags);
   std::string buffer = decl->getNameAsString();
-  // if (mangle_ctx->shouldMangleCXXName(decl)) {
-  //   llvm::raw_string_ostream stream(buffer);
-  //   mangle_ctx->mangleName(decl, stream);
-  //   stream.str();
-  // }
+  if (mangler->shouldMangleCXXName(decl)) {
+    llvm::raw_string_ostream stream(buffer);
+    mangler->mangleName(decl, stream);
+    stream.str();
+  }
   return buffer;
 }
 

@@ -20,9 +20,10 @@
 #include <iostream>
 
 #include <clang/Basic/TargetInfo.h>
+#include <clang/Frontend/ASTUnit.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Lex/Preprocessor.h>
 #include <clang/Parse/ParseAST.h>
-#include <clang/Serialization/ASTReader.h>
 
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
@@ -83,25 +84,20 @@ int main(int argc, char* argv[]) {
   llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
   CHECK(!ec) << "Failed to create output file: " << ec.message();
 
-  // Create compiler instances
-  clang::CompilerInstance c_ins;
-  clang::CompilerInstance cxx_ins;
-  // Initialize
-  rellic::InitCompilerInstance(c_ins);
-  rellic::InitCompilerInstance(cxx_ins);
   // Read a CXX AST from our input file
-  cxx_ins.createPCHExternalASTSource(FLAGS_input,
-                                     /* DisablePCHValidation = */ true,
-                                     /* AllowPCHWithCompilerErrors = */ false,
-                                     /* DeserializationListener = */ nullptr,
-                                     /* OwnDeserializationListener = */ false);
-  // Create our conversion visitor
-  auto& c_ast = c_ins.getASTContext();
-  rellic::CXXToCDeclVisitor visitor(c_ast);
+  clang::CompilerInstance cxx_ins;
+  cxx_ins.createDiagnostics();
+  auto cxx_ast_unit = clang::ASTUnit::LoadFromASTFile(
+      FLAGS_input, cxx_ins.getPCHContainerReader(), &cxx_ins.getDiagnostics(),
+      cxx_ins.getFileSystemOpts());
   // Run our visitor on the CXX AST
-  visitor.TraverseDecl(cxx_ins.getASTContext().getTranslationUnitDecl());
+  clang::CompilerInstance c_ins;
+  rellic::InitCompilerInstance(c_ins);
+  auto& c_ast_ctx = c_ins.getASTContext();
+  rellic::CXXToCDeclVisitor visitor(c_ast_ctx);
+  visitor.TraverseDecl(cxx_ast_unit->getASTContext().getTranslationUnitDecl());
   // Print output
-  c_ast.getTranslationUnitDecl()->print(output);
+  c_ast_ctx.getTranslationUnitDecl()->print(output);
 
   google::ShutDownCommandLineFlags();
   google::ShutdownGoogleLogging();

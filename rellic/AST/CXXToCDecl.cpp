@@ -17,6 +17,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <clang/Index/CodegenNameGenerator.h>
+
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
 
@@ -26,16 +28,8 @@ CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTContext &ctx)
     : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {}
 
 std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
-  auto &cxx_ast_ctx = decl->getASTContext();
-  auto &cxx_diags = cxx_ast_ctx.getDiagnostics();
-  auto mangler = clang::ItaniumMangleContext::create(cxx_ast_ctx, cxx_diags);
-  std::string buffer = decl->getNameAsString();
-  if (mangler->shouldMangleCXXName(decl)) {
-    llvm::raw_string_ostream stream(buffer);
-    mangler->mangleName(decl, stream);
-    stream.str();
-  }
-  return buffer;
+  clang::index::CodegenNameGenerator mangler(decl->getASTContext());
+  return mangler.getName(decl);
 }
 
 clang::RecordDecl *CXXToCDeclVisitor::GetOrCreateStructDecl(

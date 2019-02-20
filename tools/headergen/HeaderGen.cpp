@@ -21,11 +21,6 @@
 #include <iostream>
 #include <streambuf>
 
-#include <clang/Basic/TargetInfo.h>
-#include <clang/Frontend/ASTUnit.h>
-#include <clang/Frontend/CompilerInstance.h>
-#include <clang/Lex/Preprocessor.h>
-#include <clang/Parse/ParseAST.h>
 #include <clang/Tooling/Tooling.h>
 
 #include "rellic/AST/CXXToCDecl.h"
@@ -43,7 +38,7 @@
 #define RELLIC_BRANCH_NAME "unknown"
 #endif  // RELLIC_BRANCH_NAME
 
-DEFINE_string(input, "", "Input LLVM bitcode file.");
+DEFINE_string(input, "", "Input header file.");
 DEFINE_string(output, "", "Output file.");
 
 DECLARE_bool(version);
@@ -71,8 +66,8 @@ int main(int argc, char* argv[]) {
   usage << std::endl
         << std::endl
         << "  " << argv[0] << " \\" << std::endl
-        << "    --input INPUT_AST_FILE \\" << std::endl
-        << "    --output OUTPUT_C_FILE \\" << std::endl
+        << "    --input INPUT_HEADER_FILE \\" << std::endl
+        << "    --output OUTPUT_FILE \\" << std::endl
         << std::endl
 
         // Print the version and exit.
@@ -91,10 +86,10 @@ int main(int argc, char* argv[]) {
   google::ParseCommandLineFlags(&argc, &argv, true);
 
   LOG_IF(ERROR, FLAGS_input.empty())
-      << "Must specify the path to an input C++ header file.";
+      << "Must specify the path to an input header file.";
 
   LOG_IF(ERROR, FLAGS_output.empty())
-      << "Must specify the path to an output C header file.";
+      << "Must specify the path to an output file.";
 
   if (FLAGS_input.empty() || FLAGS_output.empty()) {
     std::cerr << google::ProgramUsage();

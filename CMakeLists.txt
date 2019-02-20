@@ -120,19 +120,19 @@ target_compile_options(${RELLIC_DECOMP} PRIVATE ${PROJECT_CXXFLAGS})
 # hpp2h target settings
 #
 
-set(RELLIC_HPP2H rellic-hpp2h-${RELLIC_LLVM_VERSION})
+set(RELLIC_HEADERGEN rellic-headergen-${RELLIC_LLVM_VERSION})
 
-add_executable(${RELLIC_HPP2H}
+add_executable(${RELLIC_HEADERGEN}
 
   rellic/AST/CXXToCDecl.cpp
   rellic/AST/Util.cpp
 
   rellic/BC/Util.cpp
 
-  tools/hpp2h/HppToH.cpp
+  tools/headergen/HeaderGen.cpp
 )
 
-target_link_libraries(${RELLIC_HPP2H} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${RELLIC_HPP2H} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${RELLIC_HPP2H} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${RELLIC_HPP2H} PRIVATE ${PROJECT_CXXFLAGS})
+target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_LIBRARIES})
+target_include_directories(${RELLIC_HEADERGEN} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
+target_compile_definitions(${RELLIC_HEADERGEN} PUBLIC ${PROJECT_DEFINITIONS})
+target_compile_options(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_CXXFLAGS})

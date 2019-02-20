@@ -17,13 +17,16 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <fstream>
 #include <iostream>
+#include <streambuf>
 
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Parse/ParseAST.h>
+#include <clang/Tooling/Tooling.h>
 
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
@@ -44,6 +47,24 @@ DEFINE_string(input, "", "Input LLVM bitcode file.");
 DEFINE_string(output, "", "Output file.");
 
 DECLARE_bool(version);
+
+namespace {
+
+static std::string ReadFile(std::string path) {
+  std::ifstream t(path, std::ifstream::in);
+  std::string str;
+
+  t.seekg(0, std::ios::end);
+  str.reserve(t.tellg());
+  t.seekg(0, std::ios::beg);
+
+  str.assign((std::istreambuf_iterator<char>(t)),
+             std::istreambuf_iterator<char>());
+
+  return str;
+}
+
+}  // namespace
 
 int main(int argc, char* argv[]) {
   std::stringstream usage;
@@ -79,17 +100,17 @@ int main(int argc, char* argv[]) {
     std::cerr << google::ProgramUsage();
     return EXIT_FAILURE;
   }
-
+  
   std::error_code ec;
   llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
   CHECK(!ec) << "Failed to create output file: " << ec.message();
-
   // Read a CXX AST from our input file
-  clang::CompilerInstance cxx_ins;
-  cxx_ins.createDiagnostics();
-  auto cxx_ast_unit = clang::ASTUnit::LoadFromASTFile(
-      FLAGS_input, cxx_ins.getPCHContainerReader(), &cxx_ins.getDiagnostics(),
-      cxx_ins.getFileSystemOpts());
+  auto cxx_ast_unit =
+      clang::tooling::buildASTFromCode(ReadFile(FLAGS_input), FLAGS_input);
+  // Exit if AST generation has failed
+  if (cxx_ast_unit->getDiagnostics().hasErrorOccurred()) {
+    return EXIT_FAILURE;
+  }
   // Run our visitor on the CXX AST
   clang::CompilerInstance c_ins;
   rellic::InitCompilerInstance(c_ins);

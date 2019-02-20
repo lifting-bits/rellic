@@ -69,7 +69,7 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES ${LLVM_INCLUDE_DIRS})
 
 # clang
 find_package(Clang REQUIRED)
-set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers)
+set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3

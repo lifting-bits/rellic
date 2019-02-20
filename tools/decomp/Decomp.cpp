@@ -42,7 +42,7 @@
 
 #ifndef RELLIC_VERSION_STRING
 #define RELLIC_VERSION_STRING "unknown"
-#endif  // RELLIC_BRANCH_NAME
+#endif  // RELLIC_VERSION_STRING
 
 #ifndef RELLIC_BRANCH_NAME
 #define RELLIC_BRANCH_NAME "unknown"

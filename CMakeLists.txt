@@ -69,7 +69,7 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES ${LLVM_INCLUDE_DIRS})
 
 # clang
 find_package(Clang REQUIRED)
-set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers)
+set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
@@ -86,7 +86,7 @@ find_package(gflags REQUIRED)
 list(APPEND PROJECT_LIBRARIES gflags)
 
 #
-# target settings
+# decomp target settings
 #
 
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
@@ -111,11 +111,28 @@ add_executable(${RELLIC_DECOMP}
   tools/decomp/Decomp.cpp
 )
 
-#
-# target settings
-#
-
 target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_LIBRARIES})
 target_include_directories(${RELLIC_DECOMP} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
 target_compile_definitions(${RELLIC_DECOMP} PUBLIC ${PROJECT_DEFINITIONS})
 target_compile_options(${RELLIC_DECOMP} PRIVATE ${PROJECT_CXXFLAGS})
+
+#
+# hpp2h target settings
+#
+
+set(RELLIC_HEADERGEN rellic-headergen-${RELLIC_LLVM_VERSION})
+
+add_executable(${RELLIC_HEADERGEN}
+
+  rellic/AST/CXXToCDecl.cpp
+  rellic/AST/Util.cpp
+
+  rellic/BC/Util.cpp
+
+  tools/headergen/HeaderGen.cpp
+)
+
+target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_LIBRARIES})
+target_include_directories(${RELLIC_HEADERGEN} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
+target_compile_definitions(${RELLIC_HEADERGEN} PUBLIC ${PROJECT_DEFINITIONS})
+target_compile_options(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_CXXFLAGS})

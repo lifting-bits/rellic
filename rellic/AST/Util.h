@@ -26,6 +26,10 @@
 
 namespace rellic {
 
+void InitCompilerInstance(
+    clang::CompilerInstance &ins,
+    std::string target_triple = llvm::sys::getDefaultTargetTriple());
+
 using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
 
 void InitCompilerInstance(clang::CompilerInstance &ins,
@@ -36,7 +40,7 @@ bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map);
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
                                         std::string name);
 
-clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ast_ctx,
+clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
                                       clang::ValueDecl *val);
 
 clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
@@ -53,7 +57,7 @@ clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
 
 clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx);
 
-clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ast_ctx,
+clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
                                       clang::ValueDecl *val);
 
 clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr);
@@ -66,10 +70,30 @@ clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
 clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
                           clang::Expr *rhs);
 
-clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
+clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ctx,
                                             clang::BinaryOperatorKind opc,
                                             clang::Expr *lhs, clang::Expr *rhs,
                                             clang::QualType res_type);
+
+clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
+                                      clang::DeclContext *decl_ctx,
+                                      clang::IdentifierInfo *id,
+                                      clang::QualType type);
+
+clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
+                                        clang::DeclContext *decl_ctx,
+                                        clang::IdentifierInfo *id,
+                                        clang::QualType type);
+
+clang::FieldDecl *CreateFieldDecl(clang::ASTContext &ctx,
+                                  clang::DeclContext *decl_ctx,
+                                  clang::IdentifierInfo *id,
+                                  clang::QualType type);
+
+clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
+                                    clang::DeclContext *decl_ctx,
+                                    clang::IdentifierInfo *id,
+                                    clang::RecordDecl *prev_decl = nullptr);
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 

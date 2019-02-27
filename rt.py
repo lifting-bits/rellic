@@ -1,28 +1,53 @@
 import subprocess
-import sys
+import os
+import argparse
+
+def execute_cmd(filename):
+	subprocess.run(["rellic-build/libraries/llvm/bin/clang", filename,
+			"-o", "output1"])
+	compl_process1 = subprocess.run("./output1", capture_output=True, text=True)
+	subprocess.run(["rellic-build/libraries/llvm/bin/clang", "-c",
+	                "-emit-llvm", filename, "-o", "roundtrip.bc"])
+	subprocess.run(["rellic-build/rellic-decomp-4.0", "--input",
+	                "roundtrip.bc", "--output", "roundtrip.c"])
+	subprocess.run(["rellic-build/libraries/llvm/bin/clang",
+	                "-Wno-everything", "roundtrip.c",
+			 "-o", "output2"])
+	compl_process2 = subprocess.run("./output2", capture_output=True, text=True)
+	os.remove("roundtrip.bc")
+	os.remove("roundtrip.c")
+	os.remove("output1")
+	os.remove("output2")
+
+	return compl_process1, compl_process2
 
 
-subprocess.run(["rellic-build/libraries/llvm/bin/clang", sys.argv[1]])
+def compare(two_things):
+	assert two_things[0].stderr == two_things[1].stderr, \
+		"Different stderr."
+	assert two_things[0].stdout == two_things[1].stdout,  \
+		"Different stdout."
+	assert two_things[0].returncode == two_things[1].returncode, \
+		"Different return code."
 
-compl_process1 = subprocess.run("./a.out", capture_output=True, text=True)
-
-subprocess.run(["rm", "a.out"])
-
-
-subprocess.run(["rellic-build/libraries/llvm/bin/clang", "-c", "-emit-llvm", sys.argv[1], "-o", "roundtrip.bc"])
-
-subprocess.run(["rellic-build/rellic-decomp-4.0", "--input", "roundtrip.bc", "--output", "roundtrip.c"])
-
-subprocess.run(["rellic-build/libraries/llvm/bin/clang", "-Wno-everything", "roundtrip.c"])
-
-compl_process2 = subprocess.run("./a.out", capture_output=True, text=True)
-
-subprocess.run(["rm", "roundtrip.bc", "roundtrip.c", "a.out"])
+	print ("Same outputs.")
 
 
-if compl_process1.stderr == compl_process2.stderr and compl_process1.stdout == compl_process2.stdout and compl_process1.returncode == compl_process2.returncode:
-	print("Same outputs.")
-else:
-	print("Different outputs.")
 
 
+
+
+
+
+
+def main():
+	parser = argparse.ArgumentParser()
+	parser.add_argument("filename",
+                            help="name of the source code file or path to it")
+
+	args = parser.parse_args()
+	outputs = execute_cmd(args.filename)
+	compare(outputs)
+
+
+main()

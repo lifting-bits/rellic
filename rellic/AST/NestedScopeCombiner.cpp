@@ -47,7 +47,7 @@ bool NestedScopeCombiner::VisitCompoundStmt(clang::CompoundStmt *compound) {
   bool has_compound = false;
   std::vector<clang::Stmt *> new_body;
   for (auto stmt : compound->body()) {
-    if (auto child = llvm::dyn_cast<clang::CompoundStmt>(stmt)) {
+    if (auto child = clang::dyn_cast<clang::CompoundStmt>(stmt)) {
       new_body.insert(new_body.end(), child->body_begin(), child->body_end());
       has_compound = true;
     } else {

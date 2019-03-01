@@ -120,7 +120,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
       auto br = llvm::cast<llvm::BranchInst>(term);
       if (br->isConditional()) {
         // Get the edge condition
-        result = llvm::cast<clang::Expr>(
+        result = clang::cast<clang::Expr>(
             ast_gen->GetOrCreateStmt(br->getCondition()));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
@@ -375,7 +375,7 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
       POWalkSubRegions(regions->getTopLevelRegion());
       // Get the function declaration AST node for `func`
       auto fdecl =
-          llvm::cast<clang::FunctionDecl>(ast_gen->GetOrCreateDecl(&func));
+          clang::cast<clang::FunctionDecl>(ast_gen->GetOrCreateDecl(&func));
       // Set it's body to the compound of the top-level region
       fdecl->setBody(region_stmts[regions->getTopLevelRegion()]);
     }

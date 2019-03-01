@@ -28,7 +28,7 @@ using IfStmtSet = std::set<clang::IfStmt *>;
 static IfStmtSet GetIfStmts(clang::CompoundStmt *compound) {
   IfStmtSet result;
   for (auto stmt : compound->body()) {
-    if (auto ifstmt = llvm::dyn_cast<clang::IfStmt>(stmt)) {
+    if (auto ifstmt = clang::dyn_cast<clang::IfStmt>(stmt)) {
       result.insert(ifstmt);
     }
   }
@@ -136,7 +136,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtSet worklist) {
       if (thens.size() + elses.size() > 1) {
         // Erase then statements from the AST and `worklist`
         for (auto stmt : thens) {
-          worklist.erase(llvm::cast<clang::IfStmt>(stmt));
+          worklist.erase(clang::cast<clang::IfStmt>(stmt));
           substitutions[stmt] = nullptr;
         }
         // Create our new if-then
@@ -146,7 +146,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtSet worklist) {
         if (!elses.empty()) {
           // Erase else statements from the AST and `worklist`
           for (auto stmt : elses) {
-            worklist.erase(llvm::cast<clang::IfStmt>(stmt));
+            worklist.erase(clang::cast<clang::IfStmt>(stmt));
             substitutions[stmt] = nullptr;
           }
           // Add the else branch

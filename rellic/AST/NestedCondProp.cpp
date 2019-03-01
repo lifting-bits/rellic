@@ -28,7 +28,7 @@ namespace {
 static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
   std::vector<clang::IfStmt *> result;
   for (auto stmt : compound->body()) {
-    if (auto ifstmt = llvm::dyn_cast<clang::IfStmt>(stmt)) {
+    if (auto ifstmt = clang::dyn_cast<clang::IfStmt>(stmt)) {
       result.push_back(ifstmt);
     }
   }
@@ -56,7 +56,7 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
     auto stmt_else = ifstmt->getElse();
     // `cond` is not a constant expression and we propagate it
     // to `clang::IfStmt` nodes in it's `then` branch.
-    if (auto comp = llvm::dyn_cast<clang::CompoundStmt>(stmt_then)) {
+    if (auto comp = clang::dyn_cast<clang::CompoundStmt>(stmt_then)) {
       for (auto child : GetIfStmts(comp)) {
         parent_conds[child] = cond;
       }
@@ -64,7 +64,7 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
       LOG(FATAL) << "Then branch must be a clang::CompoundStmt!";
     }
     if (stmt_else) {
-      if (auto comp = llvm::dyn_cast<clang::CompoundStmt>(stmt_else)) {
+      if (auto comp = clang::dyn_cast<clang::CompoundStmt>(stmt_else)) {
         for (auto child : GetIfStmts(comp)) {
           parent_conds[child] = CreateNotExpr(*ast_ctx, cond);
         }

@@ -39,7 +39,7 @@ clang::RecordDecl *CXXToCDeclVisitor::GetOrCreateStructDecl(
     auto id = CreateIdentifier(ast_ctx, cls->getName());
     decl = CreateStructDecl(ast_ctx, c_tu, id);
   }
-  return llvm::cast<clang::RecordDecl>(decl);
+  return clang::cast<clang::RecordDecl>(decl);
 }
 
 bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
@@ -57,7 +57,7 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   // Gather necessary types for the C function decl
   auto this_type = ast_ctx.getPointerType(clang::QualType(struct_type, 0));
   std::vector<clang::QualType> param_types({this_type});
-  auto method_type = llvm::cast<clang::FunctionProtoType>(method->getType());
+  auto method_type = clang::cast<clang::FunctionProtoType>(method->getType());
   param_types.insert(param_types.end(), method_type->param_type_begin(),
                      method_type->param_type_end());
   // Create function prototype

@@ -17,7 +17,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <clang/Index/CodegenNameGenerator.h>
+#include <clang/AST/Mangle.h>
 
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
@@ -28,18 +28,33 @@ CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTContext &ctx)
     : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {}
 
 std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
-  clang::index::CodegenNameGenerator mangler(decl->getASTContext());
-  return mangler.getName(decl);
+  auto mangler = decl->getASTContext().createMangleContext();
+  std::string buffer;
+  if (mangler->shouldMangleDeclName(decl)) {
+    llvm::raw_string_ostream os(buffer);
+    if (auto type_decl = clang::dyn_cast<clang::TypeDecl>(decl)) {
+      auto type = clang::QualType(type_decl->getTypeForDecl(), 0);
+      mangler->mangleTypeName(type, os);
+    } else if (auto cst = clang::dyn_cast<clang::CXXConstructorDecl>(decl)) {
+      mangler->mangleCXXCtor(cst, clang::Ctor_Complete, os);
+    } else if (auto dst = clang::dyn_cast<clang::CXXDestructorDecl>(decl)) {
+      mangler->mangleCXXDtor(dst, clang::Dtor_Complete, os);
+    } else {
+      mangler->mangleName(decl, os);
+    }
+    os.flush();
+  }
+  return buffer.empty() ? decl->getNameAsString() : buffer;
 }
 
 clang::RecordDecl *CXXToCDeclVisitor::GetOrCreateStructDecl(
     clang::CXXRecordDecl *cls) {
   auto &decl = c_decls[cls];
   if (!decl) {
-    auto id = CreateIdentifier(ast_ctx, cls->getName());
+    auto id = CreateIdentifier(ast_ctx, GetMangledName(cls));
     decl = CreateStructDecl(ast_ctx, c_tu, id);
   }
-  return llvm::cast<clang::RecordDecl>(decl);
+  return clang::cast<clang::RecordDecl>(decl);
 }
 
 bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
@@ -57,23 +72,39 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   // Gather necessary types for the C function decl
   auto this_type = ast_ctx.getPointerType(clang::QualType(struct_type, 0));
   std::vector<clang::QualType> param_types({this_type});
-  auto method_type = llvm::cast<clang::FunctionProtoType>(method->getType());
+  auto method_type = clang::cast<clang::FunctionProtoType>(method->getType());
   param_types.insert(param_types.end(), method_type->param_type_begin(),
                      method_type->param_type_end());
   // Create function prototype
-  auto func_type =
-      ast_ctx.getFunctionType(method_type->getReturnType(), param_types,
-                              method_type->getExtProtoInfo());
+  auto method_ret_type = method_type->getReturnType();
+  // TODO(msurovic): make a function out of this
+  // Handle class-type attributes by translating to struct types
+  if (auto type_decl = method_ret_type->getAsCXXRecordDecl()) {
+    auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
+    auto quals = method_ret_type.getQualifiers().getAsOpaqueValue();
+    method_ret_type = clang::QualType(struct_type, quals);
+  }
+  auto func_type = ast_ctx.getFunctionType(method_ret_type, param_types,
+                                           method_type->getExtProtoInfo());
   // Declare the C function
   auto func_id = CreateIdentifier(ast_ctx, GetMangledName(method));
   auto func_decl = CreateFunctionDecl(ast_ctx, c_tu, func_id, func_type);
   // Declare parameters
-  auto this_decl = CreateParmVarDecl(
-      ast_ctx, func_decl, CreateIdentifier(ast_ctx, "this"), this_type);
+  auto this_id = CreateIdentifier(ast_ctx, "this");
+  auto this_decl = CreateParmVarDecl(ast_ctx, func_decl, this_id, this_type);
   std::vector<clang::ParmVarDecl *> param_decls({this_decl});
   for (auto param : method->parameters()) {
-    param_decls.push_back(CreateParmVarDecl(
-        ast_ctx, func_decl, param->getIdentifier(), param->getType()));
+    auto param_id = CreateIdentifier(ast_ctx, param->getNameAsString());
+    auto param_type = param->getType();
+    // TODO(msurovic): make a function out of this
+    // Handle class-type attributes by translating to struct types
+    if (auto type_decl = param_type->getAsCXXRecordDecl()) {
+      auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
+      auto quals = param_type.getQualifiers().getAsOpaqueValue();
+      param_type = clang::QualType(struct_type, quals);
+    }
+    param_decls.push_back(
+        CreateParmVarDecl(ast_ctx, func_decl, param_id, param_type));
   }
   // Set C function parameters
   func_decl->setParams(param_decls);
@@ -97,12 +128,19 @@ bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
     // Create a vtable
   }
   // Define the C structure
-  auto struct_id = CreateIdentifier(ast_ctx, class_name);
+  auto struct_id = CreateIdentifier(ast_ctx, GetMangledName(cls));
   auto struct_defn = CreateStructDecl(ast_ctx, c_tu, struct_id, struct_decl);
   // Add attribute fields
   for (auto field : cls->fields()) {
     auto id = CreateIdentifier(ast_ctx, field->getName());
     auto type = field->getType();
+    // TODO(msurovic): make a function out of this
+    // Handle class-type attributes by translating to struct types
+    if (auto type_decl = type->getAsCXXRecordDecl()) {
+      auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
+      auto quals = type.getQualifiers().getAsOpaqueValue();
+      type = clang::QualType(struct_type, quals);
+    }
     struct_defn->addDecl(CreateFieldDecl(ast_ctx, struct_defn, id, type));
   }
   // Complete the C structure definition

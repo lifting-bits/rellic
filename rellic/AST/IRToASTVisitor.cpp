@@ -138,7 +138,7 @@ static clang::VarDecl *CreateVarDecl(clang::ASTContext &ast_ctx,
 IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
 
 clang::FunctionDecl *IRToASTVisitor::GetFunctionDecl(llvm::Instruction *inst) {
-  return llvm::dyn_cast<clang::FunctionDecl>(
+  return clang::dyn_cast<clang::FunctionDecl>(
       decls[inst->getParent()->getParent()]);
 }
 
@@ -160,7 +160,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     result = CreateLiteralExpr(ast_ctx, decl_ctx, cdata);
   } else if (decls.count(val)) {
     // Operand is an l-value (variable, function, ...)
-    auto decl = llvm::cast<clang::ValueDecl>(decls[val]);
+    auto decl = clang::cast<clang::ValueDecl>(decls[val]);
     result = CreateDeclRefExpr(ast_ctx, decl);
     if (llvm::isa<llvm::GlobalValue>(val)) {
       // LLVM IR global values are constant pointers; Add a `&`
@@ -170,7 +170,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     }
   } else if (stmts.count(val)) {
     // Operand is a result of an expression
-    result = llvm::cast<clang::Expr>(stmts[val]);
+    result = clang::cast<clang::Expr>(stmts[val]);
   } else {
     LOG(FATAL) << "Invalid operand";
   }
@@ -221,7 +221,7 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     var = CreateVarDecl(ast_ctx, tudecl, type, name, /*constant=*/true);
 
     if (gvar.hasInitializer()) {
-      auto tmp = llvm::cast<clang::VarDecl>(var);
+      auto tmp = clang::cast<clang::VarDecl>(var);
       tmp->setInit(CreateLiteralExpr(ast_ctx, tudecl, gvar.getInitializer()));
     }
 
@@ -242,7 +242,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
                               GetQualType(ast_ctx, type));
 
     if (!func.arg_empty()) {
-      auto func_ctx = llvm::cast<clang::FunctionDecl>(decl);
+      auto func_ctx = clang::cast<clang::FunctionDecl>(decl);
       std::vector<clang::ParmVarDecl *> params;
       for (auto &arg : func.args()) {
         auto arg_name = arg.hasName() ? arg.getName().str()
@@ -281,7 +281,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 //         ast_ctx, compounds, clang::SourceLocation(),
 //         clang::SourceLocation());
 
-//     if (auto decl = llvm::dyn_cast<clang::FunctionDecl>(decls[&func])) {
+//     if (auto decl = clang::dyn_cast<clang::FunctionDecl>(decls[&func])) {
 //       decl->setBody(compound);
 //     } else {
 //       LOG(FATAL) << "FunctionDecl for function does not exist";
@@ -316,7 +316,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
       auto decl = decls[func];
       CHECK(decl) << "FunctionDecl for callee does not exist";
-      auto fdecl = llvm::cast<clang::FunctionDecl>(decl);
+      auto fdecl = clang::cast<clang::FunctionDecl>(decl);
       auto fcast = clang::ImplicitCastExpr::Create(
           ast_ctx, ast_ctx.getPointerType(fdecl->getType()),
           clang::CK_FunctionToPointerDecay, CreateDeclRefExpr(ast_ctx, fdecl),
@@ -350,7 +350,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
       DLOG(INFO) << "Indexing an array";
       if (inst.hasAllZeroIndices()) {
         auto ptr = inst.getPointerOperand();
-        if (auto array = llvm::dyn_cast<clang::VarDecl>(decls[ptr])) {
+        if (auto array = clang::dyn_cast<clang::VarDecl>(decls[ptr])) {
           expr = CreateDeclRefExpr(ast_ctx, array);
         } else {
           LOG(FATAL) << "Referencing undeclared variable";
@@ -399,7 +399,7 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
     clang::Expr *lhs = GetOperandExpr(fdecl, ptr);
     // Strip `&` from the global variable reference
     if (llvm::isa<llvm::GlobalVariable>(ptr)) {
-      if (auto unary = llvm::dyn_cast<clang::UnaryOperator>(lhs)) {
+      if (auto unary = clang::dyn_cast<clang::UnaryOperator>(lhs)) {
         if (unary->getOpcode() == clang::UO_AddrOf) {
           lhs = unary->getSubExpr();
         }
@@ -431,7 +431,7 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
     if (llvm::isa<llvm::AllocaInst>(ptr) ||
         llvm::isa<llvm::GlobalVariable>(ptr)) {
       DLOG(INFO) << "Loading from a variable";
-      if (auto var = llvm::dyn_cast<clang::VarDecl>(GetOrCreateDecl(ptr))) {
+      if (auto var = clang::dyn_cast<clang::VarDecl>(GetOrCreateDecl(ptr))) {
         ref = CreateDeclRefExpr(ast_ctx, var);
       } else {
         LOG(FATAL) << "Referencing undeclared variable";

@@ -34,7 +34,7 @@ bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   llvm::APSInt val;
   bool is_const = ifstmt->getCond()->isIntegerConstantExpr(val, *ast_ctx);
-  auto compound = llvm::dyn_cast<clang::CompoundStmt>(ifstmt->getThen());
+  auto compound = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen());
   bool is_empty = compound ? compound->body_empty() : false;
   if ((is_const && !val.getBoolValue()) || is_empty) {
     substitutions[ifstmt] = nullptr;
@@ -51,7 +51,7 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
       continue;
     }
     // Add only necessary statements
-    if (auto expr = llvm::dyn_cast<clang::Expr>(stmt)) {
+    if (auto expr = clang::dyn_cast<clang::Expr>(stmt)) {
       if (expr->HasSideEffects(*ast_ctx)) {
         new_body.push_back(stmt);
       }

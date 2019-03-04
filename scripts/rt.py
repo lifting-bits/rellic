@@ -5,26 +5,27 @@ import os
 import argparse
 
 
+def run_cmd(arg_list, set_timeout):
+    return subprocess.run(arg_list, capture_output=True,
+                          timeout=set_timeout, text=True)
+
+
 def roundtrip(rellic, filename, clang, set_timeout):
-    subprocess.run([clang, filename,
-                    "-o", "output1"], timeout=set_timeout)
-    compl_process1 = subprocess.run(
-        "./output1", capture_output=True, timeout=set_timeout, text=True)
-    subprocess.run([clang, "-c",
-                    "-emit-llvm", filename, "-o", "roundtrip.bc"], 
-                    timeout=set_timeout)
-    subprocess.run([rellic, "--input",
-                    "roundtrip.bc", "--output", "roundtrip.c"], timeout=set_timeout)
-    subprocess.run([clang,
-                    "-Wno-everything", "roundtrip.c",
-                    "-o", "output2"], timeout=set_timeout)
-    compl_process2 = subprocess.run(
-        "./output2", capture_output=True, timeout=set_timeout, text=True)
+    run_cmd([clang, filename, "-o", "output1"], set_timeout)
+    cproc1 = run_cmd("./output1", set_timeout)
+    run_cmd([clang, "-c", "-emit-llvm", filename,
+             "-o", "roundtrip.bc"], set_timeout)
+    run_cmd([rellic, "--input", "roundtrip.bc",
+             "--output", "roundtrip.c"], set_timeout)
+    run_cmd([clang,
+             "-Wno-everything", "roundtrip.c",
+             "-o", "output2"], set_timeout)
+    cproc2 = run_cmd("./output2", set_timeout)
     os.remove("roundtrip.bc")
     os.remove("roundtrip.c")
     os.remove("output1")
     os.remove("output2")
-    return compl_process1, compl_process2
+    return cproc1, cproc2
 
 
 def compare(two_things):

@@ -3,6 +3,7 @@
 import subprocess
 import argparse
 import tempfile
+import os.path
 
 
 def run_cmd(cmd, timeout):
@@ -10,23 +11,44 @@ def run_cmd(cmd, timeout):
                           timeout=timeout, text=True)
 
 
+def compile(input, output, args):
+    pass
+
+
+def decompile(input, output, args):
+    pass
+
+
 def roundtrip(rellic, filename, clang, timeout):
     with tempfile.TemporaryDirectory() as tempdir:
-        run_cmd([clang, filename, "-o", tempdir + "/out1"], timeout)     
-        cproc1 = run_cmd(tempdir + "/out1", timeout)
-        run_cmd([clang, "-c", "-emit-llvm", filename,
-                       "-o", tempdir + "/roundtrip.bc"], timeout)
-        run_cmd([rellic, "--input", tempdir + "/roundtrip.bc",
-                         "--output", tempdir + "/roundtrip.c"], timeout)
-        run_cmd([clang, tempdir + "/roundtrip.c",
-                               "-o", tempdir + "/out2"], timeout)
-        cproc2 = run_cmd(tempdir + "/out2", timeout)
+        out1_path = os.path.join(tempdir, "out1")
+        rt_bc_path = os.path.join(tempdir, "rt.bc")
+        rt_c_path = os.path.join(tempdir, "rt.c")
+        out2_path = os.path.join(tempdir, "out2")
 
-    assert cproc1.stderr == cproc2.stderr, \
+        p = run_cmd([clang, filename, "-o", out1_path], timeout)
+        assert p.returncode == 0, "Clang failure."
+        assert len(p.stderr) == 0, "errors or warnings during compilation: " + p.stderr
+        cp1 = run_cmd(out1_path, timeout)
+        p = run_cmd([clang, "-c", "-emit-llvm", filename,
+                 "-o", rt_bc_path], timeout)
+        assert p.returncode == 0, "Clang failure."
+        assert len(p.stderr) == 0, "errors or warnings during compilation: " + p.stderr
+        p = run_cmd([rellic, "--input", rt_bc_path,
+                         "--output", rt_c_path], timeout)
+        assert p.returncode == 0, "rellic-decomp failure."
+        assert len(p.stderr) == 0, "errors or warnings during decompilation: " + p.stderr
+        p = run_cmd([clang, rt_c_path,
+                 "-o", out2_path], timeout)
+        assert p.returncode == 0, "Clang failure."
+#       assert len(p.stderr) == 0, "errors or warnings during compilation: " + p.stderr
+        cp2 = run_cmd(out2_path, timeout)
+
+    assert cp1.stderr == cp2.stderr, \
         "Different stderr."
-    assert cproc1.stdout == cproc2.stdout, \
+    assert cp1.stdout == cp2.stdout, \
         "Different stdout."
-    assert cproc1.returncode == cproc2.returncode, \
+    assert cp1.returncode == cp2.returncode, \
         "Different return code."
 
 

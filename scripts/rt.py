@@ -1,39 +1,32 @@
 #!/usr/bin/env python3
 
 import subprocess
-import os
 import argparse
+import tempfile
 
 
-def run_cmd(arg_list, set_timeout):
-    return subprocess.run(arg_list, capture_output=True,
-                          timeout=set_timeout, text=True)
+def run_cmd(cmd, timeout):
+    return subprocess.run(cmd, capture_output=True,
+                          timeout=timeout, text=True)
 
 
-def roundtrip(rellic, filename, clang, set_timeout):
-    run_cmd([clang, filename, "-o", "output1"], set_timeout)
-    cproc1 = run_cmd("./output1", set_timeout)
-    run_cmd([clang, "-c", "-emit-llvm", filename,
-             "-o", "roundtrip.bc"], set_timeout)
-    run_cmd([rellic, "--input", "roundtrip.bc",
-             "--output", "roundtrip.c"], set_timeout)
-    run_cmd([clang,
-             "-Wno-everything", "roundtrip.c",
-             "-o", "output2"], set_timeout)
-    cproc2 = run_cmd("./output2", set_timeout)
-    os.remove("roundtrip.bc")
-    os.remove("roundtrip.c")
-    os.remove("output1")
-    os.remove("output2")
-    return cproc1, cproc2
+def roundtrip(rellic, filename, clang, timeout):
+    with tempfile.TemporaryDirectory() as tempdir:
+        run_cmd([clang, filename, "-o", tempdir + "/out1"], timeout)     
+        cproc1 = run_cmd(tempdir + "/out1", timeout)
+        run_cmd([clang, "-c", "-emit-llvm", filename,
+                       "-o", tempdir + "/roundtrip.bc"], timeout)
+        run_cmd([rellic, "--input", tempdir + "/roundtrip.bc",
+                         "--output", tempdir + "/roundtrip.c"], timeout)
+        run_cmd([clang, tempdir + "/roundtrip.c",
+                               "-o", tempdir + "/out2"], timeout)
+        cproc2 = run_cmd(tempdir + "/out2", timeout)
 
-
-def compare(two_things):
-    assert two_things[0].stderr == two_things[1].stderr, \
+    assert cproc1.stderr == cproc2.stderr, \
         "Different stderr."
-    assert two_things[0].stdout == two_things[1].stdout, \
+    assert cproc1.stdout == cproc2.stdout, \
         "Different stdout."
-    assert two_things[0].returncode == two_things[1].returncode, \
+    assert cproc1.returncode == cproc2.returncode, \
         "Different return code."
 
 
@@ -43,10 +36,13 @@ def main():
     parser.add_argument("filename",
                         help="path to source code test file")
     parser.add_argument("clang", help="path to clang")
-    parser.add_argument("--timeout", help="set timeout in seconds", type=int)
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        help="set timeout in seconds",
+        type=int)
     args = parser.parse_args()
-    outputs = roundtrip(args.rellic, args.filename, args.clang, args.timeout)
-    compare(outputs)
+    roundtrip(args.rellic, args.filename, args.clang, args.timeout)
 
 
 if __name__ == "__main__":

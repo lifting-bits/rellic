@@ -11,38 +11,62 @@ def run_cmd(cmd, timeout):
                           timeout=timeout, text=True)
 
 
-def compile(input, output, args):
-    pass
+def compile(clang, input, output, timeout, options=None):
+    cmd = []
+    cmd.append(clang)
+    if options is not None:
+        cmd.extend(options)
+    cmd.extend([input, "-o", output])
+
+    return run_cmd(cmd, timeout)
 
 
-def decompile(input, output, args):
-    pass
+def decompile(rellic, input, output, timeout):
+    cmd = []
+    cmd.append(rellic)
+    cmd.extend(["--input", input, "--output", output])
+
+    return run_cmd(cmd, timeout)
 
 
 def roundtrip(rellic, filename, clang, timeout):
     with tempfile.TemporaryDirectory() as tempdir:
-        out1_path = os.path.join(tempdir, "out1")
-        rt_bc_path = os.path.join(tempdir, "rt.bc")
-        rt_c_path = os.path.join(tempdir, "rt.c")
-        out2_path = os.path.join(tempdir, "out2")
+        # test compilation to executable
+        out1 = os.path.join(tempdir, "out1")
+        p = compile(clang, filename, out1, timeout)
+        assert p.returncode == 0, \
+            "Clang failure."
+        assert len(p.stderr) == 0, \
+            "errors or warnings during compilation: " + p.stderr
 
-        p = run_cmd([clang, filename, "-o", out1_path], timeout)
+        # capture binary run outputs
+        cp1 = run_cmd(out1, timeout)
+
+        # test compilation to bitcode
+        rt_bc = os.path.join(tempdir, "rt.bc")
+        p = compile(clang, filename, rt_bc, timeout, ["-c", "-emit-llvm"])
+        assert p.returncode == 0, \
+            "Clang failure."
+        assert len(p.stderr) == 0, \
+            "errors or warnings during compilation: " + p.stderr
+
+        # test decompilation from bitcode to C code
+        rt_c = os.path.join(tempdir, "rt.c")
+        p = decompile(rellic, rt_bc, rt_c, timeout)
+        assert p.returncode == 0, \
+            "rellic-decomp failure."
+        assert len(p.stderr) == 0, \
+            "errors or warnings during decompilation: " + p.stderr
+
+        # test compilation to executable
+        out2 = os.path.join(tempdir, "out2")
+        p = compile(clang, rt_c, out2, timeout)
         assert p.returncode == 0, "Clang failure."
-        assert len(p.stderr) == 0, "errors or warnings during compilation: " + p.stderr
-        cp1 = run_cmd(out1_path, timeout)
-        p = run_cmd([clang, "-c", "-emit-llvm", filename,
-                 "-o", rt_bc_path], timeout)
-        assert p.returncode == 0, "Clang failure."
-        assert len(p.stderr) == 0, "errors or warnings during compilation: " + p.stderr
-        p = run_cmd([rellic, "--input", rt_bc_path,
-                         "--output", rt_c_path], timeout)
-        assert p.returncode == 0, "rellic-decomp failure."
-        assert len(p.stderr) == 0, "errors or warnings during decompilation: " + p.stderr
-        p = run_cmd([clang, rt_c_path,
-                 "-o", out2_path], timeout)
-        assert p.returncode == 0, "Clang failure."
-#       assert len(p.stderr) == 0, "errors or warnings during compilation: " + p.stderr
-        cp2 = run_cmd(out2_path, timeout)
+#       assert len(p.stderr) == 0, \
+#           "errors or warnings during compilation: " + p.stderr
+
+        # capture outputs of binary after roundtrip
+        cp2 = run_cmd(out2, timeout)
 
     assert cp1.stderr == cp2.stderr, \
         "Different stderr."

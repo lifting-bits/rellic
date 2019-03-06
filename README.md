@@ -30,15 +30,13 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | [Google Log](https://github.com/google/glog) | Latest |
 | [LLVM](http://llvm.org/) | 4.0+|
 | [Clang](http://clang.llvm.org/) | 4.0+|
-| [Z3](https://github.com/Z3Prover/z3) | 4.7.1 |
+| [Z3](https://github.com/Z3Prover/z3) | 4.7.1+ |
 
 ## Getting and Building the Code
 
 ### On Linux
 
 First, update aptitude and get install the baseline dependencies.
-
-TODO(msurovic): z3 installation
 
 ```shell
 sudo apt-get update
@@ -64,7 +62,7 @@ The next step is to clone the Rellic repository.
 git clone https://github.com/trailofbits/rellic.git
 ```
 
-Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be built in the `rellic-build` directory.
+Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be built in the `rellic-build` directory. Rellic will also build Z3 in an appropriate version if it's not installed in the system.
 
 ```shell
 ./rellic/scripts/build.sh

@@ -73,7 +73,16 @@ set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
-find_package(Z3 REQUIRED)
+find_package(Z3)
+if (NOT Z3_FOUND)
+  include(ExternalProject)
+  ExternalProject_Add(z3
+    GIT_REPOSITORY https://github.com/Z3Prover/z3.git
+    GIT_TAG z3-4.7.1
+    SOURCE_DIR "${CMAKE_BINARY_DIR}/z3-src"
+    BINARY_DIR "${CMAKE_BINARY_DIR}/z3-build"
+  )
+endif()
 list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIRS})
 list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
 

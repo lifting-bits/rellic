@@ -1,7 +1,17 @@
 language: generic
+
 sudo: required
+
 dist: xenial
+
 os:
   - linux
+
 compiler:
   - gcc
+
+before_install:
+  - ./scripts/travis.sh "$TRAVIS_OS_NAME" initialize
+
+script:
+  - ./scripts/travis.sh "$TRAVIS_OS_NAME" build

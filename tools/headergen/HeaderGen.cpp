@@ -46,17 +46,12 @@ DECLARE_bool(version);
 namespace {
 
 static std::string ReadFile(std::string path) {
-  std::ifstream t(path, std::ifstream::in);
-  std::string str;
-
-  t.seekg(0, std::ios::end);
-  str.reserve(t.tellg());
-  t.seekg(0, std::ios::beg);
-
-  str.assign((std::istreambuf_iterator<char>(t)),
-             std::istreambuf_iterator<char>());
-
-  return str;
+  auto err_or_buf = llvm::MemoryBuffer::getFile(path);
+  if (!err_or_buf) {
+    auto msg = err_or_buf.getError().message();
+    LOG(FATAL) << "Failed to read input file: " << msg;
+  }
+  return err_or_buf.get()->getBuffer();
 }
 
 }  // namespace
@@ -95,7 +90,7 @@ int main(int argc, char* argv[]) {
     std::cerr << google::ProgramUsage();
     return EXIT_FAILURE;
   }
-  
+
   std::error_code ec;
   llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
   CHECK(!ec) << "Failed to create output file: " << ec.message();

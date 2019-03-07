@@ -57,6 +57,18 @@ clang::RecordDecl *CXXToCDeclVisitor::GetOrCreateStructDecl(
   return clang::cast<clang::RecordDecl>(decl);
 }
 
+clang::QualType CXXToCDeclVisitor::GetAsStructType(clang::QualType type) {
+  auto type_decl = type->getAsCXXRecordDecl();
+  // Nothing to do if we're not dealing with a class
+  if (!type_decl) {
+    return type;
+  } 
+  // Handle class-type attributes by translating to struct types
+  auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
+  auto quals = type.getQualifiers().getAsOpaqueValue();
+  return clang::QualType(struct_type, quals);
+}
+
 bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   auto method_name = method->getNameAsString();
   DLOG(INFO) << "VisitCXXMethodDecl: " << method_name;
@@ -76,15 +88,8 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   param_types.insert(param_types.end(), method_type->param_type_begin(),
                      method_type->param_type_end());
   // Create function prototype
-  auto method_ret_type = method_type->getReturnType();
-  // TODO(msurovic): make a function out of this
-  // Handle class-type attributes by translating to struct types
-  if (auto type_decl = method_ret_type->getAsCXXRecordDecl()) {
-    auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
-    auto quals = method_ret_type.getQualifiers().getAsOpaqueValue();
-    method_ret_type = clang::QualType(struct_type, quals);
-  }
-  auto func_type = ast_ctx.getFunctionType(method_ret_type, param_types,
+  auto ret_type = GetAsStructType(method_type->getReturnType());
+  auto func_type = ast_ctx.getFunctionType(ret_type, param_types,
                                            method_type->getExtProtoInfo());
   // Declare the C function
   auto func_id = CreateIdentifier(ast_ctx, GetMangledName(method));
@@ -95,14 +100,7 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   std::vector<clang::ParmVarDecl *> param_decls({this_decl});
   for (auto param : method->parameters()) {
     auto param_id = CreateIdentifier(ast_ctx, param->getNameAsString());
-    auto param_type = param->getType();
-    // TODO(msurovic): make a function out of this
-    // Handle class-type attributes by translating to struct types
-    if (auto type_decl = param_type->getAsCXXRecordDecl()) {
-      auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
-      auto quals = param_type.getQualifiers().getAsOpaqueValue();
-      param_type = clang::QualType(struct_type, quals);
-    }
+    auto param_type = GetAsStructType(param->getType());
     param_decls.push_back(
         CreateParmVarDecl(ast_ctx, func_decl, param_id, param_type));
   }
@@ -133,14 +131,7 @@ bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
   // Add attribute fields
   for (auto field : cls->fields()) {
     auto id = CreateIdentifier(ast_ctx, field->getName());
-    auto type = field->getType();
-    // TODO(msurovic): make a function out of this
-    // Handle class-type attributes by translating to struct types
-    if (auto type_decl = type->getAsCXXRecordDecl()) {
-      auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
-      auto quals = type.getQualifiers().getAsOpaqueValue();
-      type = clang::QualType(struct_type, quals);
-    }
+    auto type = GetAsStructType(field->getType());
     struct_defn->addDecl(CreateFieldDecl(ast_ctx, struct_defn, id, type));
   }
   // Complete the C structure definition

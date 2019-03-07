@@ -33,6 +33,7 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
   std::string GetMangledName(clang::NamedDecl *decl);
 
   clang::RecordDecl *GetOrCreateStructDecl(clang::CXXRecordDecl *cls);
+  clang::QualType GetAsStructType(clang::QualType type);
 
  public:
   CXXToCDeclVisitor(clang::ASTContext &ctx);

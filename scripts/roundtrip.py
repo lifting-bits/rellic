@@ -23,7 +23,6 @@ def compile(clang, input, output, timeout, options=None):
         "Clang failure."
     assert len(p.stderr) == 0, \
         "errors or warnings during compilation: " + p.stderr
-
     return p
 
 
@@ -36,7 +35,6 @@ def decompile(rellic, input, output, timeout):
         "rellic-decomp failure."
     assert len(p.stderr) == 0, \
         "errors or warnings during decompilation: " + p.stderr
-
     return p
 
 
@@ -61,18 +59,12 @@ def roundtrip(rellic, filename, clang, timeout):
         # capture outputs of binary after roundtrip
         cp2 = run_cmd([out2], timeout)
 
-    try:
         assert cp1.stderr == cp2.stderr, \
             "Result: Different stderr."
         assert cp1.stdout == cp2.stdout, \
             "Result: Different stdout."
         assert cp1.returncode == cp2.returncode, \
             "Result: Different return code."
-        print("Result: OK")
-    except AssertionError as e:
-        print(e)
-
-    print("-------------------------------")
 
 
 def main():
@@ -90,9 +82,20 @@ def main():
     if os.path.isdir(args.tests):
         with os.scandir(args.tests) as it:
             for item in it:
-                roundtrip(args.rellic, item.path, args.clang, args.timeout)
+                try:
+                    roundtrip(args.rellic, item.path, args.clang, args.timeout)
+                except AssertionError as e:
+                    print(e)
+                    print("-------------------------------")
+                    continue
+                print("Result: OK")
+                print("-------------------------------")
     else:
-        roundtrip(args.rellic, args.tests, args.clang, args.timeout)
+        try:
+            roundtrip(args.rellic, args.tests, args.clang, args.timeout)
+        except AssertionError as e:
+            print(e)
+        print("Result: OK")
 
 
 if __name__ == "__main__":

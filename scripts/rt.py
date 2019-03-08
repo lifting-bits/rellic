@@ -7,7 +7,10 @@ import os
 
 
 def run_cmd(cmd, timeout):
-    print("Running: ", cmd)
+    if cmd[0].endswith("clang") or cmd[0].endswith("rellic-decomp-4.0"):
+        print("Running: ", ' '.join(cmd))
+    else:
+        print("Running: ", cmd)
     return subprocess.run(cmd, capture_output=True,
                           timeout=timeout, text=True)
 
@@ -61,20 +64,25 @@ def roundtrip(rellic, filename, clang, timeout):
         # capture outputs of binary after roundtrip
         cp2 = run_cmd(out2, timeout)
 
-    assert cp1.stderr == cp2.stderr, \
-        "Different stderr."
-    assert cp1.stdout == cp2.stdout, \
-        "Different stdout."
-    assert cp1.returncode == cp2.returncode, \
-        "Different return code."
+    try:
+        assert cp1.stderr == cp2.stderr, \
+            "Result: Different stderr."
+        assert cp1.stdout == cp2.stdout, \
+            "Result: Different stdout."
+        assert cp1.returncode == cp2.returncode, \
+            "Result: Different return code."
+        print("Result: OK")
+    except AssertionError as e:
+        print(e)
+
     print("-------------------------------")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("rellic", help="path to rellic-decomp")
-    parser.add_argument("test_path",
-                        help="path to source code test file(s)")
+    parser.add_argument("tests",
+                        help="path to test file or directory")
     parser.add_argument("clang", help="path to clang")
     parser.add_argument(
         "-t",
@@ -82,12 +90,12 @@ def main():
         help="set timeout in seconds",
         type=int)
     args = parser.parse_args()
-    if os.path.isdir(args.test_path):
-        with os.scandir(args.test_path) as it:
+    if os.path.isdir(args.tests):
+        with os.scandir(args.tests) as it:
             for item in it:
                 roundtrip(args.rellic, item.path, args.clang, args.timeout)
     else:
-        roundtrip(args.rellic, args.test_path, args.clang, args.timeout)
+        roundtrip(args.rellic, args.tests, args.clang, args.timeout)
 
 
 if __name__ == "__main__":

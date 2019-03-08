@@ -7,10 +7,7 @@ import os
 
 
 def run_cmd(cmd, timeout):
-    if cmd[0].endswith("clang") or cmd[0].endswith("rellic-decomp-4.0"):
-        print("Running: ", ' '.join(cmd))
-    else:
-        print("Running: ", cmd)
+    print("Running: ", ' '.join(cmd))
     return subprocess.run(cmd, capture_output=True,
                           timeout=timeout, text=True)
 
@@ -50,7 +47,7 @@ def roundtrip(rellic, filename, clang, timeout):
         compile(clang, filename, out1, timeout)
 
         # capture binary run outputs
-        cp1 = run_cmd(out1, timeout)
+        cp1 = run_cmd([out1], timeout)
 
         rt_bc = os.path.join(tempdir, "rt.bc")
         compile(clang, filename, rt_bc, timeout, ["-c", "-emit-llvm"])
@@ -62,7 +59,7 @@ def roundtrip(rellic, filename, clang, timeout):
         compile(clang, rt_c, out2, timeout, ["-Wno-everything"])
 
         # capture outputs of binary after roundtrip
-        cp2 = run_cmd(out2, timeout)
+        cp2 = run_cmd([out2], timeout)
 
     try:
         assert cp1.stderr == cp2.stderr, \

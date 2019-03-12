@@ -86,16 +86,17 @@ def main():
                     roundtrip(args.rellic, item.path, args.clang, args.timeout)
                 except AssertionError as e:
                     print(e)
+                else:
+                    print("Result: OK")
+                finally:
                     print("-------------------------------")
-                    continue
-                print("Result: OK")
-                print("-------------------------------")
     else:
         try:
             roundtrip(args.rellic, args.tests, args.clang, args.timeout)
         except AssertionError as e:
             print(e)
-        print("Result: OK")
+        else:
+            print("Result: OK")
 
 
 if __name__ == "__main__":

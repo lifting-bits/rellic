@@ -47,26 +47,19 @@ std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
   return buffer.empty() ? decl->getNameAsString() : buffer;
 }
 
-clang::RecordDecl *CXXToCDeclVisitor::GetOrCreateStructDecl(
-    clang::CXXRecordDecl *cls) {
-  auto &decl = c_decls[cls];
-  if (!decl) {
-    auto id = CreateIdentifier(ast_ctx, GetMangledName(cls));
-    decl = CreateStructDecl(ast_ctx, c_tu, id);
-  }
-  return clang::cast<clang::RecordDecl>(decl);
-}
-
-clang::QualType CXXToCDeclVisitor::GetAsStructType(clang::QualType type) {
-  auto type_decl = type->getAsCXXRecordDecl();
+clang::QualType CXXToCDeclVisitor::GetAsCType(clang::QualType type) {
+  auto cls = type->getAsCXXRecordDecl();
   // Nothing to do if we're not dealing with a class
-  if (!type_decl) {
+  if (!cls) {
     return type;
-  } 
+  }
   // Handle class-type attributes by translating to struct types
-  auto struct_type = GetOrCreateStructDecl(type_decl)->getTypeForDecl();
+  auto iter = c_decls.find(cls);
+  CHECK(iter != c_decls.end())
+      << "C struct for class" << cls->getNameAsString() << " does not exist";
+  auto decl = clang::cast<clang::RecordDecl>(iter->second);
   auto quals = type.getQualifiers().getAsOpaqueValue();
-  return clang::QualType(struct_type, quals);
+  return clang::QualType(decl->getTypeForDecl(), quals);
 }
 
 bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
@@ -78,17 +71,28 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
                  << "; returning";
     return true;
   }
-  // Create a forward decl of a C struct for this methods parent class
-  auto struct_decl = GetOrCreateStructDecl(method->getParent());
+  // Process only template specializations
+  if (method->getDescribedFunctionTemplate()) {
+    LOG(WARNING) << "Asking to generate from template; returning";
+    return true;
+  }
+  auto iter = c_decls.find(method->getParent());
+  if (iter == c_decls.end()) {
+    LOG(WARNING) << "Parent of " << method_name
+                 << " was not processed; returning";
+    return true;
+  }
+  // Get the this pointer type
+  auto struct_decl = clang::cast<clang::RecordDecl>(iter->second);
   auto struct_type = struct_decl->getTypeForDecl();
-  // Gather necessary types for the C function decl
   auto this_type = ast_ctx.getPointerType(clang::QualType(struct_type, 0));
+  // Gather parameter types
   std::vector<clang::QualType> param_types({this_type});
   auto method_type = clang::cast<clang::FunctionProtoType>(method->getType());
   param_types.insert(param_types.end(), method_type->param_type_begin(),
                      method_type->param_type_end());
   // Create function prototype
-  auto ret_type = GetAsStructType(method_type->getReturnType());
+  auto ret_type = GetAsCType(method_type->getReturnType());
   auto func_type = ast_ctx.getFunctionType(ret_type, param_types,
                                            method_type->getExtProtoInfo());
   // Declare the C function
@@ -100,53 +104,70 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   std::vector<clang::ParmVarDecl *> param_decls({this_decl});
   for (auto param : method->parameters()) {
     auto param_id = CreateIdentifier(ast_ctx, param->getNameAsString());
-    auto param_type = GetAsStructType(param->getType());
+    auto param_type = GetAsCType(param->getType());
     param_decls.push_back(
         CreateParmVarDecl(ast_ctx, func_decl, param_id, param_type));
   }
   // Set C function parameters
   func_decl->setParams(param_decls);
-  // Save to C decl map
-  c_decls[method] = func_decl;
+  // Save to C translation unit
+  c_tu->addDecl(func_decl);
   // Done
   return true;
 }
 
-bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
-  auto class_name = cls->getNameAsString();
-  DLOG(INFO) << "VisitCXXRecordDecl: " << class_name;
-  // Process only specializations of class templates
-  if (cls->getDescribedClassTemplate()) {
+bool CXXToCDeclVisitor::VisitFieldDecl(clang::FieldDecl *field) {
+  auto name = field->getNameAsString();
+  DLOG(INFO) << "FieldDecl: " << name;
+  auto iter = c_decls.find(field->getParent());
+  if (iter == c_decls.end()) {
+    LOG(WARNING) << "C field " << name << " does not have a parent; returning";
     return true;
   }
-  // Get a forward declaration
-  auto struct_decl = GetOrCreateStructDecl(cls);
-  if (cls->isPolymorphic()) {
-    c_tu->addDecl(struct_decl);
-    // Create a vtable
-  }
-  // Define the C structure
-  auto struct_id = CreateIdentifier(ast_ctx, GetMangledName(cls));
-  auto struct_defn = CreateStructDecl(ast_ctx, c_tu, struct_id, struct_decl);
-  // Add attribute fields
-  for (auto field : cls->fields()) {
+  auto &decl = c_decls[field];
+  if (!decl) {
+    auto parent = clang::cast<clang::RecordDecl>(iter->second);
     auto id = CreateIdentifier(ast_ctx, field->getName());
-    auto type = GetAsStructType(field->getType());
-    struct_defn->addDecl(CreateFieldDecl(ast_ctx, struct_defn, id, type));
+    auto type = GetAsCType(field->getType());
+    decl = CreateFieldDecl(ast_ctx, parent, id, type);
+    parent->addDecl(decl);
   }
-  // Complete the C structure definition
-  struct_defn->completeDefinition();
-  // Add the C structure to the C translation unit
-  c_tu->addDecl(struct_defn);
-  // Add methods to the C translation unit
-  for (auto method : cls->methods()) {
-    auto iter = c_decls.find(method);
-    CHECK(iter != c_decls.end())
-        << "C function declaration for " << method->getNameAsString()
-        << " in class " << class_name << " does not exist";
-    c_tu->addDecl(iter->second);
+  return true;
+}
+
+bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
+  auto name = cls->getNameAsString();
+  DLOG(INFO) << "VisitCXXRecordDecl: " << name;
+  // Process only templates specializations
+  if (cls->getDescribedClassTemplate()) {
+    LOG(WARNING) << "Asking to generate from template; returning";
+    return true;
+  }
+  auto &decl = c_decls[cls];
+  if (!decl) {
+    // Create a vtable
+    if (cls->isPolymorphic()) {
+    }
+    auto id = CreateIdentifier(ast_ctx, GetMangledName(cls));
+    decl = CreateStructDecl(ast_ctx, c_tu, id);
+    // Complete the C structure definition
+    clang::cast<clang::RecordDecl>(decl)->completeDefinition();
+    // Add the C structure to the C translation unit
+    c_tu->addDecl(decl);
   }
   // Done
+  return true;
+}
+
+bool CXXToCDeclVisitor::VisitParmVarDecl(clang::ParmVarDecl *param) {
+  auto name = param->getNameAsString();
+  DLOG(INFO) << "VisitParmVarDecl: " << name;
+  return true;
+}
+
+bool CXXToCDeclVisitor::VisitRecordDecl(clang::RecordDecl *record) {
+  auto name = record->getNameAsString();
+  DLOG(INFO) << "VisitRecordDecl: " << name;
   return true;
 }
 

@@ -31,16 +31,17 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
   std::unordered_map<clang::Decl *, clang::Decl *> c_decls;
 
   std::string GetMangledName(clang::NamedDecl *decl);
-
-  clang::RecordDecl *GetOrCreateStructDecl(clang::CXXRecordDecl *cls);
-  clang::QualType GetAsStructType(clang::QualType type);
+  clang::QualType GetAsCType(clang::QualType type);
+  
 
  public:
   CXXToCDeclVisitor(clang::ASTContext &ctx);
 
   bool shouldVisitTemplateInstantiations() { return true; }
-  bool shouldTraversePostOrder() { return true; }
 
+  bool VisitFieldDecl(clang::FieldDecl *field);
+  bool VisitRecordDecl(clang::RecordDecl *record);
+  bool VisitParmVarDecl(clang::ParmVarDecl *param);
   bool VisitCXXRecordDecl(clang::CXXRecordDecl *cls);
   bool VisitCXXMethodDecl(clang::CXXMethodDecl *method);
 };

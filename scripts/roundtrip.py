@@ -105,6 +105,8 @@ def main():
             roundtrip(args.rellic, args.tests, args.clang, args.timeout)
         except AssertionError as e:
             print(e)
+        except RunError:
+            print("Error: Run failed")
         else:
             print("Result: OK")
 

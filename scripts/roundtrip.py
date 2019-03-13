@@ -6,10 +6,18 @@ import tempfile
 import os
 
 
+class RunError(Exception):
+    pass
+
+
 def run_cmd(cmd, timeout):
     print("Running: ", ' '.join(cmd))
-    return subprocess.run(cmd, capture_output=True,
-                          timeout=timeout, text=True)
+    try:
+        p = subprocess.run(cmd, capture_output=True,
+                           timeout=timeout, text=True)
+    except:
+        raise RunError
+    return p
 
 
 def compile(clang, input, output, timeout, options=None):
@@ -86,6 +94,8 @@ def main():
                     roundtrip(args.rellic, item.path, args.clang, args.timeout)
                 except AssertionError as e:
                     print(e)
+                except RunError:
+                    print("Error: Run failed")
                 else:
                     print("Result: OK")
                 finally:

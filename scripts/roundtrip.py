@@ -7,7 +7,11 @@ import os
 
 
 class RunError(Exception):
-    pass
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return str(self.msg)
 
 
 def run_cmd(cmd, timeout):
@@ -15,8 +19,17 @@ def run_cmd(cmd, timeout):
     try:
         p = subprocess.run(cmd, capture_output=True,
                            timeout=timeout, text=True)
-    except:
-        raise RunError
+    except FileNotFoundError as e:
+        raise RunError(
+            "Error: No such file or directory: \"" +
+            e.filename +
+            "\"")
+    except PermissionError as e:
+        raise RunError(
+            "Error: File \"" +
+            e.filename +
+            "\" is not an executable.")
+
     return p
 
 
@@ -94,8 +107,8 @@ def main():
                     roundtrip(args.rellic, item.path, args.clang, args.timeout)
                 except AssertionError as e:
                     print(e)
-                except RunError:
-                    print("Error: Run failed")
+                except RunError as e:
+                    print(e)
                 else:
                     print("Result: OK")
                 finally:
@@ -105,8 +118,8 @@ def main():
             roundtrip(args.rellic, args.tests, args.clang, args.timeout)
         except AssertionError as e:
             print(e)
-        except RunError:
-            print("Error: Run failed")
+        except RunError as e:
+            print(e)
         else:
             print("Result: OK")
 

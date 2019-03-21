@@ -17,6 +17,9 @@
 #ifndef RELLIC_AST_CXXTOCDECL_H_
 #define RELLIC_AST_CXXTOCDECL_H_
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
 #include <clang/AST/RecursiveASTVisitor.h>
 
 #include <unordered_map>
@@ -39,10 +42,15 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
 
   bool shouldVisitTemplateInstantiations() { return true; }
 
+  bool TraverseFunctionDecl(clang::FunctionDecl *func);
+  bool VisitFunctionDecl(clang::FunctionDecl *func);
+  
   bool VisitFieldDecl(clang::FieldDecl *field);
   bool VisitRecordDecl(clang::RecordDecl *record);
-  bool VisitParmVarDecl(clang::ParmVarDecl *param);
+    
+  bool TraverseCXXRecordDecl(clang::CXXRecordDecl *cls);
   bool VisitCXXRecordDecl(clang::CXXRecordDecl *cls);
+  
   bool VisitCXXMethodDecl(clang::CXXMethodDecl *method);
 };
 

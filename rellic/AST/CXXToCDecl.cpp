@@ -62,18 +62,6 @@ clang::QualType CXXToCDeclVisitor::GetAsCType(clang::QualType type) {
   return clang::QualType(decl->getTypeForDecl(), quals);
 }
 
-bool CXXToCDeclVisitor::TraverseFunctionDecl(clang::FunctionDecl *cxx_func) {
-  auto name = cxx_func->getNameAsString();
-  DLOG(INFO) << "TraverseFunctionDecl: " << name;
-  // Process only templates specializations
-  if (cxx_func->getDescribedFunctionTemplate()) {
-    LOG(WARNING) << "Asking to generate from template; returning";
-    return true;
-  }
-  return clang::RecursiveASTVisitor<CXXToCDeclVisitor>::TraverseFunctionDecl(
-      cxx_func);
-}
-
 bool CXXToCDeclVisitor::VisitFunctionDecl(clang::FunctionDecl *cxx_func) {
   auto name = cxx_func->getNameAsString();
   DLOG(INFO) << "VisitFunctionDecl: " << name;
@@ -124,7 +112,7 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   // Get C struct equivalent of `method` parent class
   auto struct_iter = c_decls.find(method->getParent());
   CHECK(struct_iter != c_decls.end())
-      << "Method " << name << " does not have a parent; returning";
+      << "Method " << name << " does not have a parent";
   // Get the `this` pointer type
   auto struct_decl = clang::cast<clang::RecordDecl>(struct_iter->second);
   auto struct_type = struct_decl->getTypeForDecl();
@@ -161,18 +149,6 @@ bool CXXToCDeclVisitor::VisitRecordDecl(clang::RecordDecl *record) {
   return true;
 }
 
-bool CXXToCDeclVisitor::TraverseCXXRecordDecl(clang::CXXRecordDecl *cls) {
-  auto name = cls->getNameAsString();
-  DLOG(INFO) << "TraverseCXXRecordDecl: " << name;
-  // Process only templates specializations
-  if (cls->getDescribedClassTemplate()) {
-    LOG(WARNING) << "Asking to generate from template; returning";
-    return true;
-  }
-  return clang::RecursiveASTVisitor<CXXToCDeclVisitor>::TraverseCXXRecordDecl(
-      cls);
-}
-
 bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
   auto name = cls->getNameAsString();
   DLOG(INFO) << "VisitCXXRecordDecl: " << name;
@@ -183,13 +159,14 @@ bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
   // Create a vtable
   if (cls->isPolymorphic()) {
   }
+  // Create the C struct definition
   auto id = CreateIdentifier(ast_ctx, GetMangledName(cls));
   auto decl = CreateStructDecl(ast_ctx, c_tu, id);
-  // Complete the C structure definition
+  // Complete the C struct definition
   clang::cast<clang::RecordDecl>(decl)->completeDefinition();
   // Save the result
   c_decls[cls] = decl;
-  // Add the C structure to the C translation unit
+  // Add the C struct to the C translation unit
   c_tu->addDecl(decl);
   // Done
   return true;
@@ -198,22 +175,17 @@ bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
 bool CXXToCDeclVisitor::VisitFieldDecl(clang::FieldDecl *field) {
   auto name = field->getNameAsString();
   DLOG(INFO) << "FieldDecl: " << name;
+  // Get parent C struct
   auto iter = c_decls.find(field->getParent());
-  if (iter == c_decls.end()) {
-    LOG(WARNING) << "C field " << name << " does not have a parent; returning";
-    return true;
-  }
-  if (c_decls.count(field)) {
-    LOG(WARNING) << "Asking to re-generate class " << name << " ; returning";
-    return true;
-  }
+  CHECK(iter != c_decls.end()) << "Field " << name << " does not have a parent";
   auto parent = clang::cast<clang::RecordDecl>(iter->second);
+  // Create the field
   auto id = CreateIdentifier(ast_ctx, field->getName());
   auto type = GetAsCType(field->getType());
   auto decl = CreateFieldDecl(ast_ctx, parent, id, type);
   // Save the result
   c_decls[field] = decl;
-  // Add the C structure to the C translation unit
+  // Add the field to it's parent struct
   parent->addDecl(decl);
   // Done
   return true;

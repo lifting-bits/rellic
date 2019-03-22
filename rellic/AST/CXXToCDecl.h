@@ -35,22 +35,32 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
 
   std::string GetMangledName(clang::NamedDecl *decl);
   clang::QualType GetAsCType(clang::QualType type);
-  
 
  public:
   CXXToCDeclVisitor(clang::ASTContext &ctx);
 
   bool shouldVisitTemplateInstantiations() { return true; }
 
-  bool TraverseFunctionDecl(clang::FunctionDecl *func);
+  bool TraverseFunctionTemplateDecl(clang::FunctionTemplateDecl *decl) {
+    // Ignore function templates
+    return true;
+  }
+
+  bool TraverseClassTemplateDecl(clang::ClassTemplateDecl *decl) {
+    // Only process class template specializations
+    for (auto spec : decl->specializations()) {
+      TraverseDecl(spec);
+    }
+    return true;
+  }
+
   bool VisitFunctionDecl(clang::FunctionDecl *func);
-  
+
   bool VisitFieldDecl(clang::FieldDecl *field);
   bool VisitRecordDecl(clang::RecordDecl *record);
-    
-  bool TraverseCXXRecordDecl(clang::CXXRecordDecl *cls);
+
   bool VisitCXXRecordDecl(clang::CXXRecordDecl *cls);
-  
+
   bool VisitCXXMethodDecl(clang::CXXMethodDecl *method);
 };
 

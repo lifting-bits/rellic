@@ -106,6 +106,7 @@ int main(int argc, char* argv[]) {
   rellic::InitCompilerInstance(c_ins);
   auto& c_ast_ctx = c_ins.getASTContext();
   rellic::CXXToCDeclVisitor visitor(c_ast_ctx);
+  // cxx_ast_unit->getASTContext().getTranslationUnitDecl()->dump();
   visitor.TraverseDecl(cxx_ast_unit->getASTContext().getTranslationUnitDecl());
   // Print output
   c_ast_ctx.getTranslationUnitDecl()->print(output);

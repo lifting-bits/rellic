@@ -55,13 +55,10 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
   }
 
   bool VisitFunctionDecl(clang::FunctionDecl *func);
-
-  bool VisitFieldDecl(clang::FieldDecl *field);
-  bool VisitRecordDecl(clang::RecordDecl *record);
-
-  bool VisitCXXRecordDecl(clang::CXXRecordDecl *cls);
-
   bool VisitCXXMethodDecl(clang::CXXMethodDecl *method);
+  bool VisitRecordDecl(clang::RecordDecl *record);
+  bool VisitCXXRecordDecl(clang::CXXRecordDecl *cls);
+  bool VisitFieldDecl(clang::FieldDecl *field);
 };
 
 }  // namespace rellic

@@ -48,18 +48,30 @@ std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
 }
 
 clang::QualType CXXToCDeclVisitor::GetAsCType(clang::QualType type) {
-  auto cls = type->getAsCXXRecordDecl();
-  // Nothing to do if we're not dealing with a class
-  if (!cls) {
-    return type;
+  const clang::Type *result;
+  if (auto ptr = type->getAs<clang::PointerType>()) {
+    // Get a C pointer equivalent
+    auto pointee = GetAsCType(ptr->getPointeeType());
+    result = ast_ctx.getPointerType(pointee).getTypePtr();
+  } else if (auto ref = type->getAs<clang::ReferenceType>()) {
+    // Get a C pointer equivalent
+    auto pointee = GetAsCType(ref->getPointeeType());
+    auto ptr = ast_ctx.getPointerType(pointee);
+    // Add `_Nonnull` attribute
+    auto attr_type = ast_ctx.getAttributedType(
+        clang::AttributedType::attr_nonnull, ptr, ptr);
+    result = attr_type.getTypePtr();
+  } else if (auto cls = type->getAsCXXRecordDecl()) {
+    // Handle class-type attributes by translating to struct types
+    auto iter = c_decls.find(cls);
+    CHECK(iter != c_decls.end())
+        << "C struct for class" << cls->getNameAsString() << " does not exist";
+    auto decl = clang::cast<clang::RecordDecl>(iter->second);
+    result = decl->getTypeForDecl();
+  } else {
+    result = type.getTypePtr();
   }
-  // Handle class-type attributes by translating to struct types
-  auto iter = c_decls.find(cls);
-  CHECK(iter != c_decls.end())
-      << "C struct for class" << cls->getNameAsString() << " does not exist";
-  auto decl = clang::cast<clang::RecordDecl>(iter->second);
-  auto quals = type.getQualifiers().getAsOpaqueValue();
-  return clang::QualType(decl->getTypeForDecl(), quals);
+  return clang::QualType(result, type.getQualifiers().getAsOpaqueValue());
 }
 
 bool CXXToCDeclVisitor::VisitFunctionDecl(clang::FunctionDecl *cxx_func) {

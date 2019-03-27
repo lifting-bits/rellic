@@ -17,6 +17,9 @@
 #ifndef RELLIC_AST_CXXTOCDECL_H_
 #define RELLIC_AST_CXXTOCDECL_H_
 
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+
 #include <clang/AST/RecursiveASTVisitor.h>
 
 #include <unordered_map>
@@ -31,17 +34,31 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
   std::unordered_map<clang::Decl *, clang::Decl *> c_decls;
 
   std::string GetMangledName(clang::NamedDecl *decl);
-
-  clang::RecordDecl *GetOrCreateStructDecl(clang::CXXRecordDecl *cls);
+  clang::QualType GetAsCType(clang::QualType type);
 
  public:
   CXXToCDeclVisitor(clang::ASTContext &ctx);
 
   bool shouldVisitTemplateInstantiations() { return true; }
-  bool shouldTraversePostOrder() { return true; }
 
-  bool VisitCXXRecordDecl(clang::CXXRecordDecl *cls);
+  bool TraverseFunctionTemplateDecl(clang::FunctionTemplateDecl *decl) {
+    // Ignore function templates
+    return true;
+  }
+
+  bool TraverseClassTemplateDecl(clang::ClassTemplateDecl *decl) {
+    // Only process class template specializations
+    for (auto spec : decl->specializations()) {
+      TraverseDecl(spec);
+    }
+    return true;
+  }
+
+  bool VisitFunctionDecl(clang::FunctionDecl *func);
   bool VisitCXXMethodDecl(clang::CXXMethodDecl *method);
+  bool VisitRecordDecl(clang::RecordDecl *record);
+  bool VisitCXXRecordDecl(clang::CXXRecordDecl *cls);
+  bool VisitFieldDecl(clang::FieldDecl *field);
 };
 
 }  // namespace rellic

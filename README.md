@@ -16,7 +16,7 @@ If you are experiencing undocumented problems with Rellic then ask for help in t
 
 ## Supported Platforms
 
-Rellic is supported on Linux platforms and has been tested on Ubuntu 18.04.
+Rellic is supported on Linux platforms and has been tested on Ubuntu 16.04 and 18.04.
 
 ## Dependencies
 

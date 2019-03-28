@@ -19,6 +19,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Compat/Expr.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -35,10 +36,7 @@ static clang::Expr *CreateBoolBinOp(clang::ASTContext &ctx,
   } else if (!rhs) {
     return lhs;
   } else {
-    return new (ctx)
-        clang::BinaryOperator(lhs, rhs, opc, ctx.BoolTy, clang::VK_RValue,
-                              clang::OK_Ordinary, clang::SourceLocation(),
-                              /*fpContractable=*/false);
+    return CreateBinaryOperator(ctx, opc, lhs, rhs, ctx.BoolTy);
   }
 }
 
@@ -126,16 +124,6 @@ clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
   return new (ctx) clang::UnaryOperator(
       CreateParenExpr(ctx, op), clang::UO_LNot, ctx.BoolTy, clang::VK_RValue,
       clang::OK_Ordinary, clang::SourceLocation());
-}
-
-clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
-                                            clang::BinaryOperatorKind opc,
-                                            clang::Expr *lhs, clang::Expr *rhs,
-                                            clang::QualType res_type) {
-  return new (ast_ctx)
-      clang::BinaryOperator(lhs, rhs, opc, res_type, clang::VK_RValue,
-                            clang::OK_Ordinary, clang::SourceLocation(),
-                            /*fpContractable=*/false);
 }
 
 clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,

@@ -21,6 +21,7 @@
 
 #include <clang/AST/Expr.h>
 
+#include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
 
 #include "rellic/AST/IRToASTVisitor.h"
@@ -152,7 +153,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     visit(inst);
     stmts[val] = stmts[inst];
     stmts.erase(inst);
-    delete inst;
+    DeleteValue(inst);
+    // delete inst;
   }
 
   if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
@@ -411,13 +413,11 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
     clang::Expr *rhs = GetOperandExpr(fdecl, val);
     CHECK(rhs) << "Invalid assigned from operand";
     // Create the assignemnt itself
-    assign = new (ast_ctx) clang::BinaryOperator(
-        lhs, rhs, clang::BO_Assign,
+    assign = CreateBinaryOperator(
+        ast_ctx, clang::BO_Assign, lhs, rhs,
         GetQualType(
             ast_ctx,
-            llvm::cast<llvm::PointerType>(ptr->getType())->getElementType()),
-        clang::VK_RValue, clang::OK_Ordinary, clang::SourceLocation(),
-        /*fpContractable=*/false);
+            llvm::cast<llvm::PointerType>(ptr->getType())->getElementType()));
   }
 }
 

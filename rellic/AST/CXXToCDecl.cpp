@@ -105,7 +105,7 @@ bool CXXToCDeclVisitor::VisitFunctionDecl(clang::FunctionDecl *cxx_func) {
   func_decl->setParams(param_decls);
   // Save to C translation unit
   if (!clang::isa<clang::CXXMethodDecl>(cxx_func)) {
-    c_tu->addDecl(func_decl);
+    // c_tu->addDecl(func_decl);
   } else {
     c_decls[cxx_func] = func_decl;
   }

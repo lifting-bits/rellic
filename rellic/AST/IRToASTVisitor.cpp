@@ -19,11 +19,10 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <clang/AST/Expr.h>
-
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
 
+#include "rellic/AST/Compat/Expr.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/Util.h"
 
@@ -166,9 +165,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     result = CreateDeclRefExpr(ast_ctx, decl);
     if (llvm::isa<llvm::GlobalValue>(val)) {
       // LLVM IR global values are constant pointers; Add a `&`
-      result = new (ast_ctx) clang::UnaryOperator(
-          result, clang::UO_AddrOf, GetQualType(ast_ctx, val->getType()),
-          clang::VK_RValue, clang::OK_Ordinary, clang::SourceLocation());
+      result = CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, result,
+                                   GetQualType(ast_ctx, val->getType()));
     }
   } else if (stmts.count(val)) {
     // Operand is a result of an expression

@@ -83,12 +83,6 @@ clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ast_ctx,
       false, val->getLocation(), val->getType(), clang::VK_LValue);
 }
 
-clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
-                                        std::vector<clang::Stmt *> &stmts) {
-  return new (ctx) clang::CompoundStmt(ctx, stmts, clang::SourceLocation(),
-                                       clang::SourceLocation());
-}
-
 clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *then) {
   return new (ctx)
@@ -121,9 +115,8 @@ clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
 
 clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
   CHECK(op) << "No operand given for unary logical expression";
-  return new (ctx) clang::UnaryOperator(
-      CreateParenExpr(ctx, op), clang::UO_LNot, ctx.BoolTy, clang::VK_RValue,
-      clang::OK_Ordinary, clang::SourceLocation());
+  return CreateUnaryOperator(ctx, clang::UO_LNot, CreateParenExpr(ctx, op),
+                             ctx.BoolTy);
 }
 
 clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,

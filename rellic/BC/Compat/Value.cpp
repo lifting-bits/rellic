@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <llvm/IR/Instruction.h>
+#include "rellic/BC/Compat/Value.h"
+#include "rellic/BC/Version.h"
 
 namespace rellic {
 
-void DeleteValue(llvm::Instruction *inst);
+void DeleteValue(llvm::Instruction *inst) {
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(5, 0)
+  inst->deleteValue();
+#else
+  delete inst;
+#endif
+}
 
 }  // namespace rellic

@@ -18,24 +18,19 @@
 
 #include <clang/AST/Expr.h>
 
-#include "rellic/BC/Version.h"
-
 namespace rellic {
+
+clang::UnaryOperator *CreateUnaryOperator(clang::ASTContext &ast_ctx,
+                                          clang::UnaryOperatorKind opc,
+                                          clang::Expr *expr,
+                                          clang::QualType res_type);
 
 clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
                                             clang::BinaryOperatorKind opc,
                                             clang::Expr *lhs, clang::Expr *rhs,
-                                            clang::QualType res_type) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(5, 0)
-  return new (ast_ctx) clang::BinaryOperator(
-      lhs, rhs, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
-      clang::SourceLocation(), clang::FPOptions());
-#else
-  return new (ast_ctx)
-      clang::BinaryOperator(lhs, rhs, opc, res_type, clang::VK_RValue,
-                            clang::OK_Ordinary, clang::SourceLocation(),
-                            /*fpContractable=*/false);
-#endif
-}
+                                            clang::QualType res_type);
+
+clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
+                                        std::vector<clang::Stmt *> &stmts);
 
 }  // namespace rellic

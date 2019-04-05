@@ -301,7 +301,8 @@ LoopRefine::LoopRefine(clang::ASTContext &ctx,
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
-  clang::ast_matchers::MatchFinder finder;
+  clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
+  clang::ast_matchers::MatchFinder finder(opts);
 
   CondToSeqRule cond_to_seq_r;
   finder.addMatcher(cond_to_seq_r.GetCondition(), &cond_to_seq_r);

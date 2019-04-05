@@ -447,11 +447,8 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
       auto fdecl = GetFunctionDecl(&inst);
       auto retexpr = GetOperandExpr(fdecl, retval);
       retstmt = CreateReturnStmt(ast_ctx, retexpr);
-      // retstmt = new (ast_ctx)
-      //     clang::ReturnStmt(clang::SourceLocation(), retexpr, nullptr);
     } else {
       retstmt = CreateReturnStmt(ast_ctx, nullptr);
-      // retstmt = new (ast_ctx) clang::ReturnStmt(clang::SourceLocation());
     }
   }
 }

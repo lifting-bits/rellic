@@ -83,20 +83,6 @@ clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ast_ctx,
       false, val->getLocation(), val->getType(), clang::VK_LValue);
 }
 
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then) {
-  return new (ctx)
-      clang::IfStmt(ctx, clang::SourceLocation(), /* IsConstexpr=*/false,
-                    /* init=*/nullptr,
-                    /* var=*/nullptr, cond, then);
-}
-
-clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                                  clang::Stmt *body) {
-  return new (ctx)
-      clang::WhileStmt(ctx, nullptr, cond, body, clang::SourceLocation());
-}
-
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *body) {
   return new (ctx)

@@ -44,12 +44,6 @@ clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
 clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
                                       clang::ValueDecl *val);
 
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then);
-
-clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                                  clang::Stmt *body);
-
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *body);
 

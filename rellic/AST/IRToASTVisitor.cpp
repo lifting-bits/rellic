@@ -331,10 +331,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
             nullptr, clang::VK_RValue);
         args.push_back(arg_cast);
       }
-
-      callexpr = new (ast_ctx)
-          clang::CallExpr(ast_ctx, fcast, args, fdecl->getReturnType(),
-                          clang::VK_RValue, clang::SourceLocation());
+      callexpr = CreateCallExpr(ast_ctx, fcast, args, fdecl->getReturnType());
     } else {
       LOG(FATAL) << "Callee is not a function";
     }
@@ -449,10 +446,12 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
     if (auto retval = inst.getReturnValue()) {
       auto fdecl = GetFunctionDecl(&inst);
       auto retexpr = GetOperandExpr(fdecl, retval);
-      retstmt = new (ast_ctx)
-          clang::ReturnStmt(clang::SourceLocation(), retexpr, nullptr);
+      retstmt = CreateReturnStmt(ast_ctx, retexpr);
+      // retstmt = new (ast_ctx)
+      //     clang::ReturnStmt(clang::SourceLocation(), retexpr, nullptr);
     } else {
-      retstmt = new (ast_ctx) clang::ReturnStmt(clang::SourceLocation());
+      retstmt = CreateReturnStmt(ast_ctx, nullptr);
+      // retstmt = new (ast_ctx) clang::ReturnStmt(clang::SourceLocation());
     }
   }
 }

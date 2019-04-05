@@ -20,6 +20,7 @@
 #include <clang/AST/Mangle.h>
 
 #include "rellic/AST/CXXToCDecl.h"
+#include "rellic/AST/Compat/Type.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -58,8 +59,7 @@ clang::QualType CXXToCDeclVisitor::GetAsCType(clang::QualType type) {
     auto pointee = GetAsCType(ref->getPointeeType());
     auto ptr = ast_ctx.getPointerType(pointee);
     // Add `_Nonnull` attribute
-    auto attr_type = ast_ctx.getAttributedType(
-        clang::AttributedType::attr_nonnull, ptr, ptr);
+    auto attr_type = ast_ctx.getAttributedType(attr_nonnull, ptr, ptr);
     result = attr_type.getTypePtr();
   } else if (auto cls = type->getAsCXXRecordDecl()) {
     // Handle class-type attributes by translating to struct types

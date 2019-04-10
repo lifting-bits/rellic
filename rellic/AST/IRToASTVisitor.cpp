@@ -19,8 +19,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <clang/AST/Expr.h>
-
+#include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
 
 #include "rellic/AST/IRToASTVisitor.h"
@@ -152,7 +151,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     visit(inst);
     stmts[val] = stmts[inst];
     stmts.erase(inst);
-    delete inst;
+    DeleteValue(inst);
+    // delete inst;
   }
 
   if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
@@ -164,9 +164,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     result = CreateDeclRefExpr(ast_ctx, decl);
     if (llvm::isa<llvm::GlobalValue>(val)) {
       // LLVM IR global values are constant pointers; Add a `&`
-      result = new (ast_ctx) clang::UnaryOperator(
-          result, clang::UO_AddrOf, GetQualType(ast_ctx, val->getType()),
-          clang::VK_RValue, clang::OK_Ordinary, clang::SourceLocation());
+      result = CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, result,
+                                   GetQualType(ast_ctx, val->getType()));
     }
   } else if (stmts.count(val)) {
     // Operand is a result of an expression
@@ -331,10 +330,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
             nullptr, clang::VK_RValue);
         args.push_back(arg_cast);
       }
-
-      callexpr = new (ast_ctx)
-          clang::CallExpr(ast_ctx, fcast, args, fdecl->getReturnType(),
-                          clang::VK_RValue, clang::SourceLocation());
+      callexpr = CreateCallExpr(ast_ctx, fcast, args, fdecl->getReturnType());
     } else {
       LOG(FATAL) << "Callee is not a function";
     }
@@ -411,13 +407,11 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
     clang::Expr *rhs = GetOperandExpr(fdecl, val);
     CHECK(rhs) << "Invalid assigned from operand";
     // Create the assignemnt itself
-    assign = new (ast_ctx) clang::BinaryOperator(
-        lhs, rhs, clang::BO_Assign,
+    assign = CreateBinaryOperator(
+        ast_ctx, clang::BO_Assign, lhs, rhs,
         GetQualType(
             ast_ctx,
-            llvm::cast<llvm::PointerType>(ptr->getType())->getElementType()),
-        clang::VK_RValue, clang::OK_Ordinary, clang::SourceLocation(),
-        /*fpContractable=*/false);
+            llvm::cast<llvm::PointerType>(ptr->getType())->getElementType()));
   }
 }
 
@@ -451,10 +445,9 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
     if (auto retval = inst.getReturnValue()) {
       auto fdecl = GetFunctionDecl(&inst);
       auto retexpr = GetOperandExpr(fdecl, retval);
-      retstmt = new (ast_ctx)
-          clang::ReturnStmt(clang::SourceLocation(), retexpr, nullptr);
+      retstmt = CreateReturnStmt(ast_ctx, retexpr);
     } else {
-      retstmt = new (ast_ctx) clang::ReturnStmt(clang::SourceLocation());
+      retstmt = CreateReturnStmt(ast_ctx, nullptr);
     }
   }
 }

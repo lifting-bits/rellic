@@ -102,7 +102,10 @@ set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
 
 set(RELLIC_DECOMP rellic-decomp-${RELLIC_LLVM_VERSION})
 
-add_executable(${RELLIC_DECOMP}
+add_executable(${RELLIC_DECOMP} 
+  
+  rellic/AST/Compat/Stmt.cpp
+  rellic/AST/Compat/Expr.cpp
   
   rellic/AST/CondBasedRefine.cpp
   rellic/AST/DeadStmtElim.cpp
@@ -116,6 +119,7 @@ add_executable(${RELLIC_DECOMP}
   rellic/AST/Z3ConvVisitor.cpp
   
   rellic/BC/Util.cpp
+  rellic/BC/Compat/Value.cpp
   
   tools/decomp/Decomp.cpp
 )
@@ -132,6 +136,9 @@ target_compile_options(${RELLIC_DECOMP} PRIVATE ${PROJECT_CXXFLAGS})
 set(RELLIC_HEADERGEN rellic-headergen-${RELLIC_LLVM_VERSION})
 
 add_executable(${RELLIC_HEADERGEN}
+
+  rellic/AST/Compat/Stmt.cpp
+  rellic/AST/Compat/Expr.cpp
 
   rellic/AST/CXXToCDecl.cpp
   rellic/AST/Util.cpp

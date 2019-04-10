@@ -70,7 +70,7 @@ osx_initialize() {
 linux_build() {
   local os_version=`cat /etc/issue | awk '{ print $2 }' | cut -d '.' -f 1-2 | tr -d '.'`
 
-  llvm_version_list=( "40" )
+  llvm_version_list=( "40" "50" "60" "70" "80")
   for llvm_version in "${llvm_version_list[@]}" ; do
     common_build "ubuntu${os_version}" "${llvm_version}"
     if [ $? -ne 0 ] ; then
@@ -84,7 +84,7 @@ linux_build() {
 }
 
 osx_build() {
-  llvm_version_list=( "40" )
+  llvm_version_list=( "40" "50" "60" "70" "80")
   for llvm_version in "${llvm_version_list[@]}" ; do
     common_build "osx" "${llvm_version}"
     if [ $? -ne 0 ] ; then

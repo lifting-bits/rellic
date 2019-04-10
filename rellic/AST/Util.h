@@ -18,11 +18,13 @@
 #define RELLIC_AST_UTIL_H_
 
 #include <clang/AST/ASTContext.h>
-#include <clang/AST/Expr.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/CompilerInstance.h>
 
 #include <unordered_map>
+
+#include "rellic/AST/Compat/Stmt.h"
+#include "rellic/AST/Compat/Expr.h"
 
 namespace rellic {
 
@@ -43,15 +45,6 @@ clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
 clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
                                       clang::ValueDecl *val);
 
-clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
-                                        std::vector<clang::Stmt *> &stmts);
-
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then);
-
-clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                                  clang::Stmt *body);
-
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *body);
 
@@ -69,11 +62,6 @@ clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
 
 clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
                           clang::Expr *rhs);
-
-clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ctx,
-                                            clang::BinaryOperatorKind opc,
-                                            clang::Expr *lhs, clang::Expr *rhs,
-                                            clang::QualType res_type);
 
 clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
                                       clang::DeclContext *decl_ctx,

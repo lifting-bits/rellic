@@ -19,6 +19,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Compat/Stmt.h"
+#include "rellic/AST/Compat/Expr.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -35,10 +37,7 @@ static clang::Expr *CreateBoolBinOp(clang::ASTContext &ctx,
   } else if (!rhs) {
     return lhs;
   } else {
-    return new (ctx)
-        clang::BinaryOperator(lhs, rhs, opc, ctx.BoolTy, clang::VK_RValue,
-                              clang::OK_Ordinary, clang::SourceLocation(),
-                              /*fpContractable=*/false);
+    return CreateBinaryOperator(ctx, opc, lhs, rhs, ctx.BoolTy);
   }
 }
 
@@ -85,26 +84,6 @@ clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ast_ctx,
       false, val->getLocation(), val->getType(), clang::VK_LValue);
 }
 
-clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
-                                        std::vector<clang::Stmt *> &stmts) {
-  return new (ctx) clang::CompoundStmt(ctx, stmts, clang::SourceLocation(),
-                                       clang::SourceLocation());
-}
-
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then) {
-  return new (ctx)
-      clang::IfStmt(ctx, clang::SourceLocation(), /* IsConstexpr=*/false,
-                    /* init=*/nullptr,
-                    /* var=*/nullptr, cond, then);
-}
-
-clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                                  clang::Stmt *body) {
-  return new (ctx)
-      clang::WhileStmt(ctx, nullptr, cond, body, clang::SourceLocation());
-}
-
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *body) {
   return new (ctx)
@@ -123,19 +102,8 @@ clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
 
 clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
   CHECK(op) << "No operand given for unary logical expression";
-  return new (ctx) clang::UnaryOperator(
-      CreateParenExpr(ctx, op), clang::UO_LNot, ctx.BoolTy, clang::VK_RValue,
-      clang::OK_Ordinary, clang::SourceLocation());
-}
-
-clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
-                                            clang::BinaryOperatorKind opc,
-                                            clang::Expr *lhs, clang::Expr *rhs,
-                                            clang::QualType res_type) {
-  return new (ast_ctx)
-      clang::BinaryOperator(lhs, rhs, opc, res_type, clang::VK_RValue,
-                            clang::OK_Ordinary, clang::SourceLocation(),
-                            /*fpContractable=*/false);
+  return CreateUnaryOperator(ctx, clang::UO_LNot, CreateParenExpr(ctx, op),
+                             ctx.BoolTy);
 }
 
 clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,

@@ -30,19 +30,8 @@ clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
                                             clang::Expr *lhs, clang::Expr *rhs,
                                             clang::QualType res_type);
 
-clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
-                                        std::vector<clang::Stmt *> &stmts);
-
-clang::ReturnStmt *CreateReturnStmt(clang::ASTContext &ctx, clang::Expr *expr);
-
 clang::Expr *CreateCallExpr(clang::ASTContext &ctx, clang::Expr *func,
                             std::vector<clang::Expr *> &args,
                             clang::QualType res_type);
-
-clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                                  clang::Stmt *body);
-
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then);
 
 }  // namespace rellic

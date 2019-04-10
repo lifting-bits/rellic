@@ -19,6 +19,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Compat/Expr.h"
 #include "rellic/AST/Util.h"
 

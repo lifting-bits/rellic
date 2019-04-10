@@ -22,7 +22,6 @@
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
 
-#include "rellic/AST/Compat/Expr.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/Util.h"
 

@@ -50,51 +50,6 @@ clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
 #endif
 }
 
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
-  return clang::IfStmt::Create(ctx, clang::SourceLocation(),
-                               /* IsConstexpr=*/false,
-                               /* init=*/nullptr,
-                               /* var=*/nullptr, cond, then);
-#else
-  return new (ctx)
-      clang::IfStmt(ctx, clang::SourceLocation(), /* IsConstexpr=*/false,
-                    /* init=*/nullptr,
-                    /* var=*/nullptr, cond, then);
-#endif
-}
-
-clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                                  clang::Stmt *body) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
-  return clang::WhileStmt::Create(ctx, nullptr, cond, body,
-                                  clang::SourceLocation());
-#else
-  return new (ctx)
-      clang::WhileStmt(ctx, nullptr, cond, body, clang::SourceLocation());
-#endif
-}
-
-clang::ReturnStmt *CreateReturnStmt(clang::ASTContext &ctx, clang::Expr *expr) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
-  return clang::ReturnStmt::Create(ctx, clang::SourceLocation(), expr, nullptr);
-#else
-  return new (ctx) clang::ReturnStmt(clang::SourceLocation(), expr, nullptr);
-#endif
-}
-
-clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
-                                        std::vector<clang::Stmt *> &stmts) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(6, 0)
-  return clang::CompoundStmt::Create(ctx, stmts, clang::SourceLocation(),
-                                     clang::SourceLocation());
-#else
-  return new (ctx) clang::CompoundStmt(ctx, stmts, clang::SourceLocation(),
-                                       clang::SourceLocation());
-#endif
-}
-
 clang::Expr *CreateCallExpr(clang::ASTContext &ctx, clang::Expr *func,
                             std::vector<clang::Expr *> &args,
                             clang::QualType res_type) {

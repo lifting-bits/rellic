@@ -104,6 +104,7 @@ set(RELLIC_DECOMP rellic-decomp-${RELLIC_LLVM_VERSION})
 
 add_executable(${RELLIC_DECOMP} 
   
+  rellic/AST/Compat/Stmt.cpp
   rellic/AST/Compat/Expr.cpp
   
   rellic/AST/CondBasedRefine.cpp
@@ -136,7 +137,8 @@ set(RELLIC_HEADERGEN rellic-headergen-${RELLIC_LLVM_VERSION})
 
 add_executable(${RELLIC_HEADERGEN}
 
-  rellic/AST/Compat/Expr.cpp  
+  rellic/AST/Compat/Stmt.cpp
+  rellic/AST/Compat/Expr.cpp
 
   rellic/AST/CXXToCDecl.cpp
   rellic/AST/Util.cpp

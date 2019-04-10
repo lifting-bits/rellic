@@ -23,6 +23,7 @@
 
 #include <unordered_map>
 
+#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Compat/Expr.h"
 
 namespace rellic {

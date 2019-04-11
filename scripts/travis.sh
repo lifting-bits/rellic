@@ -72,7 +72,7 @@ linux_build() {
 
   llvm_version_list=( "40" "50" "60" "70" "80")
   for llvm_version in "${llvm_version_list[@]}" ; do
-    common_build "ubuntu${os_version}" "${llvm_version}"
+    common_build "ubuntu${os_version}" "${llvm_version}" 1
     if [ $? -ne 0 ] ; then
       return 1
     fi
@@ -86,7 +86,7 @@ linux_build() {
 osx_build() {
   llvm_version_list=( "40" "50" "60" "70" "80")
   for llvm_version in "${llvm_version_list[@]}" ; do
-    common_build "osx" "${llvm_version}"
+    common_build "osx" "${llvm_version}" 1
     if [ $? -ne 0 ] ; then
       return 1
     fi
@@ -98,8 +98,8 @@ osx_build() {
 }
 
 common_build() {
-  if [ $# -ne 2 ] ; then
-    printf "Usage:\n\tcommon_build <os_version> <llvm_version>\n\nllvm_version: 35, 40, ...\n"
+  if [ $# -ne 3 ] ; then
+    printf "Usage:\n\tcommon_build <os_version> <llvm_version> <use_host_compiler>\n\nllvm_version: 35, 40, ...\n"
     return 1
   fi
 
@@ -107,6 +107,7 @@ common_build() {
   local log_file=`mktemp`
   local os_version="$1"
   local llvm_version="$2"
+  local use_host_compiler="$3"
 
   printf "#\n"
   printf "# Running CI tests for LLVM version ${llvm_version}...\n"
@@ -182,8 +183,18 @@ common_build() {
   export TRAILOFBITS_LIBRARIES=`GetRealPath libraries`
   export PATH="${TRAILOFBITS_LIBRARIES}/llvm/bin:${TRAILOFBITS_LIBRARIES}/cmake/bin:${TRAILOFBITS_LIBRARIES}/protobuf/bin:${PATH}"
 
-  export CC="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang"
-  export CXX="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang++"
+  if [[ "${use_host_compiler}" = "1" ]] ; then
+    if [[ "x${CC}x" = "xx" ]] ; then
+      export CC=$(which cc)
+    fi
+    
+    if [[ "x${CXX}x" = "xx" ]] ; then
+      export CXX=$(which c++)
+    fi
+  else
+    export CC="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang"
+    export CXX="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang++"
+  fi
 
   printf " > Generating the project...\n"
   mkdir build > "${log_file}" 2>&1

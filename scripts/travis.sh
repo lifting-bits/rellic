@@ -75,7 +75,7 @@ linux_build() {
   llvm_version_list=( "40" "50" "60" "70" "80" )
   
   for llvm_version in "${llvm_version_list[@]}" ; do
-    common_build "ubuntu${os_version}" "${llvm_version}" 0
+    common_build "ubuntu${os_version}" "${llvm_version}" 1
     if [ $? -ne 0 ] ; then
       return 1
     fi
@@ -92,7 +92,7 @@ osx_build() {
   llvm_version_list=( "40" "50" "60" "70" "80" )
   
   for llvm_version in "${llvm_version_list[@]}" ; do
-    common_build "osx" "${llvm_version}" 0
+    common_build "osx" "${llvm_version}" 1
     if [ $? -ne 0 ] ; then
       return 1
     fi

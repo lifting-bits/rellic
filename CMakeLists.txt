@@ -73,18 +73,20 @@ set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
-find_package(Z3)
-if (NOT Z3_FOUND)
-  include(ExternalProject)
-  ExternalProject_Add(z3
-    GIT_REPOSITORY https://github.com/Z3Prover/z3.git
-    GIT_TAG z3-4.7.1
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/z3-src"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/z3-build"
-  )
+if (DEFINED Z3_INSTALL_PREFIX)
+  # acquire OpenMP for z3
+  find_package(OpenMP REQUIRED)
+  # import libz3.a
+  add_library(z3 STATIC IMPORTED)
+  set_target_properties(z3 PROPERTIES IMPORTED_LOCATION ${Z3_INSTALL_PREFIX}/bin/libz3.a)
+  # set variables
+  list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INSTALL_PREFIX}/include)
+  list(APPEND PROJECT_LIBRARIES OpenMP::OpenMP_CXX z3)
+else ()
+  find_package(Z3 REQUIRED)
+  list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIRS})
+  list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
 endif()
-list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIRS})
-list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
 
 # google log module
 find_package(glog REQUIRED)

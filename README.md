@@ -50,7 +50,8 @@ sudo apt-get install \
      build-essential \
      libtinfo-dev \
      lsb-release \
-     zlib1g-dev
+     zlib1g-dev \
+     libomp-dev
 
 # Ubuntu 14.04, 16.04
 sudo apt-get install realpath
@@ -62,7 +63,7 @@ The next step is to clone the Rellic repository.
 git clone https://github.com/trailofbits/rellic.git
 ```
 
-Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be built in the `rellic-build` directory. Rellic will also build Z3 in an appropriate version if it's not installed in the system.
+Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be built in the `rellic-build` directory. Rellic will also download Z3 in an appropriate version if it's not installed in the system.
 
 ```shell
 ./rellic/scripts/build.sh

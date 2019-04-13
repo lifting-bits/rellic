@@ -52,7 +52,7 @@ linux_initialize() {
   fi
 
   printf " > Installing the required packages...\n"
-  sudo apt-get install -qqy git python2.7 curl realpath build-essential gcc-multilib g++-multilib libtinfo-dev lsb-release
+  sudo apt-get install -qqy git python2.7 curl realpath build-essential gcc-multilib g++-multilib libomp-dev libtinfo-dev lsb-release
   if [ $? -ne 0 ] ; then
     printf " x Could not install the required dependencies\n"
     return 1
@@ -70,9 +70,12 @@ osx_initialize() {
 linux_build() {
   local os_version=`cat /etc/issue | awk '{ print $2 }' | cut -d '.' -f 1-2 | tr -d '.'`
 
-  llvm_version_list=( "40" "50" "60" "70" "80")
+  get_z3
+
+  llvm_version_list=( "40" "50" "60" "70" "80" )
+  
   for llvm_version in "${llvm_version_list[@]}" ; do
-    common_build "ubuntu${os_version}" "${llvm_version}"
+    common_build "ubuntu${os_version}" "${llvm_version}" 1
     if [ $? -ne 0 ] ; then
       return 1
     fi
@@ -84,9 +87,12 @@ linux_build() {
 }
 
 osx_build() {
-  llvm_version_list=( "40" "50" "60" "70" "80")
+  get_z3
+  
+  llvm_version_list=( "40" "50" "60" "70" "80" )
+  
   for llvm_version in "${llvm_version_list[@]}" ; do
-    common_build "osx" "${llvm_version}"
+    common_build "osx" "${llvm_version}" 1
     if [ $? -ne 0 ] ; then
       return 1
     fi
@@ -97,9 +103,73 @@ osx_build() {
   return 0
 }
 
+get_z3() { 
+  local log_file=`mktemp`
+  local z3_version="4.7.1"
+  local z3_release="z3-${z3_version}-x64-ubuntu-16.04"
+  
+  # clean up any existing Z3 stuff  
+  if [ -d "z3" ] ; then
+    sudo rm -rf z3 > "${log_file}" 2>&1
+    if [ $? -ne 0 ] ; then
+      printf " x Failed to remove the existing z3 folder. Error output follows:\n"
+      printf "===\n"
+      cat "${log_file}"
+      return 1
+    fi
+  fi
+  
+  if [ -f "${z3_release}.zip" ] ; then
+    sudo rm "${z3_release}.zip" > "${log_file}" 2>&1
+    if [ $? -ne 0 ] ; then
+      printf " x Failed to remove the existing z3 archive. Error output follows:\n"
+      printf "===\n"
+      cat "${log_file}"
+      return 1
+    fi
+  fi
+
+  printf "#\n"
+  printf "# Acquiring Z3 release: ${z3_release}\n"
+  printf "#\n\n"
+   
+  curl -C - "https://github.com/Z3Prover/z3/releases/download/z3-${z3_version}/${z3_release}.zip" -OL > "${log_file}" 2>&1
+  if [ $? -ne 0 ] ; then
+    printf " x Failed to download the z3 release archive. Error output follows:\n"
+    printf "===\n"
+    cat "${log_file}"
+
+    rm "${z3_release}.zip"
+    return 1
+  fi
+
+  unzip -qq "${z3_release}.zip" > "${log_file}" 2>&1
+  if [ $? -ne 0 ] ; then
+    printf " x Failed to unzip the z3 release archive. Error output follows:\n"
+    printf "===\n"
+    cat "${log_file}"
+
+    rm "${z3_release}.zip"
+    rm -rf "${z3_release}"
+    return 1
+  fi
+
+  mv ${z3_release} z3 > "${log_file}" 2>&1
+  if [ $? -ne 0 ] ; then
+    printf " x Failed to move the z3 release archive. Error output follows:\n"
+    printf "===\n"
+    cat "${log_file}"
+
+    rm "${z3_release}.zip"
+    rm -rf "${z3_release}"
+    rm -rf z3
+    return 1
+  fi
+}
+
 common_build() {
-  if [ $# -ne 2 ] ; then
-    printf "Usage:\n\tcommon_build <os_version> <llvm_version>\n\nllvm_version: 35, 40, ...\n"
+  if [ $# -ne 3 ] ; then
+    printf "Usage:\n\tcommon_build <os_version> <llvm_version> <use_host_compiler>\n\nllvm_version: 35, 40, ...\n"
     return 1
   fi
 
@@ -107,6 +177,7 @@ common_build() {
   local log_file=`mktemp`
   local os_version="$1"
   local llvm_version="$2"
+  local use_host_compiler="$3"
 
   printf "#\n"
   printf "# Running CI tests for LLVM version ${llvm_version}...\n"
@@ -146,10 +217,10 @@ common_build() {
   if [ ! -d "cxxcommon" ] ; then
     mkdir "cxxcommon" > "${log_file}" 2>&1
     if [ $? -ne 0 ] ; then
-        printf " x Failed to create the cxxcommon folder. Error output follows:\n"
-        printf "===\n"
-        cat "${log_file}"
-        return 1
+      printf " x Failed to create the cxxcommon folder. Error output follows:\n"
+      printf "===\n"
+      cat "${log_file}"
+      return 1
     fi
   fi
 
@@ -180,10 +251,21 @@ common_build() {
   fi
 
   export TRAILOFBITS_LIBRARIES=`GetRealPath libraries`
+  export Z3_LIBRARIES=`GetRealPath z3`
   export PATH="${TRAILOFBITS_LIBRARIES}/llvm/bin:${TRAILOFBITS_LIBRARIES}/cmake/bin:${TRAILOFBITS_LIBRARIES}/protobuf/bin:${PATH}"
 
-  export CC="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang"
-  export CXX="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang++"
+  if [[ "${use_host_compiler}" = "1" ]] ; then
+    if [[ "x${CC}x" = "xx" ]] ; then
+      export CC=$(which cc)
+    fi
+    
+    if [[ "x${CXX}x" = "xx" ]] ; then
+      export CXX=$(which c++)
+    fi
+  else
+    export CC="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang"
+    export CXX="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang++"
+  fi
 
   printf " > Generating the project...\n"
   mkdir build > "${log_file}" 2>&1
@@ -194,7 +276,7 @@ common_build() {
     return 1
   fi
 
-  ( cd build && cmake -DCMAKE_VERBOSE_MAKEFILE=True .. ) > "${log_file}" 2>&1
+  ( cd build && cmake -DZ3_INSTALL_PREFIX="${Z3_LIBRARIES}" -DCMAKE_VERBOSE_MAKEFILE=True .. ) > "${log_file}" 2>&1
   if [ $? -ne 0 ] ; then
     printf " x Failed to generate the project. Error output follows:\n"
     printf "===\n"

@@ -23,9 +23,15 @@ CURR_DIR=$( pwd )
 BUILD_DIR="${CURR_DIR}/rellic-build"
 INSTALL_DIR=/usr/local
 LLVM_VERSION=llvm40
-OS_VERSION=
-ARCH_VERSION=
+OS_VERSION=unknown
+ARCH_VERSION=unknown
 BUILD_FLAGS=
+USE_HOST_COMPILER=0
+
+Z3_ARCHIVE=z3-
+Z3_VERSION=4.7.1
+Z3_ARCH_VERSION=x64
+Z3_OS_VERSION=ubuntu-16.04
 
 # There are pre-build versions of various libraries for specific
 # Ubuntu releases.
@@ -49,6 +55,7 @@ function GetUbuntuOSVersion
       return 0
     ;;
     trusty)
+      USE_HOST_COMPILER=1
       OS_VERSION=ubuntu1404
       return 0
     ;;
@@ -73,12 +80,8 @@ function GetArchVersion
       ARCH_VERSION=amd64
       return 0
     ;;
-    aarch64)
-      ARCH_VERSION=aarch64
-      return 0
-    ;;
     *)
-      echo "[x] ${version} architecture is not supported. Only aarch64 and x86_64 (i.e. amd64) are supported."
+      echo "[x] ${version} architecture is not supported. Only x86_64 (i.e. amd64) are supported."
       return 1
     ;;
   esac
@@ -97,6 +100,22 @@ function DownloadCxxCommon
 
   tar xf "${LIBRARY_VERSION}.tar.gz" $TAR_OPTIONS
   rm "${LIBRARY_VERSION}.tar.gz"
+
+  # Make sure modification times are not in the future.
+  find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
+  
+  return 0
+}
+
+function DownloadZ3
+{
+  if ! curl -OL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/${Z3_ARCHIVE}.zip"; then
+    return 1
+  fi
+  
+  unzip -qq "${Z3_ARCHIVE}.zip"
+  rm "${Z3_ARCHIVE}.zip"
+  mv "${Z3_ARCHIVE}" "${BUILD_DIR}/libraries/z3"
 
   # Make sure modification times are not in the future.
   find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
@@ -132,8 +151,45 @@ function GetOSVersion
   esac
 }
 
+# Attempt to determine Z3 version from ARCH_VERSION and OS_VERSION
+function GetZ3ArchiveName
+{
+  if [[ "$ARCH_VERSION" == "amd64" ]]; then
+    Z3_ARCH_VERSION="x64"
+  else
+    echo "[x] Z3 does not support ${ARCH_VERSION}."
+    return 1
+  fi
+
+  case "${OS_VERSION}" in
+    ubuntu1404)
+      Z3_OS_VERSION="ubuntu-14.04"
+    ;;
+
+    ubuntu1604)
+      Z3_OS_VERSION="ubuntu-16.04"
+    ;;
+
+    ubuntu1804)
+      Z3_OS_VERSION="ubuntu-16.04"
+    ;;
+
+    osx)
+      Z3_OS_VERSION="osx"
+    ;;
+
+    *)
+      echo "[x] Z3 does not support ${OS_VERSION}."
+      return 1
+    ;;
+  esac
+
+  Z3_ARCHIVE="z3-$Z3_VERSION-$Z3_ARCH_VERSION-$Z3_OS_VERSION"
+}
+
 # Download pre-compiled version of cxx-common for this OS. This has things like
-# google protobuf, gflags, glog, gtest, capstone, and llvm in it.
+# google protobuf, gflags, glog, gtest, capstone, and llvm in it. Also download
+# prebuilt z3 from https://github.com/Z3Prover/z3/releases/.
 function DownloadLibraries
 {
   # macOS packages
@@ -155,12 +211,21 @@ function DownloadLibraries
   fi
 
   LIBRARY_VERSION="libraries-${LLVM_VERSION}-${OS_VERSION}-${ARCH_VERSION}"
+  
+  if ! GetZ3ArchiveName; then
+      return 1
+  fi
 
   echo "[-] Library version is ${LIBRARY_VERSION}"
+  echo "[-] Z3 version is ${Z3_ARCHIVE}"
 
   if [[ ! -d "${BUILD_DIR}/libraries" ]]; then
     if ! DownloadCxxCommon; then
       echo "[x] Unable to download cxx-common build ${LIBRARY_VERSION}."
+      return 1
+    fi
+    if ! DownloadZ3; then
+      echo "[x] Unable to download z3 build ${Z3_ARCHIVE}."
       return 1
     fi
   fi
@@ -174,12 +239,24 @@ function Configure
   # Tell the rellic CMakeLists.txt where the extracted libraries are. 
   export TRAILOFBITS_LIBRARIES="${BUILD_DIR}/libraries"
   export PATH="${TRAILOFBITS_LIBRARIES}/cmake/bin:${TRAILOFBITS_LIBRARIES}/llvm/bin:${PATH}"
-  export CC="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang"
-  export CXX="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang++"
+  
+  if [[ "${USE_HOST_COMPILER}" = "1" ]] ; then
+    if [[ "x${CC}x" = "xx" ]] ; then
+      export CC=$(which cc)
+    fi
+    
+    if [[ "x${CXX}x" = "xx" ]] ; then
+      export CXX=$(which c++)
+    fi
+  else
+    export CC="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang"
+    export CXX="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang++"
+  fi
 
   # Configure the rellic build, specifying that it should use the pre-built
   # Clang compiler binaries.
   "${TRAILOFBITS_LIBRARIES}/cmake/bin/cmake" \
+      -DZ3_INSTALL_PREFIX="${TRAILOFBITS_LIBRARIES}/z3" \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCMAKE_C_COMPILER="${CC}" \
       -DCMAKE_CXX_COMPILER="${CXX}" \
@@ -209,26 +286,32 @@ function GetLLVMVersion
   case ${1} in
     3.5)
       LLVM_VERSION=llvm35
+      USE_HOST_COMPILER=1
       return 0
     ;;
     3.6)
       LLVM_VERSION=llvm36
+      USE_HOST_COMPILER=1
       return 0
     ;;
     3.7)
       LLVM_VERSION=llvm37
+      USE_HOST_COMPILER=1
       return 0
     ;;
     3.8)
       LLVM_VERSION=llvm38
+      USE_HOST_COMPILER=1
       return 0
     ;;
     3.9)
       LLVM_VERSION=llvm39
+      USE_HOST_COMPILER=1
       return 0
     ;;
     4.0)
       LLVM_VERSION=llvm40
+      USE_HOST_COMPILER=1
       return 0
     ;;
     5.0)
@@ -294,6 +377,12 @@ function main
       --extra-cmake-args)
         BUILD_FLAGS="${BUILD_FLAGS} ${2}"
         echo "[+] Will supply additional arguments to cmake: ${BUILD_FLAGS}"
+        shift
+      ;;
+
+      --use-host-compiler)
+        USE_HOST_COMPILER=1
+        echo "[+] Forcing use of host compiler for build"
         shift
       ;;
 

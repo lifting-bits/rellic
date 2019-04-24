@@ -23,8 +23,8 @@
 
 #include <unordered_map>
 
-#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Compat/Expr.h"
+#include "rellic/AST/Compat/Stmt.h"
 
 namespace rellic {
 
@@ -84,6 +84,9 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                     clang::RecordDecl *prev_decl = nullptr);
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
+
+clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
+                                std::vector<clang::Expr *> &exprs);
 
 }  // namespace rellic
 

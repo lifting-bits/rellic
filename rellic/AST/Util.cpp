@@ -19,8 +19,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Compat/Expr.h"
+#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -157,6 +157,12 @@ clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
   return clang::IntegerLiteral::Create(
       ctx, llvm::APInt(ctx.getIntWidth(ctx.UnsignedIntTy), 1),
       ctx.UnsignedIntTy, clang::SourceLocation());
+}
+
+clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
+                                std::vector<clang::Expr *> &exprs) {
+  return new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
+                                       clang::SourceLocation());
 }
 
 }  // namespace rellic

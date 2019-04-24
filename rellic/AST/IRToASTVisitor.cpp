@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define GOOGLE_STRIP_LOG 1
+// #define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -112,10 +112,19 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
                                             /*isexact=*/true, type,
                                             clang::SourceLocation());
   } else if (auto array = llvm::dyn_cast<llvm::ConstantDataArray>(constant)) {
-    CHECK(array->isString()) << "ConstantArray is not a string";
-    result = clang::StringLiteral::Create(
-        ast_ctx, array->getAsString(), clang::StringLiteral::StringKind::Ascii,
-        /*Pascal=*/false, type, clang::SourceLocation());
+    if (array->isString()) {
+      result = clang::StringLiteral::Create(
+          ast_ctx, array->getAsString(),
+          clang::StringLiteral::StringKind::Ascii,
+          /*Pascal=*/false, type, clang::SourceLocation());
+    } else {
+      std::vector<clang::Expr *> init_exprs;
+      for (unsigned i = 0; i < array->getNumElements(); ++i) {
+        auto element = array->getElementAsConstant(i);
+        init_exprs.push_back(CreateLiteralExpr(ast_ctx, decl_ctx, element));
+      }
+      result = CreateInitListExpr(ast_ctx, init_exprs);
+    }
   }
 
   return result;

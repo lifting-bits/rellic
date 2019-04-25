@@ -97,21 +97,21 @@ static clang::QualType GetQualType(clang::ASTContext &ctx, llvm::Type *type,
 
 static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
                                       clang::DeclContext *decl_ctx,
-                                      llvm::Constant *constant) {
+                                      llvm::ConstantData *cdata) {
   DLOG(INFO) << "Creating literal Expr for "
-             << rellic::LLVMThingToString(constant);
+             << rellic::LLVMThingToString(cdata);
 
-  auto type = GetQualType(ast_ctx, constant->getType(), /*constant=*/true);
+  auto type = GetQualType(ast_ctx, cdata->getType(), /*constant=*/true);
 
   clang::Expr *result = nullptr;
-  if (auto integer = llvm::dyn_cast<llvm::ConstantInt>(constant)) {
+  if (auto integer = llvm::dyn_cast<llvm::ConstantInt>(cdata)) {
     result = clang::IntegerLiteral::Create(ast_ctx, integer->getValue(), type,
                                            clang::SourceLocation());
-  } else if (auto floating = llvm::dyn_cast<llvm::ConstantFP>(constant)) {
+  } else if (auto floating = llvm::dyn_cast<llvm::ConstantFP>(cdata)) {
     result = clang::FloatingLiteral::Create(ast_ctx, floating->getValueAPF(),
                                             /*isexact=*/true, type,
                                             clang::SourceLocation());
-  } else if (auto array = llvm::dyn_cast<llvm::ConstantDataArray>(constant)) {
+  } else if (auto array = llvm::dyn_cast<llvm::ConstantDataArray>(cdata)) {
     if (array->isString()) {
       result = clang::StringLiteral::Create(
           ast_ctx, array->getAsString(),
@@ -121,10 +121,13 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
       std::vector<clang::Expr *> init_exprs;
       for (unsigned i = 0; i < array->getNumElements(); ++i) {
         auto element = array->getElementAsConstant(i);
-        init_exprs.push_back(CreateLiteralExpr(ast_ctx, decl_ctx, element));
+        auto cdata = llvm::cast<llvm::ConstantData>(element);
+        init_exprs.push_back(CreateLiteralExpr(ast_ctx, decl_ctx, cdata));
       }
       result = CreateInitListExpr(ast_ctx, init_exprs);
     }
+  } else {
+    LOG(FATAL) << "Unknown LLVM constant type";
   }
 
   return result;
@@ -161,7 +164,6 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     stmts[val] = stmts[inst];
     stmts.erase(inst);
     DeleteValue(inst);
-    // delete inst;
   }
 
   if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
@@ -230,7 +232,8 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
 
     if (gvar.hasInitializer()) {
       auto tmp = clang::cast<clang::VarDecl>(var);
-      tmp->setInit(CreateLiteralExpr(ast_ctx, tudecl, gvar.getInitializer()));
+      auto cdata = llvm::cast<llvm::ConstantData>(gvar.getInitializer());
+      tmp->setInit(CreateLiteralExpr(ast_ctx, tudecl, cdata));
     }
 
     tudecl->addDecl(var);
@@ -272,49 +275,6 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
     tudecl->addDecl(decl);
   }
 }
-
-// void IRToASTVisitor::VisitFunctionDefn(llvm::Function &func) {
-//   auto name = func.getName().str();
-//   DLOG(INFO) << "VisitFunctionDefn: " << name;
-//   auto &compound = stmts[&func];
-//   if (!compound) {
-//     std::vector<clang::Stmt *> compounds;
-//     for (auto &block : func) {
-//       auto stmt = stmts[&block];
-//       CHECK(stmt) << "CompoundStmt for block does not exist";
-//       compounds.push_back(stmt);
-//     }
-
-//     compound = new (ast_ctx) clang::CompoundStmt(
-//         ast_ctx, compounds, clang::SourceLocation(),
-//         clang::SourceLocation());
-
-//     if (auto decl = clang::dyn_cast<clang::FunctionDecl>(decls[&func])) {
-//       decl->setBody(compound);
-//     } else {
-//       LOG(FATAL) << "FunctionDecl for function does not exist";
-//     }
-//   }
-// }
-
-// void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block) {
-//   auto name = block.hasName() ? block.getName().str() : "<no_name>";
-//   DLOG(INFO) << "VisitBasicBlock: " << name;
-//   auto &compound = stmts[&block];
-//   if (!compound) {
-//     DLOG(INFO) << "Creating CompoundStmt for " << name;
-//     visit(block);
-//     std::vector<clang::Stmt *> block_stmts;
-//     for (auto &inst : block) {
-//       if (stmts.count(&inst)) {
-//         block_stmts.push_back(stmts[&inst]);
-//       }
-//     }
-//     compound = new (ast_ctx) clang::CompoundStmt(
-//         ast_ctx, block_stmts, clang::SourceLocation(),
-//         clang::SourceLocation());
-//   }
-// }
 
 void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   DLOG(INFO) << "visitCallInst: " << rellic::LLVMThingToString(&inst);
@@ -439,8 +399,10 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
       } else {
         LOG(FATAL) << "Referencing undeclared variable";
       }
-    } else if (llvm::isa<llvm::GetElementPtrInst>(ptr)) {
+    } else if (llvm::isa<llvm::GetElementPtrInst>(ptr) ||
+               llvm::isa<llvm::ConstantExpr>(ptr)) {
       DLOG(INFO) << "Loading from an aggregate";
+      ref = GetOperandExpr(fdecl, ptr);
     } else {
       LOG(FATAL) << "Loading from an unknown pointer";
     }

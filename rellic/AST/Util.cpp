@@ -165,4 +165,11 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
                                        clang::SourceLocation());
 }
 
+clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
+                                      clang::Expr *idx, clang::QualType type) {
+  return new (ctx)
+      clang::ArraySubscriptExpr(base, idx, type, clang::VK_RValue,
+                                clang::OK_Ordinary, clang::SourceLocation());
+}
+
 }  // namespace rellic

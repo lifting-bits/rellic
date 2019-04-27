@@ -18,6 +18,7 @@
 #define RELLIC_AST_IRTOASTVISITOR_H_
 
 #include <llvm/IR/InstVisitor.h>
+#include <llvm/IR/Operator.h>
 
 #include <clang/AST/ASTContext.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -54,7 +55,6 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   void visitReturnInst(llvm::ReturnInst &inst);
   void visitBinaryOperator(llvm::BinaryOperator &inst);
   void visitCmpInst(llvm::CmpInst &inst);
-  // void visitInstruction(llvm::Instruction &inst);
 };
 
 }  // namespace rellic

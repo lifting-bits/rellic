@@ -88,6 +88,9 @@ clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
                                 std::vector<clang::Expr *> &exprs);
 
+clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
+                                      clang::Expr *idx, clang::QualType type);
+
 }  // namespace rellic
 
 #endif  // RELLIC_AST_UTIL_H_

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_UTIL_H_
-#define RELLIC_AST_UTIL_H_
+#pragma once
 
 #include <clang/AST/ASTContext.h>
 #include <clang/Basic/TargetInfo.h>
@@ -92,5 +91,3 @@ clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
                                       clang::Expr *idx, clang::QualType type);
 
 }  // namespace rellic
-
-#endif  // RELLIC_AST_UTIL_H_

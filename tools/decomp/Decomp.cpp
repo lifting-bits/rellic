@@ -26,7 +26,7 @@
 #include <clang/Basic/TargetInfo.h>
 
 #include "rellic/AST/CondBasedRefine.h"
-#include "rellic/AST/DeadStmtElim.h"
+#include "rellic/AST/StmtCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LoopRefine.h"
@@ -74,7 +74,7 @@ static bool GeneratePseudocode(llvm::Module& module,
 
   llvm::legacy::PassManager ast;
   ast.add(rellic::createGenerateASTPass(ast_ctx, gen));
-  ast.add(rellic::createDeadStmtElimPass(ast_ctx, gen));
+  ast.add(rellic::createStmtCombinePass(ast_ctx, gen));
   ast.run(module);
 
   // Simplifier to use during condition-based refinement
@@ -115,7 +115,7 @@ static bool GeneratePseudocode(llvm::Module& module,
   fin.add(fin_simplifier);
   fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   fin.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
-  fin.add(rellic::createDeadStmtElimPass(ast_ctx, gen));
+  fin.add(rellic::createStmtCombinePass(ast_ctx, gen));
   fin.run(module);
 
   ast_ctx.getTranslationUnitDecl()->print(output);

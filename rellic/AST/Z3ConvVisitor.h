@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_Z3CONVVISITOR_H_
-#define RELLIC_AST_Z3CONVVISITOR_H_
+#pragma once
 
 #include <clang/AST/RecursiveASTVisitor.h>
 
@@ -70,5 +69,3 @@ class Z3ConvVisitor
 };
 
 }  // namespace rellic
-
-#endif  // RELLIC_AST_Z3CONVVISITOR_H_

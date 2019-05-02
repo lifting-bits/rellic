@@ -17,20 +17,20 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/DeadStmtElim.h"
+#include "rellic/AST/StmtCombine.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
 
-char DeadStmtElim::ID = 0;
+char StmtCombine::ID = 0;
 
-DeadStmtElim::DeadStmtElim(clang::ASTContext &ctx,
+StmtCombine::StmtCombine(clang::ASTContext &ctx,
                            rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(DeadStmtElim::ID),
+    : ModulePass(StmtCombine::ID),
       ast_ctx(&ctx),
       ast_gen(&ast_gen) {}
 
-bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
+bool StmtCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   llvm::APSInt val;
   bool is_const = ifstmt->getCond()->isIntegerConstantExpr(val, *ast_ctx);
@@ -42,7 +42,7 @@ bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   return true;
 }
 
-bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
+bool StmtCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   std::vector<clang::Stmt *> new_body;
   for (auto stmt : compound->body()) {
@@ -66,15 +66,15 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
   return true;
 }
 
-bool DeadStmtElim::runOnModule(llvm::Module &module) {
+bool StmtCombine::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Eliminating dead statements";
   Initialize();
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }
 
-llvm::ModulePass *createDeadStmtElimPass(clang::ASTContext &ctx,
+llvm::ModulePass *createStmtCombinePass(clang::ASTContext &ctx,
                                          rellic::IRToASTVisitor &gen) {
-  return new DeadStmtElim(ctx, gen);
+  return new StmtCombine(ctx, gen);
 }
 }  // namespace rellic

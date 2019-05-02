@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_CXXTOCDECL_H_
-#define RELLIC_AST_CXXTOCDECL_H_
+#pragma once
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -62,5 +61,3 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
 };
 
 }  // namespace rellic
-
-#endif  // RELLIC_AST_CXXTOCDECL_H_

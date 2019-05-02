@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_IRTOASTVISITOR_H_
-#define RELLIC_AST_IRTOASTVISITOR_H_
+#pragma once
 
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/Operator.h>
@@ -58,5 +57,3 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 };
 
 }  // namespace rellic
-
-#endif  // RELLIC_AST_IRTOASTVISITOR_H_

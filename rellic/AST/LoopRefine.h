@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_LOOPREFINE_H_
-#define RELLIC_AST_LOOPREFINE_H_
+#pragma once
 
 #include <llvm/IR/Module.h>
 
@@ -48,5 +47,3 @@ llvm::ModulePass *createLoopRefinePass(clang::ASTContext &ctx,
 namespace llvm {
 void initializeLoopRefinePass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_LOOPREFINE_H_

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_DEADSTMTELIM_H_
-#define RELLIC_AST_DEADSTMTELIM_H_
+#pragma once
 
 #include <llvm/IR/Module.h>
 
@@ -25,8 +24,8 @@
 
 namespace rellic {
 
-class DeadStmtElim : public llvm::ModulePass,
-                     public TransformVisitor<DeadStmtElim> {
+class StmtCombine : public llvm::ModulePass,
+                     public TransformVisitor<StmtCombine> {
  private:
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
@@ -34,7 +33,7 @@ class DeadStmtElim : public llvm::ModulePass,
  public:
   static char ID;
 
-  DeadStmtElim(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  StmtCombine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
@@ -42,12 +41,10 @@ class DeadStmtElim : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createDeadStmtElimPass(clang::ASTContext &ctx,
+llvm::ModulePass *createStmtCombinePass(clang::ASTContext &ctx,
                                          rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {
-void initializeDeadStmtElimPass(PassRegistry &);
+void initializeStmtCombinePass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_DEADSTMTELIM_H_

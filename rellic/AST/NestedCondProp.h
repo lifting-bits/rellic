@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_NESTEDCONDPROP_H_
-#define RELLIC_AST_NESTEDCONDPROP_H_
+#pragma once
 
 #include <llvm/IR/Module.h>
 
@@ -58,5 +57,3 @@ llvm::ModulePass *createNestedCondPropPass(clang::ASTContext &ctx,
 namespace llvm {
 void initializeNestedCondPropPass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_NESTEDCONDPROP_H_

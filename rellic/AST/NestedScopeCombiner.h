@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_NESTEDSCOPECOMBINER_H_
-#define RELLIC_AST_NESTEDSCOPECOMBINER_H_
+#pragma once
 
 #include <llvm/IR/Module.h>
 
@@ -50,5 +49,3 @@ llvm::ModulePass *createNestedScopeCombinerPass(clang::ASTContext &ctx,
 namespace llvm {
 void initializeNestedScopeCombinerPass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_NESTEDSCOPECOMBINER_H_

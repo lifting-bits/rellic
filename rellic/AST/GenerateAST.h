@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_GENERATEAST_H_
-#define RELLIC_AST_GENERATEAST_H_
+#pragma once
 
 #include <llvm/Analysis/Passes.h>
 #include <llvm/Analysis/RegionInfo.h>
@@ -71,5 +70,3 @@ llvm::ModulePass *createGenerateASTPass(clang::ASTContext &ctx,
 namespace llvm {
 void initializeGenerateASTPass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_GENERATEAST_H_

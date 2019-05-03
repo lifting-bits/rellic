@@ -17,18 +17,59 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/InferenceRule.h"
 #include "rellic/AST/StmtCombine.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
 
+namespace {
+
+using namespace clang::ast_matchers;
+
+class DerefAddrOfRule : public InferenceRule {
+ public:
+  DerefAddrOfRule() : InferenceRule(unaryOperator()) {}
+
+  void run(const MatchFinder::MatchResult &result) { DLOG(INFO) << "SATAN"; }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *loop) {
+    CHECK(loop == match)
+        << "Substituted UnaryOperator is not the matched UnaryOperator!";
+    return nullptr;
+  }
+};
+
+}  // namespace
+
 char StmtCombine::ID = 0;
 
 StmtCombine::StmtCombine(clang::ASTContext &ctx,
-                           rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(StmtCombine::ID),
-      ast_ctx(&ctx),
-      ast_gen(&ast_gen) {}
+                         rellic::IRToASTVisitor &ast_gen)
+    : ModulePass(StmtCombine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
+
+bool StmtCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
+  // DLOG(INFO) << "VisitUnaryOperator";
+  clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
+  clang::ast_matchers::MatchFinder finder(opts);
+
+  DerefAddrOfRule deref_addrof_r;
+  finder.addMatcher(deref_addrof_r.GetCondition(), &deref_addrof_r);
+
+  finder.match(*op, *ast_ctx);
+
+  clang::Stmt *sub = nullptr;
+  if (deref_addrof_r) {
+    sub = deref_addrof_r.GetOrCreateSubstitution(*ast_ctx, op);
+  }
+
+  if (sub) {
+    substitutions[op] = sub;
+  }
+
+  return true;
+}
 
 bool StmtCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
@@ -67,14 +108,14 @@ bool StmtCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
 }
 
 bool StmtCombine::runOnModule(llvm::Module &module) {
-  LOG(INFO) << "Eliminating dead statements";
+  LOG(INFO) << "Rule-based statement simplification";
   Initialize();
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }
 
 llvm::ModulePass *createStmtCombinePass(clang::ASTContext &ctx,
-                                         rellic::IRToASTVisitor &gen) {
+                                        rellic::IRToASTVisitor &gen) {
   return new StmtCombine(ctx, gen);
 }
 }  // namespace rellic

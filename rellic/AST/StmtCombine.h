@@ -36,6 +36,7 @@ class StmtCombine : public llvm::ModulePass,
   StmtCombine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
+  bool VisitUnaryOperator(clang::UnaryOperator *op);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;

@@ -25,7 +25,7 @@
 namespace rellic {
 
 class StmtCombine : public llvm::ModulePass,
-                     public TransformVisitor<StmtCombine> {
+                    public TransformVisitor<StmtCombine> {
  private:
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
@@ -37,13 +37,14 @@ class StmtCombine : public llvm::ModulePass,
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitUnaryOperator(clang::UnaryOperator *op);
+  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
 llvm::ModulePass *createStmtCombinePass(clang::ASTContext &ctx,
-                                         rellic::IRToASTVisitor &ast_gen);
+                                        rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {

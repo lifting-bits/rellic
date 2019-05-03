@@ -287,7 +287,7 @@ LoopRefine::LoopRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen)
     : ModulePass(LoopRefine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
-  // DLOG(INFO) << "VisitWhileStmt";  
+  // DLOG(INFO) << "VisitWhileStmt";
   std::vector<InferenceRule *> rules;
 
   rules.push_back(new CondToSeqRule);
@@ -296,8 +296,9 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   rules.push_back(new LoopToSeq);
   rules.push_back(new WhileRule);
   rules.push_back(new DoWhileRule);
-  
-  if (auto sub = ApplyFirstMatchingRule(*ast_ctx, loop, rules)) {
+
+  auto sub = ApplyFirstMatchingRule(*ast_ctx, loop, rules);
+  if (sub != loop) {
     substitutions[loop] = sub;
   }
 

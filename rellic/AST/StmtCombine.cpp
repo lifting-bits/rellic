@@ -27,17 +27,30 @@ namespace {
 
 using namespace clang::ast_matchers;
 
-class DerefAddrOfRule : public InferenceRule {
+// Matches `(&base)[0]` and subs it for `base`
+class ArraySubscriptAddrOfRule : public InferenceRule {
  public:
-  DerefAddrOfRule() : InferenceRule(unaryOperator()) {}
+  ArraySubscriptAddrOfRule()
+      : InferenceRule(arraySubscriptExpr(
+            stmt().bind("sub"),
+            hasBase(parenExpr(has(unaryOperator(stmt().bind("base"))))),
+            hasIndex(integerLiteral(equals(0))))) {}
 
-  void run(const MatchFinder::MatchResult &result) { DLOG(INFO) << "SATAN"; }
+  void run(const MatchFinder::MatchResult &result) {
+    auto op = result.Nodes.getNodeAs<clang::UnaryOperator>("base");
+    if (op->getOpcode() == clang::UO_AddrOf) {
+      match = result.Nodes.getNodeAs<clang::ArraySubscriptExpr>("sub");
+    }
+  }
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                       clang::Stmt *loop) {
-    CHECK(loop == match)
+                                       clang::Stmt *stmt) {
+    auto sub = clang::cast<clang::ArraySubscriptExpr>(stmt);
+    CHECK(sub == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    return nullptr;
+    auto paren = clang::cast<clang::ParenExpr>(sub->getBase());
+    auto addr_of = clang::cast<clang::UnaryOperator>(paren->getSubExpr());
+    return addr_of->getSubExpr();
   }
 };
 
@@ -49,24 +62,30 @@ StmtCombine::StmtCombine(clang::ASTContext &ctx,
                          rellic::IRToASTVisitor &ast_gen)
     : ModulePass(StmtCombine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
 
+bool StmtCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
+  // DLOG(INFO) << "VisitArraySubscriptExpr";
+  std::vector<InferenceRule *> rules({new ArraySubscriptAddrOfRule});
+  auto sub = ApplyFirstMatchingRule(*ast_ctx, expr, rules);
+  if (sub != expr) {
+    substitutions[expr] = sub;
+  }
+
+  delete rules.back();
+
+  return true;
+}
+
 bool StmtCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   // DLOG(INFO) << "VisitUnaryOperator";
-  clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
-  clang::ast_matchers::MatchFinder finder(opts);
 
-  DerefAddrOfRule deref_addrof_r;
-  finder.addMatcher(deref_addrof_r.GetCondition(), &deref_addrof_r);
+  // std::vector<InferenceRule *> rules({new ArraySubscriptAddrOfRule});
 
-  finder.match(*op, *ast_ctx);
+  // auto sub = ApplyFirstMatchingRule(*ast_ctx, op, rules);
+  // if (sub != op) {
+  //   substitutions[op] = sub;
+  // }
 
-  clang::Stmt *sub = nullptr;
-  if (deref_addrof_r) {
-    sub = deref_addrof_r.GetOrCreateSubstitution(*ast_ctx, op);
-  }
-
-  if (sub) {
-    substitutions[op] = sub;
-  }
+  // delete rules.back();
 
   return true;
 }

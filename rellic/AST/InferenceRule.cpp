@@ -35,7 +35,7 @@ clang::Stmt *ApplyFirstMatchingRule(clang::ASTContext &ctx, clang::Stmt *stmt,
     }
   }
 
-  return nullptr;
+  return stmt;
 }
 
 }  // namespace rellic

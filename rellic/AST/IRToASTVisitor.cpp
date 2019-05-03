@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -167,10 +167,19 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     auto decl = clang::cast<clang::ValueDecl>(decls[val]);
     result = CreateDeclRefExpr(ast_ctx, decl);
     if (llvm::isa<llvm::GlobalValue>(val)) {
-      // LLVM IR global values are constant pointers; Add a `&`
-      result = CreateParenExpr(
-          ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, result,
-                                       GetQualType(ast_ctx, val->getType())));
+      // LLVM IR global values are constant pointers
+      auto ref_type = result->getType();
+      if (ref_type->isArrayType()) {
+        // Add an implicit cast
+        result = clang::ImplicitCastExpr::Create(
+            ast_ctx, ast_ctx.getPointerType(ref_type),
+            clang::CK_ArrayToPointerDecay, result, nullptr, clang::VK_RValue);
+      } else {
+        // Add a `&` operator
+        result = CreateParenExpr(
+            ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, result,
+                                         ast_ctx.getPointerType(ref_type)));
+      }
     }
   } else if (stmts.count(val)) {
     // Operand is a result of an expression
@@ -415,7 +424,9 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
     }
   } else if (llvm::isa<llvm::GEPOperator>(ptr)) {
     DLOG(INFO) << "Loading from an aggregate";
-    ref = GetOperandExpr(fdecl, ptr);
+    auto op = GetOperandExpr(fdecl, ptr);
+    auto res_type = GetQualType(ast_ctx, inst.getType());
+    ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
   } else {
     LOG(FATAL) << "Loading from an unknown pointer";
   }

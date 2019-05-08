@@ -110,6 +110,7 @@ add_executable(${RELLIC_DECOMP}
   rellic/AST/Compat/Expr.cpp
   
   rellic/AST/InferenceRule.cpp
+  rellic/AST/DeadStmtElim.cpp
   rellic/AST/CondBasedRefine.cpp
   rellic/AST/StmtCombine.cpp
   rellic/AST/GenerateAST.cpp

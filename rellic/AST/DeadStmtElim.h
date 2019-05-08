@@ -24,8 +24,8 @@
 
 namespace rellic {
 
-class StmtCombine : public llvm::ModulePass,
-                    public TransformVisitor<StmtCombine> {
+class DeadStmtElim : public llvm::ModulePass,
+                     public TransformVisitor<DeadStmtElim> {
  private:
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
@@ -33,19 +33,18 @@ class StmtCombine : public llvm::ModulePass,
  public:
   static char ID;
 
-  StmtCombine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  DeadStmtElim(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
-  bool VisitUnaryOperator(clang::UnaryOperator *op);
-  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
-  bool VisitParenExpr(clang::ParenExpr *paren);
+  bool VisitIfStmt(clang::IfStmt *ifstmt);
+  bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createStmtCombinePass(clang::ASTContext &ctx,
-                                        rellic::IRToASTVisitor &ast_gen);
+llvm::ModulePass *createDeadStmtElimPass(clang::ASTContext &ctx,
+                                         rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {
-void initializeStmtCombinePass(PassRegistry &);
+void initializeDeadStmtElimPass(PassRegistry &);
 }

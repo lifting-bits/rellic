@@ -78,6 +78,28 @@ class AddrOfArraySubscriptRule : public InferenceRule {
   }
 };
 
+// Matches `*&expr` and subs it for `expr`
+class DerefAddrOfRule : public InferenceRule {
+ public:
+  DerefAddrOfRule()
+      : InferenceRule(unaryOperator(stmt().bind("deref"), hasOperatorName("*"),
+                                    has(unaryOperator(hasOperatorName("&"))))) {
+  }
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::UnaryOperator>("deref");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto deref = clang::cast<clang::UnaryOperator>(stmt);
+    CHECK(deref == match)
+        << "Substituted UnaryOperator is not the matched UnaryOperator!";
+    auto addr_of = clang::cast<clang::UnaryOperator>(deref->getSubExpr());
+    return addr_of->getSubExpr();
+  }
+};
+
 // // Matches `!(comp)` and subs it for `negcomp`
 class NegComparisonRule : public InferenceRule {
  public:
@@ -106,25 +128,6 @@ class NegComparisonRule : public InferenceRule {
   }
 };
 
-// Matches `((expr))` and gets rid of superfluous parens
-class DoubleParenRule : public InferenceRule {
- public:
-  DoubleParenRule()
-      : InferenceRule(parenExpr(stmt().bind("paren"), has(parenExpr()))) {}
-
-  void run(const MatchFinder::MatchResult &result) {
-    match = result.Nodes.getNodeAs<clang::ParenExpr>("paren");
-  }
-
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                       clang::Stmt *stmt) {
-    auto paren = clang::cast<clang::ParenExpr>(stmt);
-    CHECK(paren == match)
-        << "Substituted ParenExpr is not the matched ParenExpr!";
-    return paren->IgnoreParens();
-  }
-};
-
 }  // namespace
 
 char StmtCombine::ID = 0;
@@ -135,13 +138,10 @@ StmtCombine::StmtCombine(clang::ASTContext &ctx,
 
 bool StmtCombine::VisitParenExpr(clang::ParenExpr *paren) {
   // DLOG(INFO) << "VisitParenExpr";
-  std::vector<InferenceRule *> rules({new DoubleParenRule});
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, paren, rules);
+  auto sub = paren->IgnoreParens();
   if (sub != paren) {
     substitutions[paren] = sub;
   }
-
-  delete rules.back();
 
   return true;
 }
@@ -164,6 +164,7 @@ bool StmtCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   std::vector<InferenceRule *> rules;
 
   rules.push_back(new NegComparisonRule);
+  rules.push_back(new DerefAddrOfRule);
   rules.push_back(new AddrOfArraySubscriptRule);
 
   auto sub = ApplyFirstMatchingRule(*ast_ctx, op, rules);

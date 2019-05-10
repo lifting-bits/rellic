@@ -94,8 +94,7 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
 
 bool NestedCondProp::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Propagating nested conditions";
-  changed = false;
-  parent_conds.clear();
+  Initialize();
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }

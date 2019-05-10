@@ -40,9 +40,9 @@ class CondBasedRefine : public llvm::ModulePass,
   bool ThenTest(z3::expr lhs, z3::expr rhs);
   bool ElseTest(z3::expr lhs, z3::expr rhs);
 
-  using IfStmtSet = std::set<clang::IfStmt *>;
+  using IfStmtVec = std::vector<clang::IfStmt *>;
 
-  void CreateIfThenElseStmts(IfStmtSet stmts);
+  void CreateIfThenElseStmts(IfStmtVec stmts);
 
  public:
   static char ID;

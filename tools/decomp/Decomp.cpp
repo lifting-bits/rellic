@@ -31,7 +31,7 @@
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombiner.h"
-#include "rellic/AST/StmtCombine.h"
+#include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/Z3CondSimplify.h"
 
@@ -116,7 +116,7 @@ static bool GeneratePseudocode(llvm::Module& module,
   fin.add(fin_simplifier);
   fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   fin.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
-  fin.add(rellic::createStmtCombinePass(ast_ctx, gen));
+  fin.add(rellic::createExprCombinePass(ast_ctx, gen));
   fin.run(module);
 
   ast_ctx.getTranslationUnitDecl()->print(output);

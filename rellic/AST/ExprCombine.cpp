@@ -18,7 +18,7 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/InferenceRule.h"
-#include "rellic/AST/StmtCombine.h"
+#include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -130,13 +130,13 @@ class NegComparisonRule : public InferenceRule {
 
 }  // namespace
 
-char StmtCombine::ID = 0;
+char ExprCombine::ID = 0;
 
-StmtCombine::StmtCombine(clang::ASTContext &ctx,
+ExprCombine::ExprCombine(clang::ASTContext &ctx,
                          rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(StmtCombine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
+    : ModulePass(ExprCombine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
 
-bool StmtCombine::VisitParenExpr(clang::ParenExpr *paren) {
+bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
   // DLOG(INFO) << "VisitParenExpr";
   auto sub = paren->IgnoreParens();
   if (sub != paren) {
@@ -146,7 +146,7 @@ bool StmtCombine::VisitParenExpr(clang::ParenExpr *paren) {
   return true;
 }
 
-bool StmtCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
+bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
   std::vector<InferenceRule *> rules({new ArraySubscriptAddrOfRule});
   auto sub = ApplyFirstMatchingRule(*ast_ctx, expr, rules);
@@ -159,7 +159,7 @@ bool StmtCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   return true;
 }
 
-bool StmtCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
+bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   // DLOG(INFO) << "VisitUnaryOperator";
   std::vector<InferenceRule *> rules;
 
@@ -179,15 +179,15 @@ bool StmtCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   return true;
 }
 
-bool StmtCombine::runOnModule(llvm::Module &module) {
+bool ExprCombine::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Rule-based statement simplification";
   Initialize();
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }
 
-llvm::ModulePass *createStmtCombinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createExprCombinePass(clang::ASTContext &ctx,
                                         rellic::IRToASTVisitor &gen) {
-  return new StmtCombine(ctx, gen);
+  return new ExprCombine(ctx, gen);
 }
 }  // namespace rellic

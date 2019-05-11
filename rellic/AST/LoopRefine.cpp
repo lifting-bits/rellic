@@ -17,9 +17,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <clang/ASTMatchers/ASTMatchFinder.h>
-#include <clang/ASTMatchers/ASTMatchers.h>
-
+#include "rellic/AST/InferenceRule.h"
 #include "rellic/AST/LoopRefine.h"
 
 namespace rellic {
@@ -28,31 +26,13 @@ namespace {
 
 using namespace clang::ast_matchers;
 
-template <typename StmtFromTy, typename StmtToTy>
-class InferenceRule : public MatchFinder::MatchCallback {
- protected:
-  StatementMatcher cond;
-  const StmtFromTy *match;
-  StmtToTy *substitution;
-
- public:
-  InferenceRule(StatementMatcher matcher)
-      : cond(matcher), match(nullptr), substitution(nullptr) {}
-
-  const StatementMatcher &GetCondition() const { return cond; }
-  operator bool() { return match; }
-
-  virtual StmtToTy *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                            StmtFromTy *stmt) = 0;
-};
-
 // Matches `while(1)`, `if(1)`, etc.
 static const auto cond_true = hasCondition(integerLiteral(equals(true)));
 // Matches `{ break; }`
 static const auto comp_break =
     compoundStmt(has(breakStmt()), statementCountIs(1));
 
-class WhileRule : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
+class WhileRule : public InferenceRule {
  public:
   WhileRule()
       : InferenceRule(whileStmt(
@@ -69,9 +49,11 @@ class WhileRule : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
     }
   }
 
-  clang::WhileStmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                            clang::WhileStmt *loop) {
-    CHECK(loop == match)
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
+
+    CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
     auto comp = clang::cast<clang::CompoundStmt>(loop->getBody());
@@ -84,7 +66,7 @@ class WhileRule : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
   }
 };
 
-class DoWhileRule : public InferenceRule<clang::WhileStmt, clang::DoStmt> {
+class DoWhileRule : public InferenceRule {
  public:
   DoWhileRule()
       : InferenceRule(whileStmt(
@@ -101,9 +83,11 @@ class DoWhileRule : public InferenceRule<clang::WhileStmt, clang::DoStmt> {
     }
   }
 
-  clang::DoStmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                         clang::WhileStmt *loop) {
-    CHECK(loop == match)
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
+
+    CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
     auto comp = clang::cast<clang::CompoundStmt>(loop->getBody());
@@ -116,8 +100,7 @@ class DoWhileRule : public InferenceRule<clang::WhileStmt, clang::DoStmt> {
   }
 };
 
-class NestedDoWhileRule
-    : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
+class NestedDoWhileRule : public InferenceRule {
  private:
   bool matched = false;
 
@@ -142,9 +125,11 @@ class NestedDoWhileRule
     matched = true;
   }
 
-  clang::WhileStmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                            clang::WhileStmt *loop) {
-    CHECK(loop == match)
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
+
+    CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
     auto comp = clang::cast<clang::CompoundStmt>(loop->getBody());
     auto cond = clang::cast<clang::IfStmt>(comp->body_back());
@@ -161,7 +146,7 @@ class NestedDoWhileRule
   }
 };
 
-class LoopToSeq : public InferenceRule<clang::WhileStmt, clang::CompoundStmt> {
+class LoopToSeq : public InferenceRule {
  public:
   LoopToSeq()
       : InferenceRule(
@@ -183,9 +168,11 @@ class LoopToSeq : public InferenceRule<clang::WhileStmt, clang::CompoundStmt> {
     }
   }
 
-  clang::CompoundStmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                               clang::WhileStmt *loop) {
-    CHECK(loop == match)
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
+
+    CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
     auto loop_body = clang::cast<clang::CompoundStmt>(loop->getBody());
@@ -220,7 +207,7 @@ class LoopToSeq : public InferenceRule<clang::WhileStmt, clang::CompoundStmt> {
 
 static const auto has_break = hasDescendant(breakStmt());
 
-class CondToSeqRule : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
+class CondToSeqRule : public InferenceRule {
  public:
   CondToSeqRule()
       : InferenceRule(whileStmt(
@@ -233,9 +220,11 @@ class CondToSeqRule : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
     match = result.Nodes.getNodeAs<clang::WhileStmt>("while");
   }
 
-  clang::WhileStmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                            clang::WhileStmt *loop) {
-    CHECK(loop == match)
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
+
+    CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
     auto body = clang::cast<clang::CompoundStmt>(loop->getBody());
@@ -254,8 +243,7 @@ class CondToSeqRule : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
   }
 };
 
-class CondToSeqNegRule
-    : public InferenceRule<clang::WhileStmt, clang::WhileStmt> {
+class CondToSeqNegRule : public InferenceRule {
  public:
   CondToSeqNegRule()
       : InferenceRule(whileStmt(
@@ -268,9 +256,11 @@ class CondToSeqNegRule
     match = result.Nodes.getNodeAs<clang::WhileStmt>("while");
   }
 
-  clang::WhileStmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
-                                            clang::WhileStmt *loop) {
-    CHECK(loop == match)
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
+
+    CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
     auto body = clang::cast<clang::CompoundStmt>(loop->getBody());
@@ -293,54 +283,27 @@ class CondToSeqNegRule
 
 char LoopRefine::ID = 0;
 
-LoopRefine::LoopRefine(clang::ASTContext &ctx,
-                       rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(LoopRefine::ID),
-      ast_ctx(&ctx),
-      ast_gen(&ast_gen) {}
+LoopRefine::LoopRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen)
+    : ModulePass(LoopRefine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
-  clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
-  clang::ast_matchers::MatchFinder finder(opts);
+  std::vector<InferenceRule *> rules;
 
-  CondToSeqRule cond_to_seq_r;
-  finder.addMatcher(cond_to_seq_r.GetCondition(), &cond_to_seq_r);
+  rules.push_back(new CondToSeqRule);
+  rules.push_back(new CondToSeqNegRule);
+  rules.push_back(new NestedDoWhileRule);
+  rules.push_back(new LoopToSeq);
+  rules.push_back(new WhileRule);
+  rules.push_back(new DoWhileRule);
 
-  CondToSeqNegRule cond_to_seqn_r;
-  finder.addMatcher(cond_to_seqn_r.GetCondition(), &cond_to_seqn_r);
-
-  NestedDoWhileRule nested_do_r;
-  finder.addMatcher(nested_do_r.GetCondition(), &nested_do_r);
-
-  LoopToSeq loop_to_seq_r;
-  finder.addMatcher(loop_to_seq_r.GetCondition(), &loop_to_seq_r);
-
-  WhileRule while_r;
-  finder.addMatcher(while_r.GetCondition(), &while_r);
-
-  DoWhileRule do_r;
-  finder.addMatcher(do_r.GetCondition(), &do_r);
-
-  finder.match(*loop, *ast_ctx);
-
-  clang::Stmt *sub = nullptr;
-  if (cond_to_seq_r) {
-    sub = cond_to_seq_r.GetOrCreateSubstitution(*ast_ctx, loop);
-  } else if (cond_to_seqn_r) {
-    sub = cond_to_seqn_r.GetOrCreateSubstitution(*ast_ctx, loop);
-  } else if (loop_to_seq_r) {
-    sub = loop_to_seq_r.GetOrCreateSubstitution(*ast_ctx, loop);
-  } else if (nested_do_r) {
-    sub = nested_do_r.GetOrCreateSubstitution(*ast_ctx, loop);
-  } else if (while_r) {
-    sub = while_r.GetOrCreateSubstitution(*ast_ctx, loop);
-  } else if (do_r) {
-    sub = do_r.GetOrCreateSubstitution(*ast_ctx, loop);
+  auto sub = ApplyFirstMatchingRule(*ast_ctx, loop, rules);
+  if (sub != loop) {
+    substitutions[loop] = sub;
   }
 
-  if (sub) {
-    substitutions[loop] = sub;
+  for (auto rule : rules) {
+    delete rule;
   }
 
   return true;

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_CONDBASEDREFINE_H_
-#define RELLIC_AST_CONDBASEDREFINE_H_
+#pragma once
 
 #include <llvm/IR/Module.h>
 
@@ -41,9 +40,9 @@ class CondBasedRefine : public llvm::ModulePass,
   bool ThenTest(z3::expr lhs, z3::expr rhs);
   bool ElseTest(z3::expr lhs, z3::expr rhs);
 
-  using IfStmtSet = std::set<clang::IfStmt *>;
+  using IfStmtVec = std::vector<clang::IfStmt *>;
 
-  void CreateIfThenElseStmts(IfStmtSet stmts);
+  void CreateIfThenElseStmts(IfStmtVec stmts);
 
  public:
   static char ID;
@@ -62,5 +61,3 @@ llvm::ModulePass *createCondBasedRefinePass(clang::ASTContext &ctx,
 namespace llvm {
 void initializeCondBasedRefinePass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_CONDBASEDREFINE_H_

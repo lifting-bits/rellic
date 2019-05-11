@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_DEADSTMTELIM_H_
-#define RELLIC_AST_DEADSTMTELIM_H_
+#pragma once
 
 #include <llvm/IR/Module.h>
 
@@ -49,5 +48,3 @@ llvm::ModulePass *createDeadStmtElimPass(clang::ASTContext &ctx,
 namespace llvm {
 void initializeDeadStmtElimPass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_DEADSTMTELIM_H_

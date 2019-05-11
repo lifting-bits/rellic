@@ -26,12 +26,13 @@
 #include <clang/Basic/TargetInfo.h>
 
 #include "rellic/AST/CondBasedRefine.h"
-#include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombiner.h"
+#include "rellic/AST/ExprCombine.h"
+#include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/Z3CondSimplify.h"
 
 #include "rellic/BC/Util.h"
@@ -67,7 +68,7 @@ static bool GeneratePseudocode(llvm::Module& module,
 
   clang::CompilerInstance ins;
   rellic::InitCompilerInstance(ins, module.getTargetTriple());
-  
+
   auto& ast_ctx = ins.getASTContext();
 
   rellic::IRToASTVisitor gen(ast_ctx);
@@ -115,10 +116,11 @@ static bool GeneratePseudocode(llvm::Module& module,
   fin.add(fin_simplifier);
   fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   fin.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
-  fin.add(rellic::createDeadStmtElimPass(ast_ctx, gen));
+  fin.add(rellic::createExprCombinePass(ast_ctx, gen));
   fin.run(module);
 
   ast_ctx.getTranslationUnitDecl()->print(output);
+  // ast_ctx.getTranslationUnitDecl()->dump(output);
 
   return true;
 }

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_Z3CONDSIMPLIFY_H_
-#define RELLIC_AST_Z3CONDSIMPLIFY_H_
+#pragma once
 
 #include <llvm/IR/Module.h>
 
@@ -62,5 +61,3 @@ llvm::ModulePass *createZ3CondSimplifyPass(clang::ASTContext &ctx,
 namespace llvm {
 void initializeZ3CondSimplifyPass(PassRegistry &);
 }
-
-#endif  // RELLIC_AST_Z3CONDSIMPLIFY_H_

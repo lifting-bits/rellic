@@ -23,13 +23,13 @@ namespace rellic {
 
 namespace {
 
-using IfStmtSet = std::set<clang::IfStmt *>;
+using IfStmtVec = std::vector<clang::IfStmt *>;
 
-static IfStmtSet GetIfStmts(clang::CompoundStmt *compound) {
-  IfStmtSet result;
+static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
+  IfStmtVec result;
   for (auto stmt : compound->body()) {
     if (auto ifstmt = clang::dyn_cast<clang::IfStmt>(stmt)) {
-      result.insert(ifstmt);
+      result.push_back(ifstmt);
     }
   }
   return result;
@@ -109,10 +109,17 @@ z3::expr CondBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
   return expr.simplify();
 }
 
-void CondBasedRefine::CreateIfThenElseStmts(IfStmtSet worklist) {
+void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
+  auto RemoveFromWorkList = [&worklist](clang::Stmt *stmt) {
+    auto it = std::find(worklist.begin(), worklist.end(), stmt);
+    if (it != worklist.end()) {
+      worklist.erase(it);
+    }
+  };
+  
   while (!worklist.empty()) {
     auto lhs = *worklist.begin();
-    worklist.erase(lhs);
+    RemoveFromWorkList(lhs);
     // Prepare conditions according to which we're going to
     // cluster statements. First according to a the whole `lhs`
     // condition. Then according to it's `&&` subconditions clauses.
@@ -136,7 +143,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtSet worklist) {
       if (thens.size() + elses.size() > 1) {
         // Erase then statements from the AST and `worklist`
         for (auto stmt : thens) {
-          worklist.erase(clang::cast<clang::IfStmt>(stmt));
+          RemoveFromWorkList(stmt);
           substitutions[stmt] = nullptr;
         }
         // Create our new if-then
@@ -146,7 +153,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtSet worklist) {
         if (!elses.empty()) {
           // Erase else statements from the AST and `worklist`
           for (auto stmt : elses) {
-            worklist.erase(clang::cast<clang::IfStmt>(stmt));
+            RemoveFromWorkList(stmt);
             substitutions[stmt] = nullptr;
           }
           // Add the else branch

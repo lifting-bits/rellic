@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_TRANSFORMVISITOR_H_
-#define RELLIC_AST_TRANSFORMVISITOR_H_
+#pragma once
 
 #include <clang/AST/RecursiveASTVisitor.h>
 
@@ -59,5 +58,3 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
 };
 
 }  // namespace rellic
-
-#endif  // RELLIC_AST_TRANSFORMVISITOR_H_

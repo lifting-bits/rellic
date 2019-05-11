@@ -24,8 +24,8 @@
 
 namespace rellic {
 
-class LoopRefine : public llvm::ModulePass,
-                   public TransformVisitor<LoopRefine> {
+class ExprCombine : public llvm::ModulePass,
+                    public TransformVisitor<ExprCombine> {
  private:
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
@@ -33,17 +33,19 @@ class LoopRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  LoopRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  ExprCombine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
-  bool VisitWhileStmt(clang::WhileStmt *loop);
+  bool VisitUnaryOperator(clang::UnaryOperator *op);
+  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
+  bool VisitParenExpr(clang::ParenExpr *paren);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createLoopRefinePass(clang::ASTContext &ctx,
-                                       rellic::IRToASTVisitor &ast_gen);
+llvm::ModulePass *createExprCombinePass(clang::ASTContext &ctx,
+                                        rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {
-void initializeLoopRefinePass(PassRegistry &);
+void initializeExprCombinePass(PassRegistry &);
 }

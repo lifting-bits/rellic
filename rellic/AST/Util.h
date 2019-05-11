@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef RELLIC_AST_UTIL_H_
-#define RELLIC_AST_UTIL_H_
+#pragma once
 
 #include <clang/AST/ASTContext.h>
 #include <clang/Basic/TargetInfo.h>
@@ -23,8 +22,8 @@
 
 #include <unordered_map>
 
-#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Compat/Expr.h"
+#include "rellic/AST/Compat/Stmt.h"
 
 namespace rellic {
 
@@ -85,6 +84,10 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 
-}  // namespace rellic
+clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
+                                std::vector<clang::Expr *> &exprs);
 
-#endif  // RELLIC_AST_UTIL_H_
+clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
+                                      clang::Expr *idx, clang::QualType type);
+
+}  // namespace rellic

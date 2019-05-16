@@ -332,7 +332,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     auto ptr = inst.getPointerOperand();
     auto fdecl = GetFunctionDecl(&inst);
     std::vector<llvm::Value *> idxs;
-    for (auto &gep_idx : inst.indices()) {
+    for (auto &gep_idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
       idxs.push_back(gep_idx.get());
       auto gep_type = llvm::GetElementPtrInst::getGEPReturnType(ptr, idxs);
       auto ref_type = GetQualType(ast_ctx, gep_type);

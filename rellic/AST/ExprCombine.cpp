@@ -17,8 +17,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/InferenceRule.h"
 #include "rellic/AST/ExprCombine.h"
+#include "rellic/AST/InferenceRule.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -106,7 +106,7 @@ class NegComparisonRule : public InferenceRule {
   NegComparisonRule()
       : InferenceRule(unaryOperator(
             stmt().bind("not"), hasOperatorName("!"),
-            has(ignoringParens(binaryOperator(stmt().bind("binop")))))) {}
+            has(ignoringParenCasts(binaryOperator(stmt().bind("binop")))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
     auto binop = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");

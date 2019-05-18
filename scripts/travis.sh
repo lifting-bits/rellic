@@ -290,7 +290,7 @@ common_build() {
     ( cd build && make -j `nproc` ) > "${log_file}" 2>&1 &
   else
     printf " i Clang static analyzer enabled\n"
-    ( cd build && scan-build --show-description --status-bugs make -j `GetProcessorCount` ) > "${log_file}" 2>&1 &
+    ( cd build && scan-build --show-description make -j `GetProcessorCount` ) > "${log_file}" 2>&1 &
   fi
 
   local build_pid="$!"

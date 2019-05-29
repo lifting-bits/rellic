@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define GOOGLE_STRIP_LOG 1
+// #define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -27,57 +27,85 @@
 
 namespace rellic {
 
-namespace {
+IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
 
-static clang::QualType GetQualType(clang::ASTContext &ctx, llvm::Type *type) {
+clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << rellic::LLVMThingToString(type);
   clang::QualType result;
   switch (type->getTypeID()) {
     case llvm::Type::VoidTyID:
-      result = ctx.VoidTy;
+      result = ast_ctx.VoidTy;
       break;
 
     case llvm::Type::HalfTyID:
-      result = ctx.HalfTy;
+      result = ast_ctx.HalfTy;
       break;
 
     case llvm::Type::FloatTyID:
-      result = ctx.FloatTy;
+      result = ast_ctx.FloatTy;
       break;
 
     case llvm::Type::DoubleTyID:
-      result = ctx.DoubleTy;
+      result = ast_ctx.DoubleTy;
       break;
 
     case llvm::Type::IntegerTyID: {
       auto size = type->getIntegerBitWidth();
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = ctx.getIntTypeForBitwidth(size, 0);
+      result = ast_ctx.getIntTypeForBitwidth(size, 0);
     } break;
 
     case llvm::Type::FunctionTyID: {
       auto func = llvm::cast<llvm::FunctionType>(type);
-      auto ret = GetQualType(ctx, func->getReturnType());
+      auto ret = GetQualType(func->getReturnType());
       std::vector<clang::QualType> params;
       for (auto param : func->params()) {
-        params.push_back(GetQualType(ctx, param));
+        params.push_back(GetQualType(param));
       }
       auto epi = clang::FunctionProtoType::ExtProtoInfo();
       epi.Variadic = func->isVarArg();
-      result = ctx.getFunctionType(ret, params, epi);
+      result = ast_ctx.getFunctionType(ret, params, epi);
     } break;
 
     case llvm::Type::PointerTyID: {
       auto ptr = llvm::cast<llvm::PointerType>(type);
-      result = ctx.getPointerType(GetQualType(ctx, ptr->getElementType()));
+      result = ast_ctx.getPointerType(GetQualType(ptr->getElementType()));
     } break;
 
     case llvm::Type::ArrayTyID: {
       auto arr = llvm::cast<llvm::ArrayType>(type);
-      auto elm = GetQualType(ctx, arr->getElementType());
-      result = ctx.getConstantArrayType(
+      auto elm = GetQualType(arr->getElementType());
+      result = ast_ctx.getConstantArrayType(
           elm, llvm::APInt(32, arr->getNumElements()),
           clang::ArrayType::ArraySizeModifier::Normal, 0);
+    } break;
+
+    case llvm::Type::StructTyID: {
+      clang::RecordDecl *sdecl = nullptr;
+      auto iter = type_decls.find(type);
+      if (iter == type_decls.end()) {
+        static auto scnt = 0U;
+        auto tudecl = ast_ctx.getTranslationUnitDecl();
+        auto strct = llvm::cast<llvm::StructType>(type);
+        auto sname = strct->hasName() ? strct->getName().str()
+                                      : "struct_" + std::to_string(scnt++);
+        // Create a C struct declaration
+        auto sid = CreateIdentifier(ast_ctx, sname);
+        sdecl = CreateStructDecl(ast_ctx, tudecl, sid);
+        // Add fields to the C struct
+        for (auto ecnt = 0U; ecnt < strct->getNumElements(); ++ecnt) {
+          auto etype = GetQualType(strct->getElementType(ecnt));
+          auto eid = CreateIdentifier(ast_ctx, "field_" + std::to_string(ecnt));
+          sdecl->addDecl(CreateFieldDecl(ast_ctx, sdecl, eid, etype));
+        }
+        // Complete the C struct definition
+        sdecl->completeDefinition();
+        // Add C struct to translation unit
+        tudecl->addDecl(sdecl);
+      } else {
+        sdecl = clang::cast<clang::RecordDecl>(iter->second);
+      }
+      result = ast_ctx.getRecordType(sdecl);
     } break;
 
     default:
@@ -88,13 +116,12 @@ static clang::QualType GetQualType(clang::ASTContext &ctx, llvm::Type *type) {
   return result;
 }
 
-static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
-                                      clang::DeclContext *decl_ctx,
-                                      llvm::ConstantData *cdata) {
+clang::Expr *IRToASTVisitor::CreateLiteralExpr(clang::DeclContext *decl_ctx,
+                                               llvm::ConstantData *cdata) {
   DLOG(INFO) << "Creating literal Expr for "
              << rellic::LLVMThingToString(cdata);
 
-  auto type = GetQualType(ast_ctx, cdata->getType());
+  auto type = GetQualType(cdata->getType());
 
   clang::Expr *result = nullptr;
   if (auto integer = llvm::dyn_cast<llvm::ConstantInt>(cdata)) {
@@ -115,10 +142,12 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
       for (unsigned i = 0; i < array->getNumElements(); ++i) {
         auto element = array->getElementAsConstant(i);
         auto cdata = llvm::cast<llvm::ConstantData>(element);
-        init_exprs.push_back(CreateLiteralExpr(ast_ctx, decl_ctx, cdata));
+        init_exprs.push_back(CreateLiteralExpr(decl_ctx, cdata));
       }
       result = CreateInitListExpr(ast_ctx, init_exprs);
     }
+  } else if (auto caz = llvm::dyn_cast<llvm::ConstantAggregateZero>(cdata)) {
+    LOG(FATAL) << "CAZ";
   } else {
     LOG(FATAL) << "Unknown LLVM constant type";
   }
@@ -126,23 +155,19 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
   return result;
 }
 
-static clang::VarDecl *CreateVarDecl(clang::ASTContext &ast_ctx,
-                                     clang::DeclContext *decl_ctx,
-                                     llvm::Type *type, std::string name) {
+clang::VarDecl *IRToASTVisitor::CreateVarDecl(clang::DeclContext *decl_ctx,
+                                              llvm::Type *type,
+                                              std::string name) {
   DLOG(INFO) << "Creating VarDecl for " << name;
-  return clang::VarDecl::Create(
-      ast_ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(),
-      CreateIdentifier(ast_ctx, name), GetQualType(ast_ctx, type), nullptr,
-      clang::SC_None);
+  return clang::VarDecl::Create(ast_ctx, decl_ctx, clang::SourceLocation(),
+                                clang::SourceLocation(),
+                                CreateIdentifier(ast_ctx, name),
+                                GetQualType(type), nullptr, clang::SC_None);
 }
-
-}  // namespace
-
-IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
 
 clang::FunctionDecl *IRToASTVisitor::GetFunctionDecl(llvm::Instruction *inst) {
   return inst->getParent() ? clang::dyn_cast<clang::FunctionDecl>(
-                                 decls[inst->getParent()->getParent()])
+                                 value_decls[inst->getParent()->getParent()])
                            : nullptr;
 }
 
@@ -161,11 +186,10 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
     result = clang::cast<clang::Expr>(stmts[val]);
   } else if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
     // Operand is a literal constant
-    result = CreateLiteralExpr(ast_ctx, decl_ctx, cdata);
-  } else if (decls.count(val)) {
+    result = CreateLiteralExpr(decl_ctx, cdata);
+  } else if (value_decls.count(val)) {
     // Operand is an l-value (variable, function, ...)
-    auto decl = clang::cast<clang::ValueDecl>(decls[val]);
-    result = CreateDeclRefExpr(ast_ctx, decl);
+    result = CreateDeclRefExpr(ast_ctx, value_decls[val]);
     if (llvm::isa<llvm::GlobalValue>(val)) {
       // LLVM IR global values are constant pointers
       auto ref_type = result->getType();
@@ -207,7 +231,7 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
 }
 
 clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
-  auto &decl = decls[val];
+  auto &decl = value_decls[val];
   if (decl) {
     return decl;
   }
@@ -227,7 +251,7 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
 
 void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   DLOG(INFO) << "VisitGlobalVar: " << rellic::LLVMThingToString(&gvar);
-  auto &var = decls[&gvar];
+  auto &var = value_decls[&gvar];
   if (var) {
     return;
   }
@@ -236,12 +260,12 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   auto tudecl = ast_ctx.getTranslationUnitDecl();
   auto type = llvm::cast<llvm::PointerType>(gvar.getType())->getElementType();
 
-  var = CreateVarDecl(ast_ctx, tudecl, type, name);
+  var = CreateVarDecl(tudecl, type, name);
 
   if (gvar.hasInitializer()) {
     auto tmp = clang::cast<clang::VarDecl>(var);
     auto cdata = llvm::cast<llvm::ConstantData>(gvar.getInitializer());
-    tmp->setInit(CreateLiteralExpr(ast_ctx, tudecl, cdata));
+    tmp->setInit(CreateLiteralExpr(tudecl, cdata));
   }
 
   tudecl->addDecl(var);
@@ -250,7 +274,7 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   auto name = func.getName().str();
   DLOG(INFO) << "VisitFunctionDecl: " << name;
-  auto &decl = decls[&func];
+  auto &decl = value_decls[&func];
   if (decl) {
     return;
   }
@@ -260,7 +284,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   auto type = llvm::cast<llvm::PointerType>(func.getType())->getElementType();
 
   decl = CreateFunctionDecl(ast_ctx, tudecl, CreateIdentifier(ast_ctx, name),
-                            GetQualType(ast_ctx, type));
+                            GetQualType(type));
 
   tudecl->addDecl(decl);
 
@@ -278,9 +302,9 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
     auto param = CreateParmVarDecl(ast_ctx, func_ctx,
                                    CreateIdentifier(ast_ctx, arg_name),
-                                   GetQualType(ast_ctx, arg.getType()));
+                                   GetQualType(arg.getType()));
 
-    decls[&arg] = param;
+    value_decls[&arg] = param;
     params.push_back(param);
   }
 
@@ -296,7 +320,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
 
   auto callee = inst.getCalledValue();
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
-    auto decl = decls[func];
+    auto decl = value_decls[func];
     CHECK(decl) << "FunctionDecl for callee does not exist";
     auto fdecl = clang::cast<clang::FunctionDecl>(decl);
     auto fcast = clang::ImplicitCastExpr::Create(
@@ -335,7 +359,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     for (auto &gep_idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
       idxs.push_back(gep_idx.get());
       auto gep_type = llvm::GetElementPtrInst::getGEPReturnType(ptr, idxs);
-      auto ref_type = GetQualType(ast_ctx, gep_type);
+      auto ref_type = GetQualType(gep_type);
       auto ref_base =
           ref ? clang::cast<clang::Expr>(ref) : GetOperandExpr(fdecl, ptr);
       auto sub = CreateArraySubscriptExpr(ast_ctx, ref_base,
@@ -346,7 +370,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
           CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, sub, ref_type));
     }
   } else if (llvm::isa<llvm::StructType>(src_type)) {
-    DLOG(INFO) << "Indexing a structure";
+    LOG(FATAL) << "Indexing a structure";
   } else {
     LOG(FATAL) << "Indexing an unknown pointer type";
   }
@@ -359,7 +383,7 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     return;
   }
 
-  auto &var = decls[&inst];
+  auto &var = value_decls[&inst];
   if (!var) {
     auto fdecl = GetFunctionDecl(&inst);
 
@@ -371,7 +395,7 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
       name = "var" + std::to_string(var_num);
     }
 
-    var = CreateVarDecl(ast_ctx, fdecl, inst.getAllocatedType(), name);
+    var = CreateVarDecl(fdecl, inst.getAllocatedType(), name);
     fdecl->addDecl(var);
   }
 
@@ -400,7 +424,7 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   // Create the assignemnt itself
   assign = CreateBinaryOperator(
       ast_ctx, clang::BO_Assign, lhs, rhs,
-      GetQualType(ast_ctx, ptr->getType()->getPointerElementType()));
+      GetQualType(ptr->getType()->getPointerElementType()));
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
@@ -425,7 +449,7 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   } else if (llvm::isa<llvm::GEPOperator>(ptr)) {
     DLOG(INFO) << "Loading from an aggregate";
     auto op = GetOperandExpr(fdecl, ptr);
-    auto res_type = GetQualType(ast_ctx, inst.getType());
+    auto res_type = GetQualType(inst.getType());
     ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
   } else {
     LOG(FATAL) << "Loading from an unknown pointer";
@@ -471,7 +495,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     case llvm::BinaryOperator::Add: {
-      auto type = GetQualType(ast_ctx, inst.getType());
+      auto type = GetQualType(inst.getType());
       binop = BinOpExpr(clang::BO_Add, type);
     } break;
 

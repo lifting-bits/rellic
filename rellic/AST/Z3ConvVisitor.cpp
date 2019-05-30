@@ -125,14 +125,12 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
       type = ast_ctx.UnsignedIntTy;
       size = ast_ctx.getIntWidth(type);
       llvm::APInt val(size, z3_expr.bool_value() == Z3_L_TRUE ? 1 : 0);
-      result = clang::IntegerLiteral::Create(ast_ctx, val, type,
-                                             clang::SourceLocation());
+      result = CreateIntegerLiteral(ast_ctx, val, type);
     } break;
 
     case Z3_BV_SORT: {
       llvm::APInt val(size, Z3_get_numeral_string(z3_expr.ctx(), z3_expr), 10);
-      result = clang::IntegerLiteral::Create(ast_ctx, val, type,
-                                             clang::SourceLocation());
+      result = CreateIntegerLiteral(ast_ctx, val, type);
     } break;
 
     case Z3_FLOATING_POINT_SORT: {
@@ -156,8 +154,7 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
       }
       llvm::APInt ival(size, Z3_get_numeral_string(z3_expr.ctx(), z3_expr), 10);
       llvm::APFloat fval(*semantics, ival);
-      result = clang::FloatingLiteral::Create(ast_ctx, fval, /*isexact=*/true,
-                                              type, clang::SourceLocation());
+      result = CreateFloatingLiteral(ast_ctx, fval, type);
     } break;
 
     default:

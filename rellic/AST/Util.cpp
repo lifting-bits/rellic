@@ -153,10 +153,28 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                    clang::SourceLocation(), id, prev_decl);
 }
 
+clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat &val,
+                                   clang::QualType type) {
+  return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
+                                        clang::SourceLocation());
+}
+
+clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt &val,
+                                  clang::QualType type) {
+  return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
+}
+
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
-  return clang::IntegerLiteral::Create(
-      ctx, llvm::APInt(ctx.getIntWidth(ctx.UnsignedIntTy), 1),
-      ctx.UnsignedIntTy, clang::SourceLocation());
+  auto type = ctx.UnsignedIntTy;
+  auto val = llvm::APInt(ctx.getIntWidth(type), 1);
+  return CreateIntegerLiteral(ctx, val, type);
+}
+
+clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
+                                 clang::QualType type) {
+  return clang::StringLiteral::Create(
+      ctx, val, clang::StringLiteral::StringKind::Ascii,
+      /*Pascal=*/false, type, clang::SourceLocation());
 }
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,

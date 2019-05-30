@@ -82,7 +82,16 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                     clang::IdentifierInfo *id,
                                     clang::RecordDecl *prev_decl = nullptr);
 
+clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat &val,
+                                   clang::QualType type);
+
+clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt &val,
+                                  clang::QualType type);
+
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
+
+clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
+                                 clang::QualType);
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
                                 std::vector<clang::Expr *> &exprs);

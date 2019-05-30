@@ -82,8 +82,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
 
     case llvm::Type::StructTyID: {
       clang::RecordDecl *sdecl = nullptr;
-      auto iter = type_decls.find(type);
-      if (iter == type_decls.end()) {
+      auto &decl = type_decls[type];
+      if (!decl) {
         static auto scnt = 0U;
         auto tudecl = ast_ctx.getTranslationUnitDecl();
         auto strct = llvm::cast<llvm::StructType>(type);
@@ -91,7 +91,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
                                       : "struct_" + std::to_string(scnt++);
         // Create a C struct declaration
         auto sid = CreateIdentifier(ast_ctx, sname);
-        sdecl = CreateStructDecl(ast_ctx, tudecl, sid);
+        decl = sdecl = CreateStructDecl(ast_ctx, tudecl, sid);
         // Add fields to the C struct
         for (auto ecnt = 0U; ecnt < strct->getNumElements(); ++ecnt) {
           auto etype = GetQualType(strct->getElementType(ecnt));
@@ -103,8 +103,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
         // Add C struct to translation unit
         tudecl->addDecl(sdecl);
       } else {
-        sdecl = clang::cast<clang::RecordDecl>(iter->second);
-      }
+        sdecl = clang::cast<clang::RecordDecl>(decl);
+      }     
       result = ast_ctx.getRecordType(sdecl);
     } break;
 
@@ -117,39 +117,52 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
 }
 
 clang::Expr *IRToASTVisitor::CreateLiteralExpr(clang::DeclContext *decl_ctx,
-                                               llvm::ConstantData *cdata) {
+                                               llvm::Constant *constant) {
   DLOG(INFO) << "Creating literal Expr for "
-             << rellic::LLVMThingToString(cdata);
-
-  auto type = GetQualType(cdata->getType());
+             << rellic::LLVMThingToString(constant);
 
   clang::Expr *result = nullptr;
-  if (auto integer = llvm::dyn_cast<llvm::ConstantInt>(cdata)) {
-    result = clang::IntegerLiteral::Create(ast_ctx, integer->getValue(), type,
-                                           clang::SourceLocation());
-  } else if (auto floating = llvm::dyn_cast<llvm::ConstantFP>(cdata)) {
-    result = clang::FloatingLiteral::Create(ast_ctx, floating->getValueAPF(),
-                                            /*isexact=*/true, type,
-                                            clang::SourceLocation());
-  } else if (auto array = llvm::dyn_cast<llvm::ConstantDataArray>(cdata)) {
-    if (array->isString()) {
-      result = clang::StringLiteral::Create(
-          ast_ctx, array->getAsString(),
-          clang::StringLiteral::StringKind::Ascii,
-          /*Pascal=*/false, type, clang::SourceLocation());
-    } else {
-      std::vector<clang::Expr *> init_exprs;
-      for (unsigned i = 0; i < array->getNumElements(); ++i) {
-        auto element = array->getElementAsConstant(i);
-        auto cdata = llvm::cast<llvm::ConstantData>(element);
-        init_exprs.push_back(CreateLiteralExpr(decl_ctx, cdata));
-      }
-      result = CreateInitListExpr(ast_ctx, init_exprs);
+
+  auto CreateInitListLiteral = [this, &decl_ctx, &constant] {
+    std::vector<clang::Expr *> init_exprs;
+    for (auto i = 0U; i < constant->getNumOperands(); ++i) {
+      auto elm = constant->getAggregateElement(i);
+      init_exprs.push_back(CreateLiteralExpr(decl_ctx, elm));
     }
-  } else if (auto caz = llvm::dyn_cast<llvm::ConstantAggregateZero>(cdata)) {
-    LOG(FATAL) << "CAZ";
-  } else {
-    LOG(FATAL) << "Unknown LLVM constant type";
+    return CreateInitListExpr(ast_ctx, init_exprs);
+  };
+
+  auto l_type = constant->getType();
+  auto c_type = GetQualType(l_type);
+
+  switch (l_type->getTypeID()) {
+    // Floats
+    case llvm::Type::HalfTyID:
+    case llvm::Type::FloatTyID:
+    case llvm::Type::DoubleTyID: {
+      auto val = llvm::cast<llvm::ConstantFP>(constant)->getValueAPF();
+      result = CreateFloatingLiteral(ast_ctx, val, c_type);
+    } break;
+    // Integers
+    case llvm::Type::IntegerTyID: {
+      auto val = llvm::cast<llvm::ConstantInt>(constant)->getValue();
+      result = CreateIntegerLiteral(ast_ctx, val, c_type);
+    } break;
+
+    case llvm::Type::ArrayTyID: {
+      auto arr = llvm::cast<llvm::ConstantDataArray>(constant);
+      result = arr->isString()
+                   ? CreateStringLiteral(ast_ctx, arr->getAsString(), c_type)
+                   : CreateInitListLiteral();
+    } break;
+
+    case llvm::Type::StructTyID: {
+      result = CreateInitListLiteral();
+    } break;
+
+    default:
+      LOG(FATAL) << "Unknown LLVM constant type";
+      break;
   }
 
   return result;
@@ -263,9 +276,8 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   var = CreateVarDecl(tudecl, type, name);
 
   if (gvar.hasInitializer()) {
-    auto tmp = clang::cast<clang::VarDecl>(var);
-    auto cdata = llvm::cast<llvm::ConstantData>(gvar.getInitializer());
-    tmp->setInit(CreateLiteralExpr(tudecl, cdata));
+    clang::cast<clang::VarDecl>(var)->setInit(
+        CreateLiteralExpr(tudecl, gvar.getInitializer()));
   }
 
   tudecl->addDecl(var);

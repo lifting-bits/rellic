@@ -40,7 +40,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::QualType GetQualType(llvm::Type *type);
 
   clang::Expr *CreateLiteralExpr(clang::DeclContext *decl_ctx,
-                                 llvm::ConstantData *cdata);
+                                 llvm::Constant *constant);
 
   clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx, llvm::Type *type,
                                 std::string name);

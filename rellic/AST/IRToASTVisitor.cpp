@@ -25,6 +25,8 @@
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/Util.h"
 
+#include <iterator>
+
 namespace rellic {
 
 IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
@@ -183,6 +185,7 @@ clang::FunctionDecl *IRToASTVisitor::GetFunctionDecl(llvm::Instruction *inst) {
                            : nullptr;
 }
 
+// TODO(msurovic): Figure out if this can't be done more elegantly
 clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
                                             llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << rellic::LLVMThingToString(val);
@@ -273,12 +276,12 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   auto type = llvm::cast<llvm::PointerType>(gvar.getType())->getElementType();
 
   var = CreateVarDecl(tudecl, type, name);
-
+  // Create an initalizer literal
   if (gvar.hasInitializer()) {
     clang::cast<clang::VarDecl>(var)->setInit(
         CreateLiteralExpr(tudecl, gvar.getInitializer()));
   }
-
+  // Add the global var
   tudecl->addDecl(var);
 }
 
@@ -361,30 +364,66 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     return;
   }
 
-  auto src_type = inst.getSourceElementType();
-  if (llvm::isa<llvm::ArrayType>(src_type)) {
-    DLOG(INFO) << "Indexing an array";
-    auto ptr = inst.getPointerOperand();
-    auto fdecl = GetFunctionDecl(&inst);
-    std::vector<llvm::Value *> idxs;
-    for (auto &gep_idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
-      idxs.push_back(gep_idx.get());
-      auto gep_type = llvm::GetElementPtrInst::getGEPReturnType(ptr, idxs);
-      auto ref_type = GetQualType(gep_type);
-      auto ref_base =
-          ref ? clang::cast<clang::Expr>(ref) : GetOperandExpr(fdecl, ptr);
-      auto sub = CreateArraySubscriptExpr(ast_ctx, ref_base,
-                                          GetOperandExpr(fdecl, gep_idx),
-                                          ref_type->getPointeeType());
-      ref = CreateParenExpr(
-          ast_ctx,
-          CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, sub, ref_type));
+  auto fdecl = GetFunctionDecl(&inst);
+
+  std::vector<llvm::Value *> idxs;
+  auto idx_it = inst.idx_begin();
+  auto base = GetOperandExpr(fdecl, inst.getPointerOperand());
+
+  auto CurrentIndexedType = [&] {
+    auto src = inst.getSourceElementType();
+    return llvm::GetElementPtrInst::getIndexedType(src, idxs);
+  };
+
+  auto TakeAddress = [&] {
+    base = CreateParenExpr(
+        ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, base,
+                                     ast_ctx.getPointerType(base->getType())));
+  };
+
+  auto IndexArray = [&] {
+    auto idx = GetOperandExpr(fdecl, *idx_it);
+    auto type = GetQualType(CurrentIndexedType());
+    base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
+  };
+
+  auto IndexStruct = [&] {
+    auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_it->get());
+    CHECK(mem_idx) << "Non-constant GEP index while indexing a structure";
+    auto type = CurrentIndexedType();
+    auto tdecl = type_decls[type];
+    CHECK(tdecl) << "Structure declaration doesn't exist";
+    auto record = clang::cast<clang::RecordDecl>(tdecl);
+    auto field_it = record->field_begin();
+    std::advance(field_it, mem_idx->getLimitedValue());
+    CHECK(field_it != record->field_end()) << "GEP index is out of bounds";
+    base = CreateMemberExpr(ast_ctx, base, *field_it, GetQualType(type),
+                            /*is_arrow=*/true);
+  };
+
+  IndexArray();
+  TakeAddress();
+
+  for (++idx_it; idx_it != inst.idx_end(); ++idx_it) {
+    idxs.push_back(idx_it->get());
+    switch (CurrentIndexedType()->getTypeID()) {
+      // Arrays
+      case llvm::Type::ArrayTyID:
+        IndexArray();
+        break;
+      // Structures
+      case llvm::Type::StructTyID:
+        IndexStruct();
+        break;
+      // Unknown
+      default:
+        LOG(FATAL) << "Indexing an unknown pointer type";
+        break;
     }
-  } else if (llvm::isa<llvm::StructType>(src_type)) {
-    LOG(FATAL) << "Indexing a structure";
-  } else {
-    LOG(FATAL) << "Indexing an unknown pointer type";
+    TakeAddress();
   }
+
+  ref = base;
 }
 
 void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {

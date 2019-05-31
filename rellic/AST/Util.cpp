@@ -190,4 +190,12 @@ clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
                                 clang::OK_Ordinary, clang::SourceLocation());
 }
 
+clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
+                              clang::ValueDecl *member, clang::QualType type,
+                              bool is_arrow) {
+  return new (ctx) clang::MemberExpr(base, is_arrow, clang::SourceLocation(),
+                                     member, clang::SourceLocation(), type,
+                                     clang::VK_RValue, clang::OK_Ordinary);
+}
+
 }  // namespace rellic

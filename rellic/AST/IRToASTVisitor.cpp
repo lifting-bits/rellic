@@ -104,7 +104,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
         tudecl->addDecl(sdecl);
       } else {
         sdecl = clang::cast<clang::RecordDecl>(decl);
-      }     
+      }
       result = ast_ctx.getRecordType(sdecl);
     } break;
 
@@ -125,8 +125,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(clang::DeclContext *decl_ctx,
 
   auto CreateInitListLiteral = [this, &decl_ctx, &constant] {
     std::vector<clang::Expr *> init_exprs;
-    for (auto i = 0U; i < constant->getNumOperands(); ++i) {
-      auto elm = constant->getAggregateElement(i);
+    for (auto i = 0U; auto elm = constant->getAggregateElement(i); ++i) {
       init_exprs.push_back(CreateLiteralExpr(decl_ctx, elm));
     }
     return CreateInitListExpr(ast_ctx, init_exprs);

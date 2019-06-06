@@ -37,6 +37,7 @@ class ExprCombine : public llvm::ModulePass,
 
   bool VisitUnaryOperator(clang::UnaryOperator *op);
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
+  bool VisitMemberExpr(clang::MemberExpr *expr);
   bool VisitParenExpr(clang::ParenExpr *paren);
 
   bool runOnModule(llvm::Module &module) override;

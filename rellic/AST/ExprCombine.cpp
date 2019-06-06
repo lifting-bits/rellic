@@ -82,9 +82,9 @@ class AddrOfArraySubscriptRule : public InferenceRule {
 class DerefAddrOfRule : public InferenceRule {
  public:
   DerefAddrOfRule()
-      : InferenceRule(unaryOperator(stmt().bind("deref"), hasOperatorName("*"),
-                                    has(unaryOperator(hasOperatorName("&"))))) {
-  }
+      : InferenceRule(unaryOperator(
+            stmt().bind("deref"), hasOperatorName("*"),
+            has(ignoringParenCasts(unaryOperator(hasOperatorName("&")))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("deref");
@@ -95,12 +95,13 @@ class DerefAddrOfRule : public InferenceRule {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto addr_of = clang::cast<clang::UnaryOperator>(deref->getSubExpr());
+    auto subexpr = deref->getSubExpr()->IgnoreParens();
+    auto addr_of = clang::cast<clang::UnaryOperator>(subexpr);
     return addr_of->getSubExpr();
   }
 };
 
-// // Matches `!(comp)` and subs it for `negcomp`
+// Matches `!(comp)` and subs it for `negcomp`
 class NegComparisonRule : public InferenceRule {
  public:
   NegComparisonRule()
@@ -128,6 +129,55 @@ class NegComparisonRule : public InferenceRule {
   }
 };
 
+// Matches `(a)` and subs it for `a`
+class ParenDeclRefExprStripRule : public InferenceRule {
+ public:
+  ParenDeclRefExprStripRule()
+      : InferenceRule(
+            parenExpr(stmt().bind("paren"),
+                      has(ignoringImpCasts(declRefExpr(to(varDecl())))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::ParenExpr>("paren");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto paren = clang::cast<clang::ParenExpr>(stmt);
+    CHECK(paren == match)
+        << "Substituted ParenExpr is not the matched ParenExpr!";
+    return paren->getSubExpr();
+  }
+};
+
+// Matches `(&expr)->field` and subs it for `expr.field`
+class MemberExprAddrOfRule : public InferenceRule {
+ public:
+  MemberExprAddrOfRule()
+      : InferenceRule(memberExpr(
+            stmt().bind("arrow"), isArrow(),
+            has(expr(stmt().bind("base"), ignoringParenCasts(unaryOperator(
+                                              hasOperatorName("&"))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    auto arrow = result.Nodes.getNodeAs<clang::MemberExpr>("arrow");
+    if (result.Nodes.getNodeAs<clang::Expr>("base") == arrow->getBase()) {
+      match = arrow;
+    }
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+                                       clang::Stmt *stmt) {
+    auto arrow = clang::cast<clang::MemberExpr>(stmt);
+    CHECK(arrow == match)
+        << "Substituted MemberExpr is not the matched MemberExpr!";
+    auto base = arrow->getBase()->IgnoreParens();
+    auto addr_of = clang::cast<clang::UnaryOperator>(base);
+    return CreateMemberExpr(ctx, addr_of->getSubExpr(), arrow->getMemberDecl(),
+                            arrow->getType());
+  }
+};
+
 }  // namespace
 
 char ExprCombine::ID = 0;
@@ -138,10 +188,13 @@ ExprCombine::ExprCombine(clang::ASTContext &ctx,
 
 bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
   // DLOG(INFO) << "VisitParenExpr";
-  auto sub = paren->IgnoreParens();
+  std::vector<InferenceRule *> rules({new ParenDeclRefExprStripRule});
+  auto sub = ApplyFirstMatchingRule(*ast_ctx, paren, rules);
   if (sub != paren) {
     substitutions[paren] = sub;
   }
+
+  delete rules.back();
 
   return true;
 }
@@ -175,6 +228,19 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   for (auto rule : rules) {
     delete rule;
   }
+
+  return true;
+}
+
+bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
+  // DLOG(INFO) << "VisitArraySubscriptExpr";
+  std::vector<InferenceRule *> rules({new MemberExprAddrOfRule});
+  auto sub = ApplyFirstMatchingRule(*ast_ctx, expr, rules);
+  if (sub != expr) {
+    substitutions[expr] = sub;
+  }
+
+  delete rules.back();
 
   return true;
 }

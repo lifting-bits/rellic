@@ -24,48 +24,67 @@
 
 namespace rellic {
 
-class Z3ConvVisitor
-    : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
+class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
  private:
-    clang::ASTContext *ast_ctx;
-    z3::context *z3_ctx;
-    
-    z3::expr_vector z3_expr_vec;
-    // Expression maps
-    std::unordered_map<clang::Expr *, unsigned> z3_expr_map;
-    std::unordered_map<unsigned, clang::Expr *> c_expr_map;
-    // Z3 constant to C variable map
-    std::unordered_map<std::string, clang::ValueDecl *> c_var_map;
-    
-    void InsertZ3Expr(clang::Expr *c_expr, z3::expr z3_expr);
-    z3::expr GetZ3Expr(clang::Expr *c_expr);
+  clang::ASTContext *ast_ctx;
+  z3::context *z3_ctx;
 
-    void InsertCExpr(z3::expr z3_expr, clang::Expr *c_expr);
-    clang::Expr *GetCExpr(z3::expr z3_expr);
-    clang::ValueDecl *GetCVar(std::string var_name);
-    
-    void VisitZ3Expr(z3::expr z3_expr);
-    
+  // Expression maps
+  z3::expr_vector z3_expr_vec;
+  std::unordered_map<clang::Expr *, unsigned> z3_expr_map;
+  std::unordered_map<unsigned, clang::Expr *> c_expr_map;
+  // Declaration maps
+  z3::func_decl_vector z3_decl_vec;
+  std::unordered_map<clang::ValueDecl *, unsigned> z3_decl_map;
+  std::unordered_map<unsigned, clang::ValueDecl *> c_decl_map;
+
+  void InsertZ3Expr(clang::Expr *c_expr, z3::expr z3_expr);
+  z3::expr GetZ3Expr(clang::Expr *c_expr);
+
+  void InsertCExpr(z3::expr z3_expr, clang::Expr *c_expr);
+  clang::Expr *GetCExpr(z3::expr z3_expr);
+
+  void InsertZ3Decl(clang::ValueDecl *c_decl, z3::func_decl z3_decl);
+  z3::func_decl GetZ3Decl(clang::ValueDecl *c_decl);
+
+  void InsertCDecl(z3::func_decl z3_decl, clang::ValueDecl *c_decl);
+  clang::ValueDecl *GetCDecl(z3::func_decl z3_decl);
+
+  void VisitZ3Expr(z3::expr z3_expr);
+
  public:
-    z3::expr GetOrCreateZ3Expr(clang::Expr *c_expr);
-    clang::Expr *GetOrCreateCExpr(z3::expr z3_expr);
+  z3::func_decl GetOrCreateZ3Decl(clang::ValueDecl *c_decl);
+  z3::expr GetOrCreateZ3Expr(clang::Expr *c_expr);
 
-    void DeclareCVar(clang::ValueDecl *c_decl);
+  clang::Expr *GetOrCreateCExpr(z3::expr z3_expr);
 
-    Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx);
-    bool shouldTraversePostOrder() { return true; }
+  Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx);
+  bool shouldTraversePostOrder() { return true; }
 
-    z3::expr Z3BoolCast(z3::expr expr);
+  z3::expr Z3BoolCast(z3::expr expr);
 
-    bool VisitParenExpr(clang::ParenExpr *parens);
-    bool VisitUnaryOperator(clang::UnaryOperator *c_op);
-    bool VisitBinaryOperator(clang::BinaryOperator *c_op);
-    bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
-    bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
+  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
+  bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
+  bool VisitMemberExpr(clang::MemberExpr *expr);
+  bool VisitCallExpr(clang::CallExpr *call);
+  bool VisitParenExpr(clang::ParenExpr *parens);
+  bool VisitUnaryOperator(clang::UnaryOperator *c_op);
+  bool VisitBinaryOperator(clang::BinaryOperator *c_op);
+  bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
+  bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
 
-    void VisitConstant(z3::expr z3_const);
-    void VisitUnaryApp(z3::expr z3_op);
-    void VisitBinaryApp(z3::expr z3_op);
+  bool VisitVarDecl(clang::VarDecl *c_var);
+  bool VisitFunctionDecl(clang::FunctionDecl *c_func);
+  
+  // Do not traverse function bodies
+  bool TraverseFunctionDecl(clang::FunctionDecl *c_func) {
+    WalkUpFromFunctionDecl(c_func);
+    return true;
+  }
+  
+  void VisitConstant(z3::expr z3_const);
+  void VisitUnaryApp(z3::expr z3_op);
+  void VisitBinaryApp(z3::expr z3_op);
 };
 
 }  // namespace rellic

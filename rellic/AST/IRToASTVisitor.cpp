@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -150,6 +150,12 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(clang::DeclContext *decl_ctx,
       result = CreateIntegerLiteral(ast_ctx, val, c_type);
     } break;
 
+    case llvm::Type::PointerTyID: {
+      CHECK(llvm::isa<llvm::ConstantPointerNull>(constant))
+          << "Non-null pointer constant?";
+      result = CreateNullPointerExpr(ast_ctx);
+    } break;
+
     case llvm::Type::ArrayTyID: {
       auto arr = llvm::cast<llvm::ConstantDataArray>(constant);
       result = arr->isString()
@@ -160,6 +166,11 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(clang::DeclContext *decl_ctx,
     case llvm::Type::StructTyID: {
       result = CreateInitListLiteral();
     } break;
+
+    case llvm::Type::VectorTyID: {
+      LOG(FATAL) << "Unimplemented VectorTyID";
+    } break;
+
 
     default:
       LOG(FATAL) << "Unknown LLVM constant type";

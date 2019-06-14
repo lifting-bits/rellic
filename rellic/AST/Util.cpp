@@ -198,4 +198,20 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                                      clang::VK_RValue, clang::OK_Ordinary);
 }
 
+clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
+                                  clang::CastKind cast, clang::Expr *op) {
+  return clang::CStyleCastExpr::Create(
+      ctx, type, clang::VK_RValue, cast, op, nullptr,
+      ctx.getTrivialTypeSourceInfo(type), clang::SourceLocation(),
+      clang::SourceLocation());
+}
+
+clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
+  auto type = ctx.UnsignedIntTy;
+  auto val = llvm::APInt::getNullValue(ctx.getTypeSize(type));
+  auto zero = CreateIntegerLiteral(ctx, val, type);
+  return CreateCStyleCastExpr(ctx, ctx.getPointerType(ctx.VoidTy),
+                              clang::CastKind::CK_NullToPointer, zero);
+}
+
 }  // namespace rellic

@@ -103,4 +103,6 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                               clang::ValueDecl *member, clang::QualType type,
                               bool is_arrow = false);
 
+clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx);
+
 }  // namespace rellic

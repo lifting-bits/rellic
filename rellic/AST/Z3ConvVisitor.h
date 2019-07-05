@@ -73,15 +73,16 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
   bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
 
-  bool VisitVarDecl(clang::VarDecl *c_var);
-  bool VisitFunctionDecl(clang::FunctionDecl *c_func);
-  
+  bool VisitVarDecl(clang::VarDecl *var);
+  bool VisitFieldDecl(clang::FieldDecl *field);
+  bool VisitFunctionDecl(clang::FunctionDecl *func);
+
   // Do not traverse function bodies
-  bool TraverseFunctionDecl(clang::FunctionDecl *c_func) {
-    WalkUpFromFunctionDecl(c_func);
+  bool TraverseFunctionDecl(clang::FunctionDecl *func) {
+    WalkUpFromFunctionDecl(func);
     return true;
   }
-  
+
   void VisitConstant(z3::expr z3_const);
   void VisitUnaryApp(z3::expr z3_op);
   void VisitBinaryApp(z3::expr z3_op);

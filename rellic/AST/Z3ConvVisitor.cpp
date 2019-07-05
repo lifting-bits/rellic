@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -165,6 +165,13 @@ static clang::Expr *CreateLiteralExpr(clang::ASTContext &ast_ctx,
   return result;
 }
 
+static std::string CreateZ3DeclName(clang::NamedDecl *decl) {
+  std::stringstream ss;
+  ss << std::hex << decl << std::dec;
+  ss << '_' << decl->getNameAsString();
+  return ss.str();
+}
+
 }  // namespace
 
 Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z_ctx)
@@ -280,23 +287,41 @@ clang::Expr *Z3ConvVisitor::GetOrCreateCExpr(z3::expr z3_expr) {
   return GetCExpr(z3_expr);
 }
 
-bool Z3ConvVisitor::VisitVarDecl(clang::VarDecl *c_var) {
-  auto name = c_var->getNameAsString().c_str();
+bool Z3ConvVisitor::VisitVarDecl(clang::VarDecl *var) {
+  auto name = var->getNameAsString().c_str();
   DLOG(INFO) << "VisitVarDecl: " << name;
-  if (z3_decl_map.count(c_var)) {
+  if (z3_decl_map.count(var)) {
     DLOG(INFO) << "Re-declaration of " << name << "; Returning.";
     return true;
   }
 
-  auto z3_sort = GetZ3Sort(*ast_ctx, *z3_ctx, c_var->getType());
-  auto z3_const = z3_ctx->constant(name, z3_sort);
+  auto z3_name = CreateZ3DeclName(var);
+  auto z3_sort = GetZ3Sort(*ast_ctx, *z3_ctx, var->getType());
+  auto z3_const = z3_ctx->constant(z3_name.c_str(), z3_sort);
 
-  InsertZ3Decl(c_var, z3_const.decl());
+  InsertZ3Decl(var, z3_const.decl());
 
   return true;
 }
 
-bool Z3ConvVisitor::VisitFunctionDecl(clang::FunctionDecl *c_func) {
+bool Z3ConvVisitor::VisitFieldDecl(clang::FieldDecl *field) {
+  auto name = field->getNameAsString().c_str();
+  DLOG(INFO) << "VisitFieldDecl: " << name;
+  if (z3_decl_map.count(field)) {
+    DLOG(INFO) << "Re-declaration of " << name << "; Returning.";
+    return true;
+  }
+
+  auto z3_name = CreateZ3DeclName(field->getParent()) + "_" + name;
+  auto z3_sort = GetZ3Sort(*ast_ctx, *z3_ctx, field->getType());
+  auto z3_const = z3_ctx->constant(z3_name.c_str(), z3_sort);
+
+  InsertZ3Decl(field, z3_const.decl());
+
+  return true;
+}
+
+bool Z3ConvVisitor::VisitFunctionDecl(clang::FunctionDecl *func) {
   LOG(FATAL) << "Unimplemented FunctionDecl visitor";
   return true;
 }
@@ -360,20 +385,12 @@ bool Z3ConvVisitor::VisitMemberExpr(clang::MemberExpr *expr) {
     return true;
   }
 
-  auto mem = expr->getMemberDecl();
-  auto mem_sort = GetZ3Sort(*ast_ctx, *z3_ctx, mem->getType());
-
+  auto z3_mem = GetOrCreateZ3Decl(expr->getMemberDecl())();
   auto z3_base = GetOrCreateZ3Expr(expr->getBase());
-  auto base_sort = z3_base.get_sort();
+  auto z3_mem_expr = z3_ctx->function("Member", z3_base.get_sort(),
+                                      z3_mem.get_sort(), z3_mem.get_sort());
 
-  auto mem_name_sort = z3_ctx->string_sort();
-  auto z3_mem_name =
-      z3_ctx->constant(mem->getNameAsString().c_str(), mem_name_sort);
-
-  auto z3_mem_expr =
-      z3_ctx->function("Member", base_sort, mem_name_sort, mem_sort);
-
-  InsertZ3Expr(expr, z3_mem_expr(z3_base, z3_mem_name));
+  InsertZ3Expr(expr, z3_mem_expr(z3_base, z3_mem));
 
   return true;
 }
@@ -390,7 +407,22 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
     return true;
   }
 
-  InsertZ3Expr(parens, GetOrCreateZ3Expr(parens->getSubExpr()));
+  auto z3_expr = GetOrCreateZ3Expr(parens->getSubExpr());
+
+  switch (z3_expr.decl().decl_kind()) {
+    // Parens may affect semantics of C expressions
+    case Z3_OP_UNINTERPRETED: {
+      auto sort = z3_expr.get_sort();
+      auto z3_paren = z3_ctx->function("Paren", sort, sort);
+      z3_expr = z3_paren(z3_expr);
+    } break;
+    // Default to ignoring the parens, Z3 should know how
+    // to interpret them.
+    default:
+    break;
+  }
+
+  InsertZ3Expr(parens, z3_expr);
 
   return true;
 }
@@ -414,6 +446,12 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
       auto ptr_sort = GetZ3Sort(*ast_ctx, *z3_ctx, c_op->getType());
       auto z3_addrof = z3_ctx->function("AddrOf", operand.get_sort(), ptr_sort);
       InsertZ3Expr(c_op, z3_addrof(operand));
+    } break;
+
+    case clang::UO_Deref: {
+      auto elm_sort = GetZ3Sort(*ast_ctx, *z3_ctx, c_op->getType());
+      auto z3_deref = z3_ctx->function("Deref", operand.get_sort(), elm_sort);
+      InsertZ3Expr(c_op, z3_deref(operand));
     } break;
 
     default:
@@ -469,10 +507,9 @@ bool Z3ConvVisitor::VisitDeclRefExpr(clang::DeclRefExpr *c_ref) {
   if (z3_expr_map.count(c_ref)) {
     return true;
   }
-  GetOrCreateZ3Decl(ref_decl);
-  auto z3_sort = GetZ3Sort(*ast_ctx, *z3_ctx, c_ref->getType());
-  auto z3_const = z3_ctx->constant(ref_name.c_str(), z3_sort);
-  InsertZ3Expr(c_ref, z3_const);
+
+  auto z3_const = GetOrCreateZ3Decl(ref_decl);
+  InsertZ3Expr(c_ref, z3_const());
 
   return true;
 }
@@ -495,7 +532,7 @@ bool Z3ConvVisitor::VisitIntegerLiteral(clang::IntegerLiteral *c_lit) {
 
 void Z3ConvVisitor::VisitZ3Expr(z3::expr z3_expr) {
   if (z3_expr.is_app()) {
-    for (unsigned i = 0; i < z3_expr.num_args(); ++i) {
+    for (auto i = 0U; i < z3_expr.num_args(); ++i) {
       GetOrCreateCExpr(z3_expr.arg(i));
     }
     switch (z3_expr.decl().arity()) {
@@ -538,6 +575,9 @@ void Z3ConvVisitor::VisitConstant(z3::expr z3_const) {
     case Z3_OP_BNUM:
       c_expr = CreateLiteralExpr(*ast_ctx, z3_const);
       break;
+    // Internal constants handled by parent Z3 exprs
+    case Z3_OP_INTERNAL:
+      break;
     // Uninterpreted constants
     case Z3_OP_UNINTERPRETED:
       c_expr = CreateDeclRefExpr(*ast_ctx, GetCDecl(z3_const.decl()));
@@ -557,13 +597,32 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z3_op) {
       << "Z3 expression is not a unary operator!";
   // Get operand
   auto operand = GetCExpr(z3_op.arg(0));
+  // Get z3 function declaration
+  auto z3_func = z3_op.decl();
   // Create C unary operator
   clang::Expr *c_op = nullptr;
-  switch (z3_op.decl().decl_kind()) {
+  switch (z3_func.decl_kind()) {
     case Z3_OP_NOT:
       c_op = CreateNotExpr(*ast_ctx, operand);
       break;
-    // Unknowns
+
+    case Z3_OP_UNINTERPRETED: {
+      auto name = z3_func.name().str();
+      auto type = operand->getType();
+      // Resolve opcode
+      if (name == "AddrOf") {
+        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_AddrOf, operand,
+                                   ast_ctx->getPointerType(type));
+      } else if (name == "Deref") {
+        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_Deref, operand,
+                                   type->getPointeeType());
+      } else if (name == "Paren") {
+        c_op = CreateParenExpr(*ast_ctx, operand);
+      } else {
+        LOG(FATAL) << "Unknown Z3 uninterpreted function";
+      }
+    } break;
+
     default:
       LOG(FATAL) << "Unknown Z3 unary operator!";
       break;
@@ -581,17 +640,18 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
   auto rhs = GetCExpr(z3_op.arg(1));
   // Get result type
   auto type = GetQualType(*ast_ctx, z3_op.get_sort());
+  // Get z3 function declaration
+  auto z3_func = z3_op.decl();
   // Create C binary operator
-  auto kind = z3_op.decl().decl_kind();
   clang::Expr *c_op = nullptr;
-  switch (kind) {
+  switch (z3_func.decl_kind()) {
     case Z3_OP_EQ:
       c_op = CreateBinaryOperator(*ast_ctx, clang::BO_EQ, lhs, rhs, type);
       break;
 
     case Z3_OP_AND: {
       c_op = lhs;
-      for (unsigned i = 1; i < z3_op.num_args(); ++i) {
+      for (auto i = 1U; i < z3_op.num_args(); ++i) {
         rhs = GetCExpr(z3_op.arg(i));
         c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LAnd, c_op, rhs, type);
       }
@@ -599,7 +659,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
 
     case Z3_OP_OR: {
       c_op = lhs;
-      for (unsigned i = 1; i < z3_op.num_args(); ++i) {
+      for (auto i = 1U; i < z3_op.num_args(); ++i) {
         rhs = GetCExpr(z3_op.arg(i));
         c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LOr, c_op, rhs, type);
       }
@@ -609,6 +669,19 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
     case Z3_OP_BSREM_I:
       c_op = CreateBinaryOperator(*ast_ctx, clang::BO_Rem, lhs, rhs, type);
       break;
+
+    case Z3_OP_UNINTERPRETED: {
+      auto name = z3_func.name().str();
+      // Resolve opcode
+      if (name == "ArraySub") {
+        c_op = CreateArraySubscriptExpr(*ast_ctx, lhs, rhs, type);
+      } else if (name == "Member") {
+        auto mem = GetCDecl(z3_op.arg(1).decl());
+        c_op = CreateMemberExpr(*ast_ctx, lhs, mem, type, /*is_arrow=*/true);
+      } else {
+        LOG(FATAL) << "Unknown Z3 uninterpreted function";
+      }
+    } break;
 
     // Unknowns
     default:

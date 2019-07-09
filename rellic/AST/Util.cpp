@@ -153,10 +153,28 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                    clang::SourceLocation(), id, prev_decl);
 }
 
+clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat &val,
+                                   clang::QualType type) {
+  return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
+                                        clang::SourceLocation());
+}
+
+clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt &val,
+                                  clang::QualType type) {
+  return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
+}
+
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
-  return clang::IntegerLiteral::Create(
-      ctx, llvm::APInt(ctx.getIntWidth(ctx.UnsignedIntTy), 1),
-      ctx.UnsignedIntTy, clang::SourceLocation());
+  auto type = ctx.UnsignedIntTy;
+  auto val = llvm::APInt(ctx.getIntWidth(type), 1);
+  return CreateIntegerLiteral(ctx, val, type);
+}
+
+clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
+                                 clang::QualType type) {
+  return clang::StringLiteral::Create(
+      ctx, val, clang::StringLiteral::StringKind::Ascii,
+      /*Pascal=*/false, type, clang::SourceLocation());
 }
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
@@ -170,6 +188,30 @@ clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
   return new (ctx)
       clang::ArraySubscriptExpr(base, idx, type, clang::VK_RValue,
                                 clang::OK_Ordinary, clang::SourceLocation());
+}
+
+clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
+                              clang::ValueDecl *member, clang::QualType type,
+                              bool is_arrow) {
+  return new (ctx) clang::MemberExpr(base, is_arrow, clang::SourceLocation(),
+                                     member, clang::SourceLocation(), type,
+                                     clang::VK_RValue, clang::OK_Ordinary);
+}
+
+clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
+                                  clang::CastKind cast, clang::Expr *op) {
+  return clang::CStyleCastExpr::Create(
+      ctx, type, clang::VK_RValue, cast, op, nullptr,
+      ctx.getTrivialTypeSourceInfo(type), clang::SourceLocation(),
+      clang::SourceLocation());
+}
+
+clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
+  auto type = ctx.UnsignedIntTy;
+  auto val = llvm::APInt::getNullValue(ctx.getTypeSize(type));
+  auto zero = CreateIntegerLiteral(ctx, val, type);
+  return CreateCStyleCastExpr(ctx, ctx.getPointerType(ctx.VoidTy),
+                              clang::CastKind::CK_NullToPointer, zero);
 }
 
 }  // namespace rellic

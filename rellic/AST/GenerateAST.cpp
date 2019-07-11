@@ -393,8 +393,3 @@ llvm::ModulePass *createGenerateASTPass(clang::ASTContext &ctx,
 }
 
 }  // namespace rellic
-
-// using namespace llvm;
-// using GenerateAST = rellic::GenerateAST;
-// INITIALIZE_PASS(GenerateAST, "generate_ast",
-//                 "Generate clang AST from LLVM IR", true, false)

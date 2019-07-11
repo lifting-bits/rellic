@@ -214,4 +214,17 @@ clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
                               clang::CastKind::CK_NullToPointer, zero);
 }
 
+clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl) {
+  return new (ctx)
+      clang::DeclStmt(clang::DeclGroupRef(decl), clang::SourceLocation(),
+                      clang::SourceLocation());
+}
+
+clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
+                                    clang::QualType type, clang::CastKind cast,
+                                    clang::Expr *op) {
+  return clang::ImplicitCastExpr::Create(ctx, type, cast, op, nullptr,
+                                         clang::VK_RValue);
+}
+
 }  // namespace rellic

@@ -419,7 +419,7 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
     // Default to ignoring the parens, Z3 should know how
     // to interpret them.
     default:
-    break;
+      break;
   }
 
   InsertZ3Expr(parens, z3_expr);

@@ -105,4 +105,13 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
 
 clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx);
 
+clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
+                                  clang::CastKind cast, clang::Expr *op);
+
+clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl);
+
+clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
+                                    clang::QualType type, clang::CastKind cast,
+                                    clang::Expr *op);
+
 }  // namespace rellic

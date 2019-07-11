@@ -32,7 +32,7 @@ namespace rellic {
 IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
-  DLOG(INFO) << "GetQualType: " << rellic::LLVMThingToString(type);
+  DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
   clang::QualType result;
   switch (type->getTypeID()) {
     case llvm::Type::VoidTyID:
@@ -118,17 +118,15 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   return result;
 }
 
-clang::Expr *IRToASTVisitor::CreateLiteralExpr(clang::DeclContext *decl_ctx,
-                                               llvm::Constant *constant) {
-  DLOG(INFO) << "Creating literal Expr for "
-             << rellic::LLVMThingToString(constant);
+clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
+  DLOG(INFO) << "Creating literal Expr for " << LLVMThingToString(constant);
 
   clang::Expr *result = nullptr;
 
-  auto CreateInitListLiteral = [this, &decl_ctx, &constant] {
+  auto CreateInitListLiteral = [this, &constant] {
     std::vector<clang::Expr *> init_exprs;
     for (auto i = 0U; auto elm = constant->getAggregateElement(i); ++i) {
-      init_exprs.push_back(CreateLiteralExpr(decl_ctx, elm));
+      init_exprs.push_back(GetOperandExpr(elm));
     }
     return CreateInitListExpr(ast_ctx, init_exprs);
   };
@@ -171,7 +169,6 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(clang::DeclContext *decl_ctx,
       LOG(FATAL) << "Unimplemented VectorTyID";
     } break;
 
-
     default:
       LOG(FATAL) << "Unknown LLVM constant type";
       break;
@@ -191,54 +188,58 @@ clang::VarDecl *IRToASTVisitor::CreateVarDecl(clang::DeclContext *decl_ctx,
 }
 
 clang::FunctionDecl *IRToASTVisitor::GetFunctionDecl(llvm::Instruction *inst) {
-  return inst->getParent() ? clang::dyn_cast<clang::FunctionDecl>(
-                                 value_decls[inst->getParent()->getParent()])
-                           : nullptr;
+  auto fdecl = inst->getParent()
+                   ? clang::dyn_cast<clang::FunctionDecl>(
+                         value_decls[inst->getParent()->getParent()])
+                   : nullptr;
+  CHECK(fdecl) << "Undeclared function";
+  return fdecl;
 }
 
 // TODO(msurovic): Figure out if this can't be done more elegantly
-clang::Expr *IRToASTVisitor::GetOperandExpr(clang::DeclContext *decl_ctx,
-                                            llvm::Value *val) {
-  DLOG(INFO) << "Getting Expr for " << rellic::LLVMThingToString(val);
-  clang::Expr *result = nullptr;
-
-  if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
-    // Operand is an expression with constant value
-    auto inst = cexpr->getAsInstruction();
-    visit(inst);
-    stmts[val] = stmts[inst];
-    stmts.erase(inst);
-    DeleteValue(inst);
-    result = clang::cast<clang::Expr>(stmts[val]);
-  } else if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
-    // Operand is a literal constant
-    result = CreateLiteralExpr(decl_ctx, cdata);
-  } else if (value_decls.count(val)) {
-    // Operand is an l-value (variable, function, ...)
-    result = CreateDeclRefExpr(ast_ctx, value_decls[val]);
-    if (llvm::isa<llvm::GlobalValue>(val)) {
-      // LLVM IR global values are constant pointers
-      auto ref_type = result->getType();
-      if (ref_type->isArrayType()) {
-        // Add an implicit cast
-        result = clang::ImplicitCastExpr::Create(
-            ast_ctx, ast_ctx.getPointerType(ref_type),
-            clang::CK_ArrayToPointerDecay, result, nullptr, clang::VK_RValue);
-      } else {
-        // Add a `&` operator
-        result = CreateParenExpr(
-            ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, result,
-                                         ast_ctx.getPointerType(ref_type)));
-      }
+clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
+  DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
+  // Operand is a constant value
+  if (llvm::isa<llvm::ConstantExpr>(val) ||
+      llvm::isa<llvm::ConstantAggregate>(val) ||
+      llvm::isa<llvm::ConstantData>(val)) {
+    return clang::cast<clang::Expr>(GetOrCreateStmt(val));
+  }
+  // Helper function for creating declaration references
+  auto CreateRef = [this, &val] {
+    return CreateDeclRefExpr(
+        ast_ctx, clang::cast<clang::ValueDecl>(GetOrCreateDecl(val)));
+  };
+  // Operand is an l-value (variable, functio, ...)
+  if (llvm::isa<llvm::GlobalValue>(val)) {
+    clang::Expr *ref = CreateRef();
+    // LLVM IR global values are constant pointers. Add an implicit
+    // array-to-pointer decay cast in case the global var is an array,
+    // otherwise add a `&` operator.
+    auto ref_type = ref->getType();
+    auto ptr_type = ast_ctx.getPointerType(ref_type);
+    if (ref_type->isArrayType()) {
+      ref = CreateImplicitCastExpr(ast_ctx, ptr_type,
+                                   clang::CK_ArrayToPointerDecay, ref);
+    } else {
+      ref = CreateParenExpr(
+          ast_ctx,
+          CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, ref, ptr_type));
     }
-  } else if (stmts.count(val)) {
-    // Operand is a result of an expression
-    result = clang::cast<clang::Expr>(stmts[val]);
-  } else {
-    LOG(FATAL) << "Invalid operand";
+    return ref;
+  }
+  // Operand is a function argument or local variable
+  if (llvm::isa<llvm::Argument>(val) || llvm::isa<llvm::AllocaInst>(val)) {
+    return CreateRef();
+  }
+  // Operand is a result of an expression
+  if (llvm::isa<llvm::Instruction>(val)) {
+    return clang::cast<clang::Expr>(GetOrCreateStmt(val));
   }
 
-  return result;
+  LOG(FATAL) << "Invalid operand";
+
+  return nullptr;
 }
 
 clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
@@ -246,12 +247,31 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
   if (stmt) {
     return stmt;
   }
-
-  if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
-    visit(inst->getParent());
-  } else {
-    LOG(FATAL) << "Unsupported value type";
+  // ConstantExpr
+  if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
+    auto inst = cexpr->getAsInstruction();
+    stmt = GetOrCreateStmt(inst);
+    stmts.erase(inst);
+    DeleteValue(inst);
+    return stmt;
   }
+  // ConstantAggregate
+  if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {
+    stmt = CreateLiteralExpr(caggr);
+    return stmt;
+  }
+  // ConstantData
+  if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
+    stmt = CreateLiteralExpr(cdata);
+    return stmt;
+  }
+  // Instruction
+  if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
+    visit(inst);
+    return stmt;
+  }
+
+  LOG(FATAL) << "Unsupported value type";
 
   return stmt;
 }
@@ -266,6 +286,8 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
     VisitFunctionDecl(*func);
   } else if (auto gvar = llvm::dyn_cast<llvm::GlobalVariable>(val)) {
     VisitGlobalVar(*gvar);
+  } else if (auto arg = llvm::dyn_cast<llvm::Argument>(val)) {
+    VisitArgument(*arg);
   } else if (auto inst = llvm::dyn_cast<llvm::AllocaInst>(val)) {
     visitAllocaInst(*inst);
   } else {
@@ -276,7 +298,7 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
 }
 
 void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
-  DLOG(INFO) << "VisitGlobalVar: " << rellic::LLVMThingToString(&gvar);
+  DLOG(INFO) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
   auto &var = value_decls[&gvar];
   if (var) {
     return;
@@ -290,10 +312,27 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   // Create an initalizer literal
   if (gvar.hasInitializer()) {
     clang::cast<clang::VarDecl>(var)->setInit(
-        CreateLiteralExpr(tudecl, gvar.getInitializer()));
+        GetOperandExpr(gvar.getInitializer()));
   }
   // Add the global var
   tudecl->addDecl(var);
+}
+
+void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
+  DLOG(INFO) << "VisitArgument: " << LLVMThingToString(&arg);
+  auto &parm = value_decls[&arg];
+  if (parm) {
+    return;
+  }
+  // Create a name
+  auto name = arg.hasName() ? arg.getName().str()
+                            : "arg" + std::to_string(arg.getArgNo());
+  // Get parent function declaration
+  auto func = arg.getParent();
+  auto fdecl = clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func));
+  // Create a declaration
+  parm = CreateParmVarDecl(ast_ctx, fdecl, CreateIdentifier(ast_ctx, name),
+                           GetQualType(arg.getType()));
 }
 
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
@@ -317,27 +356,17 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
     return;
   }
 
-  auto func_ctx = clang::cast<clang::FunctionDecl>(decl);
   std::vector<clang::ParmVarDecl *> params;
   for (auto &arg : func.args()) {
-    auto arg_name = arg.hasName() ? arg.getName().str()
-                                  : "arg" + std::to_string(arg.getArgNo());
-
-    DLOG(INFO) << "Creating ParmVarDecl for " << arg_name;
-
-    auto param = CreateParmVarDecl(ast_ctx, func_ctx,
-                                   CreateIdentifier(ast_ctx, arg_name),
-                                   GetQualType(arg.getType()));
-
-    value_decls[&arg] = param;
-    params.push_back(param);
+    auto parm = clang::cast<clang::ParmVarDecl>(GetOrCreateDecl(&arg));
+    params.push_back(parm);
   }
 
-  func_ctx->setParams(params);
+  decl->getAsFunction()->setParams(params);
 }
 
 void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
-  DLOG(INFO) << "visitCallInst: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitCallInst: " << LLVMThingToString(&inst);
   auto &callexpr = stmts[&inst];
   if (callexpr) {
     return;
@@ -345,21 +374,16 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
 
   auto callee = inst.getCalledValue();
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
-    auto decl = value_decls[func];
-    CHECK(decl) << "FunctionDecl for callee does not exist";
-    auto fdecl = clang::cast<clang::FunctionDecl>(decl);
-    auto fcast = clang::ImplicitCastExpr::Create(
+    auto fdecl = GetOrCreateDecl(func)->getAsFunction();
+    auto fcast = CreateImplicitCastExpr(
         ast_ctx, ast_ctx.getPointerType(fdecl->getType()),
-        clang::CK_FunctionToPointerDecay, CreateDeclRefExpr(ast_ctx, fdecl),
-        nullptr, clang::VK_RValue);
+        clang::CK_FunctionToPointerDecay, CreateDeclRefExpr(ast_ctx, fdecl));
 
     std::vector<clang::Expr *> args;
     for (auto &arg : inst.arg_operands()) {
-      auto arg_expr = GetOperandExpr(fdecl, arg);
-      CHECK(arg_expr) << "Expr for call operand does not exist";
-      auto arg_cast = clang::ImplicitCastExpr::Create(
-          ast_ctx, arg_expr->getType(), clang::CK_LValueToRValue, arg_expr,
-          nullptr, clang::VK_RValue);
+      auto arg_expr = GetOperandExpr(arg);
+      auto arg_cast = CreateImplicitCastExpr(
+          ast_ctx, arg_expr->getType(), clang::CK_LValueToRValue, arg_expr);
       args.push_back(arg_cast);
     }
     callexpr = CreateCallExpr(ast_ctx, fcast, args, fdecl->getReturnType());
@@ -369,17 +393,15 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
 }
 
 void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
-  DLOG(INFO) << "visitGetElementPtrInst: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitGetElementPtrInst: " << LLVMThingToString(&inst);
   auto &ref = stmts[&inst];
   if (ref) {
     return;
   }
 
-  auto fdecl = GetFunctionDecl(&inst);
-
   std::vector<llvm::Value *> idxs;
   auto idx_it = inst.idx_begin();
-  auto base = GetOperandExpr(fdecl, inst.getPointerOperand());
+  auto base = GetOperandExpr(inst.getPointerOperand());
 
   auto CurrentIndexedType = [&] {
     auto src = inst.getSourceElementType();
@@ -393,7 +415,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   };
 
   auto IndexArray = [&] {
-    auto idx = GetOperandExpr(fdecl, *idx_it);
+    auto idx = GetOperandExpr(*idx_it);
     auto type = GetQualType(CurrentIndexedType());
     base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
   };
@@ -438,7 +460,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
 }
 
 void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
-  DLOG(INFO) << "visitAllocaInst: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitAllocaInst: " << LLVMThingToString(&inst);
   auto &declstmt = stmts[&inst];
   if (declstmt) {
     return;
@@ -447,9 +469,6 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
   auto &var = value_decls[&inst];
   if (!var) {
     auto fdecl = GetFunctionDecl(&inst);
-
-    CHECK(fdecl) << "Undeclared function";
-
     auto name = inst.getName().str();
     if (name.empty()) {
       auto var_num = std::distance(fdecl->decls_begin(), fdecl->decls_end());
@@ -460,27 +479,23 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     fdecl->addDecl(var);
   }
 
-  declstmt = new (ast_ctx)
-      clang::DeclStmt(clang::DeclGroupRef(var), clang::SourceLocation(),
-                      clang::SourceLocation());
+  declstmt = CreateDeclStmt(ast_ctx, var);
 }
 
 void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
-  DLOG(INFO) << "visitStoreInst: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitStoreInst: " << LLVMThingToString(&inst);
   auto &assign = stmts[&inst];
   if (assign) {
     return;
   }
   // Stores in LLVM IR correspond to value assignments in C
-  auto fdecl = GetFunctionDecl(&inst);
-  CHECK(fdecl) << "Undeclared function";
   // Get the operand we're assigning to
   auto ptr = inst.getPointerOperand();
-  auto lhs = GetOperandExpr(fdecl, ptr);
+  auto lhs = GetOperandExpr(ptr);
   CHECK(lhs) << "Invalid assigned-to operand";
   // Get the operand we're assigning from
   auto val = inst.getValueOperand();
-  auto rhs = GetOperandExpr(fdecl, val);
+  auto rhs = GetOperandExpr(val);
   CHECK(rhs) << "Invalid assigned-from operand";
   // Create the assignemnt itself
   assign = CreateBinaryOperator(
@@ -509,7 +524,7 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
     }
   } else if (llvm::isa<llvm::GEPOperator>(ptr)) {
     DLOG(INFO) << "Loading from an aggregate";
-    auto op = GetOperandExpr(fdecl, ptr);
+    auto op = GetOperandExpr(ptr);
     auto res_type = GetQualType(inst.getType());
     ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
   } else {
@@ -518,15 +533,14 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
 }
 
 void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
-  DLOG(INFO) << "visitReturnInst: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitReturnInst: " << LLVMThingToString(&inst);
   auto &retstmt = stmts[&inst];
   if (retstmt) {
     return;
   }
 
   if (auto retval = inst.getReturnValue()) {
-    auto fdecl = GetFunctionDecl(&inst);
-    auto retexpr = GetOperandExpr(fdecl, retval);
+    auto retexpr = GetOperandExpr(retval);
     retstmt = CreateReturnStmt(ast_ctx, retexpr);
   } else {
     retstmt = CreateReturnStmt(ast_ctx, nullptr);
@@ -534,16 +548,14 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
 }
 
 void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
-  DLOG(INFO) << "visitBinaryOperator: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitBinaryOperator: " << LLVMThingToString(&inst);
   auto &binop = stmts[&inst];
   if (binop) {
     return;
   }
-  // Get declaration context
-  auto fdecl = GetFunctionDecl(&inst);
   // Get operands
-  auto lhs = GetOperandExpr(fdecl, inst.getOperand(0));
-  auto rhs = GetOperandExpr(fdecl, inst.getOperand(1));
+  auto lhs = GetOperandExpr(inst.getOperand(0));
+  auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
   auto BinOpExpr = [this, &lhs, &rhs](clang::BinaryOperatorKind opc,
                                       clang::QualType res_type) {
@@ -567,16 +579,14 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
 }
 
 void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
-  DLOG(INFO) << "visitCmpInst: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitCmpInst: " << LLVMThingToString(&inst);
   auto &cmp = stmts[&inst];
   if (cmp) {
     return;
   }
-  // Get declaration context
-  auto fdecl = GetFunctionDecl(&inst);
   // Get operands
-  auto lhs = GetOperandExpr(fdecl, inst.getOperand(0));
-  auto rhs = GetOperandExpr(fdecl, inst.getOperand(1));
+  auto lhs = GetOperandExpr(inst.getOperand(0));
+  auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
   auto CmpExpr = [this, &lhs, &rhs](clang::BinaryOperatorKind opc) {
     return CreateBinaryOperator(ast_ctx, opc, lhs, rhs, ast_ctx.BoolTy);
@@ -595,6 +605,19 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       LOG(FATAL) << "Unknown CmpInst predicate";
       break;
   }
+}
+
+void IRToASTVisitor::visitPtrToInt(llvm::PtrToIntInst &inst) {
+  DLOG(INFO) << "visitPtrToInt: " << LLVMThingToString(&inst);
+  auto &cast = stmts[&inst];
+  if (cast) {
+    return;
+  }
+  // Get ptrtoint operand
+  auto operand = GetOperandExpr(inst.getOperand(0));
+  // Create the cast
+  cast = CreateCStyleCastExpr(ast_ctx, GetQualType(inst.getType()),
+                              clang::CastKind::CK_PointerToIntegral, operand);
 }
 
 }  // namespace rellic

@@ -187,16 +187,6 @@ clang::VarDecl *IRToASTVisitor::CreateVarDecl(clang::DeclContext *decl_ctx,
                                 GetQualType(type), nullptr, clang::SC_None);
 }
 
-clang::FunctionDecl *IRToASTVisitor::GetFunctionDecl(llvm::Instruction *inst) {
-  auto fdecl = inst->getParent()
-                   ? clang::dyn_cast<clang::FunctionDecl>(
-                         value_decls[inst->getParent()->getParent()])
-                   : nullptr;
-  CHECK(fdecl) << "Undeclared function";
-  return fdecl;
-}
-
-// TODO(msurovic): Figure out if this can't be done more elegantly
 clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
   // Operand is a constant value
@@ -210,12 +200,11 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
     return CreateDeclRefExpr(
         ast_ctx, clang::cast<clang::ValueDecl>(GetOrCreateDecl(val)));
   };
-  // Operand is an l-value (variable, functio, ...)
-  if (llvm::isa<llvm::GlobalValue>(val)) {
+  // Operand is an l-value (variable, function, ...)
+  if (llvm::isa<llvm::GlobalValue>(val) || llvm::isa<llvm::AllocaInst>(val)) {
     clang::Expr *ref = CreateRef();
-    // LLVM IR global values are constant pointers. Add an implicit
-    // array-to-pointer decay cast in case the global var is an array,
-    // otherwise add a `&` operator.
+    // Add an implicit array-to-pointer decay cast in case the l-value
+    // is an array, otherwise add a `&` operator.
     auto ref_type = ref->getType();
     auto ptr_type = ast_ctx.getPointerType(ref_type);
     if (ref_type->isArrayType()) {
@@ -229,7 +218,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
     return ref;
   }
   // Operand is a function argument or local variable
-  if (llvm::isa<llvm::Argument>(val) || llvm::isa<llvm::AllocaInst>(val)) {
+  if (llvm::isa<llvm::Argument>(val)) {
     return CreateRef();
   }
   // Operand is a result of an expression
@@ -466,9 +455,12 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     return;
   }
 
+  auto func = inst.getFunction();
+  CHECK(func) << "AllocaInst does not have a parent function";
+
   auto &var = value_decls[&inst];
   if (!var) {
-    auto fdecl = GetFunctionDecl(&inst);
+    auto fdecl = clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func));
     auto name = inst.getName().str();
     if (name.empty()) {
       auto var_num = std::distance(fdecl->decls_begin(), fdecl->decls_end());
@@ -492,38 +484,27 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   // Get the operand we're assigning to
   auto ptr = inst.getPointerOperand();
   auto lhs = GetOperandExpr(ptr);
-  CHECK(lhs) << "Invalid assigned-to operand";
   // Get the operand we're assigning from
   auto val = inst.getValueOperand();
   auto rhs = GetOperandExpr(val);
-  CHECK(rhs) << "Invalid assigned-from operand";
   // Create the assignemnt itself
+  auto type = GetQualType(ptr->getType()->getPointerElementType());
   assign = CreateBinaryOperator(
-      ast_ctx, clang::BO_Assign, lhs, rhs,
-      GetQualType(ptr->getType()->getPointerElementType()));
+      ast_ctx, clang::BO_Assign,
+      CreateUnaryOperator(ast_ctx, clang::UO_Deref, lhs, type), rhs, type);
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
-  DLOG(INFO) << "visitLoadInst: " << rellic::LLVMThingToString(&inst);
+  DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
   auto &ref = stmts[&inst];
   if (ref) {
     return;
   }
 
-  auto fdecl = GetFunctionDecl(&inst);
-  CHECK(fdecl) << "Undeclared function";
-
   auto ptr = inst.getPointerOperand();
   if (llvm::isa<llvm::AllocaInst>(ptr) ||
-      llvm::isa<llvm::GlobalVariable>(ptr)) {
-    DLOG(INFO) << "Loading from a variable";
-    if (auto var = clang::dyn_cast<clang::VarDecl>(GetOrCreateDecl(ptr))) {
-      ref = CreateDeclRefExpr(ast_ctx, var);
-    } else {
-      LOG(FATAL) << "Referencing undeclared variable";
-    }
-  } else if (llvm::isa<llvm::GEPOperator>(ptr)) {
-    DLOG(INFO) << "Loading from an aggregate";
+      llvm::isa<llvm::GlobalVariable>(ptr) ||
+      llvm::isa<llvm::GEPOperator>(ptr)) {
     auto op = GetOperandExpr(ptr);
     auto res_type = GetQualType(inst.getType());
     ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);

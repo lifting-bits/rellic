@@ -35,7 +35,6 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   std::unordered_map<llvm::Value *, clang::ValueDecl *> value_decls;
   std::unordered_map<llvm::Value *, clang::Stmt *> stmts;
 
-  clang::FunctionDecl *GetFunctionDecl(llvm::Instruction *inst);
   clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type);
 

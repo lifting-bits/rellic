@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define GOOGLE_STRIP_LOG 1
+// #define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -114,7 +114,6 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       LOG(FATAL) << "Unknown LLVM Type";
       break;
   }
-
   return result;
 }
 
@@ -155,10 +154,16 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     } break;
 
     case llvm::Type::ArrayTyID: {
-      auto arr = llvm::cast<llvm::ConstantDataArray>(constant);
-      result = arr->isString()
-                   ? CreateStringLiteral(ast_ctx, arr->getAsString(), c_type)
-                   : CreateInitListLiteral();
+      auto elm_type = llvm::cast<llvm::ArrayType>(l_type)->getElementType();
+      if (elm_type->isIntegerTy(8)) {
+        std::string init = "";
+        if (auto arr = llvm::dyn_cast<llvm::ConstantDataArray>(constant)) {
+          init = arr->getAsString();
+        }
+        result = CreateStringLiteral(ast_ctx, init, c_type);
+      } else {
+        result = CreateInitListLiteral();
+      }
     } break;
 
     case llvm::Type::StructTyID: {
@@ -388,31 +393,19 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     return;
   }
 
-  std::vector<llvm::Value *> idxs;
-  auto idx_it = inst.idx_begin();
+  auto indexed_type = inst.getPointerOperandType();
   auto base = GetOperandExpr(inst.getPointerOperand());
 
-  auto CurrentIndexedType = [&] {
-    auto src = inst.getSourceElementType();
-    return llvm::GetElementPtrInst::getIndexedType(src, idxs);
-  };
-
-  auto TakeAddress = [&] {
-    base = CreateParenExpr(
-        ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, base,
-                                     ast_ctx.getPointerType(base->getType())));
-  };
-
-  auto IndexArray = [&] {
-    auto idx = GetOperandExpr(*idx_it);
-    auto type = GetQualType(CurrentIndexedType());
+  auto IndexArrayOrPtr = [&](llvm::Value &gep_idx) {
+    auto idx = GetOperandExpr(&gep_idx);
+    auto type = GetQualType(indexed_type);
     base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
   };
 
-  auto IndexStruct = [&] {
-    auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(idx_it->get());
+  auto IndexStruct = [&](llvm::Value &gep_idx) {
+    auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(&gep_idx);
     CHECK(mem_idx) << "Non-constant GEP index while indexing a structure";
-    auto type = CurrentIndexedType();
+    auto type = indexed_type;
     auto tdecl = type_decls[type];
     CHECK(tdecl) << "Structure declaration doesn't exist";
     auto record = clang::cast<clang::RecordDecl>(tdecl);
@@ -423,26 +416,37 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
                             /*is_arrow=*/true);
   };
 
-  IndexArray();
-  TakeAddress();
-
-  for (++idx_it; idx_it != inst.idx_end(); ++idx_it) {
-    idxs.push_back(idx_it->get());
-    switch (CurrentIndexedType()->getTypeID()) {
+  for (auto &idx : inst.indices()) {
+    switch (indexed_type->getTypeID()) {
+      // Initial pointer
+      case llvm::Type::PointerTyID: {
+        CHECK(idx == *inst.idx_begin())
+            << "Indexing an llvm::PointerType is only valid at first index";
+        IndexArrayOrPtr(*idx);
+        auto type = llvm::cast<llvm::PointerType>(indexed_type);
+        indexed_type = type->getElementType();
+      } break;
       // Arrays
-      case llvm::Type::ArrayTyID:
-        IndexArray();
-        break;
+      case llvm::Type::ArrayTyID: {
+        IndexArrayOrPtr(*idx);
+        auto type = llvm::cast<llvm::ArrayType>(indexed_type);
+        indexed_type = type->getTypeAtIndex(idx);
+      } break;
       // Structures
-      case llvm::Type::StructTyID:
-        IndexStruct();
-        break;
+      case llvm::Type::StructTyID: {
+        IndexStruct(*idx);
+        auto type = llvm::cast<llvm::StructType>(indexed_type);
+        indexed_type = type->getTypeAtIndex(idx);
+      } break;
       // Unknown
       default:
         LOG(FATAL) << "Indexing an unknown pointer type";
         break;
     }
-    TakeAddress();
+    // Take address via `(&base)`
+    base = CreateParenExpr(
+        ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, base,
+                                     ast_ctx.getPointerType(base->getType())));
   }
 
   ref = base;

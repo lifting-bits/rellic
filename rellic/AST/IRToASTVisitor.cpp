@@ -546,16 +546,29 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
                                       clang::QualType res_type) {
     return CreateBinaryOperator(ast_ctx, opc, lhs, rhs, res_type);
   };
+  // Get result type
+  auto type = GetQualType(inst.getType());
   // Where the magic happens
   switch (inst.getOpcode()) {
+    case llvm::BinaryOperator::LShr: {
+      auto size = ast_ctx.getTypeSize(lhs->getType());
+      auto sign = ast_ctx.getIntTypeForBitwidth(size, 1);
+      lhs = CreateCStyleCastExpr(ast_ctx, sign,
+                                 clang::CastKind::CK_IntegralCast, lhs);
+      binop = BinOpExpr(clang::BO_Shr, type);
+    } break;
+
+    case llvm::BinaryOperator::Xor:
+      binop = BinOpExpr(clang::BO_Xor, type);
+      break;
+
     case llvm::BinaryOperator::URem:
       binop = BinOpExpr(clang::BO_Rem, lhs->getType());
       break;
 
-    case llvm::BinaryOperator::Add: {
-      auto type = GetQualType(inst.getType());
+    case llvm::BinaryOperator::Add:
       binop = BinOpExpr(clang::BO_Add, type);
-    } break;
+      break;
 
     default:
       LOG(FATAL) << "Unknown BinaryOperator operation";
@@ -603,6 +616,10 @@ void IRToASTVisitor::visitPtrToInt(llvm::PtrToIntInst &inst) {
   // Create the cast
   cast = CreateCStyleCastExpr(ast_ctx, GetQualType(inst.getType()),
                               clang::CastKind::CK_PointerToIntegral, operand);
+}
+
+void IRToASTVisitor::visitTruncInst(llvm::TruncInst &inst) {
+  LOG(FATAL) << "Unimplemented llvm::TruncInst visitor";
 }
 
 }  // namespace rellic

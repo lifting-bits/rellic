@@ -61,8 +61,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   void visitReturnInst(llvm::ReturnInst &inst);
   void visitBinaryOperator(llvm::BinaryOperator &inst);
   void visitCmpInst(llvm::CmpInst &inst);
-  void visitPtrToInt(llvm::PtrToIntInst &inst);
-  void visitTruncInst(llvm::TruncInst &inst);
+  void visitCastInst(llvm::CastInst &inst);
+  void visitSelectInst(llvm::SelectInst &inst);
 };
 
 }  // namespace rellic

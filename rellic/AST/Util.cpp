@@ -178,9 +178,12 @@ clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
 }
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
-                                std::vector<clang::Expr *> &exprs) {
-  return new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
-                                       clang::SourceLocation());
+                                std::vector<clang::Expr *> &exprs,
+                                clang::QualType type) {
+  auto init = new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
+                                            clang::SourceLocation());
+  init->setType(type);
+  return init;
 }
 
 clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
@@ -225,6 +228,15 @@ clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
                                     clang::Expr *op) {
   return clang::ImplicitCastExpr::Create(ctx, type, cast, op, nullptr,
                                          clang::VK_RValue);
+}
+
+clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
+                                           clang::Expr *cond, clang::Expr *lhs,
+                                           clang::Expr *rhs,
+                                           clang::QualType type) {
+  return new (ctx) clang::ConditionalOperator(
+      cond, clang::SourceLocation(), lhs, clang::SourceLocation(), rhs, type,
+      clang::VK_RValue, clang::OK_Ordinary);
 }
 
 }  // namespace rellic

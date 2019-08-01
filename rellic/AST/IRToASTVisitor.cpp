@@ -29,6 +29,21 @@
 
 namespace rellic {
 
+namespace {
+
+template <typename T>
+static size_t GetNumDecls(clang::DeclContext *decl_ctx) {
+  size_t result = 0;
+  for (auto decl : decl_ctx->decls()) {
+    if (clang::isa<T>(decl)) {
+      ++result;
+    }
+  }
+  return result;
+}
+
+}  // namespace
+
 IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
@@ -54,7 +69,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     case llvm::Type::IntegerTyID: {
       auto size = type->getIntegerBitWidth();
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = ast_ctx.getIntTypeForBitwidth(size, 0);
+      result =
+          size == 1 ? ast_ctx.BoolTy : ast_ctx.getIntTypeForBitwidth(size, 0);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -86,11 +102,13 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       clang::RecordDecl *sdecl = nullptr;
       auto &decl = type_decls[type];
       if (!decl) {
-        static auto scnt = 0U;
         auto tudecl = ast_ctx.getTranslationUnitDecl();
         auto strct = llvm::cast<llvm::StructType>(type);
-        auto sname = strct->hasName() ? strct->getName().str()
-                                      : "struct_" + std::to_string(scnt++);
+        auto sname = strct->getName().str();
+        if (sname.empty()) {
+          auto num = GetNumDecls<clang::TypeDecl>(tudecl);
+          sname = "struct_" + std::to_string(num);
+        }
         // Create a C struct declaration
         auto sid = CreateIdentifier(ast_ctx, sname);
         decl = sdecl = CreateStructDecl(ast_ctx, tudecl, sid);
@@ -114,6 +132,9 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       LOG(FATAL) << "Unknown LLVM Type";
       break;
   }
+
+  CHECK(!result.isNull()) << "Unknown LLVM Type";
+
   return result;
 }
 
@@ -122,16 +143,16 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
 
   clang::Expr *result = nullptr;
 
-  auto CreateInitListLiteral = [this, &constant] {
+  auto l_type = constant->getType();
+  auto c_type = GetQualType(l_type);
+
+  auto CreateInitListLiteral = [this, &constant, &c_type] {
     std::vector<clang::Expr *> init_exprs;
     for (auto i = 0U; auto elm = constant->getAggregateElement(i); ++i) {
       init_exprs.push_back(GetOperandExpr(elm));
     }
-    return CreateInitListExpr(ast_ctx, init_exprs);
+    return CreateInitListExpr(ast_ctx, init_exprs, c_type);
   };
-
-  auto l_type = constant->getType();
-  auto c_type = GetQualType(l_type);
 
   switch (l_type->getTypeID()) {
     // Floats
@@ -144,7 +165,19 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     // Integers
     case llvm::Type::IntegerTyID: {
       auto val = llvm::cast<llvm::ConstantInt>(constant)->getValue();
-      result = CreateIntegerLiteral(ast_ctx, val, c_type);
+      auto size = val.getMinSignedBits();
+      // re-determine type
+      auto i_type = c_type;
+      if (size <= ast_ctx.getTypeSize(ast_ctx.IntTy)) {
+        i_type = ast_ctx.IntTy;
+      } else if (size <= ast_ctx.getTypeSize(ast_ctx.LongTy)) {
+        i_type = ast_ctx.LongTy;
+      } else if (size <= ast_ctx.getTypeSize(ast_ctx.LongLongTy)) {
+        i_type = ast_ctx.LongLongTy;
+      } else {
+        LOG(FATAL) << "Integer literal value too big";
+      }
+      result = CreateIntegerLiteral(ast_ctx, val, i_type);
     } break;
 
     case llvm::Type::PointerTyID: {
@@ -298,10 +331,14 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     return;
   }
 
-  auto name = gvar.getName().str();
-  auto tudecl = ast_ctx.getTranslationUnitDecl();
   auto type = llvm::cast<llvm::PointerType>(gvar.getType())->getElementType();
-
+  auto tudecl = ast_ctx.getTranslationUnitDecl();
+  auto name = gvar.getName().str();
+  if (name.empty()) {
+    auto num = GetNumDecls<clang::VarDecl>(tudecl);
+    name = "gvar" + std::to_string(num);
+  }
+  // Create a variable declaration
   var = CreateVarDecl(tudecl, type, name);
   // Create an initalizer literal
   if (gvar.hasInitializer()) {
@@ -366,21 +403,28 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     return;
   }
 
+  auto type = GetQualType(inst.getType());
+
+  std::vector<clang::Expr *> args;
+  for (auto &arg : inst.arg_operands()) {
+    auto expr = GetOperandExpr(arg);
+    auto type = expr->getType();
+    auto cast =
+        CreateImplicitCastExpr(ast_ctx, type, clang::CK_LValueToRValue, expr);
+    args.push_back(cast);
+  }
+
   auto callee = inst.getCalledValue();
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
-    auto fdecl = GetOrCreateDecl(func)->getAsFunction();
-    auto fcast = CreateImplicitCastExpr(
-        ast_ctx, ast_ctx.getPointerType(fdecl->getType()),
-        clang::CK_FunctionToPointerDecay, CreateDeclRefExpr(ast_ctx, fdecl));
-
-    std::vector<clang::Expr *> args;
-    for (auto &arg : inst.arg_operands()) {
-      auto arg_expr = GetOperandExpr(arg);
-      auto arg_cast = CreateImplicitCastExpr(
-          ast_ctx, arg_expr->getType(), clang::CK_LValueToRValue, arg_expr);
-      args.push_back(arg_cast);
-    }
-    callexpr = CreateCallExpr(ast_ctx, fcast, args, fdecl->getReturnType());
+    auto decl = GetOrCreateDecl(func)->getAsFunction();
+    auto ptr = ast_ctx.getPointerType(decl->getType());
+    auto ref = CreateDeclRefExpr(ast_ctx, decl);
+    auto cast = CreateImplicitCastExpr(ast_ctx, ptr,
+                                       clang::CK_FunctionToPointerDecay, ref);
+    callexpr = CreateCallExpr(ast_ctx, cast, args, type);
+  } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
+    auto ptr = GetOperandExpr(callee);
+    callexpr = CreateCallExpr(ast_ctx, ptr, args, type);
   } else {
     LOG(FATAL) << "Callee is not a function";
   }
@@ -467,8 +511,8 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     auto fdecl = clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func));
     auto name = inst.getName().str();
     if (name.empty()) {
-      auto var_num = std::distance(fdecl->decls_begin(), fdecl->decls_end());
-      name = "var" + std::to_string(var_num);
+      auto num = GetNumDecls<clang::VarDecl>(fdecl);
+      name = "var" + std::to_string(num);
     }
 
     var = CreateVarDecl(fdecl, inst.getAllocatedType(), name);
@@ -506,15 +550,19 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   }
 
   auto ptr = inst.getPointerOperand();
-  if (llvm::isa<llvm::AllocaInst>(ptr) ||
-      llvm::isa<llvm::GlobalVariable>(ptr) ||
-      llvm::isa<llvm::GEPOperator>(ptr)) {
-    auto op = GetOperandExpr(ptr);
-    auto res_type = GetQualType(inst.getType());
-    ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
-  } else {
-    LOG(FATAL) << "Loading from an unknown pointer";
-  }
+  auto op = GetOperandExpr(ptr);
+  auto res_type = GetQualType(inst.getType());
+  ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
+  // if (llvm::isa<llvm::AllocaInst>(ptr) ||
+  //     llvm::isa<llvm::GlobalVariable>(ptr) ||
+  //     llvm::isa<llvm::GEPOperator>(ptr) ||
+  //     llvm::isa<llvm::>(ptr)) {
+  //   auto op = GetOperandExpr(ptr);
+  //   auto res_type = GetQualType(inst.getType());
+  //   ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
+  // } else {
+  //   LOG(FATAL) << "Loading from an unknown pointer";
+  // }
 }
 
 void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
@@ -552,11 +600,27 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr: {
       auto size = ast_ctx.getTypeSize(lhs->getType());
-      auto sign = ast_ctx.getIntTypeForBitwidth(size, 1);
+      auto sign = ast_ctx.getIntTypeForBitwidth(size, /*signed=*/0);
       lhs = CreateCStyleCastExpr(ast_ctx, sign,
                                  clang::CastKind::CK_IntegralCast, lhs);
       binop = BinOpExpr(clang::BO_Shr, type);
     } break;
+
+    case llvm::BinaryOperator::AShr: {
+      auto size = ast_ctx.getTypeSize(lhs->getType());
+      auto sign = ast_ctx.getIntTypeForBitwidth(size, /*signed=*/1);
+      lhs = CreateCStyleCastExpr(ast_ctx, sign,
+                                 clang::CastKind::CK_IntegralCast, lhs);
+      binop = BinOpExpr(clang::BO_Shr, type);
+    } break;
+
+    case llvm::BinaryOperator::Shl:
+      binop = BinOpExpr(clang::BO_Shl, type);
+      break;
+
+    case llvm::BinaryOperator::And:
+      binop = BinOpExpr(clang::BO_And, type);
+      break;
 
     case llvm::BinaryOperator::Xor:
       binop = BinOpExpr(clang::BO_Xor, type);
@@ -568,6 +632,10 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
 
     case llvm::BinaryOperator::Add:
       binop = BinOpExpr(clang::BO_Add, type);
+      break;
+
+    case llvm::BinaryOperator::Sub:
+      binop = BinOpExpr(clang::BO_Sub, type);
       break;
 
     default:
@@ -591,6 +659,14 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   };
   // Where the magic happens
   switch (inst.getPredicate()) {
+    case llvm::CmpInst::ICMP_UGT:
+      cmp = CmpExpr(clang::BO_GT);
+      break;
+
+    case llvm::CmpInst::ICMP_ULT:
+      cmp = CmpExpr(clang::BO_LT);
+      break;
+
     case llvm::CmpInst::ICMP_EQ:
       cmp = CmpExpr(clang::BO_EQ);
       break;
@@ -605,21 +681,64 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   }
 }
 
-void IRToASTVisitor::visitPtrToInt(llvm::PtrToIntInst &inst) {
-  DLOG(INFO) << "visitPtrToInt: " << LLVMThingToString(&inst);
+void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
+  DLOG(INFO) << "visitCastInst: " << LLVMThingToString(&inst);
   auto &cast = stmts[&inst];
   if (cast) {
     return;
   }
-  // Get ptrtoint operand
+  // Get cast operand
   auto operand = GetOperandExpr(inst.getOperand(0));
-  // Create the cast
-  cast = CreateCStyleCastExpr(ast_ctx, GetQualType(inst.getType()),
-                              clang::CastKind::CK_PointerToIntegral, operand);
+  // Get destination type
+  auto type = GetQualType(inst.getType());
+  // Convenience wrapper
+  auto CastExpr = [this, &operand, &type](clang::CastKind opc) {
+    return CreateCStyleCastExpr(ast_ctx, type, opc, operand);
+  };
+  // Create cast
+  switch (inst.getOpcode()) {
+    case llvm::CastInst::Trunc: {
+      auto bitwidth = ast_ctx.getTypeSize(type);
+      auto val = llvm::APInt::getAllOnesValue(bitwidth);
+      auto mask = CreateIntegerLiteral(ast_ctx, val, type);
+      cast = CreateBinaryOperator(ast_ctx, clang::BO_And, operand, mask, type);
+    } break;
+
+    case llvm::CastInst::BitCast:
+      cast = CastExpr(clang::CastKind::CK_BitCast);
+      break;
+
+    case llvm::CastInst::ZExt:
+      cast = CastExpr(clang::CastKind::CK_IntegralCast);
+      break;
+
+    case llvm::CastInst::PtrToInt:
+      cast = CastExpr(clang::CastKind::CK_PointerToIntegral);
+      break;
+
+    case llvm::CastInst::IntToPtr:
+      cast = CastExpr(clang::CastKind::CK_IntegralToPointer);
+      break;
+
+    default:
+      LOG(FATAL) << "Unknown CastInst cast type";
+      break;
+  }
 }
 
-void IRToASTVisitor::visitTruncInst(llvm::TruncInst &inst) {
-  LOG(FATAL) << "Unimplemented llvm::TruncInst visitor";
+void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
+  DLOG(INFO) << "visitCastInst: " << LLVMThingToString(&inst);
+  auto &select = stmts[&inst];
+  if (select) {
+    return;
+  }
+
+  auto cond = GetOperandExpr(inst.getCondition());
+  auto tval = GetOperandExpr(inst.getTrueValue());
+  auto fval = GetOperandExpr(inst.getFalseValue());
+  auto type = GetQualType(inst.getType());
+
+  select = CreateConditionalOperatorExpr(ast_ctx, cond, tval, fval, type);
 }
 
 }  // namespace rellic

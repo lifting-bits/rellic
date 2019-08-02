@@ -1,5 +1,3 @@
-unsigned a[5] = {0,1,2,3,4};
+unsigned a[5] = {0, 1, 2, 3, 4};
 
-int main(void) {
-    return 0;
-}
+int main(void) { return a[1]; }

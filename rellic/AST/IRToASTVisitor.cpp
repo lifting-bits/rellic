@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -148,8 +148,10 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
 
   auto CreateInitListLiteral = [this, &constant, &c_type] {
     std::vector<clang::Expr *> init_exprs;
-    for (auto i = 0U; auto elm = constant->getAggregateElement(i); ++i) {
-      init_exprs.push_back(GetOperandExpr(elm));
+    if (!constant->isZeroValue()) {
+      for (auto i = 0U; auto elm = constant->getAggregateElement(i); ++i) {
+        init_exprs.push_back(GetOperandExpr(elm));
+      }
     }
     return CreateInitListExpr(ast_ctx, init_exprs, c_type);
   };
@@ -580,6 +582,36 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
   }
 }
 
+clang::Expr *IRToASTVisitor::ImplicitCastOperand(clang::QualType dst,
+                                                 clang::Expr *op) {
+  // Get operand type
+  auto src = op->getType();
+  // Helpers
+  auto isInt = [this](clang::QualType t) { return t->isIntegralType(ast_ctx); };
+  auto isFloat = [](clang::QualType t) { return t->isFloatingType(); };
+  auto isSmaller = ast_ctx.getTypeSize(src) < ast_ctx.getTypeSize(dst);
+  auto ImpCast = [this, dst, op](clang::CastKind kind) {
+    return CreateImplicitCastExpr(ast_ctx, dst, kind, op);
+  };
+  // Create the cast if it's valid
+  if (isFloat(dst) && isFloat(src) && isSmaller) {
+    // CK_FloatingCast
+    return ImpCast(clang::CK_FloatingCast);
+  } else if (isInt(dst) && isInt(src) && isSmaller) {
+    // CK_IntegralCast
+    return ImpCast(clang::CK_IntegralCast);
+  } else if (isFloat(dst) && isInt(src)) {
+    // CK_IntegralToFloatingCast
+    return ImpCast(clang::CK_IntegralToFloating);
+  } else if (isInt(dst) && isFloat(src)) {
+    // CK_IntegralToFloatingCast
+    return ImpCast(clang::CK_FloatingToIntegral);
+  } else {
+    // Invalid
+    return op;
+  }
+}
+
 void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   DLOG(INFO) << "visitBinaryOperator: " << LLVMThingToString(&inst);
   auto &binop = stmts[&inst];
@@ -590,25 +622,27 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto lhs = GetOperandExpr(inst.getOperand(0));
   auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
-  auto BinOpExpr = [this, &lhs, &rhs](clang::BinaryOperatorKind opc,
-                                      clang::QualType res_type) {
-    return CreateBinaryOperator(ast_ctx, opc, lhs, rhs, res_type);
+  auto BinOpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc,
+                                    clang::QualType res_type) {
+    return CreateBinaryOperator(
+        ast_ctx, opc, ImplicitCastOperand(rhs->getType(), lhs),
+        ImplicitCastOperand(lhs->getType(), rhs), res_type);
   };
   // Get result type
   auto type = GetQualType(inst.getType());
   // Where the magic happens
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr: {
-      auto size = ast_ctx.getTypeSize(lhs->getType());
-      auto sign = ast_ctx.getIntTypeForBitwidth(size, /*signed=*/0);
+      auto sign = ast_ctx.getIntTypeForBitwidth(
+          ast_ctx.getTypeSize(lhs->getType()), /*signed=*/0);
       lhs = CreateCStyleCastExpr(ast_ctx, sign,
                                  clang::CastKind::CK_IntegralCast, lhs);
       binop = BinOpExpr(clang::BO_Shr, type);
     } break;
 
     case llvm::BinaryOperator::AShr: {
-      auto size = ast_ctx.getTypeSize(lhs->getType());
-      auto sign = ast_ctx.getIntTypeForBitwidth(size, /*signed=*/1);
+      auto sign = ast_ctx.getIntTypeForBitwidth(
+          ast_ctx.getTypeSize(lhs->getType()), /*signed=*/1);
       lhs = CreateCStyleCastExpr(ast_ctx, sign,
                                  clang::CastKind::CK_IntegralCast, lhs);
       binop = BinOpExpr(clang::BO_Shr, type);
@@ -654,8 +688,10 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto lhs = GetOperandExpr(inst.getOperand(0));
   auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
-  auto CmpExpr = [this, &lhs, &rhs](clang::BinaryOperatorKind opc) {
-    return CreateBinaryOperator(ast_ctx, opc, lhs, rhs, ast_ctx.BoolTy);
+  auto CmpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc) {
+    return CreateBinaryOperator(
+        ast_ctx, opc, ImplicitCastOperand(rhs->getType(), lhs),
+        ImplicitCastOperand(lhs->getType(), rhs), ast_ctx.BoolTy);
   };
   // Where the magic happens
   switch (inst.getPredicate()) {

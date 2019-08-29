@@ -43,6 +43,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx, llvm::Type *type,
                                 std::string name);
 
+  clang::Expr *ImplicitCastOperand(clang::QualType dst, clang::Expr *op);
+
  public:
   IRToASTVisitor(clang::ASTContext &ctx);
 

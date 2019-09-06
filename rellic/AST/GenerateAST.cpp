@@ -108,6 +108,28 @@ static llvm::Region *GetSubregion(llvm::Region *region,
   }
 }
 
+std::string GetRegionNameStr(llvm::Region *region) {
+  std::string exit_name;
+  std::string entry_name;
+
+  if (region->getEntry()->getName().empty()) {
+    llvm::raw_string_ostream os(entry_name);
+    region->getEntry()->printAsOperand(os, false);
+  } else
+    entry_name = region->getEntry()->getName();
+
+  if (region->getExit()) {
+    if (region->getExit()->getName().empty()) {
+      llvm::raw_string_ostream os(exit_name);
+      region->getExit()->printAsOperand(os, false);
+    } else
+      exit_name = region->getExit()->getName();
+  } else
+    exit_name = "<Function Return>";
+
+  return entry_name + " => " + exit_name;
+}
+
 }  // namespace
 
 clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
@@ -244,13 +266,13 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
 }
 
 clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
-  DLOG(INFO) << "Region " << region->getNameStr() << " is acyclic";
+  DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is acyclic";
   auto region_body = CreateRegionStmts(region);
   return CreateCompoundStmt(*ast_ctx, region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
-  DLOG(INFO) << "Region " << region->getNameStr() << " is cyclic";
+  DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is cyclic";
   auto region_body = CreateRegionStmts(region);
   // Get the loop for which the entry block of the region is a header
   // loops->getLoopFor(region->getEntry())->print(llvm::errs());
@@ -311,10 +333,11 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
 }
 
 clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
-  DLOG(INFO) << "Structuring region " << region->getNameStr();
+  DLOG(INFO) << "Structuring region " << GetRegionNameStr(region);
   auto &region_stmt = region_stmts[region];
   if (region_stmt) {
-    LOG(WARNING) << "Asking to re-structure region: " << region->getNameStr()
+    LOG(WARNING) << "Asking to re-structure region: "
+                 << GetRegionNameStr(region)
                  << "; returning current region instead";
     return region_stmt;
   }

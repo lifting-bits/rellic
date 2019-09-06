@@ -109,25 +109,25 @@ static llvm::Region *GetSubregion(llvm::Region *region,
 }
 
 std::string GetRegionNameStr(llvm::Region *region) {
-  std::string exitName;
-  std::string entryName;
+  std::string exit_name;
+  std::string entry_name;
 
   if (region->getEntry()->getName().empty()) {
-    llvm::raw_string_ostream OS(entryName);
-    region->getEntry()->printAsOperand(OS, false);
+    llvm::raw_string_ostream os(entry_name);
+    region->getEntry()->printAsOperand(os, false);
   } else
-    entryName = region->getEntry()->getName();
+    entry_name = region->getEntry()->getName();
 
   if (region->getExit()) {
     if (region->getExit()->getName().empty()) {
-      llvm::raw_string_ostream OS(exitName);
-      region->getExit()->printAsOperand(OS, false);
+      llvm::raw_string_ostream os(exit_name);
+      region->getExit()->printAsOperand(os, false);
     } else
-      exitName = region->getExit()->getName();
+      exit_name = region->getExit()->getName();
   } else
-    exitName = "<Function Return>";
+    exit_name = "<Function Return>";
 
-  return entryName + " => " + exitName;
+  return entry_name + " => " + exit_name;
 }
 
 }  // namespace

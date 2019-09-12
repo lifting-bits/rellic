@@ -37,6 +37,8 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   z3::func_decl_vector z3_decl_vec;
   std::unordered_map<clang::ValueDecl *, unsigned> z3_decl_map;
   std::unordered_map<unsigned, clang::ValueDecl *> c_decl_map;
+  // Type map
+  std::unordered_map<unsigned, clang::TypeDecl *> c_type_decl_map;
 
   void InsertZ3Expr(clang::Expr *c_expr, z3::expr z3_expr);
   z3::expr GetZ3Expr(clang::Expr *c_expr);
@@ -47,9 +49,15 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   void InsertZ3Decl(clang::ValueDecl *c_decl, z3::func_decl z3_decl);
   z3::func_decl GetZ3Decl(clang::ValueDecl *c_decl);
 
-  void InsertCDecl(z3::func_decl z3_decl, clang::ValueDecl *c_decl);
-  clang::ValueDecl *GetCDecl(z3::func_decl z3_decl);
+  void InsertCValDecl(z3::func_decl z3_decl, clang::ValueDecl *c_decl);
+  clang::ValueDecl *GetCValDecl(z3::func_decl z3_decl);
 
+  z3::sort GetZ3Sort(clang::QualType type);
+
+  clang::QualType GetQualType(z3::sort z3_sort);
+
+  clang::Expr *CreateLiteralExpr(z3::expr z3_expr);
+  
   void VisitZ3Expr(z3::expr z3_expr);
 
  public:
@@ -64,6 +72,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   z3::expr Z3BoolCast(z3::expr expr);
 
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
+  bool VisitImplicitCastExpr(clang::ImplicitCastExpr *cast);
   bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   bool VisitMemberExpr(clang::MemberExpr *expr);
   bool VisitCallExpr(clang::CallExpr *call);

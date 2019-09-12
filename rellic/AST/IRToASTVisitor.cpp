@@ -246,14 +246,14 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
     // Add an implicit array-to-pointer decay cast in case the l-value
     // is an array, otherwise add a `&` operator.
     auto ref_type = ref->getType();
-    auto ptr_type = ast_ctx.getPointerType(ref_type);
     if (ref_type->isArrayType()) {
-      ref = CreateImplicitCastExpr(ast_ctx, ptr_type,
-                                   clang::CK_ArrayToPointerDecay, ref);
+      ref =
+          CreateImplicitCastExpr(ast_ctx, ast_ctx.getArrayDecayedType(ref_type),
+                                 clang::CK_ArrayToPointerDecay, ref);
     } else {
       ref = CreateParenExpr(
-          ast_ctx,
-          CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, ref, ptr_type));
+          ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, ref,
+                                       ast_ctx.getPointerType(ref_type)));
     }
     return ref;
   }
@@ -443,22 +443,24 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto base = GetOperandExpr(inst.getPointerOperand());
 
   auto IndexArrayOrPtr = [&](llvm::Value &gep_idx) {
+    auto base_type = base->getType();
+    CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
+    auto type = clang::cast<clang::PointerType>(base_type)->getPointeeType();
     auto idx = GetOperandExpr(&gep_idx);
-    auto type = GetQualType(indexed_type);
     base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
   };
 
   auto IndexStruct = [&](llvm::Value &gep_idx) {
     auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(&gep_idx);
     CHECK(mem_idx) << "Non-constant GEP index while indexing a structure";
-    auto type = indexed_type;
-    auto tdecl = type_decls[type];
+    auto type = GetQualType(indexed_type);
+    auto tdecl = type_decls[indexed_type];
     CHECK(tdecl) << "Structure declaration doesn't exist";
     auto record = clang::cast<clang::RecordDecl>(tdecl);
     auto field_it = record->field_begin();
     std::advance(field_it, mem_idx->getLimitedValue());
     CHECK(field_it != record->field_end()) << "GEP index is out of bounds";
-    base = CreateMemberExpr(ast_ctx, base, *field_it, GetQualType(type),
+    base = CreateMemberExpr(ast_ctx, base, *field_it, type,
                             /*is_arrow=*/true);
   };
 
@@ -596,16 +598,16 @@ clang::Expr *IRToASTVisitor::ImplicitCastOperand(clang::QualType dst,
   // Create the cast if it's valid
   if (isFloat(dst) && isFloat(src) && isSmaller) {
     // CK_FloatingCast
-    return ImpCast(clang::CK_FloatingCast);
+    return ImpCast(clang::CastKind::CK_FloatingCast);
   } else if (isInt(dst) && isInt(src) && isSmaller) {
     // CK_IntegralCast
-    return ImpCast(clang::CK_IntegralCast);
+    return ImpCast(clang::CastKind::CK_IntegralCast);
   } else if (isFloat(dst) && isInt(src)) {
     // CK_IntegralToFloatingCast
-    return ImpCast(clang::CK_IntegralToFloating);
+    return ImpCast(clang::CastKind::CK_IntegralToFloating);
   } else if (isInt(dst) && isFloat(src)) {
     // CK_IntegralToFloatingCast
-    return ImpCast(clang::CK_FloatingToIntegral);
+    return ImpCast(clang::CastKind::CK_FloatingToIntegral);
   } else {
     // Invalid
     return op;

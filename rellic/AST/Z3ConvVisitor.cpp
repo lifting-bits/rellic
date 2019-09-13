@@ -344,6 +344,7 @@ bool Z3ConvVisitor::VisitFieldDecl(clang::FieldDecl *field) {
 }
 
 bool Z3ConvVisitor::VisitFunctionDecl(clang::FunctionDecl *func) {
+  DLOG(INFO) << "VisitFunctionDecl";
   LOG(FATAL) << "Unimplemented FunctionDecl visitor";
   return true;
 }
@@ -357,14 +358,26 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   auto z3_subexpr = GetOrCreateZ3Expr(cast->getSubExpr());
 
   switch (cast->getCastKind()) {
+    case clang::CastKind::CK_PointerToIntegral:
+    case clang::CastKind::CK_IntegralToPointer:
+    case clang::CastKind::CK_IntegralCast:
     case clang::CastKind::CK_NullToPointer: {
-      CHECK(z3_subexpr.is_bv() && z3_subexpr.is_const() &&
-            z3_subexpr.is_numeral())
-          << "Pointer cast operand is not a bit-vector numeral";
-      auto ptr_type = ast_ctx->getPointerType(cast->getType());
-      auto ptr_size = ast_ctx->getTypeSize(ptr_type);
-      auto ptr_diff = ptr_size - z3_subexpr.get_sort().bv_size();
-      InsertZ3Expr(cast, z3::sext(z3_subexpr, ptr_diff));
+      CHECK(z3_subexpr.is_bv())
+          << "Integral or pointer cast operand is not a bit-vector!";
+      auto src = cast->getSubExpr()->getType();
+      auto dst = cast->getType();
+      long diff = ast_ctx->getTypeSize(dst) - ast_ctx->getTypeSize(src);
+      // in case nothing happens
+      auto expr = z3_subexpr;
+      // bitwise extensions
+      if (diff > 0) {
+        expr = src->isSignedIntegerType() ? z3::sext(z3_subexpr, diff)
+                                          : z3::zext(z3_subexpr, diff);
+      // truncs
+      } else if (diff < 0) {
+        expr = z3_subexpr.extract(std::abs(diff), 1);
+      }
+      InsertZ3Expr(cast, expr);
     } break;
 
     default:
@@ -427,8 +440,6 @@ bool Z3ConvVisitor::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub) {
   // Get result
   auto elm_sort = GetZ3Sort(sub->getType());
   // Create a z3_function
-  DLOG(INFO) << "SATAN: " << elm_sort;
-  sub->dump(llvm::errs());
   auto z3_arr_sub = z3_ctx->function("ArraySub", base_sort, idx_sort, elm_sort);
   // Create a z3 expression
   InsertZ3Expr(sub, z3_arr_sub(z3_base, z3_idx));
@@ -548,6 +559,10 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, z3::srem(lhs, rhs));
       break;
 
+    case clang::BO_Sub:
+      InsertZ3Expr(c_op, lhs - rhs);
+      break;
+
     default:
       LOG(FATAL) << "Unknown clang::BinaryOperator operation!";
       break;
@@ -660,6 +675,10 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z3_op) {
   switch (z3_func.decl_kind()) {
     case Z3_OP_NOT:
       c_op = CreateNotExpr(*ast_ctx, operand);
+      break;
+    
+    case Z3_OP_EXTRACT:
+      LOG(FATAL) << "Unimplemented Z3_OP_EXTRACT";
       break;
 
     case Z3_OP_UNINTERPRETED: {

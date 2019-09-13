@@ -779,4 +779,9 @@ void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
   select = CreateConditionalOperatorExpr(ast_ctx, cond, tval, fval, type);
 }
 
+void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
+  DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
+  LOG(FATAL) << "Uninimplemented llvm::PHINode visitor!";
+}
+
 }  // namespace rellic

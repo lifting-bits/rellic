@@ -65,6 +65,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   void visitCmpInst(llvm::CmpInst &inst);
   void visitCastInst(llvm::CastInst &inst);
   void visitSelectInst(llvm::SelectInst &inst);
+  void visitPHINode(llvm::PHINode &inst);
 };
 
 }  // namespace rellic

@@ -557,16 +557,6 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   auto op = GetOperandExpr(ptr);
   auto res_type = GetQualType(inst.getType());
   ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
-  // if (llvm::isa<llvm::AllocaInst>(ptr) ||
-  //     llvm::isa<llvm::GlobalVariable>(ptr) ||
-  //     llvm::isa<llvm::GEPOperator>(ptr) ||
-  //     llvm::isa<llvm::>(ptr)) {
-  //   auto op = GetOperandExpr(ptr);
-  //   auto res_type = GetQualType(inst.getType());
-  //   ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
-  // } else {
-  //   LOG(FATAL) << "Loading from an unknown pointer";
-  // }
 }
 
 void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
@@ -606,10 +596,9 @@ clang::Expr *IRToASTVisitor::ImplicitCastOperand(clang::QualType dst,
     // CK_IntegralToFloatingCast
     return ImpCast(clang::CastKind::CK_IntegralToFloating);
   } else if (isInt(dst) && isFloat(src)) {
-    // CK_IntegralToFloatingCast
+    // CK_FloatingToIntegralCast
     return ImpCast(clang::CastKind::CK_FloatingToIntegral);
   } else {
-    // Invalid
     return op;
   }
 }
@@ -737,14 +726,20 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   switch (inst.getOpcode()) {
     case llvm::CastInst::Trunc: {
       auto bitwidth = ast_ctx.getTypeSize(type);
-      auto val = llvm::APInt::getAllOnesValue(bitwidth);
-      auto mask = CreateIntegerLiteral(ast_ctx, val, type);
-      cast = CreateBinaryOperator(ast_ctx, clang::BO_And, operand, mask, type);
+      auto sign = operand->getType()->isSignedIntegerType();
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
+      cast = CastExpr(clang::CastKind::CK_IntegralCast);
     } break;
 
     case llvm::CastInst::BitCast:
       cast = CastExpr(clang::CastKind::CK_BitCast);
       break;
+
+    case llvm::CastInst::SExt: {
+      auto bitwidth = ast_ctx.getTypeSize(type);
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1);
+      cast = CastExpr(clang::CastKind::CK_IntegralCast);
+    } break;
 
     case llvm::CastInst::ZExt:
       cast = CastExpr(clang::CastKind::CK_IntegralCast);

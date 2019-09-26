@@ -37,8 +37,6 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   z3::func_decl_vector z3_decl_vec;
   std::unordered_map<clang::ValueDecl *, unsigned> z3_decl_map;
   std::unordered_map<unsigned, clang::ValueDecl *> c_decl_map;
-  // Type map
-  std::unordered_map<unsigned, clang::TypeDecl *> c_type_decl_map;
 
   void InsertZ3Expr(clang::Expr *c_expr, z3::expr z3_expr);
   z3::expr GetZ3Expr(clang::Expr *c_expr);

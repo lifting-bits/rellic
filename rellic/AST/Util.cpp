@@ -213,7 +213,7 @@ clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
   auto type = ctx.UnsignedIntTy;
   auto val = llvm::APInt::getNullValue(ctx.getTypeSize(type));
   auto zero = CreateIntegerLiteral(ctx, val, type);
-  return CreateCStyleCastExpr(ctx, ctx.getPointerType(ctx.VoidTy),
+  return CreateCStyleCastExpr(ctx, ctx.VoidPtrTy,
                               clang::CastKind::CK_NullToPointer, zero);
 }
 

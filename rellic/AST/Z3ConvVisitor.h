@@ -52,7 +52,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
 
   z3::sort GetZ3Sort(clang::QualType type);
 
-  clang::QualType GetQualType(z3::sort z3_sort);
+  // clang::QualType GetQualType(z3::sort z3_sort);
 
   clang::Expr *CreateLiteralExpr(z3::expr z3_expr);
   

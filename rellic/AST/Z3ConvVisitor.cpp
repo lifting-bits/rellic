@@ -60,18 +60,18 @@ static std::string CreateZ3DeclName(clang::NamedDecl *decl) {
 
 }  // namespace
 
-Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z_ctx)
+Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx)
     : ast_ctx(c_ctx),
-      z3_ctx(z_ctx),
+      z3_ctx(z3_ctx),
       z3_expr_vec(*z3_ctx),
       z3_decl_vec(*z3_ctx) {}
 
 // Inserts a `clang::Expr` <=> `z3::expr` mapping into
-void Z3ConvVisitor::InsertZ3Expr(clang::Expr *c_expr, z3::expr z3_expr) {
+void Z3ConvVisitor::InsertZ3Expr(clang::Expr *c_expr, z3::expr z_expr) {
   auto iter = z3_expr_map.find(c_expr);
   CHECK(iter == z3_expr_map.end());
   z3_expr_map[c_expr] = z3_expr_vec.size();
-  z3_expr_vec.push_back(z3_expr);
+  z3_expr_vec.push_back(z_expr);
 }
 
 // Retrieves a `z3::expr` corresponding to `c_expr`.
@@ -85,11 +85,11 @@ z3::expr Z3ConvVisitor::GetZ3Expr(clang::Expr *c_expr) {
 
 // Inserts a `clang::ValueDecl` <=> `z3::func_decl` mapping into
 void Z3ConvVisitor::InsertZ3Decl(clang::ValueDecl *c_decl,
-                                 z3::func_decl z3_decl) {
+                                 z3::func_decl z_decl) {
   auto iter = z3_decl_map.find(c_decl);
   CHECK(iter == z3_decl_map.end());
   z3_decl_map[c_decl] = z3_decl_vec.size();
-  z3_decl_vec.push_back(z3_decl);
+  z3_decl_vec.push_back(z_decl);
 }
 
 // Retrieves a `z3::func_decl` corresponding to `c_decl`.
@@ -113,30 +113,30 @@ z3::expr Z3ConvVisitor::Z3BoolCast(z3::expr expr) {
   }
 }
 
-void Z3ConvVisitor::InsertCExpr(z3::expr z3_expr, clang::Expr *c_expr) {
-  auto hash = z3_expr.hash();
+void Z3ConvVisitor::InsertCExpr(z3::expr z_expr, clang::Expr *c_expr) {
+  auto hash = z_expr.hash();
   auto iter = c_expr_map.find(hash);
   CHECK(iter == c_expr_map.end());
   c_expr_map[hash] = c_expr;
 }
 
-clang::Expr *Z3ConvVisitor::GetCExpr(z3::expr z3_expr) {
-  auto hash = z3_expr.hash();
+clang::Expr *Z3ConvVisitor::GetCExpr(z3::expr z_expr) {
+  auto hash = z_expr.hash();
   auto iter = c_expr_map.find(hash);
   CHECK(iter != c_expr_map.end());
   return c_expr_map[hash];
 }
 
-void Z3ConvVisitor::InsertCValDecl(z3::func_decl z3_decl,
+void Z3ConvVisitor::InsertCValDecl(z3::func_decl z_decl,
                                    clang::ValueDecl *c_decl) {
-  auto id = Z3_get_func_decl_id(*z3_ctx, z3_decl);
+  auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
   auto iter = c_decl_map.find(id);
   CHECK(iter == c_decl_map.end());
   c_decl_map[id] = c_decl;
 }
 
-clang::ValueDecl *Z3ConvVisitor::GetCValDecl(z3::func_decl z3_decl) {
-  auto id = Z3_get_func_decl_id(*z3_ctx, z3_decl);
+clang::ValueDecl *Z3ConvVisitor::GetCValDecl(z3::func_decl z_decl) {
+  auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
   auto iter = c_decl_map.find(id);
   CHECK(iter != c_decl_map.end());
   return c_decl_map[id];
@@ -184,10 +184,10 @@ z3::sort Z3ConvVisitor::GetZ3Sort(clang::QualType type) {
   return z3::to_sort(*z3_ctx, Z3_mk_bv_sort(*z3_ctx, bitwidth));
 }
 
-clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z3_expr) {
-  DLOG(INFO) << "Creating literal clang::Expr for " << z3_expr;
+clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
+  DLOG(INFO) << "Creating literal clang::Expr for " << z_expr;
 
-  auto sort = z3_expr.get_sort();
+  auto sort = z_expr.get_sort();
 
   clang::Expr *result = nullptr;
 
@@ -195,7 +195,7 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z3_expr) {
     case Z3_BOOL_SORT: {
       auto type = ast_ctx->UnsignedIntTy;
       auto size = ast_ctx->getIntWidth(type);
-      llvm::APInt val(size, z3_expr.bool_value() == Z3_L_TRUE ? 1 : 0);
+      llvm::APInt val(size, z_expr.bool_value() == Z3_L_TRUE ? 1 : 0);
       result = CreateIntegerLiteral(*ast_ctx, val, type);
     } break;
 
@@ -203,7 +203,7 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z3_expr) {
       auto type = ast_ctx->getIntTypeForBitwidth(GetZ3SortSize(sort), 0);
       auto size = ast_ctx->getTypeSize(type);
       ;
-      llvm::APInt val(size, Z3_get_numeral_string(z3_expr.ctx(), z3_expr), 10);
+      llvm::APInt val(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
       result = CreateIntegerLiteral(*ast_ctx, val, type);
     } break;
 
@@ -228,7 +228,7 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z3_expr) {
           LOG(FATAL) << "Unknown Z3 floating-point sort!";
           break;
       }
-      llvm::APInt ival(size, Z3_get_numeral_string(z3_expr.ctx(), z3_expr), 10);
+      llvm::APInt ival(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
       llvm::APFloat fval(*semantics, ival);
       result = CreateFloatingLiteral(*ast_ctx, fval, type);
     } break;
@@ -254,22 +254,22 @@ z3::func_decl Z3ConvVisitor::GetOrCreateZ3Decl(clang::ValueDecl *c_decl) {
     TraverseDecl(c_decl);
   }
 
-  auto z3_decl = GetZ3Decl(c_decl);
+  auto z_decl = GetZ3Decl(c_decl);
 
-  auto id = Z3_get_func_decl_id(*z3_ctx, z3_decl);
+  auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
   if (!c_decl_map.count(id)) {
-    InsertCValDecl(z3_decl, c_decl);
+    InsertCValDecl(z_decl, c_decl);
   }
 
-  return z3_decl;
+  return z_decl;
 }
 
 // Retrieves or creates `clang::Expr` from `z3::expr`.
-clang::Expr *Z3ConvVisitor::GetOrCreateCExpr(z3::expr z3_expr) {
-  if (!c_expr_map.count(z3_expr.hash())) {
-    VisitZ3Expr(z3_expr);
+clang::Expr *Z3ConvVisitor::GetOrCreateCExpr(z3::expr z_expr) {
+  if (!c_expr_map.count(z_expr.hash())) {
+    VisitZ3Expr(z_expr);
   }
-  return GetCExpr(z3_expr);
+  return GetCExpr(z_expr);
 }
 
 bool Z3ConvVisitor::VisitVarDecl(clang::VarDecl *var) {
@@ -280,11 +280,11 @@ bool Z3ConvVisitor::VisitVarDecl(clang::VarDecl *var) {
     return true;
   }
 
-  auto z3_name = CreateZ3DeclName(var);
-  auto z3_sort = GetZ3Sort(var->getType());
-  auto z3_const = z3_ctx->constant(z3_name.c_str(), z3_sort);
+  auto z_name = CreateZ3DeclName(var);
+  auto z_sort = GetZ3Sort(var->getType());
+  auto z_const = z3_ctx->constant(z_name.c_str(), z_sort);
 
-  InsertZ3Decl(var, z3_const.decl());
+  InsertZ3Decl(var, z_const.decl());
 
   return true;
 }
@@ -297,11 +297,11 @@ bool Z3ConvVisitor::VisitFieldDecl(clang::FieldDecl *field) {
     return true;
   }
 
-  auto z3_name = CreateZ3DeclName(field->getParent()) + "_" + name;
-  auto z3_sort = GetZ3Sort(field->getType());
-  auto z3_const = z3_ctx->constant(z3_name.c_str(), z3_sort);
+  auto z_name = CreateZ3DeclName(field->getParent()) + "_" + name;
+  auto z_sort = GetZ3Sort(field->getType());
+  auto z_const = z3_ctx->constant(z_name.c_str(), z_sort);
 
-  InsertZ3Decl(field, z3_const.decl());
+  InsertZ3Decl(field, z_const.decl());
 
   return true;
 }
@@ -312,41 +312,73 @@ bool Z3ConvVisitor::VisitFunctionDecl(clang::FunctionDecl *func) {
   return true;
 }
 
-bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
+namespace {
+
+static z3::expr CreateZ3BitwiseCast(z3::expr expr, size_t src, size_t dst,
+                                    bool sign) {
+  CHECK(expr.is_bv()) << "z3::expr is not a bitvector!";
+  int64_t diff = dst - src;
+  // extend
+  if (diff > 0) {
+    return sign ? z3::sext(expr, diff) : z3::zext(expr, diff);
+  }
+  // truncate
+  if (diff < 0) {
+    return expr.extract(dst, 1);
+  }
+  // nothing
+  return expr;
+}
+
+}  // namespace
+
+bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
   DLOG(INFO) << "VisitCStyleCastExpr";
-  if (z3_expr_map.count(cast)) {
+  if (z3_expr_map.count(c_cast)) {
     return true;
   }
 
-  auto z3_subexpr = GetOrCreateZ3Expr(cast->getSubExpr());
+  // C exprs
+  auto c_sub = c_cast->getSubExpr();
+  // C types
+  auto t_src = c_sub->getType();
+  auto t_dst = c_cast->getType();
+  // C type sizes
+  auto t_src_size = ast_ctx->getTypeSize(t_src);
+  auto t_dst_size = ast_ctx->getTypeSize(t_dst);
+  // Z3 exprs
+  auto z_sub = GetOrCreateZ3Expr(c_sub);
 
-  switch (cast->getCastKind()) {
+  auto z_cast = CreateZ3BitwiseCast(z_sub, t_src_size, t_dst_size,
+                                    t_src->isSignedIntegerType());
+  // Z3 cast function
+  auto ZCastFunc = [this, &z_sub, &z_cast](const char *name) {
+    auto s_src = z_sub.get_sort();
+    auto s_dst = z_cast.get_sort();
+    auto z_func = z3_ctx->function(name, s_src, s_dst);
+    return z_func(z_sub);
+  };
+
+  switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_PointerToIntegral:
+      z_cast = ZCastFunc("PtrToInt");
+      break;
+
     case clang::CastKind::CK_IntegralToPointer:
+      z_cast = ZCastFunc("IntToPtr");
+      break;
+
     case clang::CastKind::CK_IntegralCast:
-    case clang::CastKind::CK_NullToPointer: {
-      CHECK(z3_subexpr.is_bv())
-          << "Integral or pointer cast operand is not a bit-vector!";
-      auto src = cast->getSubExpr()->getType();
-      auto dst = cast->getType();
-      long diff = ast_ctx->getTypeSize(dst) - ast_ctx->getTypeSize(src);
-      // in case nothing happens
-      auto expr = z3_subexpr;
-      // bitwise extensions
-      if (diff > 0) {
-        expr = src->isSignedIntegerType() ? z3::sext(z3_subexpr, diff)
-                                          : z3::zext(z3_subexpr, diff);
-        // truncs
-      } else if (diff < 0) {
-        expr = z3_subexpr.extract(ast_ctx->getTypeSize(dst), 1);
-      }
-      InsertZ3Expr(cast, expr);
-    } break;
+    case clang::CastKind::CK_NullToPointer:
+      break;
 
     default:
-      LOG(FATAL) << "Unsupported cast type: " << cast->getCastKindName();
+      LOG(FATAL) << "Unsupported cast type: " << c_cast->getCastKindName();
       break;
   }
+
+  // Save
+  InsertZ3Expr(c_cast, z_cast);
 
   return true;
 }
@@ -357,7 +389,7 @@ bool Z3ConvVisitor::VisitImplicitCastExpr(clang::ImplicitCastExpr *cast) {
     return true;
   }
 
-  auto z3_subexpr = GetOrCreateZ3Expr(cast->getSubExpr());
+  auto z_subexpr = GetOrCreateZ3Expr(cast->getSubExpr());
 
   switch (cast->getCastKind()) {
     case clang::CastKind::CK_IntegralCast: {
@@ -365,18 +397,18 @@ bool Z3ConvVisitor::VisitImplicitCastExpr(clang::ImplicitCastExpr *cast) {
       auto dst = cast->getType();
       auto diff = ast_ctx->getTypeSize(dst) - ast_ctx->getTypeSize(src);
       CHECK(diff > 0) << "Negative bit extension";
-      auto z3_cast = src->isSignedIntegerType() ? z3::sext(z3_subexpr, diff)
-                                                : z3::zext(z3_subexpr, diff);
-      InsertZ3Expr(cast, z3_cast);
+      auto z_cast = src->isSignedIntegerType() ? z3::sext(z_subexpr, diff)
+                                               : z3::zext(z_subexpr, diff);
+      InsertZ3Expr(cast, z_cast);
     } break;
 
     case clang::CastKind::CK_ArrayToPointerDecay: {
-      CHECK(z3_subexpr.is_bv() && z3_subexpr.is_const())
+      CHECK(z_subexpr.is_bv() && z_subexpr.is_const())
           << "Pointer cast operand is not a bit-vector constant";
       auto ptr_sort = GetZ3Sort(cast->getType());
-      auto arr_sort = z3_subexpr.get_sort();
-      auto z3_ptr_decay = z3_ctx->function("PtrDecay", arr_sort, ptr_sort);
-      InsertZ3Expr(cast, z3_ptr_decay(z3_subexpr));
+      auto arr_sort = z_subexpr.get_sort();
+      auto z_ptr_decay = z3_ctx->function("PtrDecay", arr_sort, ptr_sort);
+      InsertZ3Expr(cast, z_ptr_decay(z_subexpr));
     } break;
 
     default:
@@ -393,19 +425,19 @@ bool Z3ConvVisitor::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub) {
     return true;
   }
   // Get base
-  auto z3_base = GetOrCreateZ3Expr(sub->getBase());
-  auto base_sort = z3_base.get_sort();
+  auto z_base = GetOrCreateZ3Expr(sub->getBase());
+  auto base_sort = z_base.get_sort();
   CHECK(base_sort.is_bv()) << "Invalid Z3 sort for base expression";
   // Get index
-  auto z3_idx = GetOrCreateZ3Expr(sub->getIdx());
-  auto idx_sort = z3_idx.get_sort();
+  auto z_idx = GetOrCreateZ3Expr(sub->getIdx());
+  auto idx_sort = z_idx.get_sort();
   CHECK(idx_sort.is_bv()) << "Invalid Z3 sort for index expression";
   // Get result
   auto elm_sort = GetZ3Sort(sub->getType());
-  // Create a z3_function
-  auto z3_arr_sub = z3_ctx->function("ArraySub", base_sort, idx_sort, elm_sort);
+  // Create a z_function
+  auto z_arr_sub = z3_ctx->function("ArraySub", base_sort, idx_sort, elm_sort);
   // Create a z3 expression
-  InsertZ3Expr(sub, z3_arr_sub(z3_base, z3_idx));
+  InsertZ3Expr(sub, z_arr_sub(z_base, z_idx));
   // Done
   return true;
 }
@@ -416,12 +448,12 @@ bool Z3ConvVisitor::VisitMemberExpr(clang::MemberExpr *expr) {
     return true;
   }
 
-  auto z3_mem = GetOrCreateZ3Decl(expr->getMemberDecl())();
-  auto z3_base = GetOrCreateZ3Expr(expr->getBase());
-  auto z3_mem_expr = z3_ctx->function("Member", z3_base.get_sort(),
-                                      z3_mem.get_sort(), z3_mem.get_sort());
+  auto z_mem = GetOrCreateZ3Decl(expr->getMemberDecl())();
+  auto z_base = GetOrCreateZ3Expr(expr->getBase());
+  auto z_mem_expr = z3_ctx->function("Member", z_base.get_sort(),
+                                     z_mem.get_sort(), z_mem.get_sort());
 
-  InsertZ3Expr(expr, z3_mem_expr(z3_base, z3_mem));
+  InsertZ3Expr(expr, z_mem_expr(z_base, z_mem));
 
   return true;
 }
@@ -438,19 +470,19 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
     return true;
   }
 
-  auto z3_subexpr = GetOrCreateZ3Expr(parens->getSubExpr());
+  auto z_subexpr = GetOrCreateZ3Expr(parens->getSubExpr());
 
-  switch (z3_subexpr.decl().decl_kind()) {
+  switch (z_subexpr.decl().decl_kind()) {
     // Parens may affect semantics of C expressions
     case Z3_OP_UNINTERPRETED: {
-      auto sort = z3_subexpr.get_sort();
-      auto z3_paren = z3_ctx->function("Paren", sort, sort);
-      InsertZ3Expr(parens, z3_paren(z3_subexpr));
+      auto sort = z_subexpr.get_sort();
+      auto z_paren = z3_ctx->function("Paren", sort, sort);
+      InsertZ3Expr(parens, z_paren(z_subexpr));
     } break;
     // Default to ignoring the parens, Z3 should know how
     // to interpret them.
     default:
-      InsertZ3Expr(parens, z3_subexpr);
+      InsertZ3Expr(parens, z_subexpr);
       break;
   }
 
@@ -474,14 +506,14 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
 
     case clang::UO_AddrOf: {
       auto ptr_sort = GetZ3Sort(c_op->getType());
-      auto z3_addrof = z3_ctx->function("AddrOf", operand.get_sort(), ptr_sort);
-      InsertZ3Expr(c_op, z3_addrof(operand));
+      auto z_addrof = z3_ctx->function("AddrOf", operand.get_sort(), ptr_sort);
+      InsertZ3Expr(c_op, z_addrof(operand));
     } break;
 
     case clang::UO_Deref: {
       auto elm_sort = GetZ3Sort(c_op->getType());
-      auto z3_deref = z3_ctx->function("Deref", operand.get_sort(), elm_sort);
-      InsertZ3Expr(c_op, z3_deref(operand));
+      auto z_deref = z3_ctx->function("Deref", operand.get_sort(), elm_sort);
+      InsertZ3Expr(c_op, z_deref(operand));
     } break;
 
     default:
@@ -510,9 +542,13 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, Z3BoolCast(lhs) || Z3BoolCast(rhs));
       break;
 
-    case clang::BO_EQ:
+    case clang::BO_EQ: {
+      DLOG(INFO) << "LHS: " << lhs.get_sort();
+      DLOG(INFO) << "RHS: " << rhs.get_sort();
+      auto res = lhs == rhs;
+      DLOG(INFO) << "RES: " << res;
       InsertZ3Expr(c_op, lhs == rhs);
-      break;
+    } break;
 
     case clang::BO_NE:
       InsertZ3Expr(c_op, lhs != rhs);
@@ -534,6 +570,10 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, lhs & rhs);
       break;
 
+    case clang::BO_Xor:
+      InsertZ3Expr(c_op, lhs ^ rhs);
+      break;
+
     default:
       LOG(FATAL) << "Unknown clang::BinaryOperator operation!";
       break;
@@ -550,8 +590,8 @@ bool Z3ConvVisitor::VisitDeclRefExpr(clang::DeclRefExpr *c_ref) {
     return true;
   }
 
-  auto z3_const = GetOrCreateZ3Decl(ref_decl);
-  InsertZ3Expr(c_ref, z3_const());
+  auto z_const = GetOrCreateZ3Decl(ref_decl);
+  InsertZ3Expr(c_ref, z_const());
 
   return true;
 }
@@ -563,49 +603,49 @@ bool Z3ConvVisitor::VisitIntegerLiteral(clang::IntegerLiteral *c_lit) {
   if (z3_expr_map.count(c_lit)) {
     return true;
   }
-  auto z3_sort = GetZ3Sort(c_lit->getType());
-  if (z3_sort.is_bool()) {
+  auto z_sort = GetZ3Sort(c_lit->getType());
+  if (z_sort.is_bool()) {
     InsertZ3Expr(c_lit, z3_ctx->bool_val(lit_val != 0));
   } else {
-    InsertZ3Expr(c_lit, z3_ctx->num_val(lit_val, z3_sort));
+    InsertZ3Expr(c_lit, z3_ctx->num_val(lit_val, z_sort));
   }
   return true;
 }
 
-void Z3ConvVisitor::VisitZ3Expr(z3::expr z3_expr) {
-  if (z3_expr.is_app()) {
-    for (auto i = 0U; i < z3_expr.num_args(); ++i) {
-      GetOrCreateCExpr(z3_expr.arg(i));
+void Z3ConvVisitor::VisitZ3Expr(z3::expr z_expr) {
+  if (z_expr.is_app()) {
+    for (auto i = 0U; i < z_expr.num_args(); ++i) {
+      GetOrCreateCExpr(z_expr.arg(i));
     }
-    switch (z3_expr.decl().arity()) {
+    switch (z_expr.decl().arity()) {
       case 0:
-        VisitConstant(z3_expr);
+        VisitConstant(z_expr);
         break;
 
       case 1:
-        VisitUnaryApp(z3_expr);
+        VisitUnaryApp(z_expr);
         break;
 
       case 2:
-        VisitBinaryApp(z3_expr);
+        VisitBinaryApp(z_expr);
         break;
 
       default:
         LOG(FATAL) << "Unexpected Z3 operation!";
         break;
     }
-  } else if (z3_expr.is_quantifier()) {
+  } else if (z_expr.is_quantifier()) {
     LOG(FATAL) << "Unexpected Z3 quantifier!";
   } else {
     LOG(FATAL) << "Unexpected Z3 variable!";
   }
 }
 
-void Z3ConvVisitor::VisitConstant(z3::expr z3_const) {
-  DLOG(INFO) << "VisitConstant: " << z3_const;
-  CHECK(z3_const.is_const()) << "Z3 expression is not a constant!";
+void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
+  DLOG(INFO) << "VisitConstant: " << z_const;
+  CHECK(z_const.is_const()) << "Z3 expression is not a constant!";
   // Create C literals and variable references
-  auto kind = z3_const.decl().decl_kind();
+  auto kind = z_const.decl().decl_kind();
   clang::Expr *c_expr = nullptr;
   switch (kind) {
     // Boolean literals
@@ -615,14 +655,14 @@ void Z3ConvVisitor::VisitConstant(z3::expr z3_const) {
     case Z3_OP_ANUM:
     // Bitvector numerals
     case Z3_OP_BNUM:
-      c_expr = CreateLiteralExpr(z3_const);
+      c_expr = CreateLiteralExpr(z_const);
       break;
     // Internal constants handled by parent Z3 exprs
     case Z3_OP_INTERNAL:
       break;
     // Uninterpreted constants
     case Z3_OP_UNINTERPRETED:
-      c_expr = CreateDeclRefExpr(*ast_ctx, GetCValDecl(z3_const.decl()));
+      c_expr = CreateDeclRefExpr(*ast_ctx, GetCValDecl(z_const.decl()));
       break;
 
     // Unknowns
@@ -630,61 +670,60 @@ void Z3ConvVisitor::VisitConstant(z3::expr z3_const) {
       LOG(FATAL) << "Unknown Z3 constant!";
       break;
   }
-  InsertCExpr(z3_const, c_expr);
+  InsertCExpr(z_const, c_expr);
 }
 
-void Z3ConvVisitor::VisitUnaryApp(z3::expr z3_op) {
-  DLOG(INFO) << "VisitUnaryApp: " << z3_op;
-  CHECK(z3_op.is_app() && z3_op.decl().arity() == 1)
+void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
+  DLOG(INFO) << "VisitUnaryApp: " << z_op;
+  CHECK(z_op.is_app() && z_op.decl().arity() == 1)
       << "Z3 expression is not a unary operator!";
   // Get operand
-  auto operand = GetCExpr(z3_op.arg(0));
-  auto operand_type = operand->getType();
+  auto c_sub = GetCExpr(z_op.arg(0));
+  auto t_sub = c_sub->getType();
   // Get z3 function declaration
-  auto z3_func = z3_op.decl();
+  auto z_func = z_op.decl();
   // Create C unary operator
   clang::Expr *c_op = nullptr;
-  switch (z3_func.decl_kind()) {
+  switch (z_func.decl_kind()) {
     case Z3_OP_NOT:
-      c_op = CreateNotExpr(*ast_ctx, operand);
+      c_op = CreateNotExpr(*ast_ctx, c_sub);
       break;
 
     case Z3_OP_EXTRACT: {
-      // Determine cast kind
-      clang::CastKind kind;
-      if (operand_type->isPointerType()) {
-        kind = clang::CastKind::CK_PointerToIntegral;
-      } else if (operand_type->isIntegerType()) {
-        kind = clang::CastKind::CK_IntegralCast;
-      } else {
-        LOG(FATAL) << "Unsupported operand type";
-      }
-      // Create cast
-      auto size = GetZ3SortSize(z3_op.get_sort());
-      auto sign = operand_type->isSignedIntegerType();
-      auto type = ast_ctx->getIntTypeForBitwidth(size, sign);
-      c_op = CreateCStyleCastExpr(*ast_ctx, type, kind, operand);
+      CHECK(t_sub->isIntegerType()) << "Extract operand is not an integer";
+      auto s_size = GetZ3SortSize(z_op.get_sort());
+      auto t_sign = t_sub->isSignedIntegerType();
+      auto t_op = ast_ctx->getIntTypeForBitwidth(s_size, t_sign);
+      c_op = CreateCStyleCastExpr(*ast_ctx, t_op,
+                                  clang::CastKind::CK_IntegralCast, c_sub);
     } break;
 
     case Z3_OP_UNINTERPRETED: {
-      auto name = z3_func.name().str();
       // Resolve opcode
-      if (name == "AddrOf") {
-        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_AddrOf, operand,
-                                   ast_ctx->getPointerType(operand_type));
-      } else if (name == "Deref") {
-        CHECK(operand_type->isPointerType())
-            << "Deref operand type is not a pointer";
-        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_Deref, operand,
-                                   operand_type->getPointeeType());
-      } else if (name == "Paren") {
-        c_op = CreateParenExpr(*ast_ctx, operand);
-      } else if (name == "PtrDecay") {
-        CHECK(operand_type->isArrayType())
-            << "PtrDecay operand type is not an array";
+      auto z_func_name = z_func.name().str();
+      if (z_func_name == "AddrOf") {
+        auto t_op = ast_ctx->getPointerType(t_sub);
+        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_AddrOf, c_sub, t_op);
+      } else if (z_func_name == "Deref") {
+        CHECK(t_sub->isPointerType()) << "Deref operand type is not a pointer";
+        auto t_op = t_sub->getPointeeType();
+        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_Deref, c_sub, t_op);
+      } else if (z_func_name == "Paren") {
+        c_op = CreateParenExpr(*ast_ctx, c_sub);
+      } else if (z_func_name == "PtrDecay") {
+        CHECK(t_sub->isArrayType()) << "PtrDecay operand type is not an array";
+        auto t_op = ast_ctx->getDecayedType(t_sub);
         c_op = CreateImplicitCastExpr(
-            *ast_ctx, ast_ctx->getDecayedType(operand_type),
-            clang::CastKind::CK_ArrayToPointerDecay, operand);
+            *ast_ctx, t_op, clang::CastKind::CK_ArrayToPointerDecay, c_sub);
+      } else if (z_func_name == "PtrToInt") {
+        auto s_size = GetZ3SortSize(z_op.get_sort());
+        auto t_op = ast_ctx->getIntTypeForBitwidth(s_size, /*sign=*/0);
+        c_op = CreateCStyleCastExpr(
+            *ast_ctx, t_op, clang::CastKind::CK_PointerToIntegral, c_sub);
+      } else if (z_func_name == "IntToPtr") {
+        auto t_op = ast_ctx->VoidPtrTy;
+        c_op = CreateCStyleCastExpr(
+            *ast_ctx, t_op, clang::CastKind::CK_IntegralToPointer, c_sub);
       } else {
         LOG(FATAL) << "Unknown Z3 uninterpreted function";
       }
@@ -695,28 +734,28 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z3_op) {
       break;
   }
   // Save
-  InsertCExpr(z3_op, c_op);
+  InsertCExpr(z_op, c_op);
 }
 
-void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
-  DLOG(INFO) << "VisitBinaryApp: " << z3_op;
-  CHECK(z3_op.is_app() && z3_op.decl().arity() == 2)
+void Z3ConvVisitor::VisitBinaryApp(z3::expr Z3_OP) {
+  DLOG(INFO) << "VisitBinaryApp: " << Z3_OP;
+  CHECK(Z3_OP.is_app() && Z3_OP.decl().arity() == 2)
       << "Z3 expression is not a binary operator!";
   // Get operands
-  auto lhs = GetCExpr(z3_op.arg(0));
-  auto rhs = GetCExpr(z3_op.arg(1));
-  auto lhs_type = lhs->getType();
-  auto rhs_type = rhs->getType();
+  auto lhs = GetCExpr(Z3_OP.arg(0));
+  auto rhs = GetCExpr(Z3_OP.arg(1));
   // Get result type for integers
-  auto GetIntResultType = [this, &lhs_type, &rhs_type] {
-    auto order = ast_ctx->getIntegerTypeOrder(lhs_type, rhs_type);
-    return order < 0 ? rhs_type : lhs_type;
+  auto GetIntResultType = [this, &lhs, &rhs] {
+    auto lht = lhs->getType();
+    auto rht = rhs->getType();
+    auto order = ast_ctx->getIntegerTypeOrder(lht, rht);
+    return order < 0 ? rht : lht;
   };
   // Get z3 function declaration
-  auto z3_func = z3_op.decl();
+  auto z_func = Z3_OP.decl();
   // Create C binary operator
   clang::Expr *c_op = nullptr;
-  switch (z3_func.decl_kind()) {
+  switch (z_func.decl_kind()) {
     case Z3_OP_EQ:
       c_op = CreateBinaryOperator(*ast_ctx, clang::BO_EQ, lhs, rhs,
                                   ast_ctx->BoolTy);
@@ -724,8 +763,8 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
 
     case Z3_OP_AND: {
       c_op = lhs;
-      for (auto i = 1U; i < z3_op.num_args(); ++i) {
-        rhs = GetCExpr(z3_op.arg(i));
+      for (auto i = 1U; i < Z3_OP.num_args(); ++i) {
+        rhs = GetCExpr(Z3_OP.arg(i));
         c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LAnd, c_op, rhs,
                                     ast_ctx->BoolTy);
       }
@@ -733,8 +772,8 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
 
     case Z3_OP_OR: {
       c_op = lhs;
-      for (auto i = 1U; i < z3_op.num_args(); ++i) {
-        rhs = GetCExpr(z3_op.arg(i));
+      for (auto i = 1U; i < Z3_OP.num_args(); ++i) {
+        rhs = GetCExpr(Z3_OP.arg(i));
         c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LOr, c_op, rhs,
                                     ast_ctx->BoolTy);
       }
@@ -752,15 +791,15 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
       break;
 
     case Z3_OP_UNINTERPRETED: {
-      auto name = z3_func.name().str();
+      auto name = z_func.name().str();
       // Resolve opcode
       if (name == "ArraySub") {
-        auto base_type = lhs_type->getAs<clang::PointerType>();
+        auto base_type = lhs->getType()->getAs<clang::PointerType>();
         CHECK(base_type) << "Operand is not a clang::PointerType";
         c_op = CreateArraySubscriptExpr(*ast_ctx, lhs, rhs,
                                         base_type->getPointeeType());
       } else if (name == "Member") {
-        auto mem = GetCValDecl(z3_op.arg(1).decl());
+        auto mem = GetCValDecl(Z3_OP.arg(1).decl());
         c_op = CreateMemberExpr(*ast_ctx, lhs, mem, mem->getType(),
                                 /*is_arrow=*/true);
       } else {
@@ -774,7 +813,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z3_op) {
       break;
   }
   // Save
-  InsertCExpr(z3_op, c_op);
+  InsertCExpr(Z3_OP, c_op);
 }
 
 }  // namespace rellic

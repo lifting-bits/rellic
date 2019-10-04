@@ -169,7 +169,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       auto val = llvm::cast<llvm::ConstantInt>(constant)->getValue();
       auto size = val.getMinSignedBits();
       // re-determine type
-      auto i_type = c_type;
+      clang::QualType i_type;
       if (size <= ast_ctx.getTypeSize(ast_ctx.IntTy)) {
         i_type = ast_ctx.IntTy;
       } else if (size <= ast_ctx.getTypeSize(ast_ctx.LongTy)) {
@@ -180,6 +180,10 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
         LOG(FATAL) << "Integer literal value too big";
       }
       result = CreateIntegerLiteral(ast_ctx, val, i_type);
+      if (i_type != c_type) {
+        result = CreateCStyleCastExpr(ast_ctx, c_type,
+                                      clang::CastKind::CK_IntegralCast, result);
+      }
     } break;
 
     case llvm::Type::PointerTyID: {
@@ -574,33 +578,35 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
   }
 }
 
-clang::Expr *IRToASTVisitor::ImplicitCastOperand(clang::QualType dst,
-                                                 clang::Expr *op) {
+clang::Expr *IRToASTVisitor::CastOperand(clang::QualType dst, clang::Expr *op) {
   // Get operand type
   auto src = op->getType();
   // Helpers
-  auto isInt = [this](clang::QualType t) { return t->isIntegralType(ast_ctx); };
-  auto isFloat = [](clang::QualType t) { return t->isFloatingType(); };
-  auto isSmaller = ast_ctx.getTypeSize(src) < ast_ctx.getTypeSize(dst);
-  auto ImpCast = [this, dst, op](clang::CastKind kind) {
-    return CreateImplicitCastExpr(ast_ctx, dst, kind, op);
+  auto IsInt = [this](clang::QualType t) { return t->isIntegralType(ast_ctx); };
+  auto IsFloat = [](clang::QualType t) { return t->isFloatingType(); };
+  auto IsSmaller = ast_ctx.getTypeSize(src) < ast_ctx.getTypeSize(dst);
+  auto MakeCast = [this, dst, op](clang::CastKind kind) {
+    return CreateCStyleCastExpr(ast_ctx, dst, kind, op);
   };
-  // Create the cast if it's valid
-  if (isFloat(dst) && isFloat(src) && isSmaller) {
-    // CK_FloatingCast
-    return ImpCast(clang::CastKind::CK_FloatingCast);
-  } else if (isInt(dst) && isInt(src) && isSmaller) {
-    // CK_IntegralCast
-    return ImpCast(clang::CastKind::CK_IntegralCast);
-  } else if (isFloat(dst) && isInt(src)) {
-    // CK_IntegralToFloatingCast
-    return ImpCast(clang::CastKind::CK_IntegralToFloating);
-  } else if (isInt(dst) && isFloat(src)) {
-    // CK_FloatingToIntegralCast
-    return ImpCast(clang::CastKind::CK_FloatingToIntegral);
-  } else {
-    return op;
+
+  // CK_FloatingCast
+  if (IsFloat(dst) && IsFloat(src) && IsSmaller) {
+    return MakeCast(clang::CastKind::CK_FloatingCast);
   }
+  // CK_IntegralCast
+  if (IsInt(dst) && IsInt(src) && IsSmaller) {
+    return MakeCast(clang::CastKind::CK_IntegralCast);
+  }
+  // CK_IntegralToFloatingCast
+  if (IsFloat(dst) && IsInt(src)) {
+    return MakeCast(clang::CastKind::CK_IntegralToFloating);
+  }
+  // CK_FloatingToIntegralCast
+  if (IsInt(dst) && IsFloat(src)) {
+    return MakeCast(clang::CastKind::CK_FloatingToIntegral);
+  }
+  // Nothing
+  return op;
 }
 
 void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
@@ -615,9 +621,8 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   // Convenience wrapper
   auto BinOpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc,
                                     clang::QualType res_type) {
-    return CreateBinaryOperator(
-        ast_ctx, opc, ImplicitCastOperand(rhs->getType(), lhs),
-        ImplicitCastOperand(lhs->getType(), rhs), res_type);
+    return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
+                                CastOperand(lhs->getType(), rhs), res_type);
   };
   // Get result type
   auto type = GetQualType(inst.getType());
@@ -680,9 +685,9 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
   auto CmpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc) {
-    return CreateBinaryOperator(
-        ast_ctx, opc, ImplicitCastOperand(rhs->getType(), lhs),
-        ImplicitCastOperand(lhs->getType(), rhs), ast_ctx.BoolTy);
+    return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
+                                CastOperand(lhs->getType(), rhs),
+                                ast_ctx.BoolTy);
   };
   // Where the magic happens
   switch (inst.getPredicate()) {

@@ -383,36 +383,27 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
   return true;
 }
 
-bool Z3ConvVisitor::VisitImplicitCastExpr(clang::ImplicitCastExpr *cast) {
+bool Z3ConvVisitor::VisitImplicitCastExpr(clang::ImplicitCastExpr *c_cast) {
   DLOG(INFO) << "VisitImplicitCastExpr";
-  if (z3_expr_map.count(cast)) {
+  if (z3_expr_map.count(c_cast)) {
     return true;
   }
 
-  auto z_subexpr = GetOrCreateZ3Expr(cast->getSubExpr());
+  auto c_sub = c_cast->getSubExpr();
+  auto z_sub = GetOrCreateZ3Expr(c_sub);
 
-  switch (cast->getCastKind()) {
-    case clang::CastKind::CK_IntegralCast: {
-      auto src = cast->getSubExpr()->getType();
-      auto dst = cast->getType();
-      auto diff = ast_ctx->getTypeSize(dst) - ast_ctx->getTypeSize(src);
-      CHECK(diff > 0) << "Negative bit extension";
-      auto z_cast = src->isSignedIntegerType() ? z3::sext(z_subexpr, diff)
-                                               : z3::zext(z_subexpr, diff);
-      InsertZ3Expr(cast, z_cast);
-    } break;
-
+  switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_ArrayToPointerDecay: {
-      CHECK(z_subexpr.is_bv() && z_subexpr.is_const())
+      CHECK(z_sub.is_bv() && z_sub.is_const())
           << "Pointer cast operand is not a bit-vector constant";
-      auto ptr_sort = GetZ3Sort(cast->getType());
-      auto arr_sort = z_subexpr.get_sort();
-      auto z_ptr_decay = z3_ctx->function("PtrDecay", arr_sort, ptr_sort);
-      InsertZ3Expr(cast, z_ptr_decay(z_subexpr));
+      auto s_ptr = GetZ3Sort(c_cast->getType());
+      auto s_arr = z_sub.get_sort();
+      auto z_func = z3_ctx->function("PtrDecay", s_arr, s_ptr);
+      InsertZ3Expr(c_cast, z_func(z_sub));
     } break;
 
     default:
-      LOG(FATAL) << "Unsupported cast type: " << cast->getCastKindName();
+      LOG(FATAL) << "Unsupported cast type: " << c_cast->getCastKindName();
       break;
   }
 
@@ -470,19 +461,19 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
     return true;
   }
 
-  auto z_subexpr = GetOrCreateZ3Expr(parens->getSubExpr());
+  auto z_sub = GetOrCreateZ3Expr(parens->getSubExpr());
 
-  switch (z_subexpr.decl().decl_kind()) {
+  switch (z_sub.decl().decl_kind()) {
     // Parens may affect semantics of C expressions
     case Z3_OP_UNINTERPRETED: {
-      auto sort = z_subexpr.get_sort();
+      auto sort = z_sub.get_sort();
       auto z_paren = z3_ctx->function("Paren", sort, sort);
-      InsertZ3Expr(parens, z_paren(z_subexpr));
+      InsertZ3Expr(parens, z_paren(z_sub));
     } break;
     // Default to ignoring the parens, Z3 should know how
     // to interpret them.
     default:
-      InsertZ3Expr(parens, z_subexpr);
+      InsertZ3Expr(parens, z_sub);
       break;
   }
 
@@ -530,6 +521,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
     return true;
   }
   // Get operands
+  c_op->dump(llvm::errs());
   auto lhs = GetOrCreateZ3Expr(c_op->getLHS());
   auto rhs = GetOrCreateZ3Expr(c_op->getRHS());
   // Create z3 binary op
@@ -542,13 +534,9 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, Z3BoolCast(lhs) || Z3BoolCast(rhs));
       break;
 
-    case clang::BO_EQ: {
-      DLOG(INFO) << "LHS: " << lhs.get_sort();
-      DLOG(INFO) << "RHS: " << rhs.get_sort();
-      auto res = lhs == rhs;
-      DLOG(INFO) << "RES: " << res;
+    case clang::BO_EQ:
       InsertZ3Expr(c_op, lhs == rhs);
-    } break;
+      break;
 
     case clang::BO_NE:
       InsertZ3Expr(c_op, lhs != rhs);
@@ -572,6 +560,12 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
 
     case clang::BO_Xor:
       InsertZ3Expr(c_op, lhs ^ rhs);
+      break;
+
+    case clang::BO_Shr:
+      InsertZ3Expr(c_op, c_op->getLHS()->getType()->isSignedIntegerType()
+                             ? z3::ashr(lhs, rhs)
+                             : z3::lshr(lhs, rhs));
       break;
 
     default:

@@ -52,8 +52,6 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
 
   z3::sort GetZ3Sort(clang::QualType type);
 
-  // clang::QualType GetQualType(z3::sort z3_sort);
-
   clang::Expr *CreateLiteralExpr(z3::expr z3_expr);
   
   void VisitZ3Expr(z3::expr z3_expr);
@@ -78,6 +76,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   bool VisitUnaryOperator(clang::UnaryOperator *c_op);
   bool VisitBinaryOperator(clang::BinaryOperator *c_op);
   bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
+  bool VisitCharacterLiteral(clang::CharacterLiteral *c_lit);
   bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
 
   bool VisitVarDecl(clang::VarDecl *var);

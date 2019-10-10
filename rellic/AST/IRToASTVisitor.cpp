@@ -167,22 +167,34 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     // Integers
     case llvm::Type::IntegerTyID: {
       auto val = llvm::cast<llvm::ConstantInt>(constant)->getValue();
-      auto size = val.getMinSignedBits();
-      // re-determine type
-      clang::QualType i_type;
-      if (size <= ast_ctx.getTypeSize(ast_ctx.IntTy)) {
-        i_type = ast_ctx.IntTy;
-      } else if (size <= ast_ctx.getTypeSize(ast_ctx.LongTy)) {
-        i_type = ast_ctx.LongTy;
-      } else if (size <= ast_ctx.getTypeSize(ast_ctx.LongLongTy)) {
-        i_type = ast_ctx.LongLongTy;
-      } else {
-        LOG(FATAL) << "Integer literal value too big";
-      }
-      result = CreateIntegerLiteral(ast_ctx, val, i_type);
-      if (i_type != c_type) {
-        result = CreateCStyleCastExpr(ast_ctx, c_type,
-                                      clang::CastKind::CK_IntegralCast, result);
+      switch (clang::cast<clang::BuiltinType>(c_type)->getKind()) {
+        case clang::BuiltinType::Kind::UChar:
+        case clang::BuiltinType::Kind::SChar:
+          result =
+              CreateCharacterLiteral(ast_ctx, val.getLimitedValue(), c_type);
+          break;
+
+        case clang::BuiltinType::Kind::Short:
+          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy);
+          break;
+
+        case clang::BuiltinType::Kind::Bool:
+        case clang::BuiltinType::Kind::UShort:
+          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.UnsignedIntTy);
+          break;
+
+        case clang::BuiltinType::Kind::Int:
+        case clang::BuiltinType::Kind::UInt:
+        case clang::BuiltinType::Kind::Long:
+        case clang::BuiltinType::Kind::ULong:
+        case clang::BuiltinType::Kind::LongLong:
+        case clang::BuiltinType::Kind::ULongLong:
+          result = CreateIntegerLiteral(ast_ctx, val, c_type);
+          break;
+
+        default:
+          LOG(FATAL) << "Unsupported integer literal type";
+          break;
       }
     } break;
 

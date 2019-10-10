@@ -170,6 +170,13 @@ clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
   return CreateIntegerLiteral(ctx, val, type);
 }
 
+clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, unsigned val,
+                                    clang::QualType type) {
+  return new (ctx) clang::CharacterLiteral(
+      val, clang::CharacterLiteral::CharacterKind::Ascii, type,
+      clang::SourceLocation());
+}
+
 clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
                                  clang::QualType type) {
   return clang::StringLiteral::Create(

@@ -90,6 +90,9 @@ clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt &val,
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 
+clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, unsigned val,
+                                    clang::QualType type);
+
 clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
                                  clang::QualType);
 

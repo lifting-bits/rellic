@@ -259,18 +259,10 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   // Operand is an l-value (variable, function, ...)
   if (llvm::isa<llvm::GlobalValue>(val) || llvm::isa<llvm::AllocaInst>(val)) {
     clang::Expr *ref = CreateRef();
-    // Add an implicit array-to-pointer decay cast in case the l-value
-    // is an array, otherwise add a `&` operator.
-    auto ref_type = ref->getType();
-    if (ref_type->isArrayType()) {
-      ref =
-          CreateImplicitCastExpr(ast_ctx, ast_ctx.getArrayDecayedType(ref_type),
-                                 clang::CK_ArrayToPointerDecay, ref);
-    } else {
-      ref = CreateParenExpr(
-          ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, ref,
-                                       ast_ctx.getPointerType(ref_type)));
-    }
+    // Add a `&` operator
+    ref = CreateParenExpr(
+        ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, ref,
+                                     ast_ctx.getPointerType(ref->getType())));
     return ref;
   }
   // Operand is a function argument or local variable
@@ -458,7 +450,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto indexed_type = inst.getPointerOperandType();
   auto base = GetOperandExpr(inst.getPointerOperand());
 
-  auto IndexArrayOrPtr = [&](llvm::Value &gep_idx) {
+  auto IndexPtr = [&](llvm::Value &gep_idx) {
     auto base_type = base->getType();
     CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
     auto type = clang::cast<clang::PointerType>(base_type)->getPointeeType();
@@ -469,15 +461,14 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto IndexStruct = [&](llvm::Value &gep_idx) {
     auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(&gep_idx);
     CHECK(mem_idx) << "Non-constant GEP index while indexing a structure";
-    auto type = GetQualType(indexed_type);
     auto tdecl = type_decls[indexed_type];
     CHECK(tdecl) << "Structure declaration doesn't exist";
     auto record = clang::cast<clang::RecordDecl>(tdecl);
     auto field_it = record->field_begin();
     std::advance(field_it, mem_idx->getLimitedValue());
     CHECK(field_it != record->field_end()) << "GEP index is out of bounds";
-    base = CreateMemberExpr(ast_ctx, base, *field_it, type,
-                            /*is_arrow=*/true);
+    base = CreateMemberExpr(ast_ctx, base, *field_it, field_it->getType(),
+                            /*is_arrow=*/false);
   };
 
   for (auto &idx : inst.indices()) {
@@ -486,13 +477,16 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
       case llvm::Type::PointerTyID: {
         CHECK(idx == *inst.idx_begin())
             << "Indexing an llvm::PointerType is only valid at first index";
-        IndexArrayOrPtr(*idx);
+        IndexPtr(*idx);
         auto type = llvm::cast<llvm::PointerType>(indexed_type);
         indexed_type = type->getElementType();
       } break;
       // Arrays
       case llvm::Type::ArrayTyID: {
-        IndexArrayOrPtr(*idx);
+        base = CreateImplicitCastExpr(
+            ast_ctx, ast_ctx.getArrayDecayedType(base->getType()),
+            clang::CK_ArrayToPointerDecay, base);
+        IndexPtr(*idx);
         auto type = llvm::cast<llvm::ArrayType>(indexed_type);
         indexed_type = type->getTypeAtIndex(idx);
       } break;
@@ -507,13 +501,12 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         LOG(FATAL) << "Indexing an unknown pointer type";
         break;
     }
-    // Take address via `(&base)`
-    base = CreateParenExpr(
-        ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, base,
-                                     ast_ctx.getPointerType(base->getType())));
+    // Add parens to preserve expression semantics
+    base = CreateParenExpr(ast_ctx, base);
   }
 
-  ref = base;
+  ref = CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, base,
+                            ast_ctx.getPointerType(base->getType()));
 }
 
 void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
@@ -572,6 +565,7 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   auto ptr = inst.getPointerOperand();
   auto op = GetOperandExpr(ptr);
   auto res_type = GetQualType(inst.getType());
+
   ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
 }
 

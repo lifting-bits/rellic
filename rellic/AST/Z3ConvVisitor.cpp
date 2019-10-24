@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -402,8 +402,7 @@ bool Z3ConvVisitor::VisitImplicitCastExpr(clang::ImplicitCastExpr *c_cast) {
 
   switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_ArrayToPointerDecay: {
-      CHECK(z_sub.is_bv() && z_sub.is_const())
-          << "Pointer cast operand is not a bit-vector constant";
+      CHECK(z_sub.is_bv()) << "Pointer cast operand is not a bit-vector";
       auto s_ptr = GetZ3Sort(c_cast->getType());
       auto s_arr = z_sub.get_sort();
       auto z_func = z3_ctx->function("PtrDecay", s_arr, s_ptr);
@@ -529,7 +528,6 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
     return true;
   }
   // Get operands
-  c_op->dump(llvm::errs());
   auto lhs = GetOrCreateZ3Expr(c_op->getLHS());
   auto rhs = GetOrCreateZ3Expr(c_op->getRHS());
   // Create z3 binary op
@@ -543,8 +541,6 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_EQ:
-      // DLOG(INFO) << "LHS: " << lhs.get_sort();
-      // DLOG(INFO) << "RHS: " << rhs.get_sort();
       InsertZ3Expr(c_op, lhs == rhs);
       break;
 
@@ -731,7 +727,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         c_op = CreateParenExpr(*ast_ctx, c_sub);
       } else if (z_func_name == "PtrDecay") {
         CHECK(t_sub->isArrayType()) << "PtrDecay operand type is not an array";
-        auto t_op = ast_ctx->getDecayedType(t_sub);
+        auto t_op = ast_ctx->getArrayDecayedType(t_sub);
         c_op = CreateImplicitCastExpr(
             *ast_ctx, t_op, clang::CastKind::CK_ArrayToPointerDecay, c_sub);
       } else if (z_func_name == "PtrToInt") {
@@ -816,7 +812,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       } else if (name == "Member") {
         auto mem = GetCValDecl(z_op.arg(1).decl());
         c_op = CreateMemberExpr(*ast_ctx, lhs, mem, mem->getType(),
-                                /*is_arrow=*/true);
+                                /*is_arrow=*/false);
       } else if (name == "IntToPtr") {
         auto c_lit = clang::cast<clang::IntegerLiteral>(lhs);
         auto t_dst_opaque_ptr_val = c_lit->getValue().getLimitedValue();

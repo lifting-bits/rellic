@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// #define GOOGLE_STRIP_LOG 1
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -95,7 +97,7 @@ class DerefAddrOfRule : public InferenceRule {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = deref->getSubExpr()->IgnoreParens();
+    auto subexpr = deref->getSubExpr()->IgnoreParenCasts();
     auto addr_of = clang::cast<clang::UnaryOperator>(subexpr);
     return addr_of->getSubExpr();
   }
@@ -121,7 +123,7 @@ class NegComparisonRule : public InferenceRule {
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = op->getSubExpr()->IgnoreParens();
+    auto subexpr = op->getSubExpr()->IgnoreParenCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
     return CreateBinaryOperator(ctx, opc, binop->getLHS(), binop->getRHS(),
@@ -171,7 +173,7 @@ class MemberExprAddrOfRule : public InferenceRule {
     auto arrow = clang::cast<clang::MemberExpr>(stmt);
     CHECK(arrow == match)
         << "Substituted MemberExpr is not the matched MemberExpr!";
-    auto base = arrow->getBase()->IgnoreParens();
+    auto base = arrow->getBase()->IgnoreParenCasts();
     auto addr_of = clang::cast<clang::UnaryOperator>(base);
     return CreateMemberExpr(ctx, addr_of->getSubExpr(), arrow->getMemberDecl(),
                             arrow->getType());
@@ -248,6 +250,7 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
 bool ExprCombine::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Rule-based statement simplification";
   Initialize();
+  
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }

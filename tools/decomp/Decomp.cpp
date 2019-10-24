@@ -91,8 +91,6 @@ static bool GeneratePseudocode(llvm::Module& module,
   cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   cbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
   cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
-  // cbr.run(module);
-  // cbr.run(module);
   while (cbr.run(module))
     ;
 

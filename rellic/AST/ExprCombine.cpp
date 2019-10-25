@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
-
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 

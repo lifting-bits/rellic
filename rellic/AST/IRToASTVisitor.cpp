@@ -471,7 +471,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
                             /*is_arrow=*/false);
   };
 
-  for (auto &idx : inst.indices()) {
+  for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {
       // Initial pointer
       case llvm::Type::PointerTyID: {

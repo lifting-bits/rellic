@@ -35,15 +35,15 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   std::unordered_map<llvm::Value *, clang::ValueDecl *> value_decls;
   std::unordered_map<llvm::Value *, clang::Stmt *> stmts;
 
-  clang::FunctionDecl *GetFunctionDecl(llvm::Instruction *inst);
-  clang::Expr *GetOperandExpr(clang::DeclContext *decl_ctx, llvm::Value *val);
+  clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type);
 
-  clang::Expr *CreateLiteralExpr(clang::DeclContext *decl_ctx,
-                                 llvm::Constant *constant);
+  clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
 
   clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx, llvm::Type *type,
                                 std::string name);
+
+  clang::Expr *CastOperand(clang::QualType dst, clang::Expr *op);
 
  public:
   IRToASTVisitor(clang::ASTContext &ctx);
@@ -53,6 +53,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   void VisitGlobalVar(llvm::GlobalVariable &var);
   void VisitFunctionDecl(llvm::Function &func);
+  void VisitArgument(llvm::Argument &arg);
 
   void visitCallInst(llvm::CallInst &inst);
   void visitGetElementPtrInst(llvm::GetElementPtrInst &inst);
@@ -62,6 +63,9 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   void visitReturnInst(llvm::ReturnInst &inst);
   void visitBinaryOperator(llvm::BinaryOperator &inst);
   void visitCmpInst(llvm::CmpInst &inst);
+  void visitCastInst(llvm::CastInst &inst);
+  void visitSelectInst(llvm::SelectInst &inst);
+  void visitPHINode(llvm::PHINode &inst);
 };
 
 }  // namespace rellic

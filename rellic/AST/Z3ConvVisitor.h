@@ -47,9 +47,13 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   void InsertZ3Decl(clang::ValueDecl *c_decl, z3::func_decl z3_decl);
   z3::func_decl GetZ3Decl(clang::ValueDecl *c_decl);
 
-  void InsertCDecl(z3::func_decl z3_decl, clang::ValueDecl *c_decl);
-  clang::ValueDecl *GetCDecl(z3::func_decl z3_decl);
+  void InsertCValDecl(z3::func_decl z3_decl, clang::ValueDecl *c_decl);
+  clang::ValueDecl *GetCValDecl(z3::func_decl z3_decl);
 
+  z3::sort GetZ3Sort(clang::QualType type);
+
+  clang::Expr *CreateLiteralExpr(z3::expr z3_expr);
+  
   void VisitZ3Expr(z3::expr z3_expr);
 
  public:
@@ -64,6 +68,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   z3::expr Z3BoolCast(z3::expr expr);
 
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
+  bool VisitImplicitCastExpr(clang::ImplicitCastExpr *cast);
   bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   bool VisitMemberExpr(clang::MemberExpr *expr);
   bool VisitCallExpr(clang::CallExpr *call);
@@ -71,6 +76,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   bool VisitUnaryOperator(clang::UnaryOperator *c_op);
   bool VisitBinaryOperator(clang::BinaryOperator *c_op);
   bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
+  bool VisitCharacterLiteral(clang::CharacterLiteral *c_lit);
   bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
 
   bool VisitVarDecl(clang::VarDecl *var);

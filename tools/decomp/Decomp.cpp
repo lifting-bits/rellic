@@ -26,13 +26,13 @@
 #include <clang/Basic/TargetInfo.h>
 
 #include "rellic/AST/CondBasedRefine.h"
+#include "rellic/AST/DeadStmtElim.h"
+#include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombiner.h"
-#include "rellic/AST/ExprCombine.h"
-#include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/Z3CondSimplify.h"
 
 #include "rellic/BC/Util.h"

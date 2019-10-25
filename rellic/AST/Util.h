@@ -90,11 +90,15 @@ clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt &val,
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 
+clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, unsigned val,
+                                    clang::QualType type);
+
 clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
                                  clang::QualType);
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
-                                std::vector<clang::Expr *> &exprs);
+                                std::vector<clang::Expr *> &exprs,
+                                clang::QualType type);
 
 clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
                                       clang::Expr *idx, clang::QualType type);
@@ -104,5 +108,19 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                               bool is_arrow = false);
 
 clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx);
+
+clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
+                                  clang::CastKind cast, clang::Expr *op);
+
+clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl);
+
+clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
+                                    clang::QualType type, clang::CastKind cast,
+                                    clang::Expr *op);
+
+clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
+                                           clang::Expr *cond, clang::Expr *lhs,
+                                           clang::Expr *rhs,
+                                           clang::QualType type);
 
 }  // namespace rellic

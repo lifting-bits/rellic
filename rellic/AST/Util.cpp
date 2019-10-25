@@ -170,6 +170,13 @@ clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
   return CreateIntegerLiteral(ctx, val, type);
 }
 
+clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, unsigned val,
+                                    clang::QualType type) {
+  return new (ctx) clang::CharacterLiteral(
+      val, clang::CharacterLiteral::CharacterKind::Ascii, type,
+      clang::SourceLocation());
+}
+
 clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
                                  clang::QualType type) {
   return clang::StringLiteral::Create(
@@ -178,9 +185,12 @@ clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
 }
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
-                                std::vector<clang::Expr *> &exprs) {
-  return new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
-                                       clang::SourceLocation());
+                                std::vector<clang::Expr *> &exprs,
+                                clang::QualType type) {
+  auto init = new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
+                                            clang::SourceLocation());
+  init->setType(type);
+  return init;
 }
 
 clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
@@ -210,8 +220,30 @@ clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
   auto type = ctx.UnsignedIntTy;
   auto val = llvm::APInt::getNullValue(ctx.getTypeSize(type));
   auto zero = CreateIntegerLiteral(ctx, val, type);
-  return CreateCStyleCastExpr(ctx, ctx.getPointerType(ctx.VoidTy),
+  return CreateCStyleCastExpr(ctx, ctx.VoidPtrTy,
                               clang::CastKind::CK_NullToPointer, zero);
+}
+
+clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl) {
+  return new (ctx)
+      clang::DeclStmt(clang::DeclGroupRef(decl), clang::SourceLocation(),
+                      clang::SourceLocation());
+}
+
+clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
+                                    clang::QualType type, clang::CastKind cast,
+                                    clang::Expr *op) {
+  return clang::ImplicitCastExpr::Create(ctx, type, cast, op, nullptr,
+                                         clang::VK_RValue);
+}
+
+clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
+                                           clang::Expr *cond, clang::Expr *lhs,
+                                           clang::Expr *rhs,
+                                           clang::QualType type) {
+  return new (ctx) clang::ConditionalOperator(
+      cond, clang::SourceLocation(), lhs, clang::SourceLocation(), rhs, type,
+      clang::VK_RValue, clang::OK_Ordinary);
 }
 
 }  // namespace rellic

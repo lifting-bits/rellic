@@ -1,5 +1,7 @@
 language: generic
 
+python: 3.7
+
 sudo: required
 
 dist: xenial

@@ -99,6 +99,17 @@ list(APPEND PROJECT_LIBRARIES gflags)
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
 
 #
+# helper macro to set target properties
+#
+
+macro(add_project_properties target)
+  target_link_libraries(${target} PRIVATE ${PROJECT_LIBRARIES})
+  target_include_directories(${target} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
+  target_compile_definitions(${target} PUBLIC ${PROJECT_DEFINITIONS})
+  target_compile_options(${target} PRIVATE ${PROJECT_CXXFLAGS})
+endmacro()
+
+#
 # rellic libraries
 #
 
@@ -109,3 +120,14 @@ add_subdirectory(rellic)
 #
 
 add_subdirectory(tools)
+
+#
+# tests
+#
+
+enable_testing()
+
+add_test(NAME test_roundtrip
+  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ ${CMAKE_C_COMPILER}
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)

@@ -20,7 +20,4 @@ add_library(${PROJECT_NAME} STATIC
   BC/Compat/Value.cpp
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${PROJECT_NAME} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${PROJECT_NAME} PRIVATE ${PROJECT_CXXFLAGS})
+add_project_properties(${PROJECT_NAME})

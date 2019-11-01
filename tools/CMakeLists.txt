@@ -9,10 +9,9 @@ add_executable(${RELLIC_DECOMP}
 )
 
 target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_NAME})
-target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${RELLIC_DECOMP} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${RELLIC_DECOMP} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${RELLIC_DECOMP} PRIVATE ${PROJECT_CXXFLAGS})
+add_project_properties(${RELLIC_DECOMP})
+
+set(RELLIC_DECOMP ${RELLIC_DECOMP} PARENT_SCOPE)
 
 #
 # rellic-headergen
@@ -25,7 +24,4 @@ add_executable(${RELLIC_HEADERGEN}
 )
 
 target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_NAME})
-target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${RELLIC_HEADERGEN} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${RELLIC_HEADERGEN} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_CXXFLAGS})
+add_project_properties(${RELLIC_HEADERGEN})

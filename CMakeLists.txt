@@ -128,6 +128,6 @@ add_subdirectory(tools)
 enable_testing()
 
 add_test(NAME test_roundtrip
-  COMMAND python3.7 scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang
+  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

@@ -96,63 +96,16 @@ list(APPEND PROJECT_LIBRARIES glog::glog)
 find_package(gflags REQUIRED)
 list(APPEND PROJECT_LIBRARIES gflags)
 
-#
-# decomp target settings
-#
-
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
 
-set(RELLIC_DECOMP rellic-decomp-${RELLIC_LLVM_VERSION})
-
-add_executable(${RELLIC_DECOMP} 
-  
-  rellic/AST/Compat/Stmt.cpp
-  rellic/AST/Compat/Expr.cpp
-  
-  rellic/AST/InferenceRule.cpp
-  rellic/AST/DeadStmtElim.cpp
-  rellic/AST/CondBasedRefine.cpp
-  rellic/AST/ExprCombine.cpp
-  rellic/AST/GenerateAST.cpp
-  rellic/AST/IRToASTVisitor.cpp
-  rellic/AST/LoopRefine.cpp
-  rellic/AST/NestedCondProp.cpp
-  rellic/AST/NestedScopeCombiner.cpp
-  rellic/AST/Util.cpp
-  rellic/AST/Z3CondSimplify.cpp
-  rellic/AST/Z3ConvVisitor.cpp
-  
-  rellic/BC/Util.cpp
-  rellic/BC/Compat/Value.cpp
-  
-  tools/decomp/Decomp.cpp
-)
-
-target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${RELLIC_DECOMP} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${RELLIC_DECOMP} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${RELLIC_DECOMP} PRIVATE ${PROJECT_CXXFLAGS})
-
 #
-# hpp2h target settings
+# rellic libraries
 #
 
-set(RELLIC_HEADERGEN rellic-headergen-${RELLIC_LLVM_VERSION})
+add_subdirectory(rellic)
 
-add_executable(${RELLIC_HEADERGEN}
+#
+# rellic executables
+#
 
-  rellic/AST/Compat/Stmt.cpp
-  rellic/AST/Compat/Expr.cpp
-
-  rellic/AST/CXXToCDecl.cpp
-  rellic/AST/Util.cpp
-
-  rellic/BC/Util.cpp
-
-  tools/headergen/HeaderGen.cpp
-)
-
-target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${RELLIC_HEADERGEN} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${RELLIC_HEADERGEN} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_CXXFLAGS})
+add_subdirectory(tools)

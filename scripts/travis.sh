@@ -287,10 +287,10 @@ common_build() {
   printf " > Building rellic...\n"
   if [ "${llvm_version:0:1}" == "3" ] ; then
     printf " i Clang static analyzer not supported on this LLVM release (${llvm_version})\n"
-    ( cd build && make -j `nproc` && pyenv local 3.7 && make test) > "${log_file}" 2>&1 &
+    ( cd build && make -j `nproc` && make test) > "${log_file}" 2>&1 &
   else
     printf " i Clang static analyzer enabled\n"
-    ( cd build && scan-build --show-description make -j `GetProcessorCount` && pyenv local 3.7 && make test) > "${log_file}" 2>&1 &
+    ( cd build && scan-build --show-description make -j `GetProcessorCount` && make test) > "${log_file}" 2>&1 &
   fi
 
   local build_pid="$!"

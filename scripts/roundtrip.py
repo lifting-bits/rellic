@@ -53,7 +53,7 @@ def decompile(rellic, input, output, timeout):
     cmd.extend(["--input", input, "--output", output])
     p = run_cmd(cmd, timeout)
     assert p.returncode == 0, \
-        "rellic-decomp failure"
+        "rellic-decomp failure: " + p.stderr
     assert len(p.stderr) == 0, \
         "errors or warnings during decompilation: " + p.stderr
     return p

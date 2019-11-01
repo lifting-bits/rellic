@@ -312,6 +312,7 @@ common_build() {
     printf " x Failed to build the project. Error output follows:\n"
     printf "===\n"
     cat "${log_file}"
+    cat build/Testing/Temporary/LastTest.log
     return 1
   fi
 

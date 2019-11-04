@@ -8,7 +8,7 @@ The design philosophy behind the project is to provide a relatively small and ea
 
 |       | master |
 | ----- | ------ |
-| Linux | [![Build Status](https://travis-ci-job-status.herokuapp.com/badge/trailofbits/rellic/master/linux/)](https://travis-ci.org/trailofbits/rellic)|
+| Linux | [![Build Status](https://travis-ci.org/lifting-bits/rellic.svg?branch=master)](https://travis-ci.org/trailofbits/rellic)|
 
 ## Getting Help
 

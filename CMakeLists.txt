@@ -96,63 +96,38 @@ list(APPEND PROJECT_LIBRARIES glog::glog)
 find_package(gflags REQUIRED)
 list(APPEND PROJECT_LIBRARIES gflags)
 
-#
-# decomp target settings
-#
-
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
 
-set(RELLIC_DECOMP rellic-decomp-${RELLIC_LLVM_VERSION})
-
-add_executable(${RELLIC_DECOMP} 
-  
-  rellic/AST/Compat/Stmt.cpp
-  rellic/AST/Compat/Expr.cpp
-  
-  rellic/AST/InferenceRule.cpp
-  rellic/AST/DeadStmtElim.cpp
-  rellic/AST/CondBasedRefine.cpp
-  rellic/AST/ExprCombine.cpp
-  rellic/AST/GenerateAST.cpp
-  rellic/AST/IRToASTVisitor.cpp
-  rellic/AST/LoopRefine.cpp
-  rellic/AST/NestedCondProp.cpp
-  rellic/AST/NestedScopeCombiner.cpp
-  rellic/AST/Util.cpp
-  rellic/AST/Z3CondSimplify.cpp
-  rellic/AST/Z3ConvVisitor.cpp
-  
-  rellic/BC/Util.cpp
-  rellic/BC/Compat/Value.cpp
-  
-  tools/decomp/Decomp.cpp
-)
-
-target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${RELLIC_DECOMP} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${RELLIC_DECOMP} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${RELLIC_DECOMP} PRIVATE ${PROJECT_CXXFLAGS})
-
 #
-# hpp2h target settings
+# helper macro to set target properties
 #
 
-set(RELLIC_HEADERGEN rellic-headergen-${RELLIC_LLVM_VERSION})
+macro(add_project_properties target)
+  target_link_libraries(${target} PRIVATE ${PROJECT_LIBRARIES})
+  target_include_directories(${target} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
+  target_compile_definitions(${target} PUBLIC ${PROJECT_DEFINITIONS})
+  target_compile_options(${target} PRIVATE ${PROJECT_CXXFLAGS})
+endmacro()
 
-add_executable(${RELLIC_HEADERGEN}
+#
+# rellic libraries
+#
 
-  rellic/AST/Compat/Stmt.cpp
-  rellic/AST/Compat/Expr.cpp
+add_subdirectory(rellic)
 
-  rellic/AST/CXXToCDecl.cpp
-  rellic/AST/Util.cpp
+#
+# rellic executables
+#
 
-  rellic/BC/Util.cpp
+add_subdirectory(tools)
 
-  tools/headergen/HeaderGen.cpp
+#
+# tests
+#
+
+enable_testing()
+
+add_test(NAME test_roundtrip
+  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-
-target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_LIBRARIES})
-target_include_directories(${RELLIC_HEADERGEN} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-target_compile_definitions(${RELLIC_HEADERGEN} PUBLIC ${PROJECT_DEFINITIONS})
-target_compile_options(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_CXXFLAGS})

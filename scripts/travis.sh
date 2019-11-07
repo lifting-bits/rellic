@@ -287,10 +287,10 @@ common_build() {
   printf " > Building rellic...\n"
   if [ "${llvm_version:0:1}" == "3" ] ; then
     printf " i Clang static analyzer not supported on this LLVM release (${llvm_version})\n"
-    ( cd build && make -j `nproc` ) > "${log_file}" 2>&1 &
+    ( cd build && make -j `nproc` && make test) > "${log_file}" 2>&1 &
   else
     printf " i Clang static analyzer enabled\n"
-    ( cd build && scan-build --show-description make -j `GetProcessorCount` ) > "${log_file}" 2>&1 &
+    ( cd build && scan-build --show-description make -j `GetProcessorCount` && make test) > "${log_file}" 2>&1 &
   fi
 
   local build_pid="$!"
@@ -312,6 +312,7 @@ common_build() {
     printf " x Failed to build the project. Error output follows:\n"
     printf "===\n"
     cat "${log_file}"
+    cat build/Testing/Temporary/LastTest.log
     return 1
   fi
 

@@ -14,4 +14,5 @@ before_install:
   - ./scripts/travis.sh "$TRAVIS_OS_NAME" initialize
 
 script:
+  - pyenv global 3.7.1
   - ./scripts/travis.sh "$TRAVIS_OS_NAME" build

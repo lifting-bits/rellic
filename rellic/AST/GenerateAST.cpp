@@ -403,8 +403,16 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
     // Get the function declaration AST node for `func`
     auto fdecl =
         clang::cast<clang::FunctionDecl>(ast_gen->GetOrCreateDecl(&func));
-    // Set it's body to the compound of the top-level region
-    fdecl->setBody(region_stmts[regions->getTopLevelRegion()]);
+    // Create a redeclaration of `fdecl` that will serve as a definition
+    auto tudecl = ast_ctx->getTranslationUnitDecl();
+    auto fdefn = CreateFunctionDecl(*ast_ctx, tudecl, fdecl->getIdentifier(),
+                                    fdecl->getType());
+    fdefn->setPreviousDecl(fdecl);
+    tudecl->addDecl(fdefn);
+    // Set parameters to the same as the previous declaration
+    fdefn->setParams(fdecl->parameters());
+    // Set body to the compound of the top-level region
+    fdefn->setBody(region_stmts[regions->getTopLevelRegion()]);
   }
 
   return true;

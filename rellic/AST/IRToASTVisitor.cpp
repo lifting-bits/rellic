@@ -670,6 +670,10 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       binop = BinOpExpr(clang::BO_Rem, lhs->getType());
       break;
 
+    case llvm::BinaryOperator::SRem:
+      binop = BinOpExpr(clang::BO_Rem, lhs->getType());
+      break;
+
     case llvm::BinaryOperator::Add:
       binop = BinOpExpr(clang::BO_Add, type);
       break;
@@ -683,7 +687,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     default:
-      LOG(FATAL) << "Unknown BinaryOperator: " << llvm::Instruction::getOpcodeName(inst.getOpcode());
+      LOG(FATAL) << "Unknown BinaryOperator: " << inst.getOpcodeName();
       break;
   }
 }

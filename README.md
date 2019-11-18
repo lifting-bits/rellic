@@ -46,6 +46,7 @@ sudo apt-get install \
      git \
      python2.7 \
      wget \
+     unzip \
      curl \
      build-essential \
      libtinfo-dev \

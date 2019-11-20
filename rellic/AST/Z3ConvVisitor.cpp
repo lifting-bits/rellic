@@ -219,7 +219,7 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
       auto size = ast_ctx->getIntWidth(type);
       llvm::APInt val(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
       if (type->isCharType()) {
-        result = CreateCharacterLiteral(*ast_ctx, val.getLimitedValue(), type);
+        result = CreateCharacterLiteral(*ast_ctx, val, type);
       } else {
         result = CreateIntegerLiteral(*ast_ctx, val, type);
       }

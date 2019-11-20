@@ -74,3 +74,35 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 ```shell
 ./rellic-build/rellic-decomp --input mybitcode.bc --output /dev/stdout
 ```
+
+### Docker image
+
+The Docker image should provide an environment which can set-up, build, and run rellic.
+
+To build the docker image:
+```sh
+docker build -t rellic-decomp-40 --build-arg LLVM_VERSION=4.0 .
+```
+
+To run the decompiler, the entrypoint has already been set, but make sure the bitcode you are decompiling is the same as LLVM version as the decompiler, and run:
+
+```sh
+docker run --rm -t -i \
+  -v $(pwd):/test -w /test \
+  -u $(id -u):$(id -g) \
+  rellic-decomp-40 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+```
+
+To explain the above command more:
+
+```sh
+# Mount current directory and change working directory
+-v $(pwd):/test -w /test
+```
+
+and 
+
+```sh
+# Set the user to current user so permissions are right
+-u $(id -u):$(id -g) \
+```

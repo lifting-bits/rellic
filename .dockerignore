@@ -1,0 +1,8 @@
+*
+!rellic
+!scripts
+!tests
+!tools
+!cmake
+!CMakeLists.txt
+!docker-decomp-entrypoint.sh

@@ -271,7 +271,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a result of an expression
   if (llvm::isa<llvm::Instruction>(val)) {
-    return clang::cast<clang::Expr>(GetOrCreateStmt(val));
+    return CreateParenExpr(ast_ctx,
+                           clang::cast<clang::Expr>(GetOrCreateStmt(val)));
   }
 
   LOG(FATAL) << "Invalid operand";

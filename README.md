@@ -84,9 +84,13 @@ To build the docker image:
 docker build -t rellic-decomp-40 --build-arg LLVM_VERSION=4.0 .
 ```
 
-To run the decompiler, the entrypoint has already been set, but make sure the bitcode you are decompiling is the same as LLVM version as the decompiler, and run:
+To run the decompiler, the entrypoint has already been set, but make sure the bitcode you are decompiling is the same LLVM version as the decompiler, and run:
 
 ```sh
+# Get the bc file
+clang-4 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+
+# Decompile
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \

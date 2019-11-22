@@ -88,7 +88,7 @@ To run the decompiler, the entrypoint has already been set, but make sure the bi
 
 ```sh
 # Get the bc file
-clang-4 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-4.0 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 # Decompile
 docker run --rm -t -i \

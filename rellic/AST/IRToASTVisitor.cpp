@@ -667,9 +667,6 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     case llvm::BinaryOperator::URem:
-      binop = BinOpExpr(clang::BO_Rem, lhs->getType());
-      break;
-
     case llvm::BinaryOperator::SRem:
       binop = BinOpExpr(clang::BO_Rem, lhs->getType());
       break;
@@ -684,6 +681,11 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
 
     case llvm::BinaryOperator::Mul:
       binop = BinOpExpr(clang::BO_Mul, type);
+      break;
+
+    case llvm::BinaryOperator::UDiv:
+    case llvm::BinaryOperator::SDiv:
+      binop = BinOpExpr(clang::BO_Div, type);
       break;
 
     default:
@@ -709,12 +711,24 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   };
   // Where the magic happens
   switch (inst.getPredicate()) {
+    case llvm::CmpInst::ICMP_SGT:
     case llvm::CmpInst::ICMP_UGT:
       cmp = CmpExpr(clang::BO_GT);
       break;
 
+    case llvm::CmpInst::ICMP_SLT:
     case llvm::CmpInst::ICMP_ULT:
       cmp = CmpExpr(clang::BO_LT);
+      break;
+
+    case llvm::CmpInst::ICMP_SGE:
+    case llvm::CmpInst::ICMP_UGE:
+      cmp = CmpExpr(clang::BO_GE);
+      break;
+
+    case llvm::CmpInst::ICMP_SLE:
+    case llvm::CmpInst::ICMP_ULE:
+      cmp = CmpExpr(clang::BO_LE);
       break;
 
     case llvm::CmpInst::ICMP_EQ:
@@ -726,7 +740,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       break;
 
     default:
-      LOG(FATAL) << "Unknown CmpInst predicate";
+      LOG(FATAL) << "Unknown CmpInst predicate: " << inst.getPredicateName(inst.getPredicate()).str();
       break;
   }
 }

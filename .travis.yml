@@ -22,12 +22,11 @@ jobs:
       name: 'Docker build'
       script:
         - docker build -t rellic-decomp --build-arg LLVM_VERSION=8.0 .
+        - docker run --rm -t rellic-decomp --help
         - docker run --rm -t \
             -v "$(pwd)":/test -w /test \
-            -u "$(id -u)":"$(id -g)" \
             --entrypoint /opt/rellic/libraries/llvm/bin/clang \
-            rellic-decomp:latest -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+            rellic-decomp -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
         - docker run --rm -t \
             -v "$(pwd)":/test -w /test \
-            -u "$(id -u)":"$(id -g)" \
-            rellic-decomp:latest --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+            rellic-decomp --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout

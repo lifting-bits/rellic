@@ -1,7 +1,8 @@
 *
 !rellic
 !scripts
-!tests
+!tests/tools/decomp/*.c
+!tests/tools/headergen/*.hpp
 !tools
 !cmake
 !CMakeLists.txt

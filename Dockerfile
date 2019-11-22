@@ -6,6 +6,7 @@ FROM ubuntu:18.04 as DEPS
 RUN apt-get update && \
     apt-get install -y git \
      python2.7 \
+     python3.7 \
      wget \
      curl \
      build-essential \
@@ -23,6 +24,8 @@ WORKDIR /rellic-build
 # Copy everything but the entrypoint
 COPY ./ ./
 RUN ./scripts/build.sh --llvm-version $LLVM_VERSION
+RUN cd rellic-build && \
+    make test
 
 
 FROM DEPS as INSTALL

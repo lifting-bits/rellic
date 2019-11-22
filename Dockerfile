@@ -29,6 +29,6 @@ FROM DEPS as INSTALL
 ARG LLVM_VERSION
 
 COPY --from=BUILD /rellic-build/rellic-build /opt/rellic
-COPY docker-decomp-entrypoint.sh /opt/rellic
+COPY scripts/docker-decomp-entrypoint.sh /opt/rellic
 ENV LLVM_VERSION=$LLVM_VERSION
 ENTRYPOINT ["/opt/rellic/docker-decomp-entrypoint.sh"]

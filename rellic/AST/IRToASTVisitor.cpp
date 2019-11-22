@@ -170,27 +170,27 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       switch (clang::cast<clang::BuiltinType>(c_type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
         case clang::BuiltinType::Kind::SChar:
-          result =
-              CreateCharacterLiteral(ast_ctx, val.getLimitedValue(), c_type);
-          break;
-
-        case clang::BuiltinType::Kind::Short:
-          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy);
+          result = CreateCharacterLiteral(ast_ctx, val, c_type);
           break;
 
         case clang::BuiltinType::Kind::Bool:
-        case clang::BuiltinType::Kind::UShort:
-          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.UnsignedIntTy);
+          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy);
           break;
 
+        case clang::BuiltinType::Kind::Short:
+        case clang::BuiltinType::Kind::UShort:
         case clang::BuiltinType::Kind::Int:
         case clang::BuiltinType::Kind::UInt:
         case clang::BuiltinType::Kind::Long:
         case clang::BuiltinType::Kind::ULong:
         case clang::BuiltinType::Kind::LongLong:
-        case clang::BuiltinType::Kind::ULongLong:
-          result = CreateIntegerLiteral(ast_ctx, val, c_type);
-          break;
+        case clang::BuiltinType::Kind::ULongLong: {
+          result = CreateIntegerLiteral(ast_ctx, val.abs(), c_type);
+          if (val.isNegative()) {
+            result =
+                CreateUnaryOperator(ast_ctx, clang::UO_Minus, result, c_type);
+          }
+        } break;
 
         default:
           LOG(FATAL) << "Unsupported integer literal type";
@@ -271,7 +271,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a result of an expression
   if (llvm::isa<llvm::Instruction>(val)) {
-    return clang::cast<clang::Expr>(GetOrCreateStmt(val));
+    return CreateParenExpr(ast_ctx,
+                           clang::cast<clang::Expr>(GetOrCreateStmt(val)));
   }
 
   LOG(FATAL) << "Invalid operand";

@@ -153,13 +153,13 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                    clang::SourceLocation(), id, prev_decl);
 }
 
-clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat &val,
+clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
                                    clang::QualType type) {
   return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
                                         clang::SourceLocation());
 }
 
-clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt &val,
+clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
                                   clang::QualType type) {
   return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
 }
@@ -170,11 +170,11 @@ clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
   return CreateIntegerLiteral(ctx, val, type);
 }
 
-clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, unsigned val,
+clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, llvm::APInt val,
                                     clang::QualType type) {
   return new (ctx) clang::CharacterLiteral(
-      val, clang::CharacterLiteral::CharacterKind::Ascii, type,
-      clang::SourceLocation());
+      val.getLimitedValue(), clang::CharacterLiteral::CharacterKind::Ascii,
+      type, clang::SourceLocation());
 }
 
 clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,

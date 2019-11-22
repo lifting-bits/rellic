@@ -7,12 +7,25 @@ dist: xenial
 os:
   - linux
 
-compiler:
-  - gcc
+jobs:
+  include:
+    - compiler: gcc
+      before_install:
+        - ./scripts/travis.sh "$TRAVIS_OS_NAME" initialize
 
-before_install:
-  - ./scripts/travis.sh "$TRAVIS_OS_NAME" initialize
-
-script:
-  - pyenv global 3.7.1
-  - ./scripts/travis.sh "$TRAVIS_OS_NAME" build
+      script:
+        - pyenv global 3.7.1
+        - ./scripts/travis.sh "$TRAVIS_OS_NAME" build
+    - services:
+        - docker
+      script:
+        - docker build -t rellic-decomp --build-arg LLVM_VERSION=8.0 .
+        - docker run --rm -t \
+            -v $(pwd):/test -w /test \
+            -u $(id -u):$(id -g) \
+            --entrypoint /opt/rellic/libraries/llvm/bin/clang \
+           rellic-decomp -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+        - docker run --rm -t \
+            -v $(pwd):/test -w /test \
+            -u $(id -u):$(id -g) \
+            rellic-decomp --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout

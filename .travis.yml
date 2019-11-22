@@ -10,6 +10,7 @@ os:
 jobs:
   include:
     - compiler: gcc
+      name: 'Native builds'
       before_install:
         - ./scripts/travis.sh "$TRAVIS_OS_NAME" initialize
 
@@ -18,6 +19,7 @@ jobs:
         - ./scripts/travis.sh "$TRAVIS_OS_NAME" build
     - services:
         - docker
+      name: 'Docker build'
       script:
         - docker build -t rellic-decomp --build-arg LLVM_VERSION=8.0 .
         - docker run --rm -t \

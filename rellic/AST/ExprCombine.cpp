@@ -62,7 +62,8 @@ class AddrOfArraySubscriptRule : public InferenceRule {
   AddrOfArraySubscriptRule()
       : InferenceRule(
             unaryOperator(stmt().bind("addr_of"), hasOperatorName("&"),
-                          has(arraySubscriptExpr(hasIndex(zero_int_lit))))) {}
+                          has(ignoringParenImpCasts(
+                              arraySubscriptExpr(hasIndex(zero_int_lit)))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("addr_of");
@@ -73,7 +74,8 @@ class AddrOfArraySubscriptRule : public InferenceRule {
     auto addr_of = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(addr_of == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto sub = clang::cast<clang::ArraySubscriptExpr>(addr_of->getSubExpr());
+    auto subexpr = addr_of->getSubExpr()->IgnoreParenCasts();
+    auto sub = clang::cast<clang::ArraySubscriptExpr>(subexpr);
     return sub->getBase();
   }
 };
@@ -84,7 +86,7 @@ class DerefAddrOfRule : public InferenceRule {
   DerefAddrOfRule()
       : InferenceRule(unaryOperator(
             stmt().bind("deref"), hasOperatorName("*"),
-            has(ignoringParenCasts(unaryOperator(hasOperatorName("&")))))) {}
+            has(ignoringParenImpCasts(unaryOperator(hasOperatorName("&")))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("deref");
@@ -107,7 +109,8 @@ class NegComparisonRule : public InferenceRule {
   NegComparisonRule()
       : InferenceRule(unaryOperator(
             stmt().bind("not"), hasOperatorName("!"),
-            has(ignoringParenCasts(binaryOperator(stmt().bind("binop")))))) {}
+            has(ignoringParenImpCasts(binaryOperator(stmt().bind("binop")))))) {
+  }
 
   void run(const MatchFinder::MatchResult &result) {
     auto binop = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
@@ -156,7 +159,7 @@ class MemberExprAddrOfRule : public InferenceRule {
   MemberExprAddrOfRule()
       : InferenceRule(memberExpr(
             stmt().bind("arrow"), isArrow(),
-            has(expr(stmt().bind("base"), ignoringParenCasts(unaryOperator(
+            has(expr(stmt().bind("base"), ignoringParenImpCasts(unaryOperator(
                                               hasOperatorName("&"))))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
@@ -248,7 +251,7 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
 bool ExprCombine::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Rule-based statement simplification";
   Initialize();
-  
+
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }

@@ -138,7 +138,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
   clang::Expr *result = nullptr;
   auto term = from->getTerminator();
   switch (term->getOpcode()) {
-    // Handle conditional branches
+    // Conditional branches
     case llvm::Instruction::Br: {
       auto br = llvm::cast<llvm::BranchInst>(term);
       if (br->isConditional()) {
@@ -151,12 +151,22 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
         }
       }
     } break;
-    // Handle returns
+    // Returns
     case llvm::Instruction::Ret:
       break;
-
+    // Exceptions
+    case llvm::Instruction::Invoke:
+    case llvm::Instruction::Resume:
+    case llvm::Instruction::CatchSwitch:
+    case llvm::Instruction::CatchRet:
+    case llvm::Instruction::CleanupRet:
+      LOG(FATAL) << "Exception terminator '" << term->getOpcodeName()
+                 << "' is not supported yet";
+      break;
+    // Unknown
     default:
-      LOG(FATAL) << "Unknown terminator instruction";
+      LOG(FATAL) << "Unsupported terminator instruction: "
+                 << term->getOpcodeName();
       break;
   }
   return result;

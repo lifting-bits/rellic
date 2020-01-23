@@ -132,14 +132,15 @@ z3::expr Z3ConvVisitor::Z3BoolCast(z3::expr expr) {
 void Z3ConvVisitor::InsertCExpr(z3::expr z_expr, clang::Expr *c_expr) {
   auto hash = z_expr.hash();
   auto iter = c_expr_map.find(hash);
-  CHECK(iter == c_expr_map.end());
+  CHECK(iter == c_expr_map.end())
+      << "Z3 equivalent for C declaration already exists!";
   c_expr_map[hash] = c_expr;
 }
 
 clang::Expr *Z3ConvVisitor::GetCExpr(z3::expr z_expr) {
   auto hash = z_expr.hash();
   auto iter = c_expr_map.find(hash);
-  CHECK(iter != c_expr_map.end());
+  CHECK(iter != c_expr_map.end()) << "No Z3 equivalent for C declaration!";
   return c_expr_map[hash];
 }
 
@@ -147,14 +148,15 @@ void Z3ConvVisitor::InsertCValDecl(z3::func_decl z_decl,
                                    clang::ValueDecl *c_decl) {
   auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
   auto iter = c_decl_map.find(id);
-  CHECK(iter == c_decl_map.end());
+  CHECK(iter == c_decl_map.end())
+      << "C equivalent for Z3 declaration already exists!";
   c_decl_map[id] = c_decl;
 }
 
 clang::ValueDecl *Z3ConvVisitor::GetCValDecl(z3::func_decl z_decl) {
   auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
   auto iter = c_decl_map.find(id);
-  CHECK(iter != c_decl_map.end());
+  CHECK(iter != c_decl_map.end()) << "No C equivalent for Z3 declaration!";
   return c_decl_map[id];
 }
 

@@ -107,6 +107,8 @@ static bool GeneratePseudocode(llvm::Module& module,
       z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
       // Propagate bounds over bit-vectors
       z3::tactic(fin_simplifier->GetZ3Context(), "propagate-bv-bounds") &
+      // Eliminate conjunctions using De Morgan laws
+      z3::tactic(fin_simplifier->GetZ3Context(), "elim-and") &
       // Tseitin transformation
       z3::tactic(fin_simplifier->GetZ3Context(), "tseitin-cnf") &
       // Contextual simplification

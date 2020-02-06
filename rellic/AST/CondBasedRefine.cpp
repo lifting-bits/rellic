@@ -59,48 +59,15 @@ CondBasedRefine::CondBasedRefine(clang::ASTContext &ctx,
       ast_ctx(&ctx),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(ast_ctx, z3_ctx.get())) {}
+      z3_gen(new rellic::Z3ConvVisitor(ast_ctx, z3_ctx.get())),
+      z3_solver(*z3_ctx, "sat") {}
 
-bool CondBasedRefine::ThenTest(z3::expr lhs, z3::expr rhs) {
-  auto Pred = [](z3::expr a, z3::expr b) {
-    auto test = (!a && b).simplify();
-    return test.bool_value() != Z3_L_FALSE;
-  };
-
-  z3::expr_vector lhs_c(*z3_ctx), rhs_c(*z3_ctx);
-  SplitClause(lhs, lhs_c);
-  SplitClause(rhs, rhs_c);
-
-  for (unsigned i = 0; i < lhs_c.size(); ++i) {
-    for (unsigned j = 0; j < rhs_c.size(); ++j) {
-      if (!Pred(lhs_c[i], rhs_c[j])) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-bool CondBasedRefine::ElseTest(z3::expr lhs, z3::expr rhs) {
-  auto Pred = [](z3::expr a, z3::expr b) {
-    auto test = (a || b).simplify();
-    return test.bool_value() != Z3_L_TRUE;
-  };
-
-  z3::expr_vector lhs_c(*z3_ctx), rhs_c(*z3_ctx);
-  SplitClause(lhs, lhs_c);
-  SplitClause(rhs, rhs_c);
-
-  for (unsigned i = 0; i < lhs_c.size(); ++i) {
-    for (unsigned j = 0; j < rhs_c.size(); ++j) {
-      if (!Pred(lhs_c[i], rhs_c[j])) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+bool CondBasedRefine::Prove(z3::expr expr) {
+  z3::goal goal(*z3_ctx);
+  goal.add(!expr);
+  auto app = z3_solver(goal);
+  CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
+  return app[0].is_decided_unsat();
 }
 
 z3::expr CondBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
@@ -116,7 +83,15 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
       worklist.erase(it);
     }
   };
-  
+
+  auto ThenTest = [this](z3::expr lhs, z3::expr rhs) {
+    return Prove(lhs == rhs);
+  };
+
+  auto ElseTest = [this](z3::expr lhs, z3::expr rhs) {
+    return Prove(!(lhs == rhs));
+  };
+
   while (!worklist.empty()) {
     auto lhs = *worklist.begin();
     RemoveFromWorkList(lhs);

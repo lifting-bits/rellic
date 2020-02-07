@@ -35,20 +35,6 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
   return result;
 }
 
-static void SplitClause(z3::expr expr, z3::expr_vector &clauses) {
-  if (expr.decl().decl_kind() == Z3_OP_AND) {
-    // Make sure we have a flat n-ary `and`
-    if (expr.num_args() == 2) {
-      expr = expr.simplify();
-    }
-    for (unsigned i = 0; i < expr.num_args(); ++i) {
-      clauses.push_back(expr.arg(i));
-    }
-  } else {
-    clauses.push_back(expr);
-  }
-}
-
 }  // namespace
 
 char CondBasedRefine::ID = 0;
@@ -64,7 +50,7 @@ CondBasedRefine::CondBasedRefine(clang::ASTContext &ctx,
 
 bool CondBasedRefine::Prove(z3::expr expr) {
   z3::goal goal(*z3_ctx);
-  goal.add(!expr);
+  goal.add((!expr).simplify());
   auto app = z3_solver(goal);
   CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
   return app[0].is_decided_unsat();
@@ -89,54 +75,48 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
   };
 
   auto ElseTest = [this](z3::expr lhs, z3::expr rhs) {
-    return Prove(!(lhs == rhs));
+    return Prove(lhs == !rhs);
   };
 
   while (!worklist.empty()) {
     auto lhs = *worklist.begin();
     RemoveFromWorkList(lhs);
     // Prepare conditions according to which we're going to
-    // cluster statements. First according to a the whole `lhs`
-    // condition. Then according to it's `&&` subconditions clauses.
-    z3::expr_vector clauses(*z3_ctx);
-    clauses.push_back(GetZ3Cond(lhs));
-    SplitClause(clauses[0], clauses);
-    // This is where the magic happens
-    for (unsigned i = 0; i < clauses.size(); ++i) {
-      auto clause = clauses[i];
-      // Get branch candidates wrt `clause`
-      std::vector<clang::Stmt *> thens({lhs}), elses;
-      for (auto rhs : worklist) {
-        auto rcond = GetZ3Cond(rhs);
-        if (ThenTest(clause, rcond)) {
-          thens.push_back(rhs);
-        } else if (ElseTest(clause, rcond)) {
-          elses.push_back(rhs);
-        }
+    // cluster statements according to the whole `lhs`
+    // condition.
+    auto lcond = GetZ3Cond(lhs);
+    // Get branch candidates wrt `clause`
+    std::vector<clang::Stmt *> thens({lhs}), elses;
+    for (auto rhs : worklist) {
+      auto rcond = GetZ3Cond(rhs);
+      if (ThenTest(lcond, rcond)) {
+        thens.push_back(rhs);
+      } else if (ElseTest(lcond, rcond)) {
+        elses.push_back(rhs);
       }
-      // Create an if-then-else if possible
-      if (thens.size() + elses.size() > 1) {
-        // Erase then statements from the AST and `worklist`
-        for (auto stmt : thens) {
+    }
+    // Create an if-then-else if possible
+    if (thens.size() + elses.size() > 1) {
+      // Erase then statements from the AST and `worklist`
+      for (auto stmt : thens) {
+        RemoveFromWorkList(stmt);
+        substitutions[stmt] = nullptr;
+      }
+      // Create our new if-then
+      auto sub = CreateIfStmt(*ast_ctx, lhs->getCond(),
+                              CreateCompoundStmt(*ast_ctx, thens));
+      // Create an else branch if possible
+      if (!elses.empty()) {
+        // Erase else statements from the AST and `worklist`
+        for (auto stmt : elses) {
           RemoveFromWorkList(stmt);
           substitutions[stmt] = nullptr;
         }
-        // Create our new if-then
-        auto sub = CreateIfStmt(*ast_ctx, z3_gen->GetOrCreateCExpr(clause),
-                                CreateCompoundStmt(*ast_ctx, thens));
-        // Create an else branch if possible
-        if (!elses.empty()) {
-          // Erase else statements from the AST and `worklist`
-          for (auto stmt : elses) {
-            RemoveFromWorkList(stmt);
-            substitutions[stmt] = nullptr;
-          }
-          // Add the else branch
-          sub->setElse(CreateCompoundStmt(*ast_ctx, elses));
-        }
-        // Replace `lhs` with the new `sub`
-        substitutions[lhs] = sub;
+        // Add the else branch
+        sub->setElse(CreateCompoundStmt(*ast_ctx, elses));
       }
+      // Replace `lhs` with the new `sub`
+      substitutions[lhs] = sub;
     }
   }
 }

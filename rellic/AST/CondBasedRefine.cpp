@@ -18,6 +18,7 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/CondBasedRefine.h"
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 

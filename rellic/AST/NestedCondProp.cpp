@@ -68,8 +68,11 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
         for (auto child : GetIfStmts(comp)) {
           parent_conds[child] = CreateNotExpr(*ast_ctx, cond);
         }
+      } else if (auto elif = clang::dyn_cast<clang::IfStmt>(stmt_else)) {
+        parent_conds[elif] = CreateNotExpr(*ast_ctx, cond);
       } else {
-        LOG(FATAL) << "Else branch must be a clang::CompoundStmt!";
+        LOG(FATAL)
+            << "Else branch must be a clang::CompoundStmt or clang::IfStmt!";
       }
     }
   }

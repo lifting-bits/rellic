@@ -18,11 +18,8 @@
 
 #include <llvm/IR/Module.h>
 
-#include <set>
-
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Util.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {

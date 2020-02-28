@@ -15,6 +15,7 @@ add_library(${PROJECT_NAME} STATIC
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp
+  AST/ReachBasedRefine.cpp
   
   BC/Util.cpp
   BC/Compat/Value.cpp

@@ -63,32 +63,46 @@ z3::expr ReachBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
 }
 
 void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
+  // Else-if candidate IfStmts and their Z3 form
+  // reaching conditions.
   IfStmtVec elifs;
   z3::expr_vector conds(*z3_ctx);
-
+  // Test that determines if a new IfStmts is not
+  // reachable from the already gathered IfStmts.
   auto IsUnrechable = [this, &conds](z3::expr cond) {
-    return !Prove(cond && z3::mk_or(conds));
+    return Prove(!(cond && z3::mk_or(conds)));
   };
-
+  // Test to determine if we have enough candidate
+  // IfStmts to form an else-if cascade.
   auto IsTautology = [this, &conds] {
     return Prove(z3::mk_or(conds) == z3_ctx->bool_val(true));
   };
 
+  // Gather else-if candidates
   for (auto stmt : llvm::make_range(stmts.rbegin(), stmts.rend())) {
+    // Quit if we gathered enough IfStmts for a cascade.
+    // This is recognized when the conjuction of reaching
+    // conditions of all the IfStmts form a tautology.
     if (IsTautology()) {
       break;
     }
+    // Clear else-if IfStmts if we find a path among them.
     auto cond = GetZ3Cond(stmt);
-    if (!stmt->getElse() && IsUnrechable(cond)) {
-      conds.push_back(cond);
-      elifs.push_back(stmt);
+    if (stmt->getElse() || !IsUnrechable(cond)) {
+      conds = z3::expr_vector(*z3_ctx);
+      elifs.clear();
     }
+    // Add the current if-statement to the else-if candidates.
+    conds.push_back(cond);
+    elifs.push_back(stmt);
   }
 
+  // Check if we have enough statements to work with
   if (elifs.size() < 2) {
     return;
   }
 
+  // Create the else-if cascade
   clang::IfStmt *sub = nullptr;
   for (auto stmt : llvm::make_range(elifs.rbegin(), elifs.rend())) {
     auto cond = stmt->getCond();
@@ -99,25 +113,21 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
     } else if (stmt == elifs.front()) {
       std::vector<clang::Stmt *> thens({then});
       sub->setElse(CreateCompoundStmt(*ast_ctx, thens));
+      substitutions[stmt] = nullptr;
     } else {
       auto elif = CreateIfStmt(*ast_ctx, cond, then);
       sub->setElse(elif);
       sub = elif;
+      substitutions[stmt] = nullptr;
     }
-  }
-
-  elifs.pop_back();
-
-  for (auto stmt : elifs) {
-    substitutions[stmt] = nullptr;
   }
 }
 
 bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
-  // Create if-else cascade substitutions for IfStmts in `compound`
+  // Create else-if cascade substitutions for IfStmts in `compound`
   CreateIfElseStmts(GetIfStmts(compound));
-  // Apply created if-else substitutions and
+  // Apply created else-if substitutions and
   // create a replacement for `compound`
   if (ReplaceChildren(compound, substitutions)) {
     std::vector<clang::Stmt *> new_body;

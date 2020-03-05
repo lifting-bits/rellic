@@ -96,29 +96,32 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
         elses.push_back(rhs);
       }
     }
-    // Create an if-then-else if possible
-    if (thens.size() + elses.size() > 1) {
-      // Erase then statements from the AST and `worklist`
-      for (auto stmt : thens) {
+
+    // Check if we have enough statements to work with
+    if (thens.size() + elses.size() < 2) {
+      continue;
+    }
+
+    // Erase then statements from the AST and `worklist`
+    for (auto stmt : thens) {
+      RemoveFromWorkList(stmt);
+      substitutions[stmt] = nullptr;
+    }
+    // Create our new if-then
+    auto sub = CreateIfStmt(*ast_ctx, lhs->getCond(),
+                            CreateCompoundStmt(*ast_ctx, thens));
+    // Create an else branch if possible
+    if (!elses.empty()) {
+      // Erase else statements from the AST and `worklist`
+      for (auto stmt : elses) {
         RemoveFromWorkList(stmt);
         substitutions[stmt] = nullptr;
       }
-      // Create our new if-then
-      auto sub = CreateIfStmt(*ast_ctx, lhs->getCond(),
-                              CreateCompoundStmt(*ast_ctx, thens));
-      // Create an else branch if possible
-      if (!elses.empty()) {
-        // Erase else statements from the AST and `worklist`
-        for (auto stmt : elses) {
-          RemoveFromWorkList(stmt);
-          substitutions[stmt] = nullptr;
-        }
-        // Add the else branch
-        sub->setElse(CreateCompoundStmt(*ast_ctx, elses));
-      }
-      // Replace `lhs` with the new `sub`
-      substitutions[lhs] = sub;
+      // Add the else branch
+      sub->setElse(CreateCompoundStmt(*ast_ctx, elses));
     }
+    // Replace `lhs` with the new `sub`
+    substitutions[lhs] = sub;
   }
 }
 

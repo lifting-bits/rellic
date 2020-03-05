@@ -92,23 +92,8 @@ static bool GeneratePseudocode(llvm::Module& module,
   cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   cbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
   cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
+  cbr.add(rellic::createReachBasedRefinePass(ast_ctx, gen));
   while (cbr.run(module))
-    ;
-
-  // Simplifier to use during reachability-based refinement
-  auto rbr_simplifier = new rellic::Z3CondSimplify(ast_ctx, gen);
-  rbr_simplifier->SetZ3Simplifier(
-      // Simplify boolean structure with AIGs
-      z3::tactic(rbr_simplifier->GetZ3Context(), "aig") &
-      // Cheap local simplifier
-      z3::tactic(rbr_simplifier->GetZ3Context(), "simplify"));
-
-  llvm::legacy::PassManager rbr;
-  rbr.add(rbr_simplifier);
-  rbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
-  rbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
-  rbr.add(rellic::createReachBasedRefinePass(ast_ctx, gen));
-  while (rbr.run(module))
     ;
 
   llvm::legacy::PassManager loop;

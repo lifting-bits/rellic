@@ -1,4 +1,3 @@
-__attribute__ ((used))
 unsigned int target(unsigned int n) {
   unsigned int mod = n % 4;
   unsigned int result = 0;
@@ -17,5 +16,5 @@ unsigned int target(unsigned int n) {
 }
 
 int main(void) {
-    return 0;
+  return target(0xdeadbeef);
 }

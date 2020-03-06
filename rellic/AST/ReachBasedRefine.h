@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2020 Trail of Bits, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,42 +20,43 @@
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
+#include "rellic/AST/Util.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
 
-class CondBasedRefine : public llvm::ModulePass,
-                        public TransformVisitor<CondBasedRefine> {
+class ReachBasedRefine : public llvm::ModulePass,
+                         public TransformVisitor<ReachBasedRefine> {
  private:
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
-  
+
   z3::tactic z3_solver;
 
   z3::expr GetZ3Cond(clang::IfStmt *ifstmt);
-
+  
   bool Prove(z3::expr expr);
 
   using IfStmtVec = std::vector<clang::IfStmt *>;
-
-  void CreateIfThenElseStmts(IfStmtVec stmts);
-
+  
+  void CreateIfElseStmts(IfStmtVec stmts);
+ 
  public:
   static char ID;
 
-  CondBasedRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  ReachBasedRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTContext &ctx,
-                                            rellic::IRToASTVisitor &ast_gen);
+llvm::ModulePass *createReachBasedRefinePass(clang::ASTContext &ctx,
+                                             rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {
-void initializeCondBasedRefinePass(PassRegistry &);
+void initializeReachBasedRefinePass(PassRegistry &);
 }

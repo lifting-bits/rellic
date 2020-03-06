@@ -33,6 +33,7 @@
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombiner.h"
+#include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/Z3CondSimplify.h"
 
 #include "rellic/BC/Util.h"
@@ -91,6 +92,7 @@ static bool GeneratePseudocode(llvm::Module& module,
   cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   cbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
   cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
+  cbr.add(rellic::createReachBasedRefinePass(ast_ctx, gen));
   while (cbr.run(module))
     ;
 

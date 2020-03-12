@@ -66,6 +66,10 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       result = ast_ctx.DoubleTy;
       break;
 
+    case llvm::Type::X86_FP80TyID:
+      result = ast_ctx.LongDoubleTy;
+      break;
+
     case llvm::Type::IntegerTyID: {
       auto size = type->getIntegerBitWidth();
       CHECK(size > 0) << "Integer bit width has to be greater than 0";

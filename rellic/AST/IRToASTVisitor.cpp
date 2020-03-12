@@ -635,7 +635,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
     return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
                                 CastOperand(lhs->getType(), rhs), type);
   };
-
+  // Sign-cast int operand
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {
     auto type = ast_ctx.getIntTypeForBitwidth(
         ast_ctx.getTypeSize(operand->getType()), sign);
@@ -685,6 +685,12 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       binop = BinOp(clang::BO_Rem, lhs->getType());
       break;
 
+    case llvm::BinaryOperator::UDiv:
+      rhs = IntSignCast(rhs, false);
+      lhs = IntSignCast(lhs, false);
+      binop = BinOp(clang::BO_Div, lhs->getType());
+      break;
+
     case llvm::BinaryOperator::SDiv:
       rhs = IntSignCast(rhs, true);
       lhs = IntSignCast(lhs, true);
@@ -724,14 +730,43 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
                                 CastOperand(lhs->getType(), rhs),
                                 ast_ctx.BoolTy);
   };
+  // Sign-cast int operand
+  auto IntSignCast = [this](clang::Expr *operand, bool sign) {
+    auto type = ast_ctx.getIntTypeForBitwidth(
+        ast_ctx.getTypeSize(operand->getType()), sign);
+    return CreateCStyleCastExpr(ast_ctx, type, clang::CastKind::CK_IntegralCast,
+                                operand);
+  };
+  // Cast operands for signed predicates
+  if (inst.isSigned()) {
+    lhs = IntSignCast(lhs, true);
+    rhs = IntSignCast(rhs, true);
+  }
+  // Cast operands for unsigned predicates
+  if (inst.isUnsigned()) {
+    lhs = IntSignCast(lhs, false);
+    rhs = IntSignCast(rhs, false);
+  }
   // Where the magic happens
   switch (inst.getPredicate()) {
     case llvm::CmpInst::ICMP_UGT:
+    case llvm::CmpInst::ICMP_SGT:
       cmp = CmpOp(clang::BO_GT);
       break;
 
     case llvm::CmpInst::ICMP_ULT:
+    case llvm::CmpInst::ICMP_SLT:
       cmp = CmpOp(clang::BO_LT);
+      break;
+
+    case llvm::CmpInst::ICMP_UGE:
+    case llvm::CmpInst::ICMP_SGE:
+      cmp = CmpOp(clang::BO_GE);
+      break;
+
+    case llvm::CmpInst::ICMP_ULE:
+    case llvm::CmpInst::ICMP_SLE:
+      cmp = CmpOp(clang::BO_GE);
       break;
 
     case llvm::CmpInst::ICMP_EQ:

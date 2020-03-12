@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define GOOGLE_STRIP_LOG 1
+// #define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -630,65 +630,77 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto lhs = GetOperandExpr(inst.getOperand(0));
   auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
-  auto BinOpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc,
-                                    clang::QualType res_type) {
+  auto BinOp = [this, lhs, rhs](clang::BinaryOperatorKind opc,
+                                clang::QualType type) {
     return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
-                                CastOperand(lhs->getType(), rhs), res_type);
+                                CastOperand(lhs->getType(), rhs), type);
   };
+
+  auto IntSignCast = [this](clang::Expr *operand, bool sign) {
+    auto type = ast_ctx.getIntTypeForBitwidth(
+        ast_ctx.getTypeSize(operand->getType()), sign);
+    return CreateCStyleCastExpr(ast_ctx, type, clang::CastKind::CK_IntegralCast,
+                                operand);
+  };
+
   // Get result type
   auto type = GetQualType(inst.getType());
   // Where the magic happens
   switch (inst.getOpcode()) {
-    case llvm::BinaryOperator::LShr: {
-      auto sign = ast_ctx.getIntTypeForBitwidth(
-          ast_ctx.getTypeSize(lhs->getType()), /*signed=*/0);
-      lhs = CreateCStyleCastExpr(ast_ctx, sign,
-                                 clang::CastKind::CK_IntegralCast, lhs);
-      binop = BinOpExpr(clang::BO_Shr, type);
-    } break;
+    case llvm::BinaryOperator::LShr:
+      lhs = IntSignCast(lhs, false);
+      binop = BinOp(clang::BO_Shr, type);
+      break;
 
-    case llvm::BinaryOperator::AShr: {
-      auto sign = ast_ctx.getIntTypeForBitwidth(
-          ast_ctx.getTypeSize(lhs->getType()), /*signed=*/1);
-      lhs = CreateCStyleCastExpr(ast_ctx, sign,
-                                 clang::CastKind::CK_IntegralCast, lhs);
-      binop = BinOpExpr(clang::BO_Shr, type);
-    } break;
+    case llvm::BinaryOperator::AShr:
+      lhs = IntSignCast(lhs, true);
+      binop = BinOp(clang::BO_Shr, type);
+      break;
 
     case llvm::BinaryOperator::Shl:
-      binop = BinOpExpr(clang::BO_Shl, type);
+      binop = BinOp(clang::BO_Shl, type);
       break;
 
     case llvm::BinaryOperator::And:
-      binop = BinOpExpr(clang::BO_And, type);
+      binop = BinOp(clang::BO_And, type);
       break;
 
     case llvm::BinaryOperator::Or:
-      binop = BinOpExpr(clang::BO_Or, type);
+      binop = BinOp(clang::BO_Or, type);
       break;
 
     case llvm::BinaryOperator::Xor:
-      binop = BinOpExpr(clang::BO_Xor, type);
+      binop = BinOp(clang::BO_Xor, type);
       break;
 
     case llvm::BinaryOperator::URem:
-      binop = BinOpExpr(clang::BO_Rem, lhs->getType());
+      rhs = IntSignCast(rhs, false);
+      lhs = IntSignCast(lhs, false);
+      binop = BinOp(clang::BO_Rem, lhs->getType());
       break;
 
     case llvm::BinaryOperator::SRem:
-      binop = BinOpExpr(clang::BO_Rem, lhs->getType());
+      rhs = IntSignCast(rhs, true);
+      lhs = IntSignCast(lhs, true);
+      binop = BinOp(clang::BO_Rem, lhs->getType());
+      break;
+
+    case llvm::BinaryOperator::SDiv:
+      rhs = IntSignCast(rhs, true);
+      lhs = IntSignCast(lhs, true);
+      binop = BinOp(clang::BO_Div, lhs->getType());
       break;
 
     case llvm::BinaryOperator::Add:
-      binop = BinOpExpr(clang::BO_Add, type);
+      binop = BinOp(clang::BO_Add, type);
       break;
 
     case llvm::BinaryOperator::Sub:
-      binop = BinOpExpr(clang::BO_Sub, type);
+      binop = BinOp(clang::BO_Sub, type);
       break;
 
     case llvm::BinaryOperator::Mul:
-      binop = BinOpExpr(clang::BO_Mul, type);
+      binop = BinOp(clang::BO_Mul, type);
       break;
 
     default:
@@ -707,7 +719,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto lhs = GetOperandExpr(inst.getOperand(0));
   auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
-  auto CmpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc) {
+  auto CmpOp = [this, lhs, rhs](clang::BinaryOperatorKind opc) {
     return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
                                 CastOperand(lhs->getType(), rhs),
                                 ast_ctx.BoolTy);
@@ -715,19 +727,19 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   // Where the magic happens
   switch (inst.getPredicate()) {
     case llvm::CmpInst::ICMP_UGT:
-      cmp = CmpExpr(clang::BO_GT);
+      cmp = CmpOp(clang::BO_GT);
       break;
 
     case llvm::CmpInst::ICMP_ULT:
-      cmp = CmpExpr(clang::BO_LT);
+      cmp = CmpOp(clang::BO_LT);
       break;
 
     case llvm::CmpInst::ICMP_EQ:
-      cmp = CmpExpr(clang::BO_EQ);
+      cmp = CmpOp(clang::BO_EQ);
       break;
 
     case llvm::CmpInst::ICMP_NE:
-      cmp = CmpExpr(clang::BO_NE);
+      cmp = CmpOp(clang::BO_NE);
       break;
 
     default:

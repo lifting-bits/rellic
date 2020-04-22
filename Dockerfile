@@ -4,13 +4,16 @@ ARG LLVM_VERSION=8.0
 # Run-time dependencies go here
 FROM ubuntu:18.04 as base
 RUN apt-get update && \
-    apt-get install -y \
-     libomp5
+    apt-get install -y --no-install-recommends \
+     libomp5 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Build-time dependencies go here
 FROM base as deps
 RUN apt-get update && \
-    apt-get install -y git \
+    apt-get install -y \
+     git \
      python \
      python3.7 \
      wget \
@@ -20,7 +23,9 @@ RUN apt-get update && \
      lsb-release \
      zlib1g-dev \
      unzip \
-     libomp-dev
+     libomp-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Source code build
 FROM deps as build

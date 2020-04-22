@@ -20,11 +20,15 @@ jobs:
     - services:
         - docker
       name: 'Docker build'
-      packages:
-        - clang-8
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-xenial-8
+          packages:
+            - clang-8
       script:
-        - docker build -t rellic-decomp --build-arg LLVM_VERSION=8.0 .
         - clang-8 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+        - docker build -t rellic-decomp --build-arg LLVM_VERSION=8.0 .
         - |
           docker run --rm -t \
             -v "$(pwd)":/test -w /test \

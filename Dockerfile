@@ -1,11 +1,17 @@
 # Choose your LLVM version
 ARG LLVM_VERSION=8.0
 
+# Run-time dependencies go here
+FROM ubuntu:18.04 as base
+RUN apt-get update && \
+    apt-get install -y \
+     libomp5
 
-FROM ubuntu:18.04 as DEPS
+# Build-time dependencies go here
+FROM base as deps
 RUN apt-get update && \
     apt-get install -y git \
-     python2.7 \
+     python \
      python3.7 \
      wget \
      curl \
@@ -16,22 +22,24 @@ RUN apt-get update && \
      unzip \
      libomp-dev
 
-
-FROM DEPS as BUILD
+# Source code build
+FROM deps as build
 ARG LLVM_VERSION
 
 WORKDIR /rellic-build
-# Copy everything but the entrypoint
 COPY ./ ./
-RUN ./scripts/build.sh --llvm-version $LLVM_VERSION
+# RUN ./scripts/build.sh --llvm-version $LLVM_VERSION
+RUN ./scripts/build.sh --llvm-version $LLVM_VERSION --prefix /opt/rellic
 RUN cd rellic-build && \
-    make test
+    make test && \
+    make install
 
 
-FROM DEPS as INSTALL
+# Small installation image
+FROM base as install
 ARG LLVM_VERSION
 
-COPY --from=BUILD /rellic-build/rellic-build /opt/rellic
+COPY --from=build /opt/rellic /opt/rellic
 COPY scripts/docker-decomp-entrypoint.sh /opt/rellic
 ENV LLVM_VERSION=$LLVM_VERSION
 ENTRYPOINT ["/opt/rellic/docker-decomp-entrypoint.sh"]

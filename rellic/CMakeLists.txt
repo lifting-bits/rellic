@@ -1,7 +1,7 @@
 add_library(${PROJECT_NAME} STATIC
   AST/Compat/Stmt.cpp
   AST/Compat/Expr.cpp
-  
+
   AST/CXXToCDecl.cpp
   AST/InferenceRule.cpp
   AST/DeadStmtElim.cpp
@@ -16,9 +16,14 @@ add_library(${PROJECT_NAME} STATIC
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp
   AST/ReachBasedRefine.cpp
-  
+
   BC/Util.cpp
   BC/Compat/Value.cpp
 )
 
 add_project_properties(${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME}
+  RUNTIME DESTINATION "bin"
+  LIBRARY DESTINATION "lib"
+  ARCHIVE DESTINATION "lib"
+)

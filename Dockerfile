@@ -4,6 +4,7 @@ ARG LLVM_VERSION=8.0
 # Run-time dependencies go here
 FROM ubuntu:18.04 as base
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
      libgomp1 && \
     apt-get clean && \

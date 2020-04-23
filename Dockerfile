@@ -18,6 +18,8 @@ RUN apt-get update && \
      python3.7 \
      wget \
      curl \
+     gcc-multilib \
+     g++-multilib \
      build-essential \
      libtinfo-dev \
      lsb-release \
@@ -33,10 +35,10 @@ ARG LLVM_VERSION
 
 WORKDIR /rellic-build
 COPY ./ ./
-# RUN ./scripts/build.sh --llvm-version $LLVM_VERSION
-RUN ./scripts/build.sh --llvm-version $LLVM_VERSION --prefix /opt/rellic
+# LLVM 7.0 doesn't work without `--use-host-compiler`
+RUN ./scripts/build.sh --llvm-version $LLVM_VERSION --prefix /opt/rellic --use-host-compiler
 RUN cd rellic-build && \
-    make test && \
+    make test ARGS="-V" && \
     make install
 
 

@@ -36,7 +36,7 @@ ARG LLVM_VERSION
 WORKDIR /rellic-build
 COPY ./ ./
 # LLVM 7.0 doesn't work without `--use-host-compiler`
-RUN ./scripts/build.sh --llvm-version $LLVM_VERSION --prefix /opt/rellic --use-host-compiler
+RUN ./scripts/build.sh --llvm-version $LLVM_VERSION --prefix /opt/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
 RUN cd rellic-build && \
     make test ARGS="-V" && \
     make install

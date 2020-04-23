@@ -22,8 +22,3 @@ add_library(${PROJECT_NAME} STATIC
 )
 
 add_project_properties(${PROJECT_NAME})
-install(TARGETS ${PROJECT_NAME}
-  RUNTIME DESTINATION "bin"
-  LIBRARY DESTINATION "lib"
-  ARCHIVE DESTINATION "lib"
-)

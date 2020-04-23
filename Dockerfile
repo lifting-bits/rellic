@@ -5,7 +5,7 @@ ARG LLVM_VERSION=8.0
 FROM ubuntu:18.04 as base
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-     libomp5 && \
+     libgomp1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

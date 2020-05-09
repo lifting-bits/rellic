@@ -13,6 +13,8 @@ add_project_properties(${RELLIC_DECOMP})
 
 set(RELLIC_DECOMP ${RELLIC_DECOMP} PARENT_SCOPE)
 
+install(TARGETS ${RELLIC_DECOMP} DESTINATION "bin")
+
 #
 # rellic-headergen
 #
@@ -25,3 +27,5 @@ add_executable(${RELLIC_HEADERGEN}
 
 target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_NAME})
 add_project_properties(${RELLIC_HEADERGEN})
+
+install(TARGETS ${RELLIC_HEADERGEN} DESTINATION "bin")

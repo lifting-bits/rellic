@@ -92,7 +92,7 @@ function DownloadCxxCommon
   if ! curl -O "https://s3.amazonaws.com/cxx-common/${LIBRARY_VERSION}.tar.gz"; then
     return 1
   fi
-  
+
   local TAR_OPTIONS="--warning=no-timestamp"
   if [[ "$OSTYPE" == "darwin"* ]]; then
     TAR_OPTIONS=""
@@ -103,7 +103,7 @@ function DownloadCxxCommon
 
   # Make sure modification times are not in the future.
   find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
-  
+
   return 0
 }
 
@@ -112,14 +112,14 @@ function DownloadZ3
   if ! curl -OL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/${Z3_ARCHIVE}.zip"; then
     return 1
   fi
-  
+
   unzip -qq "${Z3_ARCHIVE}.zip"
   rm "${Z3_ARCHIVE}.zip"
   mv "${Z3_ARCHIVE}" "${BUILD_DIR}/libraries/z3"
 
   # Make sure modification times are not in the future.
   find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
-  
+
   return 0
 }
 
@@ -211,7 +211,7 @@ function DownloadLibraries
   fi
 
   LIBRARY_VERSION="libraries-${LLVM_VERSION}-${OS_VERSION}-${ARCH_VERSION}"
-  
+
   if ! GetZ3ArchiveName; then
       return 1
   fi
@@ -236,15 +236,15 @@ function DownloadLibraries
 # Configure the build.
 function Configure
 {
-  # Tell the rellic CMakeLists.txt where the extracted libraries are. 
+  # Tell the rellic CMakeLists.txt where the extracted libraries are.
   export TRAILOFBITS_LIBRARIES="${BUILD_DIR}/libraries"
   export PATH="${TRAILOFBITS_LIBRARIES}/cmake/bin:${TRAILOFBITS_LIBRARIES}/llvm/bin:${PATH}"
-  
+
   if [[ "${USE_HOST_COMPILER}" = "1" ]] ; then
     if [[ "x${CC}x" = "xx" ]] ; then
       export CC=$(which cc)
     fi
-    
+
     if [[ "x${CXX}x" = "xx" ]] ; then
       export CXX=$(which c++)
     fi
@@ -383,7 +383,6 @@ function main
       --use-host-compiler)
         USE_HOST_COMPILER=1
         echo "[+] Forcing use of host compiler for build"
-        shift
       ;;
 
       *)

@@ -1,4 +1,4 @@
 #!/bin/sh
 
 # Needed to process multiple arguments to docker image
-/opt/rellic/bin/rellic-decomp-${LLVM_VERSION} "$@"
+/opt/trailofbits/rellic/bin/rellic-decomp-${LLVM_VERSION} "$@"

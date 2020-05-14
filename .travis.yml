@@ -33,4 +33,4 @@ jobs:
           docker run --rm -t \
             -v "$(pwd)":/test -w /test \
             -u "$(id -u)":"$(id -g)" \
-            rellic-decomp:latest --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+            rellic:llvm800-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout

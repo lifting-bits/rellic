@@ -22,7 +22,7 @@ SRC_DIR=$( cd "$( dirname "${SCRIPTS_DIR}" )" && pwd )
 CURR_DIR=$( pwd )
 BUILD_DIR="${CURR_DIR}/rellic-build"
 INSTALL_DIR=/usr/local
-LLVM_VERSION=llvm40
+LLVM_VERSION=llvm900
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
@@ -41,26 +41,37 @@ function GetUbuntuOSVersion
   source /etc/lsb-release
 
   case "${DISTRIB_CODENAME}" in
+    focal)
+      OS_VERSION=ubuntu20.04
+      return 0
+    ;;
+    disco)
+      OS_VERSION=ubuntu18.04
+      return 0
+    ;;
+    dingo)
+      OS_VERSION=ubuntu19.04
+      return 0
+    ;;
     cosmic)
-      # TODO(pag): Eventually make real packages for 18.10!
-      OS_VERSION=ubuntu1604
+      OS_VERSION=ubuntu18.10
       return 0
     ;;
     bionic)
-      OS_VERSION=ubuntu1804
+      OS_VERSION=ubuntu18.04
       return 0
     ;;
     xenial)
-      OS_VERSION=ubuntu1604
+      OS_VERSION=ubuntu16.04
       return 0
     ;;
     trusty)
       USE_HOST_COMPILER=1
-      OS_VERSION=ubuntu1404
+      OS_VERSION=ubuntu14.04
       return 0
     ;;
     *)
-      echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported. Only xenial (16.04) and trusty (14.04) are supported."
+      echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported."
       return 1
     ;;
   esac
@@ -89,7 +100,11 @@ function GetArchVersion
 
 function DownloadCxxCommon
 {
-  if ! curl -O "https://s3.amazonaws.com/cxx-common/${LIBRARY_VERSION}.tar.gz"; then
+  local GITHUB_LIBS="${LIBRARY_VERSION}.tar.xz"
+  local URL="https://github.com/trailofbits/cxx-common/releases/latest/download/${GITHUB_LIBS}"
+
+  echo "Fetching: ${URL}"
+  if ! curl -LO "${URL}"; then
     return 1
   fi
 
@@ -98,8 +113,8 @@ function DownloadCxxCommon
     TAR_OPTIONS=""
   fi
 
-  tar xf "${LIBRARY_VERSION}.tar.gz" $TAR_OPTIONS
-  rm "${LIBRARY_VERSION}.tar.gz"
+  tar -xJf "${GITHUB_LIBS}" ${TAR_OPTIONS}
+  rm "${GITHUB_LIBS}"
 
   # Make sure modification times are not in the future.
   find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
@@ -109,20 +124,28 @@ function DownloadCxxCommon
 
 function DownloadZ3
 {
-  if ! curl -OL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/${Z3_ARCHIVE}.zip"; then
+
+  if [[ -d "${LIBRARIES}/z3" ]]
+  then
+    echo "[+] Z3 already downloaded, skipping"
+    return 0
+  fi
+
+  if ! curl -OL "https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/${Z3_ARCHIVE}.zip"; then
     return 1
   fi
 
   unzip -qq "${Z3_ARCHIVE}.zip"
   rm "${Z3_ARCHIVE}.zip"
-  mv "${Z3_ARCHIVE}" "${BUILD_DIR}/libraries/z3"
+  mv "${Z3_ARCHIVE}" "${LIBRARIES}/z3"
 
   # Make sure modification times are not in the future.
-  find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
+  find "${LIBRARIES}" -type f -exec touch {} \;
 
   return 0
 }
 
+# Attempt to detect the OS distribution name.
 # Attempt to detect the OS distribution name.
 function GetOSVersion
 {
@@ -140,8 +163,13 @@ function GetOSVersion
     ;;
 
     *arch*)
-      OS_VERSION=ubuntu1604
+      OS_VERSION=ubuntu16.04
       return 0
+    ;;
+
+    [Kk]ali)
+      OS_VERSION=ubuntu18.04
+      return 0;
     ;;
 
     *)
@@ -162,15 +190,23 @@ function GetZ3ArchiveName
   fi
 
   case "${OS_VERSION}" in
-    ubuntu1404)
+    ubuntu14.04)
       Z3_OS_VERSION="ubuntu-14.04"
     ;;
 
-    ubuntu1604)
+    ubuntu16.04)
       Z3_OS_VERSION="ubuntu-16.04"
     ;;
 
-    ubuntu1804)
+    ubuntu18.04)
+      Z3_OS_VERSION="ubuntu-16.04"
+    ;;
+
+    ubuntu19.10)
+      Z3_OS_VERSION="ubuntu-16.04"
+    ;;
+
+    ubuntu20.04)
       Z3_OS_VERSION="ubuntu-16.04"
     ;;
 
@@ -193,11 +229,24 @@ function GetZ3ArchiveName
 function DownloadLibraries
 {
   # macOS packages
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    OS_VERSION=osx
+  if [[ "${OSTYPE}" = "darwin"* ]]; then
+
+    # Compute an isysroot from the SDK root dir.
+    local sdk_root="${SDKROOT}"
+    if [[ "x${sdk_root}x" = "xx" ]]; then
+      sdk_root=$(xcrun -sdk macosx --show-sdk-path)
+    fi
+
+    BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_OSX_SYSROOT=${sdk_root}"
+    OS_VERSION=macos
+    if [[ "$(sw_vers -productVersion)" == "10.15"* ]]; then
+      echo "Found MacOS Catalina"
+    else
+      echo "WARNING: ****Likely unsupported MacOS Version****"
+    fi
 
   # Linux packages
-  elif [[ "$OSTYPE" == "linux-gnu" ]]; then
+  elif [[ "${OSTYPE}" = "linux-gnu" ]]; then
     if ! GetOSVersion; then
       return 1
     fi
@@ -210,7 +259,12 @@ function DownloadLibraries
     return 1
   fi
 
-  LIBRARY_VERSION="libraries-${LLVM_VERSION}-${OS_VERSION}-${ARCH_VERSION}"
+  if [[ "${OS_VERSION}" == "macos" ]]; then
+    # Only support catalina build, for now
+    LIBRARY_VERSION="libraries-catalina-macos"
+  else
+    LIBRARY_VERSION="libraries-${LLVM_VERSION}-${OS_VERSION}-${ARCH_VERSION}"
+  fi
 
   if ! GetZ3ArchiveName; then
       return 1
@@ -237,8 +291,12 @@ function DownloadLibraries
 function Configure
 {
   # Tell the rellic CMakeLists.txt where the extracted libraries are.
-  export TRAILOFBITS_LIBRARIES="${BUILD_DIR}/libraries"
-  export PATH="${TRAILOFBITS_LIBRARIES}/cmake/bin:${TRAILOFBITS_LIBRARIES}/llvm/bin:${PATH}"
+  echo "[+] Configuring..."
+  if [ -z ${LIBRARIES+x} ]
+  then
+    export LIBRARIES="${BUILD_DIR}/libraries"
+  fi
+  export PATH="${LIBRARIES}/cmake/bin:${LIBRARIES}/llvm/bin:${PATH}"
 
   if [[ "${USE_HOST_COMPILER}" = "1" ]] ; then
     if [[ "x${CC}x" = "xx" ]] ; then
@@ -249,19 +307,20 @@ function Configure
       export CXX=$(which c++)
     fi
   else
-    export CC="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang"
-    export CXX="${TRAILOFBITS_LIBRARIES}/llvm/bin/clang++"
+    export CC="${LIBRARIES}/llvm/bin/clang"
+    export CXX="${LIBRARIES}/llvm/bin/clang++"
   fi
 
   # Configure the rellic build, specifying that it should use the pre-built
   # Clang compiler binaries.
-  "${TRAILOFBITS_LIBRARIES}/cmake/bin/cmake" \
-      -DZ3_INSTALL_PREFIX="${TRAILOFBITS_LIBRARIES}/z3" \
+  "${LIBRARIES}/cmake/bin/cmake" \
+      "-DZ3_INSTALL_PREFIX=${LIBRARIES}/z3" \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
       -DCMAKE_C_COMPILER="${CC}" \
       -DCMAKE_CXX_COMPILER="${CXX}" \
       -DCMAKE_VERBOSE_MAKEFILE=True \
       ${BUILD_FLAGS} \
+      -G Ninja \
       "${SRC_DIR}"
 
   return $?
@@ -270,12 +329,8 @@ function Configure
 # Compile the code.
 function Build
 {
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    NPROC=$( sysctl -n hw.ncpu )
-  else
-    NPROC=$( nproc )
-  fi
-  make -j"${NPROC}"
+  echo "[+] Building..."
+  "${LIBRARIES}/cmake/bin/cmake" --build .
   return $?
 }
 
@@ -285,51 +340,65 @@ function GetLLVMVersion
 {
   case ${1} in
     3.5)
-      LLVM_VERSION=llvm35
+      LLVM_VERSION=llvm350
       USE_HOST_COMPILER=1
       return 0
     ;;
     3.6)
-      LLVM_VERSION=llvm36
+      LLVM_VERSION=llvm360
       USE_HOST_COMPILER=1
       return 0
     ;;
     3.7)
-      LLVM_VERSION=llvm37
+      LLVM_VERSION=llvm370
       USE_HOST_COMPILER=1
       return 0
     ;;
     3.8)
-      LLVM_VERSION=llvm38
+      LLVM_VERSION=llvm380
       USE_HOST_COMPILER=1
       return 0
     ;;
     3.9)
-      LLVM_VERSION=llvm39
+      LLVM_VERSION=llvm390
       USE_HOST_COMPILER=1
       return 0
     ;;
     4.0)
-      LLVM_VERSION=llvm40
+      LLVM_VERSION=llvm401
       USE_HOST_COMPILER=1
       return 0
     ;;
     5.0)
-      LLVM_VERSION=llvm50
+      LLVM_VERSION=llvm500
       return 0
     ;;
     6.0)
-      LLVM_VERSION=llvm60
+      LLVM_VERSION=llvm600
       return 0
     ;;
     7.0)
-      LLVM_VERSION=llvm70
+      LLVM_VERSION=llvm700
       return 0
     ;;
     8.0)
-      LLVM_VERSION=llvm80
+      LLVM_VERSION=llvm800
       return 0
     ;;
+    9.0)
+      LLVM_VERSION=llvm900
+      return 0
+    ;;
+    10.0)
+      LLVM_VERSION=llvm1000
+      return 0
+    ;;
+    llvm*)
+      # assume user specified an exact revision manually
+      LLVM_VERSION=${1}
+      return 0
+    ;;
+
     *)
       # unknown option
       echo "[x] Unknown LLVM version ${1}."
@@ -340,6 +409,8 @@ function GetLLVMVersion
 
 function main
 {
+  local build_only=False
+
   while [[ $# -gt 0 ]] ; do
     key="$1"
 
@@ -347,7 +418,7 @@ function main
 
       # Change the default installation prefix.
       --prefix)
-        INSTALL_DIR=$(python -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
+        INSTALL_DIR=$(python3 -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
         echo "[+] New install directory is ${INSTALL_DIR}"
         shift # past argument
       ;;
@@ -363,7 +434,7 @@ function main
 
       # Change the default build directory.
       --build-dir)
-        BUILD_DIR=$(python -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
+        BUILD_DIR=$(python3 -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
         echo "[+] New build directory is ${BUILD_DIR}"
         shift # past argument
       ;;
@@ -385,6 +456,17 @@ function main
         echo "[+] Forcing use of host compiler for build"
       ;;
 
+      --build-only)
+        build_only=True
+        if [ -z ${TRAILOFBITS_LIBRARIES+x} ]
+        then
+          export LIBRARIES=/opt/trailofbits/libraries
+        else
+          export LIBRARIES=${TRAILOFBITS_LIBRARIES}
+        fi
+        echo "[+] Assuming pre-made libraries exist in ${LIBRARIES}"
+      ;;
+
       *)
         # unknown option
         echo "[x] Unknown option: ${key}"
@@ -398,8 +480,21 @@ function main
   mkdir -p "${BUILD_DIR}"
   cd "${BUILD_DIR}" || exit 1
 
-  if ! (DownloadLibraries && Configure && Build); then
+  local build_it=False
+  if [[ "${build_only}" = "True" ]]
+  then
+    if (Configure && Build); then
+      build_it=True
+    fi
+  else
+    if (DownloadLibraries && Configure && Build); then
+      build_it=True
+    fi
+  fi
+
+  if [[ "${build_it}" = "False" ]]; then
     echo "[x] Build aborted."
+    return 1
   fi
 
   return $?

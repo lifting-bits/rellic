@@ -28,9 +28,9 @@ jobs:
             - clang-8
       script:
         - clang-8 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
-        - docker build -t rellic-decomp --build-arg LLVM_VERSION=8.0 .
+        - docker build . -t rellic:llvm800-ubuntu18.04-amd64 -f Dockerfile --build-arg UBUNTU_VERSION=18.04 --build-arg ARCH=amd64 --build-arg LLVM_VERSION=800
         - |
           docker run --rm -t \
             -v "$(pwd)":/test -w /test \
             -u "$(id -u)":"$(id -g)" \
-            rellic-decomp:latest --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+            rellic:llvm800-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout

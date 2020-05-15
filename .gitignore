@@ -31,6 +31,8 @@ generated/*
 
 tools/build/*
 
+rellic-build
+
 # LLVM bitcode files
 *.ll
 *.bc

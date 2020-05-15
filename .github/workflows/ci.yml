@@ -18,7 +18,7 @@ jobs:
         sudo apt-get install -qqy git python3 unzip curl realpath build-essential gcc-multilib g++-multilib libomp-dev libtinfo-dev lsb-release
         scripts/build.sh --llvm-version llvm800 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
     - name: Test Rellic Build
-    - run: |
+      run: |
         /opt/trailofbits/rellic-decomp-8.0  --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
   Docker_Linux:
     runs-on: ubuntu-latest

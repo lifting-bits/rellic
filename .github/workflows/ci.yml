@@ -23,7 +23,9 @@ jobs:
         cd ..
     - name: Test Rellic Build
       run: |
-        /opt/trailofbits/rellic/bin/rellic-decomp-8.0 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+        ls -lR .
+        ls -lR ${GITHUB_WORKSPACE}
+        /opt/trailofbits/rellic/bin/rellic-decomp-8.0 --input ${GITHUB_WORKSPACE}/tests/tools/decomp/issue_4.bc --output /dev/stdout
   Docker_Linux:
     runs-on: ubuntu-latest
     strategy:

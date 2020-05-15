@@ -15,7 +15,7 @@ jobs:
     - name: Native LLVM 8.0 on Ubuntu 18.04 Build
       run: |
         sudo apt-get update
-        sudo apt-get install -y ninja-build unzip libomp-dev
+        sudo apt-get install -y ninja-build unzip libomp-dev libomp5 libtinfo-dev lsb-release
         scripts/build.sh --llvm-version llvm800 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
     - name: Test Rellic Build
       run: |

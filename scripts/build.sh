@@ -120,6 +120,12 @@ function DownloadCxxCommon
   # Make sure modification times are not in the future.
   find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
 
+  if [ -z ${TRAILOFBITS_LIBRARIES+x} ]
+  then
+    # needed for cmake to find our packages
+    export TRAILOFBITS_LIBRARIES="${BUILD_DIR}/libraries"
+  fi
+
   return 0
 }
 

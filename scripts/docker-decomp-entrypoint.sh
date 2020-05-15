@@ -2,7 +2,7 @@
 
 # Needed to process multiple arguments to docker image
 
-local V=""
+V=""
 case ${LLVM_VERSION} in 
   llvm35*)
     V=3.5

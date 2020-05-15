@@ -23,25 +23,15 @@ RUN apt-get update && \
 
 # Build-time dependencies go here
 FROM trailofbits/cxx-common:llvm${LLVM_VERSION}-${DISTRO_BASE}-${ARCH} as deps
-ARG UBUNTU_VERSION
 ARG LLVM_VERSION
 ARG LIBRARIES
 ARG Z3_ARCHIVE
 ARG Z3_VERSION
 
 RUN apt-get update && \
-    if [ "${UBUNTU_VERSION}" = "16.04" ] ; then \
-      apt-get install -y software-properties-common && \
-      add-apt-repository ppa:deadsnakes/ppa && \
-      apt-get update && \
-      apt-get install -y python3.7 ; \
-    elif [ "${UBUNTU_VERSION}" = "18.04" ] ; then \
-      apt-get install -y python3.7 ; \
-    else \
-      apt-get install -y python3 ; \
-    fi && \
     apt-get install -y \
      curl \
+     python3 \
      unzip \
      ninja-build \
      libomp-dev && \
@@ -79,7 +69,7 @@ RUN cd rellic-build && \
 FROM base as install
 ARG LLVM_VERSION
 
-COPY --from=build /opt/trailofbits/rellic /opt/trailofbits/rellic
 COPY scripts/docker-decomp-entrypoint.sh /opt/trailofbits/rellic
+COPY --from=build /opt/trailofbits/rellic /opt/trailofbits/rellic
 ENV LLVM_VERSION=llvm${LLVM_VERSION}
 ENTRYPOINT ["/opt/trailofbits/rellic/docker-decomp-entrypoint.sh"]

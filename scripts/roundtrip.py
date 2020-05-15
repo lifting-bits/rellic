@@ -1,24 +1,4 @@
-#!/bin/sh
-
-# Shell commands follow
-# Next line is bilingual: it starts a comment in Python, and is a no-op in shell
-""":"
-
-# Find a suitable python interpreter (python3.7 or up, defaulting to regular
-# python3 or python as last resort)
-for cmd in python3.7 python3.8 python3 python ; do
-   command -v > /dev/null $cmd && exec $cmd $0 "$@"
-done
-
-echo "Python not found, exiting!" >2
-
-exit 2
-
-":"""
-# Previous line is bilingual: it ends a comment in Python, and is a no-op in shell
-# Shell commands end here
-# Python script follows
-# Credit for above: https://stackoverflow.com/a/47886254
+#!/usr/bin/env python3
 
 import unittest
 import subprocess
@@ -38,8 +18,9 @@ class RunError(Exception):
 
 def run_cmd(cmd, timeout):
     try:
-        p = subprocess.run(cmd, capture_output=True,
-                           timeout=timeout, text=True)
+        p = subprocess.run(cmd, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           timeout=timeout, universal_newlines=True)
     except FileNotFoundError as e:
         raise RunError(
             "Error: No such file or directory: \"" +
@@ -131,10 +112,9 @@ if __name__ == "__main__":
             roundtrip(self, args.rellic, path, args.clang, args.timeout)
         return test
 
-    with os.scandir(args.tests) as it:
-        for item in it:
-            test_name = 'test_%s' % os.path.splitext(item.name)[0]
-            test = test_generator(item.path)
-            setattr(TestRoundtrip, test_name, test)
+    for item in os.scandir(args.tests):
+        test_name = 'test_%s' % os.path.splitext(item.name)[0]
+        test = test_generator(item.path)
+        setattr(TestRoundtrip, test_name, test)
 
     unittest.main(argv=[sys.argv[0]])

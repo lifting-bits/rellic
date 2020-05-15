@@ -44,7 +44,7 @@ sudo apt-get upgrade
 
 sudo apt-get install \
      git \
-     python3.7 \
+     python3 \
      wget \
      unzip \
      curl \
@@ -57,8 +57,6 @@ sudo apt-get install \
 # Ubuntu 14.04, 16.04
 sudo apt-get install realpath
 ```
-
-Note: The test script requires Python 3.7 and higher. If you're using Ubuntu 18.04 or older check the [Dockerfile](./Dockerfile) on how to install Python 3.7.
 
 The next step is to clone the Rellic repository.
 

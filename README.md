@@ -8,7 +8,7 @@ The design philosophy behind the project is to provide a relatively small and ea
 
 |       | master |
 | ----- | ------ |
-| Linux | [![Build Status](https://travis-ci.org/lifting-bits/rellic.svg?branch=master)](https://travis-ci.org/trailofbits/rellic)|
+| Linux | [![Build Status](https://github.com/lifting-bits/rellic/workflows/CI/badge.svg)](https://github.com/lifting-bits/rellic/actions?query=workflow%3ACI)|
 
 ## Getting Help
 

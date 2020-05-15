@@ -8,6 +8,18 @@ on:
     # run CI every day even if no PRs/merges occur
     - cron:  '0 6 * * *'
 jobs:
+  Native_Linux:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Native LLVM 8.0 on Ubuntu 18.04 Build
+      run: |
+        sudo apt-get -qq update
+        sudo apt-get install -qqy git python3 unzip curl realpath build-essential gcc-multilib g++-multilib libomp-dev libtinfo-dev lsb-release
+        scripts/build.sh --llvm-version llvm800 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
+    - name: Test Rellic Build
+    - run: |
+        /opt/trailofbits/rellic-decomp-8.0  --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
   Docker_Linux:
     runs-on: ubuntu-latest
     strategy:

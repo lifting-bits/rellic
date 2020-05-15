@@ -17,6 +17,10 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ninja-build unzip libomp-dev libomp5 libtinfo-dev lsb-release
         scripts/build.sh --llvm-version llvm800 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
+        cd rellic-build
+        CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
+        CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target install
+        cd ..
     - name: Test Rellic Build
       run: |
         /opt/trailofbits/rellic-decomp-8.0  --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout

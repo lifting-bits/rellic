@@ -10,9 +10,9 @@ ARG Z3_VERSION=4.7.1
 ARG Z3_OS_VERSION=ubuntu-16.04
 ARG Z3_ARCHIVE=z3-${Z3_VERSION}-x64-${Z3_OS_VERSION}
 
+
 # Run-time dependencies go here
 FROM ${BUILD_BASE} as base
-#FROM ubuntu:18.04 as base
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
@@ -20,28 +20,33 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+
 # Build-time dependencies go here
 FROM trailofbits/cxx-common:llvm${LLVM_VERSION}-${DISTRO_BASE}-${ARCH} as deps
-RUN apt-get update && \
-    apt-get install -y \
-     curl \
-     unzip \
-     python2.7 \
-     python3.7 \
-     ninja-build \
-     libomp-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Source code build
-FROM deps as build
+ARG UBUNTU_VERSION
 ARG LLVM_VERSION
 ARG LIBRARIES
 ARG Z3_ARCHIVE
 ARG Z3_VERSION
 
-ENV TRAILOFBITS_LIBRARIES="${LIBRARIES}"
-WORKDIR /rellic-build
+RUN apt-get update && \
+    if [ "${UBUNTU_VERSION}" = "16.04" ] ; then \
+      apt-get install -y software-properties-common && \
+      add-apt-repository ppa:deadsnakes/ppa && \
+      apt-get update && \
+      apt-get install -y python3.7 ; \
+    elif [ "${UBUNTU_VERSION}" = "18.04" ] ; then \
+      apt-get install -y python3.7 ; \
+    else \
+      apt-get install -y python3 ; \
+    fi && \
+    apt-get install -y \
+     curl \
+     unzip \
+     ninja-build \
+     libomp-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 #TODO: replace with git clone & build of the version to work on non-amd64 arch
 RUN curl -k -OL "https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/${Z3_ARCHIVE}.zip" && \
@@ -49,6 +54,14 @@ RUN curl -k -OL "https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSIO
     mv "${Z3_ARCHIVE}" "${LIBRARIES}/z3" && \
     rm "${Z3_ARCHIVE}.zip"
 
+
+# Source code build
+FROM deps as build
+ARG LLVM_VERSION
+ARG LIBRARIES
+ENV TRAILOFBITS_LIBRARIES="${LIBRARIES}"
+
+WORKDIR /rellic-build
 COPY ./ ./
 # LLVM 7.0 doesn't work without `--use-host-compiler`
 RUN ./scripts/build.sh \
@@ -58,8 +71,9 @@ RUN ./scripts/build.sh \
   --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release" \
   --build-only
 RUN cd rellic-build && \
-    "${LIBRARIES}/cmake/bin/cmake" --build . --verbose --target test && \
+    CTEST_OUTPUT_ON_FAILURE=1 "${LIBRARIES}/cmake/bin/cmake" --build . --verbose --target test && \
     "${LIBRARIES}/cmake/bin/cmake" --build . --target install
+
 
 # Small installation image
 FROM base as install

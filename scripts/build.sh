@@ -418,7 +418,7 @@ function main
 
       # Change the default installation prefix.
       --prefix)
-        INSTALL_DIR=$(python -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
+        INSTALL_DIR=$(python3 -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
         echo "[+] New install directory is ${INSTALL_DIR}"
         shift # past argument
       ;;
@@ -434,7 +434,7 @@ function main
 
       # Change the default build directory.
       --build-dir)
-        BUILD_DIR=$(python -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
+        BUILD_DIR=$(python3 -c "import os; import sys; sys.stdout.write(os.path.abspath('${2}'))")
         echo "[+] New build directory is ${BUILD_DIR}"
         shift # past argument
       ;;

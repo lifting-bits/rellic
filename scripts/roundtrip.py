@@ -1,4 +1,24 @@
-#!/usr/bin/env python3.7
+#!/bin/sh
+
+# Shell commands follow
+# Next line is bilingual: it starts a comment in Python, and is a no-op in shell
+""":"
+
+# Find a suitable python interpreter (python3.7 or up, defaulting to regular
+# python3 or python as last resort)
+for cmd in python3.7 python3.8 python3 python ; do
+   command -v > /dev/null $cmd && exec $cmd $0 "$@"
+done
+
+echo "Python not found, exiting!" >2
+
+exit 2
+
+":"""
+# Previous line is bilingual: it ends a comment in Python, and is a no-op in shell
+# Shell commands end here
+# Python script follows
+# Credit for above: https://stackoverflow.com/a/47886254
 
 import unittest
 import subprocess

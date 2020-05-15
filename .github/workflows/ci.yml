@@ -23,9 +23,7 @@ jobs:
         cd ..
     - name: Test Rellic Build
       run: |
-        ls -lR .
-        ls -lR ${GITHUB_WORKSPACE}
-        /opt/trailofbits/rellic/bin/rellic-decomp-8.0 --input ${GITHUB_WORKSPACE}/tests/tools/decomp/issue_4.bc --output /dev/stdout
+        scripts/roundtrip.py /opt/trailofbits/rellic/bin/rellic-decomp-8.0 $(realpath tests/tools/decomp) $(which clang-8)
   Docker_Linux:
     runs-on: ubuntu-latest
     strategy:

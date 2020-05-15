@@ -69,7 +69,8 @@ RUN cd rellic-build && \
 FROM base as install
 ARG LLVM_VERSION
 
-COPY scripts/docker-decomp-entrypoint.sh /opt/trailofbits/rellic
+RUN mkdir -p /opt/trailofbits
 COPY --from=build /opt/trailofbits/rellic /opt/trailofbits/rellic
+COPY scripts/docker-decomp-entrypoint.sh /opt/trailofbits/rellic
 ENV LLVM_VERSION=llvm${LLVM_VERSION}
 ENTRYPOINT ["/opt/trailofbits/rellic/docker-decomp-entrypoint.sh"]

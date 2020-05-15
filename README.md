@@ -44,7 +44,7 @@ sudo apt-get upgrade
 
 sudo apt-get install \
      git \
-     python2.7 \
+     python3.7 \
      wget \
      unzip \
      curl \
@@ -57,6 +57,8 @@ sudo apt-get install \
 # Ubuntu 14.04, 16.04
 sudo apt-get install realpath
 ```
+
+Note: The test script requires Python 3.7 and higher. If you're using Ubuntu 18.04 or older check the [Dockerfile](./Dockerfile) on how to install Python 3.7.
 
 The next step is to clone the Rellic repository.
 
@@ -82,24 +84,20 @@ The Docker image should provide an environment which can set-up, build, and run 
 
 To build the docker image:
 ```sh
-docker build -t rellic-decomp-40 --build-arg LLVM_VERSION=4.0 .
+docker build . -t rellic:llvm800-ubuntu18.04-amd64 -f Dockerfile --build-arg UBUNTU_VERSION=18.04 --build-arg ARCH=amd64 --build-arg LLVM_VERSION=800
 ```
 
 To run the decompiler, the entrypoint has already been set, but make sure the bitcode you are decompiling is the same LLVM version as the decompiler, and run:
 
 ```sh
 # Get the bc file
-docker run --rm -t \
-  -v $(pwd):/test -w /test \
-  -u $(id -u):$(id -g) \
-  --entrypoint /opt/rellic/libraries/llvm/bin/clang \
-  rellic-decomp-40 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-8 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 # Decompile
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic-decomp-40 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm800-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 To explain the above command more:
@@ -112,6 +110,6 @@ To explain the above command more:
 and 
 
 ```sh
-# Set the user to current user so permissions are right
+# Set the user to current user to ensure correct permissions
 -u $(id -u):$(id -g) \
 ```

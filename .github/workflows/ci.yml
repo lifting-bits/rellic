@@ -19,7 +19,7 @@ jobs:
         scripts/build.sh --llvm-version llvm800 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
         cd rellic-build
         CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
-        make --build . --target install
+        cmake --build . --target install
         cd ..
     - name: Test Rellic Build
       run: |

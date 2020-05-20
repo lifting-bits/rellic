@@ -87,7 +87,7 @@ The Docker image should provide an environment which can set-up, build, and run 
 To build the docker image using LLVM 8.0 for Ubuntu 18.04 on amd64 you can run the following command:
 ```sh
 ARCH=amd64; UBUNTU=18.04; LLVM=800; docker build . \
-  -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH}\
+  -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
   --build-arg UBUNTU_VERSION=${UBUNTU} \
   --build-arg ARCH=${ARCH} \

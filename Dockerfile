@@ -5,51 +5,32 @@ ARG UBUNTU_VERSION=18.04
 ARG DISTRO_BASE=ubuntu${UBUNTU_VERSION}
 ARG BUILD_BASE=ubuntu:${UBUNTU_VERSION}
 ARG LIBRARIES=/opt/trailofbits/libraries
-ARG Z3_VERSION=4.7.1
-#this seems to be static for most Z3 Linux builds
-ARG Z3_OS_VERSION=ubuntu-16.04
-ARG Z3_ARCHIVE=z3-${Z3_VERSION}-x64-${Z3_OS_VERSION}
 
 
 # Run-time dependencies go here
 FROM ${BUILD_BASE} as base
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends \
-     libgomp1 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 
 # Build-time dependencies go here
 FROM trailofbits/cxx-common:llvm${LLVM_VERSION}-${DISTRO_BASE}-${ARCH} as deps
 ARG LLVM_VERSION
 ARG LIBRARIES
-ARG Z3_ARCHIVE
-ARG Z3_VERSION
 
 RUN apt-get update && \
     apt-get install -y \
-     curl \
+     build-essential \
+     libtinfo-dev \
      python3 \
-     unzip \
-     ninja-build \
-     libomp-dev && \
+     ninja-build && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-#TODO: replace with git clone & build of the version to work on non-amd64 arch
-RUN curl -k -OL "https://github.com/Z3Prover/z3/releases/download/z3-${Z3_VERSION}/${Z3_ARCHIVE}.zip" && \
-    unzip -qq "${Z3_ARCHIVE}.zip" && \
-    mv "${Z3_ARCHIVE}" "${LIBRARIES}/z3" && \
-    rm "${Z3_ARCHIVE}.zip"
-
 
 # Source code build
 FROM deps as build
 ARG LLVM_VERSION
 ARG LIBRARIES
 ENV TRAILOFBITS_LIBRARIES="${LIBRARIES}"
+ENV PATH="${LIBRARIES}/llvm/bin/:${LIBRARIES}/cmake/bin:${PATH}"
+ENV CC=clang CXX=clang++
 
 WORKDIR /rellic-build
 COPY ./ ./
@@ -63,7 +44,6 @@ RUN ./scripts/build.sh \
 RUN cd rellic-build && \
     CTEST_OUTPUT_ON_FAILURE=1 "${LIBRARIES}/cmake/bin/cmake" --build . --verbose --target test && \
     "${LIBRARIES}/cmake/bin/cmake" --build . --target install
-
 
 # Small installation image
 FROM base as install

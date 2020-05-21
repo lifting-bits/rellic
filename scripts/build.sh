@@ -27,6 +27,7 @@ OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
 USE_HOST_COMPILER=0
+LIBRARIES="${BUILD_DIR}/libraries"
 
 Z3_ARCHIVE=z3-
 Z3_VERSION=4.7.1
@@ -118,6 +119,12 @@ function DownloadCxxCommon
 
   # Make sure modification times are not in the future.
   find "${BUILD_DIR}/libraries" -type f -exec touch {} \;
+
+  if [ -z ${TRAILOFBITS_LIBRARIES+x} ]
+  then
+    # needed for cmake to find our packages
+    export TRAILOFBITS_LIBRARIES="${BUILD_DIR}/libraries"
+  fi
 
   return 0
 }
@@ -292,10 +299,6 @@ function Configure
 {
   # Tell the rellic CMakeLists.txt where the extracted libraries are.
   echo "[+] Configuring..."
-  if [ -z ${LIBRARIES+x} ]
-  then
-    export LIBRARIES="${BUILD_DIR}/libraries"
-  fi
   export PATH="${LIBRARIES}/cmake/bin:${LIBRARIES}/llvm/bin:${PATH}"
 
   if [[ "${USE_HOST_COMPILER}" = "1" ]] ; then

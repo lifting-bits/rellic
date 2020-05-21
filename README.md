@@ -8,7 +8,7 @@ The design philosophy behind the project is to provide a relatively small and ea
 
 |       | master |
 | ----- | ------ |
-| Linux | [![Build Status](https://travis-ci.org/lifting-bits/rellic.svg?branch=master)](https://travis-ci.org/trailofbits/rellic)|
+| Linux | [![Build Status](https://github.com/lifting-bits/rellic/workflows/CI/badge.svg)](https://github.com/lifting-bits/rellic/actions?query=workflow%3ACI)|
 
 ## Getting Help
 
@@ -31,6 +31,10 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | [LLVM](http://llvm.org/) | 4.0+|
 | [Clang](http://clang.llvm.org/) | 4.0+|
 | [Z3](https://github.com/Z3Prover/z3) | 4.7.1+ |
+
+## Pre-made Docker Images
+
+Pre-built Docker images are available on [Docker Hub](https://hub.docker.com/repository/docker/trailofbits/rellic) and the Github Package Registry.
 
 ## Getting and Building the Code
 
@@ -78,11 +82,16 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 
 ### Docker image
 
-The Docker image should provide an environment which can set-up, build, and run rellic.
+The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
 
-To build the docker image:
+To build the docker image using LLVM 8.0 for Ubuntu 18.04 on amd64 you can run the following command:
 ```sh
-docker build . -t rellic:llvm800-ubuntu18.04-amd64 -f Dockerfile --build-arg UBUNTU_VERSION=18.04 --build-arg ARCH=amd64 --build-arg LLVM_VERSION=800
+ARCH=amd64; UBUNTU=18.04; LLVM=800; docker build . \
+  -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
+  -f Dockerfile \
+  --build-arg UBUNTU_VERSION=${UBUNTU} \
+  --build-arg ARCH=${ARCH} \
+  --build-arg LLVM_VERSION=${LLVM}
 ```
 
 To run the decompiler, the entrypoint has already been set, but make sure the bitcode you are decompiling is the same LLVM version as the decompiler, and run:

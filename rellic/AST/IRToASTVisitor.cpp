@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -164,7 +164,8 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     // Floats
     case llvm::Type::HalfTyID:
     case llvm::Type::FloatTyID:
-    case llvm::Type::DoubleTyID: {
+    case llvm::Type::DoubleTyID:
+    case llvm::Type::X86_FP80TyID: {
       auto val = llvm::cast<llvm::ConstantFP>(constant)->getValueAPF();
       result = CreateFloatingLiteral(ast_ctx, val, c_type);
     } break;
@@ -712,6 +713,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     case llvm::BinaryOperator::Mul:
+    case llvm::BinaryOperator::FMul:
       binop = BinOpExpr(clang::BO_Mul, type);
       break;
 
@@ -757,16 +759,19 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   switch (inst.getPredicate()) {
     case llvm::CmpInst::ICMP_UGT:
     case llvm::CmpInst::ICMP_SGT:
+    case llvm::CmpInst::FCMP_OGT:
       cmp = CmpExpr(clang::BO_GT);
       break;
 
     case llvm::CmpInst::ICMP_ULT:
     case llvm::CmpInst::ICMP_SLT:
+    case llvm::CmpInst::FCMP_OLT:
       cmp = CmpExpr(clang::BO_LT);
       break;
 
     case llvm::CmpInst::ICMP_UGE:
     case llvm::CmpInst::ICMP_SGE:
+    case llvm::CmpInst::FCMP_OGE:
       cmp = CmpExpr(clang::BO_GE);
       break;
 
@@ -782,6 +787,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       break;
 
     case llvm::CmpInst::ICMP_NE:
+    case llvm::CmpInst::FCMP_UNE:
       cmp = CmpExpr(clang::BO_NE);
       break;
 
@@ -838,6 +844,15 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
 
     case llvm::CastInst::SIToFP:
       cast = CastExpr(clang::CastKind::CK_IntegralToFloating);
+      break;
+
+    case llvm::CastInst::FPToSI:
+      cast = CastExpr(clang::CastKind::CK_FloatingToIntegral);
+      break;
+
+    case llvm::CastInst::FPExt:
+    case llvm::CastInst::FPTrunc:
+      cast = CastExpr(clang::CastKind::CK_FloatingCast);
       break;
 
     default:

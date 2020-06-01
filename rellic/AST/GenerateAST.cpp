@@ -331,7 +331,9 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto exit_stmt =
         CreateIfStmt(*ast_ctx, cond, CreateCompoundStmt(*ast_ctx, break_stmt));
     // Insert it after the exiting block statement
+    DLOG(INFO) << "SATAN 1";
     loop_body.insert(std::next(it), exit_stmt);
+    DLOG(INFO) << "SATAN 2";
   }
   // Create the loop statement
   auto loop_stmt = CreateWhileStmt(*ast_ctx, CreateTrueExpr(*ast_ctx),

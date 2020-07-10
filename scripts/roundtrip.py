@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 
 import unittest
 import subprocess
@@ -18,8 +18,9 @@ class RunError(Exception):
 
 def run_cmd(cmd, timeout):
     try:
-        p = subprocess.run(cmd, capture_output=True,
-                           timeout=timeout, text=True)
+        p = subprocess.run(cmd, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           timeout=timeout, universal_newlines=True)
     except FileNotFoundError as e:
         raise RunError(
             "Error: No such file or directory: \"" +
@@ -111,10 +112,9 @@ if __name__ == "__main__":
             roundtrip(self, args.rellic, path, args.clang, args.timeout)
         return test
 
-    with os.scandir(args.tests) as it:
-        for item in it:
-            test_name = 'test_%s' % os.path.splitext(item.name)[0]
-            test = test_generator(item.path)
-            setattr(TestRoundtrip, test_name, test)
+    for item in os.scandir(args.tests):
+        test_name = 'test_%s' % os.path.splitext(item.name)[0]
+        test = test_generator(item.path)
+        setattr(TestRoundtrip, test_name, test)
 
     unittest.main(argv=[sys.argv[0]])

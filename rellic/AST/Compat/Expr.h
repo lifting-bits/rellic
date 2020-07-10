@@ -34,4 +34,8 @@ clang::Expr *CreateCallExpr(clang::ASTContext &ctx, clang::Expr *func,
                             std::vector<clang::Expr *> &args,
                             clang::QualType res_type);
 
+clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
+                              clang::ValueDecl *member, clang::QualType type,
+                              bool is_arrow);
+
 }  // namespace rellic

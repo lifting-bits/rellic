@@ -19,6 +19,7 @@ endif ()
 
 project(rellic)
 cmake_minimum_required(VERSION 3.2)
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/settings.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
@@ -73,19 +74,26 @@ set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
-if (DEFINED Z3_INSTALL_PREFIX)
+set(LLVM_Z3_INSTALL_DIR "${Z3_INSTALL_PREFIX}")
+find_package(Z3 4.7.1 MODULE)
+if(Z3_FOUND)
+  list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIR})
+  list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
+elseif (DEFINED Z3_INSTALL_PREFIX)
   # acquire OpenMP for z3
-  find_package(OpenMP REQUIRED)
+  find_package(OpenMP)
   # import libz3.a
   add_library(z3 STATIC IMPORTED)
   set_target_properties(z3 PROPERTIES IMPORTED_LOCATION ${Z3_INSTALL_PREFIX}/bin/libz3.a)
   # set variables
   list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INSTALL_PREFIX}/include)
-  list(APPEND PROJECT_LIBRARIES OpenMP::OpenMP_CXX z3)
-else ()
-  find_package(Z3 REQUIRED)
-  list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIRS})
-  list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
+  if(OpenMP_CXX_FOUND)
+    list(APPEND PROJECT_LIBRARIES OpenMP::OpenMP_CXX z3)
+  else()
+    message(WARNING "OpenMP libraries not found Z3 may not work")
+  endif()
+else()
+  message(FATAL_ERROR "Could not find Z3 installation")
 endif()
 
 # google log module

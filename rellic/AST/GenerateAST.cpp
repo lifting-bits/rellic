@@ -260,10 +260,13 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
         // Remove it as a loop successor
         successors.erase(block);
         // Add a successor of `block` to the set of discovered blocks if
-        // if it is not a loop member and if the loop header dominates it.
+        // if it is a region member, if it is NOT a loop member and if
+        // the loop header dominates it.
         auto header = loop->getHeader();
+        auto region = regions->getRegionFor(header);
         for (auto succ : llvm::successors(block)) {
-          if (!IsLoopMember(succ) && domtree->dominates(header, succ)) {
+          if (IsRegionBlock(region, succ) && !IsLoopMember(succ) &&
+              domtree->dominates(header, succ)) {
             new_blocks.insert(succ);
           }
         }
@@ -324,8 +327,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
                               CreateEdgeCond(from, to));
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
-    CHECK(it != loop_body.end())
-        << "SATAN: " << from->getParent()->getName().str();
+    CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
     StmtVec break_stmt({CreateBreakStmt(*ast_ctx)});
     auto exit_stmt =

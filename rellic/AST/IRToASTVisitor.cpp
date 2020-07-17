@@ -846,6 +846,7 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
       cast = CastExpr(clang::CastKind::CK_IntegralToFloating);
       break;
 
+    case llvm::CastInst::FPToUI:
     case llvm::CastInst::FPToSI:
       cast = CastExpr(clang::CastKind::CK_FloatingToIntegral);
       break;

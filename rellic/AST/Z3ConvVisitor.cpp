@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#define GOOGLE_STRIP_LOG 1
+// #define GOOGLE_STRIP_LOG 1
+
+#include "rellic/AST/Z3ConvVisitor.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "rellic/AST/Util.h"
-#include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
 
@@ -500,9 +501,13 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
   auto operand = GetOrCreateZ3Expr(c_op->getSubExpr());
   // Create z3 unary op
   switch (c_op->getOpcode()) {
-    case clang::UO_LNot: {
+    case clang::UO_LNot:
       InsertZ3Expr(c_op, !Z3BoolCast(operand));
-    } break;
+      break;
+
+    case clang::UO_Minus:
+      InsertZ3Expr(c_op, -operand);
+      break;
 
     case clang::UO_AddrOf: {
       auto ptr_sort = GetZ3Sort(c_op->getType());
@@ -548,6 +553,22 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
 
     case clang::BO_NE:
       InsertZ3Expr(c_op, lhs != rhs);
+      break;
+
+    case clang::BO_GE:
+      InsertZ3Expr(c_op, lhs >= rhs);
+      break;
+
+    case clang::BO_GT:
+      InsertZ3Expr(c_op, lhs > rhs);
+      break;
+
+    case clang::BO_LE:
+      InsertZ3Expr(c_op, lhs >= rhs);
+      break;
+
+    case clang::BO_LT:
+      InsertZ3Expr(c_op, lhs < rhs);
       break;
 
     case clang::BO_Rem:
@@ -774,6 +795,11 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
                                   ast_ctx->BoolTy);
       break;
 
+    case Z3_OP_SLEQ:
+      c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LE, lhs, rhs,
+                                  ast_ctx->BoolTy);
+      break;
+
     case Z3_OP_AND: {
       c_op = lhs;
       for (auto i = 1U; i < z_op.num_args(); ++i) {
@@ -789,6 +815,19 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
         rhs = GetCExpr(z_op.arg(i));
         c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LOr, c_op, rhs,
                                     ast_ctx->BoolTy);
+      }
+    } break;
+
+    case Z3_OP_CONCAT: {
+      if (auto c_lit = clang::dyn_cast<clang::IntegerLiteral>(lhs)) {
+        auto val = c_lit->getValue();
+        auto s_size = GetZ3SortSize(z_op.get_sort());
+        auto t_sign = val.isNullValue() ? 0 : 1;
+        auto t_op = ast_ctx->getIntTypeForBitwidth(s_size, t_sign);
+        c_op = CreateCStyleCastExpr(*ast_ctx, t_op,
+                                    clang::CastKind::CK_IntegralCast, rhs);
+      } else {
+        LOG(FATAL) << "Unsupported Z3 concat operand!";
       }
     } break;
 

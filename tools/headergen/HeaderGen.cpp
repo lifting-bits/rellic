@@ -26,17 +26,11 @@
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
 
+#include <rellic/Version/Version.h>
+
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR
 #endif
-
-#ifndef RELLIC_VERSION_STRING
-#define RELLIC_VERSION_STRING "unknown"
-#endif  // RELLIC_VERSION_STRING
-
-#ifndef RELLIC_BRANCH_NAME
-#define RELLIC_BRANCH_NAME "unknown"
-#endif  // RELLIC_BRANCH_NAME
 
 DEFINE_string(input, "", "Input header file.");
 DEFINE_string(output, "", "Output file.");
@@ -56,6 +50,33 @@ static std::string ReadFile(std::string path) {
 
 }  // namespace
 
+static void SetVersion(void) {
+  std::stringstream version;
+
+  auto vs = rellic::Version::GetVersionString();
+  if(0 == vs.size()) {
+      vs = "unknown";
+  }
+  version << vs << "\n";
+  if(!rellic::Version::HasVersionData()) {
+    version << "No extended version information found!\n";
+  } else {
+    version << "Commit Hash: " << rellic::Version::GetCommitHash() << "\n";
+    version << "Commit Date: " << rellic::Version::GetCommitDate() << "\n";
+    version << "Last commit by: " << rellic::Version::GetAuthorName() << " [" << rellic::Version::GetAuthorEmail() << "]\n";
+    version << "Commit Subject: [" << rellic::Version::GetCommitSubject() << "]\n";
+    version << "\n";
+    if(rellic::Version::HasUncommittedChanges()) {
+      version << "Uncommitted changes were present during build.\n";
+    } else  {
+      version << "All changes were committed prior to building.\n";
+    }
+  }
+  version << "Using LLVM " << LLVM_VERSION_STRING << std::endl;
+
+  google::SetVersionString(version.str());
+}
+
 int main(int argc, char* argv[]) {
   std::stringstream usage;
   usage << std::endl
@@ -69,15 +90,10 @@ int main(int argc, char* argv[]) {
         << "    [--version]" << std::endl
         << std::endl;
 
-  std::stringstream version;
-  version << RELLIC_VERSION_STRING << std::endl
-          << "Built from branch: " << RELLIC_BRANCH_NAME << std::endl
-          << "Using LLVM " << LLVM_VERSION_STRING << std::endl;
-
   google::InitGoogleLogging(argv[0]);
   google::InstallFailureSignalHandler();
   google::SetUsageMessage(usage.str());
-  google::SetVersionString(version.str());
+  SetVersion();
   google::ParseCommandLineFlags(&argc, &argv, true);
 
   LOG_IF(ERROR, FLAGS_input.empty())

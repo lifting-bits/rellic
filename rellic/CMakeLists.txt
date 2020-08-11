@@ -21,4 +21,10 @@ add_library(${PROJECT_NAME} STATIC
   BC/Compat/Value.cpp
 )
 
+#define the RellicVersion project
+add_subdirectory(Version)
+
+#link version information
+target_link_libraries(${PROJECT_NAME} PRIVATE RellicVersion)
+
 add_project_properties(${PROJECT_NAME})

@@ -13,4 +13,4 @@ include("${RELLIC_SOURCE_DIR}/cmake/git_watcher.cmake")
 # Create a library out of the compiled post-configure file.
 add_library(RellicVersion STATIC ${POST_CONFIGURE_FILE})
 target_include_directories(RellicVersion PUBLIC ${RELLIC_SOURCE_DIR})
-add_dependencies(RellicVersion check_git)
+add_dependencies(RellicVersion check_git_${PROJECT_NAME})

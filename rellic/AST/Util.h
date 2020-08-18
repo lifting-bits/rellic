@@ -109,6 +109,8 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
 
 clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx);
 
+clang::Expr *CreateUndefExpr(clang::ASTContext &ctx, clang::QualType type);
+
 clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
                                   clang::CastKind cast, clang::Expr *op);
 

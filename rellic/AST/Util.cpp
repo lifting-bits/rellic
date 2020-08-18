@@ -16,12 +16,13 @@
 
 #define GOOGLE_STRIP_LOG 1
 
+#include "rellic/AST/Util.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/Expr.h"
 #include "rellic/AST/Compat/Stmt.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -214,6 +215,13 @@ clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
   auto zero = CreateIntegerLiteral(ctx, val, type);
   return CreateCStyleCastExpr(ctx, ctx.VoidPtrTy,
                               clang::CastKind::CK_NullToPointer, zero);
+}
+
+clang::Expr *CreateUndefExpr(clang::ASTContext &ctx, clang::QualType type) {
+  auto null = CreateNullPointerExpr(ctx);
+  auto cast = CreateCStyleCastExpr(ctx, ctx.getPointerType(type),
+                                   clang::CastKind::CK_NullToPointer, null);
+  return CreateUnaryOperator(ctx, clang::UO_Deref, cast, type);
 }
 
 clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl) {

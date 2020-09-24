@@ -16,16 +16,16 @@
 
 #define GOOGLE_STRIP_LOG 1
 
+#include "rellic/AST/IRToASTVisitor.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <iterator>
+
+#include "rellic/AST/Util.h"
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
-
-#include "rellic/AST/IRToASTVisitor.h"
-#include "rellic/AST/Util.h"
-
-#include <iterator>
 
 namespace rellic {
 
@@ -132,6 +132,10 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       result = ast_ctx.getRecordType(sdecl);
     } break;
 
+    case llvm::Type::MetadataTyID:
+      result = ast_ctx.VoidPtrTy;
+      break;
+
     default:
       LOG(FATAL) << "Unknown LLVM Type";
       break;
@@ -204,9 +208,13 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     } break;
 
     case llvm::Type::PointerTyID: {
-      CHECK(llvm::isa<llvm::ConstantPointerNull>(constant))
-          << "Non-null pointer constant?";
-      result = CreateNullPointerExpr(ast_ctx);
+      if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
+        result = CreateNullPointerExpr(ast_ctx);
+      } else if (llvm::isa<llvm::UndefValue>(constant)) {
+        result = CreateUndefExpr(ast_ctx, c_type);
+      } else {
+        LOG(FATAL) << "Unsupported pointer constant";
+      }
     } break;
 
     case llvm::Type::ArrayTyID: {
@@ -484,8 +492,8 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         CHECK(idx == *inst.idx_begin())
             << "Indexing an llvm::PointerType is only valid at first index";
         IndexPtr(*idx);
-        auto type = llvm::cast<llvm::PointerType>(indexed_type);
-        indexed_type = type->getElementType();
+        indexed_type =
+            llvm::cast<llvm::PointerType>(indexed_type)->getElementType();
       } break;
       // Arrays
       case llvm::Type::ArrayTyID: {
@@ -493,14 +501,14 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
             ast_ctx, ast_ctx.getArrayDecayedType(base->getType()),
             clang::CK_ArrayToPointerDecay, base);
         IndexPtr(*idx);
-        auto type = llvm::cast<llvm::ArrayType>(indexed_type);
-        indexed_type = type->getTypeAtIndex(idx);
+        indexed_type =
+            llvm::cast<llvm::ArrayType>(indexed_type)->getElementType();
       } break;
       // Structures
       case llvm::Type::StructTyID: {
         IndexStruct(*idx);
-        auto type = llvm::cast<llvm::StructType>(indexed_type);
-        indexed_type = type->getTypeAtIndex(idx);
+        indexed_type =
+            llvm::cast<llvm::StructType>(indexed_type)->getTypeAtIndex(idx);
       } break;
       // Unknown
       default:
@@ -513,6 +521,68 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
 
   ref = CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, base,
                             ast_ctx.getPointerType(base->getType()));
+}
+
+void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
+  DLOG(INFO) << "visitExtractValueInst: " << LLVMThingToString(&inst);
+  auto &ref = stmts[&inst];
+  if (ref) {
+    return;
+  }
+
+  auto base = GetOperandExpr(inst.getAggregateOperand());
+  auto indexed_type = inst.getAggregateOperand()->getType();
+
+  auto IndexPtr = [&](unsigned ev_idx) {
+    auto base_type = base->getType();
+    CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
+    auto type = clang::cast<clang::PointerType>(base_type)->getPointeeType();
+    auto idx = CreateIntegerLiteral(
+        ast_ctx,
+        llvm::APInt(ast_ctx.getIntWidth(ast_ctx.UnsignedIntTy), ev_idx),
+        ast_ctx.UnsignedIntTy);
+    base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
+  };
+
+  auto IndexStruct = [&](unsigned ev_idx) {
+    auto tdecl = type_decls[indexed_type];
+    CHECK(tdecl) << "Structure declaration doesn't exist";
+    auto record = clang::cast<clang::RecordDecl>(tdecl);
+    auto field_it = record->field_begin();
+    std::advance(field_it, ev_idx);
+    CHECK(field_it != record->field_end())
+        << "ExtractValue index is out of bounds";
+    base = CreateMemberExpr(ast_ctx, base, *field_it, field_it->getType(),
+                            /*is_arrow=*/false);
+  };
+
+  for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
+    switch (indexed_type->getTypeID()) {
+      // Arrays
+      case llvm::Type::ArrayTyID: {
+        base = CreateImplicitCastExpr(
+            ast_ctx, ast_ctx.getArrayDecayedType(base->getType()),
+            clang::CK_ArrayToPointerDecay, base);
+        IndexPtr(idx);
+        indexed_type =
+            llvm::cast<llvm::ArrayType>(indexed_type)->getElementType();
+      } break;
+      // Structures
+      case llvm::Type::StructTyID: {
+        IndexStruct(idx);
+        indexed_type =
+            llvm::cast<llvm::StructType>(indexed_type)->getTypeAtIndex(idx);
+      } break;
+
+      default:
+        LOG(FATAL) << "Indexing an unknown aggregate type";
+        break;
+    }
+    // Add parens to preserve expression semantics
+    base = CreateParenExpr(ast_ctx, base);
+  }
+
+  ref = base;
 }
 
 void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {

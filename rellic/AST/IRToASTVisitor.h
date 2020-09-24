@@ -57,6 +57,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   void visitCallInst(llvm::CallInst &inst);
   void visitGetElementPtrInst(llvm::GetElementPtrInst &inst);
+  void visitExtractValueInst(llvm::ExtractValueInst &inst);
   void visitAllocaInst(llvm::AllocaInst &inst);
   void visitLoadInst(llvm::LoadInst &inst);
   void visitStoreInst(llvm::StoreInst &inst);

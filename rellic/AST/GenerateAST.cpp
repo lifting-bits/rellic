@@ -14,23 +14,21 @@
  * limitations under the License.
  */
 
+#include "rellic/AST/GenerateAST.h"
+
+#include <clang/AST/Expr.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
 #include <llvm/ADT/DepthFirstIterator.h>
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/LoopInfo.h>
 
-#include <clang/AST/Expr.h>
-
 #include <algorithm>
 #include <vector>
 
-#include "rellic/BC/Util.h"
-
-#include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/Util.h"
+#include "rellic/BC/Util.h"
 
 namespace rellic {
 
@@ -253,7 +251,7 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
   auto new_blocks = successors;
   while (successors.size() > 1 && !new_blocks.empty()) {
     new_blocks.clear();
-    for (auto block : successors) {
+    for (auto block : BBSet(successors)) {
       // Check if all predecessors of `block` are loop members
       if (std::all_of(llvm::pred_begin(block), llvm::pred_end(block),
                       IsLoopMember)) {
@@ -262,10 +260,13 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
         // Remove it as a loop successor
         successors.erase(block);
         // Add a successor of `block` to the set of discovered blocks if
-        // if it is not a loop member and if the loop header dominates it.
+        // if it is a region member, if it is NOT a loop member and if
+        // the loop header dominates it.
         auto header = loop->getHeader();
+        auto region = regions->getRegionFor(header);
         for (auto succ : llvm::successors(block)) {
-          if (!IsLoopMember(succ) && domtree->dominates(header, succ)) {
+          if (IsRegionBlock(region, succ) && !IsLoopMember(succ) &&
+              domtree->dominates(header, succ)) {
             new_blocks.insert(succ);
           }
         }
@@ -326,6 +327,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
                               CreateEdgeCond(from, to));
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
+    CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
     StmtVec break_stmt({CreateBreakStmt(*ast_ctx)});
     auto exit_stmt =

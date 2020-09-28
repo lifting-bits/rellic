@@ -38,11 +38,19 @@ void InitCompilerInstance(clang::CompilerInstance &ins,
 
 bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map);
 
+template <typename T>
+size_t GetNumDecls(clang::DeclContext *decl_ctx) {
+  size_t result = 0;
+  for (auto decl : decl_ctx->decls()) {
+    if (clang::isa<T>(decl)) {
+      ++result;
+    }
+  }
+  return result;
+}
+
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
                                         std::string name);
-
-clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
-                                      clang::ValueDecl *val);
 
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *body);
@@ -61,6 +69,10 @@ clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
 
 clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
                           clang::Expr *rhs);
+
+clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
+                              clang::DeclContext *decl_ctx,
+                              clang::IdentifierInfo *id, clang::QualType type);
 
 clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
                                       clang::DeclContext *decl_ctx,

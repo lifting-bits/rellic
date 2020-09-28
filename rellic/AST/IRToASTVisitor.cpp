@@ -29,21 +29,6 @@
 
 namespace rellic {
 
-namespace {
-
-template <typename T>
-static size_t GetNumDecls(clang::DeclContext *decl_ctx) {
-  size_t result = 0;
-  for (auto decl : decl_ctx->decls()) {
-    if (clang::isa<T>(decl)) {
-      ++result;
-    }
-  }
-  return result;
-}
-
-}  // namespace
-
 IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
@@ -111,7 +96,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
         auto sname = strct->getName().str();
         if (sname.empty()) {
           auto num = GetNumDecls<clang::TypeDecl>(tudecl);
-          sname = "struct_" + std::to_string(num);
+          sname = "struct" + std::to_string(num);
         }
         // Create a C struct declaration
         auto sid = CreateIdentifier(ast_ctx, sname);
@@ -119,7 +104,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
         // Add fields to the C struct
         for (auto ecnt = 0U; ecnt < strct->getNumElements(); ++ecnt) {
           auto etype = GetQualType(strct->getElementType(ecnt));
-          auto eid = CreateIdentifier(ast_ctx, "field_" + std::to_string(ecnt));
+          auto eid = CreateIdentifier(ast_ctx, "field" + std::to_string(ecnt));
           sdecl->addDecl(CreateFieldDecl(ast_ctx, sdecl, eid, etype));
         }
         // Complete the C struct definition
@@ -246,16 +231,6 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   return result;
 }
 
-clang::VarDecl *IRToASTVisitor::CreateVarDecl(clang::DeclContext *decl_ctx,
-                                              llvm::Type *type,
-                                              std::string name) {
-  DLOG(INFO) << "Creating VarDecl for " << name;
-  return clang::VarDecl::Create(ast_ctx, decl_ctx, clang::SourceLocation(),
-                                clang::SourceLocation(),
-                                CreateIdentifier(ast_ctx, name),
-                                GetQualType(type), nullptr, clang::SC_None);
-}
-
 clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
   // Operand is a constant value
@@ -327,6 +302,10 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
   return stmt;
 }
 
+void IRToASTVisitor::SetStmt(llvm::Value *val, clang::Stmt *stmt) {
+  stmts[val] = stmt;
+}
+
 clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
   auto &decl = value_decls[val];
   if (decl) {
@@ -363,7 +342,8 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     name = "gvar" + std::to_string(num);
   }
   // Create a variable declaration
-  var = CreateVarDecl(tudecl, type, name);
+  var = CreateVarDecl(ast_ctx, tudecl, CreateIdentifier(ast_ctx, name),
+                      GetQualType(type));
   // Create an initalizer literal
   if (gvar.hasInitializer()) {
     clang::cast<clang::VarDecl>(var)->setInit(
@@ -604,7 +584,8 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
       name = "var" + std::to_string(num);
     }
 
-    var = CreateVarDecl(fdecl, inst.getAllocatedType(), name);
+    var = CreateVarDecl(ast_ctx, fdecl, CreateIdentifier(ast_ctx, name),
+                        GetQualType(inst.getAllocatedType()));
     fdecl->addDecl(var);
   }
 

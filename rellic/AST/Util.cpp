@@ -117,6 +117,14 @@ clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
   return CreateBoolBinOp(ctx, clang::BO_LOr, lhs, rhs);
 }
 
+clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
+                              clang::DeclContext *decl_ctx,
+                              clang::IdentifierInfo *id, clang::QualType type) {
+  return clang::VarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+                                clang::SourceLocation(), id, type, nullptr,
+                                clang::SC_None);
+}
+
 clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
                                       clang::DeclContext *decl_ctx,
                                       clang::IdentifierInfo *id,

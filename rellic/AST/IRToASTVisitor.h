@@ -40,9 +40,6 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
 
-  clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx, llvm::Type *type,
-                                std::string name);
-
   clang::Expr *CastOperand(clang::QualType dst, clang::Expr *op);
 
  public:
@@ -50,6 +47,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
+
+  void SetStmt(llvm::Value *val, clang::Stmt *stmt);
 
   void VisitGlobalVar(llvm::GlobalVariable &var);
   void VisitFunctionDecl(llvm::Function &func);

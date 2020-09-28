@@ -199,10 +199,27 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
   for (auto &inst : *block) {
-    if (auto stmt = ast_gen->GetOrCreateStmt(&inst)) {
-      result.push_back(stmt);
+    auto stmt = ast_gen->GetOrCreateStmt(&inst);
+    if (!stmt) {
+      continue;
     }
+    // Create an auxiliary variable `val` that holds the value of `inst`
+    if (llvm::isa<llvm::CallInst>(inst) && inst.mayHaveSideEffects() &&
+        !inst.getType()->isVoidTy()) {
+      auto fdecl = clang::cast<clang::FunctionDecl>(
+          ast_gen->GetOrCreateDecl(inst.getFunction()));
+      auto num = GetNumDecls<clang::VarDecl>(fdecl);
+      auto id = CreateIdentifier(*ast_ctx, "val" + std::to_string(num));
+      auto expr = clang::cast<clang::Expr>(stmt);
+      auto var = CreateVarDecl(*ast_ctx, fdecl, id, expr->getType());
+      var->setInit(expr);
+      stmt = CreateDeclStmt(*ast_ctx, var);
+      ast_gen->SetStmt(&inst, CreateDeclRefExpr(*ast_ctx, var));
+    }
+
+    result.push_back(stmt);
   }
+
   return result;
 }
 

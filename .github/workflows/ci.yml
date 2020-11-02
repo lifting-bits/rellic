@@ -23,7 +23,7 @@ jobs:
         cd ..
     - name: Test Rellic Build
       run: |
-        scripts/roundtrip.py /opt/trailofbits/rellic/bin/rellic-decomp-9.0 $(realpath tests/tools/decomp) $(which clang-8)
+        scripts/roundtrip.py /opt/trailofbits/rellic/bin/rellic-decomp-9.0 $(realpath tests/tools/decomp) $(which clang-9)
   Docker_Linux:
     runs-on: ubuntu-latest
     strategy:

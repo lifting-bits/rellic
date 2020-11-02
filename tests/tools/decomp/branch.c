@@ -1,12 +1,13 @@
 #include <stdio.h>
+#include <stdint.h>
 
 unsigned a = 0;
 unsigned c = 1;
 
 int main(void)
 {
-    unsigned b = (unsigned)&a;
-    unsigned d = (unsigned)&c;
+    uintptr_t b = (uintptr_t)&a;
+    uintptr_t d = (uintptr_t)&c;
     
     if (c) {
         printf("Global variable 'a' of value %u is at ", a);

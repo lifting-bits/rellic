@@ -84,9 +84,9 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 
 The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
 
-To build the docker image using LLVM 8.0 for Ubuntu 18.04 on amd64 you can run the following command:
+To build the docker image using LLVM 9.0 for Ubuntu 18.04 on amd64 you can run the following command:
 ```sh
-ARCH=amd64; UBUNTU=18.04; LLVM=800; docker build . \
+ARCH=amd64; UBUNTU=18.04; LLVM=900; docker build . \
   -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
   --build-arg UBUNTU_VERSION=${UBUNTU} \
@@ -104,7 +104,7 @@ clang-8 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/iss
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic:llvm800-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm900-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 To explain the above command more:

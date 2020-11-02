@@ -114,14 +114,14 @@ std::string GetRegionNameStr(llvm::Region *region) {
     llvm::raw_string_ostream os(entry_name);
     region->getEntry()->printAsOperand(os, false);
   } else
-    entry_name = region->getEntry()->getName();
+    entry_name = region->getEntry()->getName().str();
 
   if (region->getExit()) {
     if (region->getExit()->getName().empty()) {
       llvm::raw_string_ostream os(exit_name);
       region->getExit()->printAsOperand(os, false);
     } else
-      exit_name = region->getExit()->getName();
+      exit_name = region->getExit()->getName().str();
   } else
     exit_name = "<Function Return>";
 

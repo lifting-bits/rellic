@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
+#include "rellic/AST/CXXToCDecl.h"
+
+#include <clang/AST/Mangle.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <clang/AST/Mangle.h>
-
-#include "rellic/AST/CXXToCDecl.h"
+#include "rellic/AST/Compat/Mangle.h"
 #include "rellic/AST/Compat/Type.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
 
-CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTContext &ctx)
-    : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {}
+namespace {
 
-std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
+static std::string GetMangledName(clang::NamedDecl *decl) {
   auto mangler = decl->getASTContext().createMangleContext();
   std::string buffer;
   if (mangler->shouldMangleDeclName(decl)) {
@@ -37,9 +37,11 @@ std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
       auto type = clang::QualType(type_decl->getTypeForDecl(), 0);
       mangler->mangleTypeName(type, os);
     } else if (auto cst = clang::dyn_cast<clang::CXXConstructorDecl>(decl)) {
-      mangler->mangleCXXCtor(cst, clang::Ctor_Complete, os);
+      MangleNameCXXCtor(mangler, cst, os);
+      // mangler->mangleCXXCtor(cst, clang::Ctor_Complete, os);
     } else if (auto dst = clang::dyn_cast<clang::CXXDestructorDecl>(decl)) {
-      mangler->mangleCXXDtor(dst, clang::Dtor_Complete, os);
+      MangleNameCXXDtor(mangler, dst, os);
+      // mangler->mangleCXXDtor(dst, clang::Dtor_Complete, os);
     } else {
       mangler->mangleName(decl, os);
     }
@@ -47,6 +49,11 @@ std::string CXXToCDeclVisitor::GetMangledName(clang::NamedDecl *decl) {
   }
   return buffer.empty() ? decl->getNameAsString() : buffer;
 }
+
+}  // namespace
+
+CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTContext &ctx)
+    : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {}
 
 clang::QualType CXXToCDeclVisitor::GetAsCType(clang::QualType type) {
   const clang::Type *result;
@@ -192,7 +199,7 @@ bool CXXToCDeclVisitor::VisitFieldDecl(clang::FieldDecl *field) {
   CHECK(iter != c_decls.end()) << "Field " << name << " does not have a parent";
   auto parent = clang::cast<clang::RecordDecl>(iter->second);
   // Create the field
-  auto id = CreateIdentifier(ast_ctx, field->getName());
+  auto id = CreateIdentifier(ast_ctx, field->getName().str());
   auto type = GetAsCType(field->getType());
   auto decl = CreateFieldDecl(ast_ctx, parent, id, type);
   // Save the result

@@ -45,7 +45,7 @@ static std::string ReadFile(std::string path) {
     auto msg = err_or_buf.getError().message();
     LOG(FATAL) << "Failed to read input file: " << msg;
   }
-  return err_or_buf.get()->getBuffer();
+  return err_or_buf.get()->getBuffer().str();
 }
 
 }  // namespace

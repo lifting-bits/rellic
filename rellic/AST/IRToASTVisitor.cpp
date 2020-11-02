@@ -82,9 +82,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     case llvm::Type::ArrayTyID: {
       auto arr = llvm::cast<llvm::ArrayType>(type);
       auto elm = GetQualType(arr->getElementType());
-      result = ast_ctx.getConstantArrayType(
-          elm, llvm::APInt(32, arr->getNumElements()),
-          clang::ArrayType::ArraySizeModifier::Normal, 0);
+      result = GetConstantArrayType(ast_ctx, elm, arr->getNumElements());
     } break;
 
     case llvm::Type::StructTyID: {
@@ -207,7 +205,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       if (elm_type->isIntegerTy(8)) {
         std::string init = "";
         if (auto arr = llvm::dyn_cast<llvm::ConstantDataArray>(constant)) {
-          init = arr->getAsString();
+          init = arr->getAsString().str();
         }
         result = CreateStringLiteral(ast_ctx, init, c_type);
       } else {
@@ -219,12 +217,12 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       result = CreateInitListLiteral();
     } break;
 
-    case llvm::Type::VectorTyID: {
-      LOG(FATAL) << "Unimplemented VectorTyID";
-    } break;
-
     default:
-      LOG(FATAL) << "Unknown LLVM constant type";
+      if (l_type->isVectorTy()) {
+        LOG(FATAL) << "Unimplemented VectorTyID";
+      } else {
+        LOG(FATAL) << "Unknown LLVM constant type";
+      }
       break;
   }
 
@@ -418,7 +416,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     args.push_back(cast);
   }
 
-  auto callee = inst.getCalledValue();
+  auto callee = inst.getCalledOperand();
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
     auto decl = GetOrCreateDecl(func)->getAsFunction();
     auto ptr = ast_ctx.getPointerType(decl->getType());

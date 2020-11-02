@@ -15,6 +15,7 @@
  */
 
 #include "rellic/AST/Compat/Expr.h"
+
 #include "rellic/BC/Version.h"
 
 namespace rellic {
@@ -23,7 +24,11 @@ clang::UnaryOperator *CreateUnaryOperator(clang::ASTContext &ast_ctx,
                                           clang::UnaryOperatorKind opc,
                                           clang::Expr *op,
                                           clang::QualType res_type) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(7, 0)
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
+  return clang::UnaryOperator::Create(
+      ast_ctx, op, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
+      clang::SourceLocation(), false, clang::FPOptionsOverride());
+#elif LLVM_VERSION_NUMBER >= LLVM_VERSION(7, 0)
   return new (ast_ctx)
       clang::UnaryOperator(op, opc, res_type, clang::VK_RValue,
                            clang::OK_Ordinary, clang::SourceLocation(), false);
@@ -38,7 +43,11 @@ clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
                                             clang::BinaryOperatorKind opc,
                                             clang::Expr *lhs, clang::Expr *rhs,
                                             clang::QualType res_type) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(5, 0)
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
+  return clang::BinaryOperator::Create(
+      ast_ctx, lhs, rhs, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
+      clang::SourceLocation(), clang::FPOptionsOverride());
+#elif LLVM_VERSION_NUMBER >= LLVM_VERSION(5, 0)
   return new (ast_ctx) clang::BinaryOperator(
       lhs, rhs, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
       clang::SourceLocation(), clang::FPOptions());

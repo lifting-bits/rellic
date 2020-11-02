@@ -17,6 +17,7 @@
 #pragma once
 
 #include <llvm/IR/Module.h>
+#include <llvm/Pass.h>
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
@@ -36,13 +37,13 @@ class ReachBasedRefine : public llvm::ModulePass,
   z3::tactic z3_solver;
 
   z3::expr GetZ3Cond(clang::IfStmt *ifstmt);
-  
+
   bool Prove(z3::expr expr);
 
   using IfStmtVec = std::vector<clang::IfStmt *>;
-  
+
   void CreateIfElseStmts(IfStmtVec stmts);
- 
+
  public:
   static char ID;
 

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <llvm/IR/Module.h>
+#include <llvm/Pass.h>
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
@@ -33,8 +34,7 @@ class NestedScopeCombiner : public llvm::ModulePass,
  public:
   static char ID;
 
-  NestedScopeCombiner(clang::ASTContext &ctx,
-                      rellic::IRToASTVisitor &ast_gen);
+  NestedScopeCombiner(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
@@ -42,8 +42,8 @@ class NestedScopeCombiner : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createNestedScopeCombinerPass(clang::ASTContext &ctx,
-                                                rellic::IRToASTVisitor &ast_gen);
+llvm::ModulePass *createNestedScopeCombinerPass(
+    clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {

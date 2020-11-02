@@ -16,11 +16,10 @@
 
 #pragma once
 
-#include <llvm/IR/Module.h>
-
-#include <z3++.h>
-
 #include <clang/AST/RecursiveASTVisitor.h>
+#include <llvm/IR/Module.h>
+#include <llvm/Pass.h>
+#include <z3++.h>
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"

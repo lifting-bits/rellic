@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <llvm/Support/Host.h>
+
 #include <clang/AST/ASTContext.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/CompilerInstance.h>

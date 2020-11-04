@@ -17,6 +17,7 @@
 #include "rellic/AST/Compat/Mangle.h"
 
 #include <clang/AST/GlobalDecl.h>
+#include <clang/AST/Mangle.h>
 
 #include "rellic/BC/Version.h"
 

@@ -16,7 +16,15 @@
 
 #pragma once
 
-#include <clang/AST/Mangle.h>
+namespace llvm {
+class raw_ostream;
+}
+
+namespace clang {
+class MangleContext;
+class CXXConstructorDecl;
+class CXXDestructorDecl;
+}  // namespace clang
 
 namespace rellic {
 

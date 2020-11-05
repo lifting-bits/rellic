@@ -15,6 +15,7 @@
  */
 
 #include "rellic/AST/Compat/Stmt.h"
+
 #include "rellic/BC/Version.h"
 
 namespace rellic {
@@ -38,7 +39,11 @@ clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
 
 clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
                                   clang::Stmt *body) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
+  return clang::WhileStmt::Create(
+      ctx, nullptr, cond, body, clang::SourceLocation(),
+      clang::SourceLocation(), clang::SourceLocation());
+#elif LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
   return clang::WhileStmt::Create(ctx, nullptr, cond, body,
                                   clang::SourceLocation());
 #else

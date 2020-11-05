@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
+#include <clang/Basic/TargetInfo.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/InitializePasses.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <memory>
 #include <system_error>
-
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/Support/raw_ostream.h>
-
-#include <clang/Basic/TargetInfo.h>
 
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
@@ -35,9 +34,7 @@
 #include "rellic/AST/NestedScopeCombiner.h"
 #include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/Z3CondSimplify.h"
-
 #include "rellic/BC/Util.h"
-
 #include "rellic/Version/Version.h"
 
 #ifndef LLVM_VERSION_STRING
@@ -128,21 +125,23 @@ static void SetVersion(void) {
   std::stringstream version;
 
   auto vs = rellic::Version::GetVersionString();
-  if(0 == vs.size()) {
-      vs = "unknown";
+  if (0 == vs.size()) {
+    vs = "unknown";
   }
   version << vs << "\n";
-  if(!rellic::Version::HasVersionData()) {
+  if (!rellic::Version::HasVersionData()) {
     version << "No extended version information found!\n";
   } else {
     version << "Commit Hash: " << rellic::Version::GetCommitHash() << "\n";
     version << "Commit Date: " << rellic::Version::GetCommitDate() << "\n";
-    version << "Last commit by: " << rellic::Version::GetAuthorName() << " [" << rellic::Version::GetAuthorEmail() << "]\n";
-    version << "Commit Subject: [" << rellic::Version::GetCommitSubject() << "]\n";
+    version << "Last commit by: " << rellic::Version::GetAuthorName() << " ["
+            << rellic::Version::GetAuthorEmail() << "]\n";
+    version << "Commit Subject: [" << rellic::Version::GetCommitSubject()
+            << "]\n";
     version << "\n";
-    if(rellic::Version::HasUncommittedChanges()) {
+    if (rellic::Version::HasUncommittedChanges()) {
       version << "Uncommitted changes were present during build.\n";
-    } else  {
+    } else {
       version << "All changes were committed prior to building.\n";
     }
   }

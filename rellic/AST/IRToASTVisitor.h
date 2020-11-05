@@ -19,11 +19,10 @@
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/Operator.h>
 
-#include <clang/AST/ASTContext.h>
-#include <clang/Frontend/CompilerInstance.h>
-
 #include <memory>
 #include <unordered_map>
+
+#include "rellic/AST/Compat/ASTContext.h"
 
 namespace rellic {
 

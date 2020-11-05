@@ -17,6 +17,7 @@
 #pragma once
 
 #include <llvm/IR/Module.h>
+#include <llvm/Pass.h>
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
@@ -31,7 +32,7 @@ class CondBasedRefine : public llvm::ModulePass,
   rellic::IRToASTVisitor *ast_gen;
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
-  
+
   z3::tactic z3_solver;
 
   z3::expr GetZ3Cond(clang::IfStmt *ifstmt);

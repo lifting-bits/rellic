@@ -32,7 +32,6 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
 
   std::unordered_map<clang::Decl *, clang::Decl *> c_decls;
 
-  std::string GetMangledName(clang::NamedDecl *decl);
   clang::QualType GetAsCType(clang::QualType type);
 
  public:

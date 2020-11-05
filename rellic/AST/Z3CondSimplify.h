@@ -17,6 +17,7 @@
 #pragma once
 
 #include <llvm/IR/Module.h>
+#include <llvm/Pass.h>
 
 #include <z3++.h>
 

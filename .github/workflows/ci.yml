@@ -12,24 +12,24 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
-    - name: Native LLVM 8.0 on Ubuntu 18.04 Build
+    - name: Native LLVM 9.0 on Ubuntu 18.04 Build
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build unzip libomp-dev libomp5 libtinfo-dev lsb-release
-        scripts/build.sh --llvm-version llvm800 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
+        scripts/build.sh --llvm-version llvm900 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
         cd rellic-build
         CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
         cmake --build . --target install
         cd ..
     - name: Test Rellic Build
       run: |
-        scripts/roundtrip.py /opt/trailofbits/rellic/bin/rellic-decomp-8.0 $(realpath tests/tools/decomp) $(which clang-8)
+        scripts/roundtrip.py /opt/trailofbits/rellic/bin/rellic-decomp-9.0 $(realpath tests/tools/decomp) $(which clang-9)
   Docker_Linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["800", "900"]
-        ubuntu: ["20.04", "19.10", "18.04"]
+        llvm: ["900", "1000", "1100"]
+        ubuntu: ["20.04", "18.04"]
     steps:
     - uses: actions/checkout@v2
     - name: Build LLVM ${{ matrix.llvm }} on ${{ matrix.ubuntu }}

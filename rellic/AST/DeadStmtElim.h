@@ -17,6 +17,7 @@
 #pragma once
 
 #include <llvm/IR/Module.h>
+#include <llvm/Pass.h>
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"

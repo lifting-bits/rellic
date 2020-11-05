@@ -21,6 +21,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -169,8 +170,7 @@ z3::sort Z3ConvVisitor::GetZ3Sort(clang::QualType type) {
   // Structures
   if (type->isStructureType()) {
     auto decl = clang::cast<clang::RecordType>(type)->getDecl();
-    auto name = decl->getNameAsString().c_str();
-    return z3_ctx->uninterpreted_sort(name);
+    return z3_ctx->uninterpreted_sort(decl->getNameAsString().c_str());
   }
   auto bitwidth = ast_ctx->getTypeSize(type);
   // Floating points
@@ -229,7 +229,7 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
     } break;
 
     case Z3_FLOATING_POINT_SORT: {
-      auto type = ast_ctx->getRealTypeForBitwidth(GetZ3SortSize(sort));
+      auto type = GetRealTypeForBitwidth(*ast_ctx, GetZ3SortSize(sort));
       auto size = ast_ctx->getTypeSize(type);
       const llvm::fltSemantics *semantics;
       switch (size) {
@@ -294,7 +294,7 @@ clang::Expr *Z3ConvVisitor::GetOrCreateCExpr(z3::expr z_expr) {
 }
 
 bool Z3ConvVisitor::VisitVarDecl(clang::VarDecl *var) {
-  auto name = var->getNameAsString().c_str();
+  auto name = var->getNameAsString();
   DLOG(INFO) << "VisitVarDecl: " << name;
   if (z3_decl_map.count(var)) {
     DLOG(INFO) << "Re-declaration of " << name << "; Returning.";
@@ -311,7 +311,7 @@ bool Z3ConvVisitor::VisitVarDecl(clang::VarDecl *var) {
 }
 
 bool Z3ConvVisitor::VisitFieldDecl(clang::FieldDecl *field) {
-  auto name = field->getNameAsString().c_str();
+  auto name = field->getNameAsString();
   DLOG(INFO) << "VisitFieldDecl: " << name;
   if (z3_decl_map.count(field)) {
     DLOG(INFO) << "Re-declaration of " << name << "; Returning.";

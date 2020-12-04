@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define GOOGLE_STRIP_LOG 1
+// #define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/Z3ConvVisitor.h"
 
@@ -583,8 +583,16 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, lhs - rhs);
       break;
 
+    case clang::BO_Div:
+      InsertZ3Expr(c_op, lhs / rhs);
+      break;
+
     case clang::BO_And:
       InsertZ3Expr(c_op, lhs & rhs);
+      break;
+
+    case clang::BO_Or:
+      InsertZ3Expr(c_op, lhs | rhs);
       break;
 
     case clang::BO_Xor:
@@ -595,6 +603,10 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, c_op->getLHS()->getType()->isSignedIntegerType()
                              ? z3::ashr(lhs, rhs)
                              : z3::lshr(lhs, rhs));
+      break;
+
+    case clang::BO_Shl:
+      InsertZ3Expr(c_op, z3::shl(lhs, rhs));
       break;
 
     default:

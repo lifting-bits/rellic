@@ -950,7 +950,8 @@ void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
 
 void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
   DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
-  LOG(FATAL) << "Uninimplemented llvm::PHINode visitor!";
+  LOG(FATAL) << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
+                "before decompiling.";
 }
 
 }  // namespace rellic

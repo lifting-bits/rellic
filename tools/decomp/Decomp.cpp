@@ -71,19 +71,19 @@ static bool GeneratePseudocode(llvm::Module& module,
   ast.run(module);
 
   // Simplifier to use during condition-based refinement
-  auto cbr_simplifier = new rellic::Z3CondSimplify(ast_ctx, gen);
-  cbr_simplifier->SetZ3Simplifier(
-      // Simplify boolean structure with AIGs
-      z3::tactic(cbr_simplifier->GetZ3Context(), "aig") &
-      // Cheap local simplifier
-      z3::tactic(cbr_simplifier->GetZ3Context(), "simplify"));
+  // auto cbr_simplifier = new rellic::Z3CondSimplify(ast_ctx, gen);
+  // cbr_simplifier->SetZ3Simplifier(
+  //     // Simplify boolean structure with AIGs
+  //     z3::tactic(cbr_simplifier->GetZ3Context(), "aig") &
+  //     // Cheap local simplifier
+  //     z3::tactic(cbr_simplifier->GetZ3Context(), "simplify"));
 
   llvm::legacy::PassManager cbr;
-  cbr.add(cbr_simplifier);
-  cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+  // cbr.add(cbr_simplifier);
+  // cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   cbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
-  cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
-  cbr.add(rellic::createReachBasedRefinePass(ast_ctx, gen));
+  // cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
+  // cbr.add(rellic::createReachBasedRefinePass(ast_ctx, gen));
   while (cbr.run(module))
     ;
 
@@ -94,22 +94,22 @@ static bool GeneratePseudocode(llvm::Module& module,
     ;
 
   // Simplifier to use during final refinement
-  auto fin_simplifier = new rellic::Z3CondSimplify(ast_ctx, gen);
-  fin_simplifier->SetZ3Simplifier(
-      // Simplify boolean structure with AIGs
-      z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
-      // Propagate bounds over bit-vectors
-      z3::tactic(fin_simplifier->GetZ3Context(), "propagate-bv-bounds") &
-      // Eliminate conjunctions using De Morgan laws
-      z3::tactic(fin_simplifier->GetZ3Context(), "elim-and") &
-      // Tseitin transformation
-      z3::tactic(fin_simplifier->GetZ3Context(), "tseitin-cnf") &
-      // Contextual simplification
-      z3::tactic(fin_simplifier->GetZ3Context(), "ctx-simplify"));
+  // auto fin_simplifier = new rellic::Z3CondSimplify(ast_ctx, gen);
+  // fin_simplifier->SetZ3Simplifier(
+  //     // Simplify boolean structure with AIGs
+  //     z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
+  //     // Propagate bounds over bit-vectors
+  //     z3::tactic(fin_simplifier->GetZ3Context(), "propagate-bv-bounds") &
+  //     // Eliminate conjunctions using De Morgan laws
+  //     z3::tactic(fin_simplifier->GetZ3Context(), "elim-and") &
+  //     // Tseitin transformation
+  //     z3::tactic(fin_simplifier->GetZ3Context(), "tseitin-cnf") &
+  //     // Contextual simplification
+  //     z3::tactic(fin_simplifier->GetZ3Context(), "ctx-simplify"));
 
   llvm::legacy::PassManager fin;
-  fin.add(fin_simplifier);
-  fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+  // fin.add(fin_simplifier);
+  // fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
   fin.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
   fin.add(rellic::createExprCombinePass(ast_ctx, gen));
   fin.run(module);

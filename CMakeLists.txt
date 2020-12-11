@@ -17,7 +17,10 @@ if (POLICY CMP0025)
   cmake_policy(SET CMP0025 NEW)
 endif ()
 
-include(cmake/vcpkg_helper.cmake)
+if (NOT DEFINED ENV{TRAILOFBITS_LIBRARIES})
+  message(STATUS "Using new vcpkg build system")
+  include(cmake/vcpkg_helper.cmake)
+endif()
 
 project(rellic)
 cmake_minimum_required(VERSION 3.2)

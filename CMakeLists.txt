@@ -144,7 +144,7 @@ if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
   set(CLANG_PATH ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang)
 else()
   find_package(Clang REQUIRED)
-  set(CLANG_PATH clang)
+  get_target_property(CLANG_PATH clang IMPORTED_LOCATION)
 endif()
 
 add_test(NAME test_roundtrip

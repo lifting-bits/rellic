@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           ./scripts/build_with_vcpkg.sh --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" --llvm-version ${{ matrix.llvm }}
-          cmake --build . --target install
+          cmake --build rellic-build --target install
       - name: Tests
         shell: bash
         working-directory: rellic-build
@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           ./scripts/build_with_vcpkg.sh --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" --llvm-version ${{ matrix.llvm }}
-          cmake --build . --target install
+          cmake --build rellic-build --target install
       - name: Tests
         shell: bash
         working-directory: rellic-build

@@ -48,7 +48,7 @@ jobs:
         working-directory: rellic-build
         run: |
           # Test with CMake provided test
-          env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test -- -j "$(nproc)"
+          env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test
 
           # Run tests manually (kinda ugly, so use CMake way)
           CLANG_BIN="$(find ../../pre-built-llvm-${{ matrix.llvm }} -name clang | grep "bin/clang")"
@@ -82,7 +82,7 @@ jobs:
         working-directory: rellic-build
         run: |
           # Test with CMake provided test
-          env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test -- -j "$(nproc)"
+          env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test
 
           # Run tests manually (kinda ugly, so use CMake way)
           CLANG_BIN="$(find ../../pre-built-llvm-${{ matrix.llvm }} -name clang | grep "bin/clang")"

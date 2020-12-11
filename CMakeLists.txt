@@ -143,9 +143,11 @@ enable_testing()
 if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
   set(CLANG_PATH ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang)
 else()
-  find_package(Clang REQUIRED)
-  get_target_property(CLANG_PATH clang IMPORTED_LOCATION)
+  find_package(Clang CONFIG REQUIRED)
+  get_target_property(CLANG_PATH clang LOCATION)
 endif()
+
+message(STATUS "Clang path for tests: \"${CLANG_PATH}\"")
 
 add_test(NAME test_roundtrip
   COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"

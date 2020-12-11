@@ -140,7 +140,14 @@ add_subdirectory(tools)
 
 enable_testing()
 
+if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
+  set(CLANG_PATH ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang)
+else()
+  find_package(Clang REQUIRED)
+  set(CLANG_PATH clang)
+endif()
+
 add_test(NAME test_roundtrip
-  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang
+  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

@@ -16,7 +16,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build unzip libomp-dev libomp5 libtinfo-dev lsb-release
-        scripts/build.sh --llvm-version llvm900 --prefix /opt/trailofbits/rellic --use-host-compiler --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
+        scripts/build.sh --llvm-version 9 --prefix /opt/trailofbits/rellic --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
         cd rellic-build
         CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
         cmake --build . --target install

@@ -60,22 +60,6 @@ static std::string CreateZ3DeclName(clang::NamedDecl *decl) {
   return ss.str();
 }
 
-static z3::expr CreateZ3BitwiseCast(z3::expr expr, size_t src, size_t dst,
-                                    bool sign) {
-  CHECK(expr.is_bv()) << "z3::expr is not a bitvector!";
-  int64_t diff = dst - src;
-  // extend
-  if (diff > 0) {
-    return sign ? z3::sext(expr, diff) : z3::zext(expr, diff);
-  }
-  // truncate
-  if (diff < 0) {
-    return expr.extract(dst, 1);
-  }
-  // nothing
-  return expr;
-}
-
 }  // namespace
 
 Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx)
@@ -267,6 +251,7 @@ z3::expr Z3ConvVisitor::GetOrCreateZ3Expr(clang::Expr *c_expr) {
   if (!z3_expr_map.count(c_expr)) {
     TraverseStmt(c_expr);
   }
+
   return GetZ3Expr(c_expr);
 }
 
@@ -333,12 +318,34 @@ bool Z3ConvVisitor::VisitFunctionDecl(clang::FunctionDecl *func) {
   return true;
 }
 
+z3::expr Z3ConvVisitor::CreateZ3BitwiseCast(z3::expr expr, size_t src,
+                                            size_t dst, bool sign) {
+  if (expr.is_bool()) {
+    auto s_src{z3_ctx->bool_sort()};
+    auto s_dst{z3_ctx->bv_sort(ast_ctx->getTypeSize(ast_ctx->IntTy))};
+    expr = z3_ctx->function("BoolToBV", s_src, s_dst)(expr);
+  }
+
+  CHECK(expr.is_bv()) << "z3::expr is not a bitvector!";
+
+  int64_t diff = dst - src;
+  // extend
+  if (diff > 0) {
+    return sign ? z3::sext(expr, diff) : z3::zext(expr, diff);
+  }
+  // truncate
+  if (diff < 0) {
+    return expr.extract(dst, 1);
+  }
+  // nothing
+  return expr;
+}
+
 bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
   DLOG(INFO) << "VisitCStyleCastExpr";
   if (z3_expr_map.count(c_cast)) {
     return true;
   }
-
   // C exprs
   auto c_sub = c_cast->getSubExpr();
   // C types
@@ -349,7 +356,6 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
   auto t_dst_size = ast_ctx->getTypeSize(t_dst);
   // Z3 exprs
   auto z_sub = GetOrCreateZ3Expr(c_sub);
-
   auto z_cast = CreateZ3BitwiseCast(z_sub, t_src_size, t_dst_size,
                                     t_src->isSignedIntegerType());
   // Z3 cast function
@@ -535,8 +541,15 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
     return true;
   }
   // Get operands
-  auto lhs = GetOrCreateZ3Expr(c_op->getLHS());
-  auto rhs = GetOrCreateZ3Expr(c_op->getRHS());
+  auto lhs{GetOrCreateZ3Expr(c_op->getLHS())};
+  auto rhs{GetOrCreateZ3Expr(c_op->getRHS())};
+  // Conditionally cast operands to bool
+  auto CondBoolCast{[this, &lhs, &rhs]() {
+    if (lhs.is_bool() || rhs.is_bool()) {
+      lhs = Z3BoolCast(lhs);
+      rhs = Z3BoolCast(rhs);
+    }
+  }};
   // Create z3 binary op
   switch (c_op->getOpcode()) {
     case clang::BO_LAnd:
@@ -547,11 +560,13 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, Z3BoolCast(lhs) || Z3BoolCast(rhs));
       break;
 
-    case clang::BO_EQ:
+    case clang::BO_EQ: {
+      CondBoolCast();
       InsertZ3Expr(c_op, lhs == rhs);
-      break;
+    } break;
 
     case clang::BO_NE:
+      CondBoolCast();
       InsertZ3Expr(c_op, lhs != rhs);
       break;
 
@@ -564,7 +579,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_LE:
-      InsertZ3Expr(c_op, lhs >= rhs);
+      InsertZ3Expr(c_op, lhs <= rhs);
       break;
 
     case clang::BO_LT:
@@ -588,6 +603,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_Xor:
+      CondBoolCast();
       InsertZ3Expr(c_op, lhs ^ rhs);
       break;
 
@@ -601,6 +617,20 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       LOG(FATAL) << "Unknown clang::BinaryOperator operation!";
       break;
   }
+  return true;
+}
+
+bool Z3ConvVisitor::VisitConditionalOperator(clang::ConditionalOperator *c_op) {
+  DLOG(INFO) << "VisitConditionalOperator";
+  if (z3_expr_map.count(c_op)) {
+    return true;
+  }
+
+  auto z3_cond{GetOrCreateZ3Expr(c_op->getCond())};
+  auto z3_then{GetOrCreateZ3Expr(c_op->getTrueExpr())};
+  auto z3_else{GetOrCreateZ3Expr(c_op->getFalseExpr())};
+  InsertZ3Expr(c_op, z3::ite(z3_cond, z3_then, z3_else));
+
   return true;
 }
 
@@ -668,6 +698,10 @@ void Z3ConvVisitor::VisitZ3Expr(z3::expr z_expr) {
         VisitBinaryApp(z_expr);
         break;
 
+      case 3:
+        VisitTernaryApp(z_expr);
+        break;
+
       default:
         LOG(FATAL) << "Unexpected Z3 operation!";
         break;
@@ -721,7 +755,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
   // Get z3 function declaration
   auto z_func = z_op.decl();
   // Create C unary operator
-  clang::Expr *c_op = nullptr;
+  clang::Expr *c_op{nullptr};
   switch (z_func.decl_kind()) {
     case Z3_OP_NOT:
       c_op = CreateNotExpr(*ast_ctx, c_sub);
@@ -738,7 +772,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
 
     case Z3_OP_UNINTERPRETED: {
       // Resolve opcode
-      auto z_func_name = z_func.name().str();
+      auto z_func_name{z_func.name().str()};
       if (z_func_name == "AddrOf") {
         auto t_op = ast_ctx->getPointerType(t_sub);
         c_op = CreateUnaryOperator(*ast_ctx, clang::UO_AddrOf, c_sub, t_op);
@@ -758,6 +792,8 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         auto t_op = ast_ctx->getIntTypeForBitwidth(s_size, /*sign=*/0);
         c_op = CreateCStyleCastExpr(
             *ast_ctx, t_op, clang::CastKind::CK_PointerToIntegral, c_sub);
+      } else if (z_func_name == "BoolToBV") {
+        c_op = c_sub;
       } else {
         LOG(FATAL) << "Unknown Z3 uninterpreted function";
       }
@@ -788,16 +824,16 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
   // Get z3 function declaration
   auto z_func = z_op.decl();
   // Create C binary operator
-  clang::Expr *c_op = nullptr;
+  clang::Expr *c_op{nullptr};
   switch (z_func.decl_kind()) {
     case Z3_OP_EQ:
       c_op = CreateBinaryOperator(*ast_ctx, clang::BO_EQ, lhs, rhs,
-                                  ast_ctx->BoolTy);
+                                  ast_ctx->IntTy);
       break;
 
     case Z3_OP_SLEQ:
       c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LE, lhs, rhs,
-                                  ast_ctx->BoolTy);
+                                  ast_ctx->IntTy);
       break;
 
     case Z3_OP_AND: {
@@ -805,7 +841,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       for (auto i = 1U; i < z_op.num_args(); ++i) {
         rhs = GetCExpr(z_op.arg(i));
         c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LAnd, c_op, rhs,
-                                    ast_ctx->BoolTy);
+                                    ast_ctx->IntTy);
       }
     } break;
 
@@ -814,7 +850,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       for (auto i = 1U; i < z_op.num_args(); ++i) {
         rhs = GetCExpr(z_op.arg(i));
         c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LOr, c_op, rhs,
-                                    ast_ctx->BoolTy);
+                                    ast_ctx->IntTy);
       }
     } break;
 
@@ -866,6 +902,32 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       }
     } break;
 
+    // Unknowns
+    default:
+      LOG(FATAL) << "Unknown Z3 binary operator!";
+      break;
+  }
+  // Save
+  InsertCExpr(z_op, c_op);
+}
+
+void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
+  DLOG(INFO) << "VisitTernaryApp: " << z_op;
+  CHECK(z_op.is_app() && z_op.decl().arity() == 3)
+      << "Z3 expression is not a ternary operator!";
+  // Get Z3 function declaration
+  auto z_func{z_op.decl()};
+  // Create C binary operator
+  clang::Expr *c_op{nullptr};
+  switch (z_func.decl_kind()) {
+    case Z3_OP_ITE: {
+      auto c_cond{GetCExpr(z_op.arg(0))};
+      auto c_then{GetCExpr(z_op.arg(1))};
+      auto c_else{GetCExpr(z_op.arg(2))};
+      c_op = CreateConditionalOperatorExpr(*ast_ctx, c_cond, c_then, c_else,
+                                           c_then->getType());
+      c_op = CreateParenExpr(*ast_ctx, c_op);
+    } break;
     // Unknowns
     default:
       LOG(FATAL) << "Unknown Z3 binary operator!";

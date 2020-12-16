@@ -17,6 +17,11 @@ if (POLICY CMP0025)
   cmake_policy(SET CMP0025 NEW)
 endif ()
 
+if (NOT DEFINED ENV{TRAILOFBITS_LIBRARIES})
+  message(STATUS "Using new vcpkg build system")
+  include(cmake/vcpkg_helper.cmake)
+endif()
+
 project(rellic)
 cmake_minimum_required(VERSION 3.2)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
@@ -135,7 +140,16 @@ add_subdirectory(tools)
 
 enable_testing()
 
+if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
+  set(CLANG_PATH ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang)
+else()
+  find_package(Clang CONFIG REQUIRED)
+  get_target_property(CLANG_PATH clang LOCATION)
+endif()
+
+message(STATUS "Clang path for tests: \"${CLANG_PATH}\"")
+
 add_test(NAME test_roundtrip
-  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang
+  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

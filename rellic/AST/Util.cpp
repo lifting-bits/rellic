@@ -38,7 +38,7 @@ static clang::Expr *CreateBoolBinOp(clang::ASTContext &ctx,
   } else if (!rhs) {
     return lhs;
   } else {
-    return CreateBinaryOperator(ctx, opc, lhs, rhs, ctx.BoolTy);
+    return CreateBinaryOperator(ctx, opc, lhs, rhs, ctx.IntTy);
   }
 }
 
@@ -104,7 +104,7 @@ clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
 clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
   CHECK(op) << "No operand given for unary logical expression";
   return CreateUnaryOperator(ctx, clang::UO_LNot, CreateParenExpr(ctx, op),
-                             ctx.BoolTy);
+                             ctx.IntTy);
 }
 
 clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,

@@ -58,8 +58,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     case llvm::Type::IntegerTyID: {
       auto size = type->getIntegerBitWidth();
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result =
-          size == 1 ? ast_ctx.BoolTy : ast_ctx.getIntTypeForBitwidth(size, 0);
+      result = ast_ctx.getIntTypeForBitwidth(size, 0);
+          // size == 1 ? ast_ctx.BoolTy : ast_ctx.getIntTypeForBitwidth(size, 0);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -785,7 +785,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto CmpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc) {
     return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
                                 CastOperand(lhs->getType(), rhs),
-                                ast_ctx.BoolTy);
+                                ast_ctx.IntTy);
   };
   // Sign-cast int operand
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {

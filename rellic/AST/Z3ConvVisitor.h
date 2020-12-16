@@ -17,7 +17,6 @@
 #pragma once
 
 #include <clang/AST/RecursiveASTVisitor.h>
-
 #include <z3++.h>
 
 #include <unordered_map>
@@ -53,7 +52,10 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   z3::sort GetZ3Sort(clang::QualType type);
 
   clang::Expr *CreateLiteralExpr(z3::expr z3_expr);
-  
+
+  z3::expr CreateZ3BitwiseCast(z3::expr expr, size_t src, size_t dst,
+                               bool sign);
+
   void VisitZ3Expr(z3::expr z3_expr);
 
  public:
@@ -75,6 +77,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   bool VisitParenExpr(clang::ParenExpr *parens);
   bool VisitUnaryOperator(clang::UnaryOperator *c_op);
   bool VisitBinaryOperator(clang::BinaryOperator *c_op);
+  bool VisitConditionalOperator(clang::ConditionalOperator *c_op);
   bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
   bool VisitCharacterLiteral(clang::CharacterLiteral *c_lit);
   bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
@@ -92,6 +95,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   void VisitConstant(z3::expr z3_const);
   void VisitUnaryApp(z3::expr z3_op);
   void VisitBinaryApp(z3::expr z3_op);
+  void VisitTernaryApp(z3::expr z3_op);
 };
 
 }  // namespace rellic

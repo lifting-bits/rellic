@@ -58,8 +58,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     case llvm::Type::IntegerTyID: {
       auto size = type->getIntegerBitWidth();
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = ast_ctx.getIntTypeForBitwidth(size, 0);
-          // size == 1 ? ast_ctx.BoolTy : ast_ctx.getIntTypeForBitwidth(size, 0);
+      result = size == 1 ? ast_ctx.IntTy : ast_ctx.getIntTypeForBitwidth(size, 0);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -132,12 +131,12 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
 clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   DLOG(INFO) << "Creating literal Expr for " << LLVMThingToString(constant);
 
-  clang::Expr *result = nullptr;
+  clang::Expr *result{nullptr};
 
-  auto l_type = constant->getType();
-  auto c_type = GetQualType(l_type);
+  auto l_type{constant->getType()};
+  auto c_type{GetQualType(l_type)};
 
-  auto CreateInitListLiteral = [this, &constant, &c_type] {
+  auto CreateInitListLiteral{[this, &constant, &c_type] {
     std::vector<clang::Expr *> init_exprs;
     if (!constant->isZeroValue()) {
       for (auto i = 0U; auto elm = constant->getAggregateElement(i); ++i) {
@@ -145,7 +144,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       }
     }
     return CreateInitListExpr(ast_ctx, init_exprs, c_type);
-  };
+  }};
 
   switch (l_type->getTypeID()) {
     // Floats
@@ -153,12 +152,12 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     case llvm::Type::FloatTyID:
     case llvm::Type::DoubleTyID:
     case llvm::Type::X86_FP80TyID: {
-      auto val = llvm::cast<llvm::ConstantFP>(constant)->getValueAPF();
+      auto val{llvm::cast<llvm::ConstantFP>(constant)->getValueAPF()};
       result = CreateFloatingLiteral(ast_ctx, val, c_type);
     } break;
     // Integers
     case llvm::Type::IntegerTyID: {
-      auto val = llvm::cast<llvm::ConstantInt>(constant)->getValue();
+      auto val{llvm::cast<llvm::ConstantInt>(constant)->getValue()};
       switch (clang::cast<clang::BuiltinType>(c_type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
         case clang::BuiltinType::Kind::SChar:
@@ -201,7 +200,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     } break;
 
     case llvm::Type::ArrayTyID: {
-      auto elm_type = llvm::cast<llvm::ArrayType>(l_type)->getElementType();
+      auto elm_type{llvm::cast<llvm::ArrayType>(l_type)->getElementType()};
       if (elm_type->isIntegerTy(8)) {
         std::string init = "";
         if (auto arr = llvm::dyn_cast<llvm::ConstantDataArray>(constant)) {

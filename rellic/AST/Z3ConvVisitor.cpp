@@ -603,6 +603,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_Xor:
+      CondBoolCast();
       InsertZ3Expr(c_op, lhs ^ rhs);
       break;
 

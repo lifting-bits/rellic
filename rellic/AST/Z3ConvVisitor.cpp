@@ -195,27 +195,29 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
 
   switch (sort.sort_kind()) {
     case Z3_BOOL_SORT: {
-      auto type = ast_ctx->UnsignedIntTy;
-      auto size = ast_ctx->getIntWidth(type);
+      auto type{ast_ctx->UnsignedIntTy};
+      auto size{ast_ctx->getIntWidth(type)};
       llvm::APInt val(size, z_expr.bool_value() == Z3_L_TRUE ? 1 : 0);
       result = CreateIntegerLiteral(*ast_ctx, val, type);
     } break;
 
     case Z3_BV_SORT: {
-      auto type = ast_ctx->getIntTypeForBitwidth(GetZ3SortSize(sort), 0);
-      auto size = ast_ctx->getIntWidth(type);
-      llvm::APInt val(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
-      if (type->isCharType()) {
-        result = CreateCharacterLiteral(*ast_ctx, val, type);
+      auto s_size{GetZ3SortSize(sort)};
+      auto &ti{ast_ctx->getTargetInfo()};
+      auto t_size{ti.getTypeWidth(ti.getLeastIntTypeByWidth(s_size, 0))};
+      auto t_lit{ast_ctx->getIntTypeForBitwidth(t_size, 0)};
+      llvm::APInt val(t_size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
+      if (t_lit->isCharType()) {
+        result = CreateCharacterLiteral(*ast_ctx, val, t_lit);
       } else {
-        result = CreateIntegerLiteral(*ast_ctx, val, type);
+        result = CreateIntegerLiteral(*ast_ctx, val, t_lit);
       }
     } break;
 
     case Z3_FLOATING_POINT_SORT: {
-      auto type = GetRealTypeForBitwidth(*ast_ctx, GetZ3SortSize(sort));
-      auto size = ast_ctx->getTypeSize(type);
-      const llvm::fltSemantics *semantics;
+      auto type{GetRealTypeForBitwidth(*ast_ctx, GetZ3SortSize(sort))};
+      auto size{ast_ctx->getIntWidth(type)};
+      const llvm::fltSemantics *semantics{nullptr};
       switch (size) {
         case 16:
           semantics = &llvm::APFloat::IEEEhalf();
@@ -598,8 +600,16 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, lhs - rhs);
       break;
 
+    case clang::BO_Div:
+      InsertZ3Expr(c_op, lhs / rhs);
+      break;
+
     case clang::BO_And:
       InsertZ3Expr(c_op, lhs & rhs);
+      break;
+
+    case clang::BO_Or:
+      InsertZ3Expr(c_op, lhs | rhs);
       break;
 
     case clang::BO_Xor:
@@ -611,6 +621,10 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, c_op->getLHS()->getType()->isSignedIntegerType()
                              ? z3::ashr(lhs, rhs)
                              : z3::lshr(lhs, rhs));
+      break;
+
+    case clang::BO_Shl:
+      InsertZ3Expr(c_op, z3::shl(lhs, rhs));
       break;
 
     default:
@@ -717,8 +731,8 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
   DLOG(INFO) << "VisitConstant: " << z_const;
   CHECK(z_const.is_const()) << "Z3 expression is not a constant!";
   // Create C literals and variable references
-  auto kind = z_const.decl().decl_kind();
-  clang::Expr *c_expr = nullptr;
+  auto kind{z_const.decl().decl_kind()};
+  clang::Expr *c_expr{nullptr};
   switch (kind) {
     // Boolean literals
     case Z3_OP_TRUE:
@@ -763,9 +777,11 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
 
     case Z3_OP_EXTRACT: {
       CHECK(t_sub->isIntegerType()) << "Extract operand is not an integer";
-      auto s_size = GetZ3SortSize(z_op.get_sort());
-      auto t_sign = t_sub->isSignedIntegerType();
-      auto t_op = ast_ctx->getIntTypeForBitwidth(s_size, t_sign);
+      auto s_size{GetZ3SortSize(z_op.get_sort())};
+      auto t_sign{t_sub->isSignedIntegerType()};
+      auto &ti{ast_ctx->getTargetInfo()};
+      auto t_size{ti.getTypeWidth(ti.getLeastIntTypeByWidth(s_size, t_sign))};
+      auto t_op{ast_ctx->getIntTypeForBitwidth(t_size, t_sign)};
       c_op = CreateCStyleCastExpr(*ast_ctx, t_op,
                                   clang::CastKind::CK_IntegralCast, c_sub);
     } break;
@@ -869,6 +885,12 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
 
     case Z3_OP_BADD:
       c_op = CreateBinaryOperator(*ast_ctx, clang::BO_Add, lhs, rhs,
+                                  GetIntResultType());
+      break;
+
+    case Z3_OP_BSDIV:
+    case Z3_OP_BSDIV_I:
+      c_op = CreateBinaryOperator(*ast_ctx, clang::BO_Div, lhs, rhs,
                                   GetIntResultType());
       break;
 

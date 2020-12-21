@@ -265,6 +265,22 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   return nullptr;
 }
 
+clang::Decl *IRToASTVisitor::GetOrCreateIntrinsic(llvm::InlineAsm *val) {
+  auto &decl = value_decls[val];
+  if (decl) {
+    return decl;
+  }
+
+  auto tudecl = ast_ctx.getTranslationUnitDecl();
+  auto num = GetNumDecls<clang::FunctionDecl>(tudecl);
+  auto name = "asm_" + std::to_string(num);
+  auto id = CreateIdentifier(ast_ctx, name);
+  auto type = GetQualType(val->getType()->getPointerElementType());
+  decl = CreateFunctionDecl(ast_ctx, tudecl, id, type);
+
+  return decl;
+}
+
 clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
   auto &stmt = stmts[val];
   if (stmt) {
@@ -377,10 +393,9 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl = ast_ctx.getTranslationUnitDecl();
-  auto type = llvm::cast<llvm::PointerType>(func.getType())->getElementType();
 
   decl = CreateFunctionDecl(ast_ctx, tudecl, CreateIdentifier(ast_ctx, name),
-                            GetQualType(type));
+                            GetQualType(func.getFunctionType()));
 
   tudecl->addDecl(decl);
 
@@ -418,6 +433,13 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   auto callee = inst.getCalledOperand();
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
     auto decl = GetOrCreateDecl(func)->getAsFunction();
+    auto ptr = ast_ctx.getPointerType(decl->getType());
+    auto ref = CreateDeclRefExpr(ast_ctx, decl);
+    auto cast = CreateImplicitCastExpr(ast_ctx, ptr,
+                                       clang::CK_FunctionToPointerDecay, ref);
+    callexpr = CreateCallExpr(ast_ctx, cast, args, type);
+  } else if (auto iasm = llvm::dyn_cast<llvm::InlineAsm>(callee)) {
+    auto decl = GetOrCreateIntrinsic(iasm)->getAsFunction();
     auto ptr = ast_ctx.getPointerType(decl->getType());
     auto ref = CreateDeclRefExpr(ast_ctx, decl);
     auto cast = CreateImplicitCastExpr(ast_ctx, ptr,
@@ -927,7 +949,8 @@ void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
 
 void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
   DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
-  LOG(FATAL) << "Uninimplemented llvm::PHINode visitor!";
+  LOG(FATAL) << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
+                "before decompiling.";
 }
 
 }  // namespace rellic

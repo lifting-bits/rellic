@@ -18,6 +18,7 @@
 
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/Operator.h>
+#include <llvm/IR/InlineAsm.h>
 
 #include <memory>
 #include <unordered_map>
@@ -40,6 +41,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
 
   clang::Expr *CastOperand(clang::QualType dst, clang::Expr *op);
+  
+  clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
   IRToASTVisitor(clang::ASTContext &ctx);

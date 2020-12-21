@@ -39,7 +39,7 @@ clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
   // Apply on `z3_simplifier` on condition
   auto app = z3_simplifier(goal);
   CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-  auto z3_result = app[0].as_expr().simplify();
+  auto z3_result = app[0].as_expr();
   return z3_gen->GetOrCreateCExpr(z3_result);
 }
 

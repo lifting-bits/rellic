@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/Z3ConvVisitor.h"
 

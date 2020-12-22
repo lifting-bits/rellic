@@ -840,7 +840,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
     return order < 0 ? rht : lht;
   }};
   // Get result type for casts
-  auto GetTypeFromOpaquePtrLiteral{[this, &lhs] {
+  auto GetTypeFromOpaquePtrLiteral{[&lhs] {
     auto c_lit{clang::cast<clang::IntegerLiteral>(lhs)};
     auto t_dst_opaque_ptr_val{c_lit->getValue().getLimitedValue()};
     auto t_dst_opaque_ptr{reinterpret_cast<void *>(t_dst_opaque_ptr_val)};

@@ -360,36 +360,37 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
   auto z_sub = GetOrCreateZ3Expr(c_sub);
   auto z_cast = CreateZ3BitwiseCast(z_sub, t_src_size, t_dst_size,
                                     t_src->isSignedIntegerType());
-  // Z3 cast function
-  // auto ZCastFunc = [this, &z_sub, &z_cast](const char *name) {
-  //   auto s_src = z_sub.get_sort();
-  //   auto s_dst = z_cast.get_sort();
-  //   auto z_func = z3_ctx->function(name, s_src, s_dst);
-  //   return z_func(z_sub);
-  // };
-
+  
   switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_PointerToIntegral: {
-      auto s_src = z_sub.get_sort();
-      auto s_dst = z_cast.get_sort();
-      auto z_func = z3_ctx->function("PtrToInt", s_src, s_dst);
-      z_cast = z_func(z_sub);
+      auto s_src{z_sub.get_sort()};
+      auto s_dst{z_cast.get_sort()};
+      z_cast = z3_ctx->function("PtrToInt", s_src, s_dst)(z_sub);
     } break;
 
     case clang::CastKind::CK_IntegralToPointer: {
-      auto s_src = z_sub.get_sort();
-      auto s_dst = z_cast.get_sort();
-      auto t_dst_opaque_ptr_val =
-          reinterpret_cast<uint64_t>(t_dst.getAsOpaquePtr());
-      auto z_ptr = z3_ctx->bv_val(t_dst_opaque_ptr_val, 8 * sizeof(void *));
-      auto s_ptr = z_ptr.get_sort();
-      auto z_func = z3_ctx->function("IntToPtr", s_ptr, s_src, s_dst);
-      z_cast = z_func(z_ptr, z_sub);
+      auto s_src{z_sub.get_sort()};
+      auto s_dst{z_cast.get_sort()};
+      auto t_dst_opaque_ptr_val{
+          reinterpret_cast<uint64_t>(t_dst.getAsOpaquePtr())};
+      auto z_ptr{z3_ctx->bv_val(t_dst_opaque_ptr_val, 8 * sizeof(void *))};
+      auto s_ptr{z_ptr.get_sort()};
+      z_cast = z3_ctx->function("IntToPtr", s_ptr, s_src, s_dst)(z_ptr, z_sub);
     } break;
 
     case clang::CastKind::CK_IntegralCast:
     case clang::CastKind::CK_NullToPointer:
       break;
+
+    case clang::CastKind::CK_BitCast: {
+      auto s_src{z_sub.get_sort()};
+      auto s_dst{z_cast.get_sort()};
+      auto t_dst_opaque_ptr_val{
+          reinterpret_cast<uint64_t>(t_dst.getAsOpaquePtr())};
+      auto z_ptr{z3_ctx->bv_val(t_dst_opaque_ptr_val, 8 * sizeof(void *))};
+      auto s_ptr{z_ptr.get_sort()};
+      z_cast = z3_ctx->function("BitCast", s_ptr, s_src, s_dst)(z_ptr, z_sub);
+    } break;
 
     default:
       LOG(FATAL) << "Unsupported cast type: " << c_cast->getCastKindName();
@@ -811,7 +812,8 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       } else if (z_func_name == "BoolToBV") {
         c_op = c_sub;
       } else {
-        LOG(FATAL) << "Unknown Z3 uninterpreted function";
+        LOG(FATAL) << "Unknown Z3 uninterpreted unary function: "
+                   << z_func_name;
       }
     } break;
 
@@ -828,17 +830,24 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
   CHECK(z_op.is_app() && z_op.decl().arity() == 2)
       << "Z3 expression is not a binary operator!";
   // Get operands
-  auto lhs = GetCExpr(z_op.arg(0));
-  auto rhs = GetCExpr(z_op.arg(1));
+  auto lhs{GetCExpr(z_op.arg(0))};
+  auto rhs{GetCExpr(z_op.arg(1))};
   // Get result type for integers
-  auto GetIntResultType = [this, &lhs, &rhs] {
-    auto lht = lhs->getType();
-    auto rht = rhs->getType();
-    auto order = ast_ctx->getIntegerTypeOrder(lht, rht);
+  auto GetIntResultType{[this, &lhs, &rhs] {
+    auto lht{lhs->getType()};
+    auto rht{rhs->getType()};
+    auto order{ast_ctx->getIntegerTypeOrder(lht, rht)};
     return order < 0 ? rht : lht;
-  };
+  }};
+  // Get result type for casts
+  auto GetTypeFromOpaquePtrLiteral{[this, &lhs] {
+    auto c_lit{clang::cast<clang::IntegerLiteral>(lhs)};
+    auto t_dst_opaque_ptr_val{c_lit->getValue().getLimitedValue()};
+    auto t_dst_opaque_ptr{reinterpret_cast<void *>(t_dst_opaque_ptr_val)};
+    return clang::QualType::getFromOpaquePtr(t_dst_opaque_ptr);
+  }};
   // Get z3 function declaration
-  auto z_func = z_op.decl();
+  auto z_func{z_op.decl()};
   // Create C binary operator
   clang::Expr *c_op{nullptr};
   switch (z_func.decl_kind()) {
@@ -913,14 +922,13 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
         c_op = CreateMemberExpr(*ast_ctx, lhs, mem, mem->getType(),
                                 /*is_arrow=*/false);
       } else if (name == "IntToPtr") {
-        auto c_lit = clang::cast<clang::IntegerLiteral>(lhs);
-        auto t_dst_opaque_ptr_val = c_lit->getValue().getLimitedValue();
-        auto t_dst_opaque_ptr = reinterpret_cast<void *>(t_dst_opaque_ptr_val);
-        auto t_dst = clang::QualType::getFromOpaquePtr(t_dst_opaque_ptr);
-        c_op = CreateCStyleCastExpr(*ast_ctx, t_dst,
+        c_op = CreateCStyleCastExpr(*ast_ctx, GetTypeFromOpaquePtrLiteral(),
                                     clang::CastKind::CK_IntegralToPointer, rhs);
+      } else if (name == "BitCast") {
+        c_op = CreateCStyleCastExpr(*ast_ctx, GetTypeFromOpaquePtrLiteral(),
+                                    clang::CastKind::CK_BitCast, rhs);
       } else {
-        LOG(FATAL) << "Unknown Z3 uninterpreted function";
+        LOG(FATAL) << "Unknown Z3 uninterpreted binary function: " << name;
       }
     } break;
 

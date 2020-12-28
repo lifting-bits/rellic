@@ -70,8 +70,9 @@ Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx)
 
 // Inserts a `clang::Expr` <=> `z3::expr` mapping into
 void Z3ConvVisitor::InsertZ3Expr(clang::Expr *c_expr, z3::expr z_expr) {
-  auto iter = z3_expr_map.find(c_expr);
-  CHECK(iter == z3_expr_map.end());
+  CHECK(c_expr) << "Inserting null clang::Expr key.";
+  CHECK(bool(z_expr)) << "Inserting null z3::expr value.";
+  CHECK(!z3_expr_map.count(c_expr)) << "clang::Expr key already exists.";
   z3_expr_map[c_expr] = z3_expr_vec.size();
   z3_expr_vec.push_back(z_expr);
 }
@@ -80,7 +81,7 @@ void Z3ConvVisitor::InsertZ3Expr(clang::Expr *c_expr, z3::expr z_expr) {
 // The `z3::expr` needs to be created and inserted by
 // `Z3ConvVisistor::InsertZ3Expr` first.
 z3::expr Z3ConvVisitor::GetZ3Expr(clang::Expr *c_expr) {
-  auto iter = z3_expr_map.find(c_expr);
+  auto iter{z3_expr_map.find(c_expr)};
   CHECK(iter != z3_expr_map.end());
   return z3_expr_vec[iter->second];
 }
@@ -88,8 +89,9 @@ z3::expr Z3ConvVisitor::GetZ3Expr(clang::Expr *c_expr) {
 // Inserts a `clang::ValueDecl` <=> `z3::func_decl` mapping into
 void Z3ConvVisitor::InsertZ3Decl(clang::ValueDecl *c_decl,
                                  z3::func_decl z_decl) {
-  auto iter = z3_decl_map.find(c_decl);
-  CHECK(iter == z3_decl_map.end());
+  CHECK(c_decl) << "Inserting null clang::ValueDecl key.";
+  CHECK(bool(z_decl)) << "Inserting null z3::func_decl value.";
+  CHECK(!z3_decl_map.count(c_decl)) << "clang::ValueDecl key already exists.";
   z3_decl_map[c_decl] = z3_decl_vec.size();
   z3_decl_vec.push_back(z_decl);
 }
@@ -98,7 +100,7 @@ void Z3ConvVisitor::InsertZ3Decl(clang::ValueDecl *c_decl,
 // The `z3::func_decl` needs to be created and inserted by
 // `Z3ConvVisistor::InsertZ3Decl` first.
 z3::func_decl Z3ConvVisitor::GetZ3Decl(clang::ValueDecl *c_decl) {
-  auto iter = z3_decl_map.find(c_decl);
+  auto iter{z3_decl_map.find(c_decl)};
   CHECK(iter != z3_decl_map.end());
   return z3_decl_vec[iter->second];
 }
@@ -110,39 +112,37 @@ z3::expr Z3ConvVisitor::Z3BoolCast(z3::expr expr) {
   if (expr.is_bool()) {
     return expr;
   } else {
-    auto cast = expr != z3_ctx->num_val(0, expr.get_sort());
+    auto cast{expr != z3_ctx->num_val(0, expr.get_sort())};
     return cast.simplify();
   }
 }
 
 void Z3ConvVisitor::InsertCExpr(z3::expr z_expr, clang::Expr *c_expr) {
-  auto hash = z_expr.hash();
-  auto iter = c_expr_map.find(hash);
-  CHECK(iter == c_expr_map.end())
-      << "Z3 equivalent for C declaration already exists!";
+  CHECK(bool(z_expr)) << "Inserting null z3::expr key.";
+  CHECK(c_expr) << "Inserting null clang::Expr value.";
+  auto hash{z_expr.hash()};
+  CHECK(!c_expr_map.count(hash)) << "z3::expr key already exists.";
   c_expr_map[hash] = c_expr;
 }
 
 clang::Expr *Z3ConvVisitor::GetCExpr(z3::expr z_expr) {
-  auto hash = z_expr.hash();
-  auto iter = c_expr_map.find(hash);
-  CHECK(iter != c_expr_map.end()) << "No Z3 equivalent for C declaration!";
+  auto hash{z_expr.hash()};
+  CHECK(c_expr_map.count(hash)) << "No Z3 equivalent for C declaration!";
   return c_expr_map[hash];
 }
 
 void Z3ConvVisitor::InsertCValDecl(z3::func_decl z_decl,
                                    clang::ValueDecl *c_decl) {
-  auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
-  auto iter = c_decl_map.find(id);
-  CHECK(iter == c_decl_map.end())
-      << "C equivalent for Z3 declaration already exists!";
+  CHECK(c_decl) << "Inserting null z3::func_decl key.";
+  CHECK(bool(z_decl)) << "Inserting null clang::ValueDecl value.";
+  auto id{Z3_get_func_decl_id(*z3_ctx, z_decl)};
+  CHECK(!c_decl_map.count(id)) << "z3::func_decl key already exists.";
   c_decl_map[id] = c_decl;
 }
 
 clang::ValueDecl *Z3ConvVisitor::GetCValDecl(z3::func_decl z_decl) {
-  auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
-  auto iter = c_decl_map.find(id);
-  CHECK(iter != c_decl_map.end()) << "No C equivalent for Z3 declaration!";
+  auto id{Z3_get_func_decl_id(*z3_ctx, z_decl)};
+  CHECK(c_decl_map.count(id)) << "No C equivalent for Z3 declaration!";
   return c_decl_map[id];
 }
 
@@ -360,7 +360,7 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
   auto z_sub = GetOrCreateZ3Expr(c_sub);
   auto z_cast = CreateZ3BitwiseCast(z_sub, t_src_size, t_dst_size,
                                     t_src->isSignedIntegerType());
-  
+
   switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_PointerToIntegral: {
       auto s_src{z_sub.get_sort()};
@@ -486,7 +486,9 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
     // Parens may affect semantics of C expressions
     case Z3_OP_UNINTERPRETED: {
       auto sort = z_sub.get_sort();
+      // DLOG(INFO) << "SATAN 1";
       auto z_paren = z3_ctx->function("Paren", sort, sort);
+      // DLOG(INFO) << "SATAN 2";
       InsertZ3Expr(parens, z_paren(z_sub));
     } break;
     // Default to ignoring the parens, Z3 should know how

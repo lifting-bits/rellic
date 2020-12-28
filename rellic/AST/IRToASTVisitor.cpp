@@ -58,7 +58,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     case llvm::Type::IntegerTyID: {
       auto size = type->getIntegerBitWidth();
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = size == 1 ? ast_ctx.IntTy : ast_ctx.getIntTypeForBitwidth(size, 0);
+      result =
+          size == 1 ? ast_ctx.IntTy : ast_ctx.getIntTypeForBitwidth(size, 0);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -715,33 +716,36 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   };
 
   // Get result type
-  auto type = GetQualType(inst.getType());
+  auto l_type{inst.getType()};
+  auto c_type{GetQualType(l_type)};
   // Where the magic happens
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr:
       lhs = IntSignCast(lhs, false);
-      binop = BinOpExpr(clang::BO_Shr, type);
+      binop = BinOpExpr(clang::BO_Shr, c_type);
       break;
 
     case llvm::BinaryOperator::AShr:
       lhs = IntSignCast(lhs, true);
-      binop = BinOpExpr(clang::BO_Shr, type);
+      binop = BinOpExpr(clang::BO_Shr, c_type);
       break;
 
     case llvm::BinaryOperator::Shl:
-      binop = BinOpExpr(clang::BO_Shl, type);
+      binop = BinOpExpr(clang::BO_Shl, c_type);
       break;
 
     case llvm::BinaryOperator::And:
-      binop = BinOpExpr(clang::BO_And, type);
+      binop = BinOpExpr(l_type->isIntegerTy(1) ? clang::BO_LAnd : clang::BO_And,
+                        c_type);
       break;
 
     case llvm::BinaryOperator::Or:
-      binop = BinOpExpr(clang::BO_Or, type);
+      binop = BinOpExpr(l_type->isIntegerTy(1) ? clang::BO_LOr : clang::BO_Or,
+                        c_type);
       break;
 
     case llvm::BinaryOperator::Xor:
-      binop = BinOpExpr(clang::BO_Xor, type);
+      binop = BinOpExpr(clang::BO_Xor, c_type);
       break;
 
     case llvm::BinaryOperator::URem:
@@ -769,22 +773,22 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     case llvm::BinaryOperator::FDiv:
-      binop = BinOpExpr(clang::BO_Div, type);
+      binop = BinOpExpr(clang::BO_Div, c_type);
       break;
 
     case llvm::BinaryOperator::Add:
     case llvm::BinaryOperator::FAdd:
-      binop = BinOpExpr(clang::BO_Add, type);
+      binop = BinOpExpr(clang::BO_Add, c_type);
       break;
 
     case llvm::BinaryOperator::Sub:
     case llvm::BinaryOperator::FSub:
-      binop = BinOpExpr(clang::BO_Sub, type);
+      binop = BinOpExpr(clang::BO_Sub, c_type);
       break;
 
     case llvm::BinaryOperator::Mul:
     case llvm::BinaryOperator::FMul:
-      binop = BinOpExpr(clang::BO_Mul, type);
+      binop = BinOpExpr(clang::BO_Mul, c_type);
       break;
 
     default:

@@ -735,12 +735,12 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     case llvm::BinaryOperator::And:
-      binop = BinOpExpr(l_type->isIntegerTy(1) ? clang::BO_LAnd : clang::BO_And,
-                        c_type);
+      binop = BinOpExpr(
+          l_type->isIntegerTy(1U) ? clang::BO_LAnd : clang::BO_And, c_type);
       break;
 
     case llvm::BinaryOperator::Or:
-      binop = BinOpExpr(l_type->isIntegerTy(1) ? clang::BO_LOr : clang::BO_Or,
+      binop = BinOpExpr(l_type->isIntegerTy(1U) ? clang::BO_LOr : clang::BO_Or,
                         c_type);
       break;
 

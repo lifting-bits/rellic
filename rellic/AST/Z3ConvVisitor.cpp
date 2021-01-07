@@ -485,10 +485,8 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
   switch (z_sub.decl().decl_kind()) {
     // Parens may affect semantics of C expressions
     case Z3_OP_UNINTERPRETED: {
-      auto sort = z_sub.get_sort();
-      // DLOG(INFO) << "SATAN 1";
-      auto z_paren = z3_ctx->function("Paren", sort, sort);
-      // DLOG(INFO) << "SATAN 2";
+      auto sort{z_sub.get_sort()};
+      auto z_paren{z3_ctx->function("Paren", sort, sort)};
       InsertZ3Expr(parens, z_paren(z_sub));
     } break;
     // Default to ignoring the parens, Z3 should know how

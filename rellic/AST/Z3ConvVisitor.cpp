@@ -70,8 +70,9 @@ Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx)
 
 // Inserts a `clang::Expr` <=> `z3::expr` mapping into
 void Z3ConvVisitor::InsertZ3Expr(clang::Expr *c_expr, z3::expr z_expr) {
-  auto iter = z3_expr_map.find(c_expr);
-  CHECK(iter == z3_expr_map.end());
+  CHECK(c_expr) << "Inserting null clang::Expr key.";
+  CHECK(bool(z_expr)) << "Inserting null z3::expr value.";
+  CHECK(!z3_expr_map.count(c_expr)) << "clang::Expr key already exists.";
   z3_expr_map[c_expr] = z3_expr_vec.size();
   z3_expr_vec.push_back(z_expr);
 }
@@ -80,7 +81,7 @@ void Z3ConvVisitor::InsertZ3Expr(clang::Expr *c_expr, z3::expr z_expr) {
 // The `z3::expr` needs to be created and inserted by
 // `Z3ConvVisistor::InsertZ3Expr` first.
 z3::expr Z3ConvVisitor::GetZ3Expr(clang::Expr *c_expr) {
-  auto iter = z3_expr_map.find(c_expr);
+  auto iter{z3_expr_map.find(c_expr)};
   CHECK(iter != z3_expr_map.end());
   return z3_expr_vec[iter->second];
 }
@@ -88,8 +89,9 @@ z3::expr Z3ConvVisitor::GetZ3Expr(clang::Expr *c_expr) {
 // Inserts a `clang::ValueDecl` <=> `z3::func_decl` mapping into
 void Z3ConvVisitor::InsertZ3Decl(clang::ValueDecl *c_decl,
                                  z3::func_decl z_decl) {
-  auto iter = z3_decl_map.find(c_decl);
-  CHECK(iter == z3_decl_map.end());
+  CHECK(c_decl) << "Inserting null clang::ValueDecl key.";
+  CHECK(bool(z_decl)) << "Inserting null z3::func_decl value.";
+  CHECK(!z3_decl_map.count(c_decl)) << "clang::ValueDecl key already exists.";
   z3_decl_map[c_decl] = z3_decl_vec.size();
   z3_decl_vec.push_back(z_decl);
 }
@@ -98,7 +100,7 @@ void Z3ConvVisitor::InsertZ3Decl(clang::ValueDecl *c_decl,
 // The `z3::func_decl` needs to be created and inserted by
 // `Z3ConvVisistor::InsertZ3Decl` first.
 z3::func_decl Z3ConvVisitor::GetZ3Decl(clang::ValueDecl *c_decl) {
-  auto iter = z3_decl_map.find(c_decl);
+  auto iter{z3_decl_map.find(c_decl)};
   CHECK(iter != z3_decl_map.end());
   return z3_decl_vec[iter->second];
 }
@@ -110,39 +112,37 @@ z3::expr Z3ConvVisitor::Z3BoolCast(z3::expr expr) {
   if (expr.is_bool()) {
     return expr;
   } else {
-    auto cast = expr != z3_ctx->num_val(0, expr.get_sort());
+    auto cast{expr != z3_ctx->num_val(0, expr.get_sort())};
     return cast.simplify();
   }
 }
 
 void Z3ConvVisitor::InsertCExpr(z3::expr z_expr, clang::Expr *c_expr) {
-  auto hash = z_expr.hash();
-  auto iter = c_expr_map.find(hash);
-  CHECK(iter == c_expr_map.end())
-      << "Z3 equivalent for C declaration already exists!";
+  CHECK(bool(z_expr)) << "Inserting null z3::expr key.";
+  CHECK(c_expr) << "Inserting null clang::Expr value.";
+  auto hash{z_expr.hash()};
+  CHECK(!c_expr_map.count(hash)) << "z3::expr key already exists.";
   c_expr_map[hash] = c_expr;
 }
 
 clang::Expr *Z3ConvVisitor::GetCExpr(z3::expr z_expr) {
-  auto hash = z_expr.hash();
-  auto iter = c_expr_map.find(hash);
-  CHECK(iter != c_expr_map.end()) << "No Z3 equivalent for C declaration!";
+  auto hash{z_expr.hash()};
+  CHECK(c_expr_map.count(hash)) << "No Z3 equivalent for C declaration!";
   return c_expr_map[hash];
 }
 
 void Z3ConvVisitor::InsertCValDecl(z3::func_decl z_decl,
                                    clang::ValueDecl *c_decl) {
-  auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
-  auto iter = c_decl_map.find(id);
-  CHECK(iter == c_decl_map.end())
-      << "C equivalent for Z3 declaration already exists!";
+  CHECK(c_decl) << "Inserting null z3::func_decl key.";
+  CHECK(bool(z_decl)) << "Inserting null clang::ValueDecl value.";
+  auto id{Z3_get_func_decl_id(*z3_ctx, z_decl)};
+  CHECK(!c_decl_map.count(id)) << "z3::func_decl key already exists.";
   c_decl_map[id] = c_decl;
 }
 
 clang::ValueDecl *Z3ConvVisitor::GetCValDecl(z3::func_decl z_decl) {
-  auto id = Z3_get_func_decl_id(*z3_ctx, z_decl);
-  auto iter = c_decl_map.find(id);
-  CHECK(iter != c_decl_map.end()) << "No C equivalent for Z3 declaration!";
+  auto id{Z3_get_func_decl_id(*z3_ctx, z_decl)};
+  CHECK(c_decl_map.count(id)) << "No C equivalent for Z3 declaration!";
   return c_decl_map[id];
 }
 
@@ -360,36 +360,37 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
   auto z_sub = GetOrCreateZ3Expr(c_sub);
   auto z_cast = CreateZ3BitwiseCast(z_sub, t_src_size, t_dst_size,
                                     t_src->isSignedIntegerType());
-  // Z3 cast function
-  // auto ZCastFunc = [this, &z_sub, &z_cast](const char *name) {
-  //   auto s_src = z_sub.get_sort();
-  //   auto s_dst = z_cast.get_sort();
-  //   auto z_func = z3_ctx->function(name, s_src, s_dst);
-  //   return z_func(z_sub);
-  // };
 
   switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_PointerToIntegral: {
-      auto s_src = z_sub.get_sort();
-      auto s_dst = z_cast.get_sort();
-      auto z_func = z3_ctx->function("PtrToInt", s_src, s_dst);
-      z_cast = z_func(z_sub);
+      auto s_src{z_sub.get_sort()};
+      auto s_dst{z_cast.get_sort()};
+      z_cast = z3_ctx->function("PtrToInt", s_src, s_dst)(z_sub);
     } break;
 
     case clang::CastKind::CK_IntegralToPointer: {
-      auto s_src = z_sub.get_sort();
-      auto s_dst = z_cast.get_sort();
-      auto t_dst_opaque_ptr_val =
-          reinterpret_cast<uint64_t>(t_dst.getAsOpaquePtr());
-      auto z_ptr = z3_ctx->bv_val(t_dst_opaque_ptr_val, 8 * sizeof(void *));
-      auto s_ptr = z_ptr.get_sort();
-      auto z_func = z3_ctx->function("IntToPtr", s_ptr, s_src, s_dst);
-      z_cast = z_func(z_ptr, z_sub);
+      auto s_src{z_sub.get_sort()};
+      auto s_dst{z_cast.get_sort()};
+      auto t_dst_opaque_ptr_val{
+          reinterpret_cast<uint64_t>(t_dst.getAsOpaquePtr())};
+      auto z_ptr{z3_ctx->bv_val(t_dst_opaque_ptr_val, 8 * sizeof(void *))};
+      auto s_ptr{z_ptr.get_sort()};
+      z_cast = z3_ctx->function("IntToPtr", s_ptr, s_src, s_dst)(z_ptr, z_sub);
     } break;
 
     case clang::CastKind::CK_IntegralCast:
     case clang::CastKind::CK_NullToPointer:
       break;
+
+    case clang::CastKind::CK_BitCast: {
+      auto s_src{z_sub.get_sort()};
+      auto s_dst{z_cast.get_sort()};
+      auto t_dst_opaque_ptr_val{
+          reinterpret_cast<uint64_t>(t_dst.getAsOpaquePtr())};
+      auto z_ptr{z3_ctx->bv_val(t_dst_opaque_ptr_val, 8 * sizeof(void *))};
+      auto s_ptr{z_ptr.get_sort()};
+      z_cast = z3_ctx->function("BitCast", s_ptr, s_src, s_dst)(z_ptr, z_sub);
+    } break;
 
     default:
       LOG(FATAL) << "Unsupported cast type: " << c_cast->getCastKindName();
@@ -484,8 +485,8 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
   switch (z_sub.decl().decl_kind()) {
     // Parens may affect semantics of C expressions
     case Z3_OP_UNINTERPRETED: {
-      auto sort = z_sub.get_sort();
-      auto z_paren = z3_ctx->function("Paren", sort, sort);
+      auto sort{z_sub.get_sort()};
+      auto z_paren{z3_ctx->function("Paren", sort, sort)};
       InsertZ3Expr(parens, z_paren(z_sub));
     } break;
     // Default to ignoring the parens, Z3 should know how
@@ -811,7 +812,8 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       } else if (z_func_name == "BoolToBV") {
         c_op = c_sub;
       } else {
-        LOG(FATAL) << "Unknown Z3 uninterpreted function";
+        LOG(FATAL) << "Unknown Z3 uninterpreted unary function: "
+                   << z_func_name;
       }
     } break;
 
@@ -828,17 +830,24 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
   CHECK(z_op.is_app() && z_op.decl().arity() == 2)
       << "Z3 expression is not a binary operator!";
   // Get operands
-  auto lhs = GetCExpr(z_op.arg(0));
-  auto rhs = GetCExpr(z_op.arg(1));
+  auto lhs{GetCExpr(z_op.arg(0))};
+  auto rhs{GetCExpr(z_op.arg(1))};
   // Get result type for integers
-  auto GetIntResultType = [this, &lhs, &rhs] {
-    auto lht = lhs->getType();
-    auto rht = rhs->getType();
-    auto order = ast_ctx->getIntegerTypeOrder(lht, rht);
+  auto GetIntResultType{[this, &lhs, &rhs] {
+    auto lht{lhs->getType()};
+    auto rht{rhs->getType()};
+    auto order{ast_ctx->getIntegerTypeOrder(lht, rht)};
     return order < 0 ? rht : lht;
-  };
+  }};
+  // Get result type for casts
+  auto GetTypeFromOpaquePtrLiteral{[&lhs] {
+    auto c_lit{clang::cast<clang::IntegerLiteral>(lhs)};
+    auto t_dst_opaque_ptr_val{c_lit->getValue().getLimitedValue()};
+    auto t_dst_opaque_ptr{reinterpret_cast<void *>(t_dst_opaque_ptr_val)};
+    return clang::QualType::getFromOpaquePtr(t_dst_opaque_ptr);
+  }};
   // Get z3 function declaration
-  auto z_func = z_op.decl();
+  auto z_func{z_op.decl()};
   // Create C binary operator
   clang::Expr *c_op{nullptr};
   switch (z_func.decl_kind()) {
@@ -913,14 +922,13 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
         c_op = CreateMemberExpr(*ast_ctx, lhs, mem, mem->getType(),
                                 /*is_arrow=*/false);
       } else if (name == "IntToPtr") {
-        auto c_lit = clang::cast<clang::IntegerLiteral>(lhs);
-        auto t_dst_opaque_ptr_val = c_lit->getValue().getLimitedValue();
-        auto t_dst_opaque_ptr = reinterpret_cast<void *>(t_dst_opaque_ptr_val);
-        auto t_dst = clang::QualType::getFromOpaquePtr(t_dst_opaque_ptr);
-        c_op = CreateCStyleCastExpr(*ast_ctx, t_dst,
+        c_op = CreateCStyleCastExpr(*ast_ctx, GetTypeFromOpaquePtrLiteral(),
                                     clang::CastKind::CK_IntegralToPointer, rhs);
+      } else if (name == "BitCast") {
+        c_op = CreateCStyleCastExpr(*ast_ctx, GetTypeFromOpaquePtrLiteral(),
+                                    clang::CastKind::CK_BitCast, rhs);
       } else {
-        LOG(FATAL) << "Unknown Z3 uninterpreted function";
+        LOG(FATAL) << "Unknown Z3 uninterpreted binary function: " << name;
       }
     } break;
 

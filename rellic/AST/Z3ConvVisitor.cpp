@@ -531,7 +531,8 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
     } break;
 
     default:
-      LOG(FATAL) << "Unknown clang::UnaryOperator operation!";
+      LOG(FATAL) << "Unknown clang::UnaryOperator operation: "
+                 << c_op->getOpcodeStr(c_op->getOpcode()).str();
       break;
   }
   return true;
@@ -601,6 +602,10 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       InsertZ3Expr(c_op, lhs - rhs);
       break;
 
+    case clang::BO_Mul:
+      InsertZ3Expr(c_op, lhs * rhs);
+      break;
+
     case clang::BO_Div:
       InsertZ3Expr(c_op, lhs / rhs);
       break;
@@ -629,7 +634,8 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     default:
-      LOG(FATAL) << "Unknown clang::BinaryOperator operation!";
+      LOG(FATAL) << "Unknown clang::BinaryOperator operation: "
+                 << c_op->getOpcodeStr().str();
       break;
   }
   return true;
@@ -897,6 +903,16 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
                                   GetIntResultType());
       break;
 
+    case Z3_OP_BXOR:
+      c_op = CreateBinaryOperator(*ast_ctx, clang::BO_Xor, lhs, rhs,
+                                  GetIntResultType());
+      break;
+
+    case Z3_OP_BMUL:
+      c_op = CreateBinaryOperator(*ast_ctx, clang::BO_Mul, lhs, rhs,
+                                  GetIntResultType());
+      break;
+
     case Z3_OP_BSDIV:
     case Z3_OP_BSDIV_I:
       c_op = CreateBinaryOperator(*ast_ctx, clang::BO_Div, lhs, rhs,
@@ -934,7 +950,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
 
     // Unknowns
     default:
-      LOG(FATAL) << "Unknown Z3 binary operator!";
+      LOG(FATAL) << "Unknown Z3 binary operator: " << z_func.name().str();
       break;
   }
   // Save

@@ -100,7 +100,7 @@ macro(main)
     # debug symbols
     if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
       list(APPEND GLOBAL_CXXFLAGS
-        -gdwarf-2 -g3
+        -ggdb
       )
     endif()
 

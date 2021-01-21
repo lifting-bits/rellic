@@ -212,6 +212,7 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
       auto id = CreateIdentifier(*ast_ctx, "val" + std::to_string(num));
       auto expr = clang::cast<clang::Expr>(stmt);
       auto var = CreateVarDecl(*ast_ctx, fdecl, id, expr->getType());
+      fdecl->addDecl(var);
       var->setInit(expr);
       stmt = CreateDeclStmt(*ast_ctx, var);
       ast_gen->SetStmt(&inst, CreateDeclRefExpr(*ast_ctx, var));

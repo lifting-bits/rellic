@@ -63,9 +63,9 @@ endif()
 
 # If the dynamic check fails, we might be cross compiling: if that's the case,
 # check the version in the headers, otherwise, fail with a message
-if(NOT Z3_VERSION_STRING AND (CMAKE_CROSSCOMPILING AND
-                              Z3_INCLUDE_DIR AND
-                              EXISTS "${Z3_INCLUDE_DIR}/z3_version.h"))
+if(EXISTS "${Z3_INCLUDE_DIR}/z3_version.h" AND (NOT Z3_VERSION_STRING OR
+                                                (CMAKE_CROSSCOMPILING AND
+                                                Z3_INCLUDE_DIR)))
   # TODO: print message warning that we couldn't find a compatible lib?
 
   # Z3 4.8.1+ has the version is in a public header.
@@ -81,7 +81,7 @@ if(NOT Z3_VERSION_STRING AND (CMAKE_CROSSCOMPILING AND
 
   file(STRINGS "${Z3_INCLUDE_DIR}/z3_version.h"
        z3_version_str REGEX "^#define[\t ]+Z3_BUILD_NUMBER[\t ]+.*")
-  string(REGEX REPLACE "^.*Z3_BUILD_VERSION[\t ]+([0-9]).*$" "\\1"
+  string(REGEX REPLACE "^.*Z3_BUILD_NUMBER[\t ]+([0-9]+).*$" "\\1"
          Z3_BUILD "${z3_version_str}")
 
   set(Z3_VERSION_STRING ${Z3_MAJOR}.${Z3_MINOR}.${Z3_BUILD})

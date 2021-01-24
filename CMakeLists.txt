@@ -102,11 +102,11 @@ else()
 endif()
 
 # google log module
-find_package(glog REQUIRED)
+find_package(glog CONFIG REQUIRED)
 list(APPEND PROJECT_LIBRARIES glog::glog)
 
 # gflags
-find_package(gflags REQUIRED)
+find_package(gflags CONFIG REQUIRED)
 list(APPEND PROJECT_LIBRARIES gflags)
 
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")

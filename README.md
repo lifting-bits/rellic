@@ -25,7 +25,7 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | Name | Version | 
 | ---- | ------- |
 | [Git](https://git-scm.com/) | Latest |
-| [CMake](https://cmake.org/) | 3.2+ |
+| [CMake](https://cmake.org/) | 3.14+ |
 | [Google Flags](https://github.com/google/glog) | Latest |
 | [Google Log](https://github.com/google/glog) | Latest |
 | [LLVM](http://llvm.org/) | 4.0+|
@@ -51,16 +51,16 @@ sudo apt-get install \
      python3 \
      wget \
      unzip \
+     pixz \
+     xz-utils \
      curl \
      build-essential \
-     libtinfo-dev \
      lsb-release \
      zlib1g-dev \
      libomp-dev
-
-# Ubuntu 14.04, 16.04
-sudo apt-get install realpath
 ```
+
+If the distribution you're on doesn't include a recent release of CMake (3.14 or later), you'll need to install it. For Ubuntu, see here https://apt.kitware.com/.
 
 The next step is to clone the Rellic repository.
 
@@ -68,16 +68,16 @@ The next step is to clone the Rellic repository.
 git clone https://github.com/trailofbits/rellic.git
 ```
 
-Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be built in the `rellic-build` directory. Rellic will also download Z3 in an appropriate version if it's not installed in the system.
+Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be download and place in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details).
 
 ```shell
-./rellic/scripts/build.sh
+./rellic/scripts/build_with_vcpkg.sh --llvm-version 10
 ```
 
 To try out Rellic you can do the following, given a LLVM bitcode file of your choice.
 
 ```shell
-./rellic-build/rellic-decomp --input mybitcode.bc --output /dev/stdout
+./rellic-build/tools/rellic-decomp-10 --input mybitcode.bc --output /dev/stdout
 ```
 
 ### Docker image
@@ -86,7 +86,7 @@ The Docker image should provide an environment which can set-up, build, and run 
 
 To build the docker image using LLVM 9.0 for Ubuntu 18.04 on amd64 you can run the following command:
 ```sh
-ARCH=amd64; UBUNTU=18.04; LLVM=900; docker build . \
+ARCH=amd64; UBUNTU=18.04; LLVM=1000; docker build . \
   -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
   --build-arg UBUNTU_VERSION=${UBUNTU} \
@@ -98,13 +98,13 @@ To run the decompiler, the entrypoint has already been set, but make sure the bi
 
 ```sh
 # Get the bc file
-clang-8 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-10 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 # Decompile
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic:llvm900-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm1000-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 To explain the above command more:
@@ -114,7 +114,7 @@ To explain the above command more:
 -v $(pwd):/test -w /test
 ```
 
-and 
+and
 
 ```sh
 # Set the user to current user to ensure correct permissions

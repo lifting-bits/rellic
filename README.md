@@ -82,7 +82,7 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 # Create some sample bitcode or your own
 clang-10 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
-./rellic-build/tools/rellic-decomp-10 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+./rellic-build/tools/rellic-decomp-10.0 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 ### Docker image

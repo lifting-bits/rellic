@@ -71,7 +71,7 @@ git clone https://github.com/trailofbits/rellic.git
 Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be download and place in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details).
 
 ```shell
-./rellic/scripts/build_with_vcpkg.sh --llvm-version 10
+./scripts/build_with_vcpkg.sh --llvm-version 10
 ```
 
 To try out Rellic you can do the following, given a LLVM bitcode file of your choice.

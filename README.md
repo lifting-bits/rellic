@@ -53,6 +53,7 @@ sudo apt-get install \
      unzip \
      pixz \
      xz-utils \
+     cmake \
      curl \
      build-essential \
      lsb-release \
@@ -71,13 +72,17 @@ git clone https://github.com/trailofbits/rellic.git
 Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be download and place in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details).
 
 ```shell
+cd rellic
 ./scripts/build_with_vcpkg.sh --llvm-version 10
 ```
 
 To try out Rellic you can do the following, given a LLVM bitcode file of your choice.
 
 ```shell
-./rellic-build/tools/rellic-decomp-10 --input mybitcode.bc --output /dev/stdout
+# Create some sample bitcode or your own
+clang-10 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+
+./rellic-build/tools/rellic-decomp-10 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 ### Docker image

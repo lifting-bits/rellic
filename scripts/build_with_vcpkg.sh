@@ -127,7 +127,6 @@ function DownloadVcpkgLibraries
     set -x
     tar -xJf "${GITHUB_LIBS}" ${TAR_OPTIONS}
   ) || return $?
-  rm "${GITHUB_LIBS}"
   popd || return 1
 
   # Make sure modification times are not in the future.

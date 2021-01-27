@@ -170,6 +170,8 @@ function(GetGitState _working_dir)
                 # Didn't have windows lines - try unix lines.
                 string(REPLACE "\n" "\\n\\\n" safe ${output})
             endif()
+            # Escape double quotes in the commit message.
+            string(REPLACE "\"" "\\\"" safe ${safe})
         else()
             # There was no commit body - set the safe string to empty.
             set(safe "")

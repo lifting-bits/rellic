@@ -86,7 +86,7 @@ set(_state_variable_names
     GIT_COMMIT_DATE_ISO8601
     GIT_COMMIT_SUBJECT
     GIT_COMMIT_BODY
-    VERSION_STRING
+    GIT_DESCRIBE
     # >>>
     # 1. Add the name of the additional git variable you're interested in monitoring
     #    to this list.
@@ -158,20 +158,22 @@ function(GetGitState _working_dir)
 
     RunGitCommand(show -s "--format=%s" ${object})
     if(exit_code EQUAL 0)
+        # Escape quotes
+        string(REPLACE "\"" "\\\"" output "${output}")
         set(ENV{GIT_COMMIT_SUBJECT} "${output}")
     endif()
 
     RunGitCommand(show -s "--format=%b" ${object})
     if(exit_code EQUAL 0)
         if(output)
+            # Escape quotes
+            string(REPLACE "\"" "\\\"" output "${output}")
             # Escape line breaks in the commit message.
-            string(REPLACE "\r\n" "\\r\\n\\\r\n" safe ${output})
+            string(REPLACE "\r\n" "\\r\\n\\\r\n" safe "${output}")
             if(safe STREQUAL output)
                 # Didn't have windows lines - try unix lines.
-                string(REPLACE "\n" "\\n\\\n" safe ${output})
+                string(REPLACE "\n" "\\n\\\n" safe "${output}")
             endif()
-            # Escape double quotes in the commit message.
-            string(REPLACE "\"" "\\\"" safe ${safe})
         else()
             # There was no commit body - set the safe string to empty.
             set(safe "")
@@ -181,19 +183,19 @@ function(GetGitState _working_dir)
         set(ENV{GIT_COMMIT_BODY} "\"\"") # empty string.
     endif()
 
+    # Get output of git describe
+    RunGitCommand(describe --always ${object})
+    if(NOT exit_code EQUAL 0)
+        set(ENV{GIT_DESCRIBE} "unknown")
+    else()
+        set(ENV{GIT_DESCRIBE} "${output}")
+    endif()
+
     # >>>
     # 2. Additional git properties can be added here via the
     #    "execute_process()" command. Be sure to set them in
     #    the environment using the same variable name you added
     #    to the "_state_variable_names" list.
-
-    if(EXISTS "${GIT_WORKING_DIR}/VERSION")
-      file(READ "${GIT_WORKING_DIR}/VERSION" version_output_raw)
-      string(STRIP "${version_output_raw}" version_output)
-      set(ENV{VERSION_STRING} "${version_output}")
-    else()
-      set(ENV{VERSION_STRING} "")
-    endif()
 
 endfunction()
 
@@ -271,7 +273,7 @@ endfunction()
 #              check the state of git before every build. If the state has
 #              changed, then a file is configured.
 function(SetupGitMonitoring)
-    add_custom_target(check_git_${PROJECT_NAME}
+    add_custom_target(check_git
         ALL
         DEPENDS ${PRE_CONFIGURE_FILE}
         BYPRODUCTS

@@ -16,6 +16,7 @@
 # General directory structure:
 #   /path/to/home/rellic
 #   /path/to/home/rellic-build
+#   /path/to/home/lifting-bits-downloads
 
 SCRIPTS_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 SRC_DIR=$( cd "$( dirname "${SCRIPTS_DIR}" )" && pwd )
@@ -106,8 +107,14 @@ function DownloadVcpkgLibraries
   mkdir -p "${DOWNLOAD_DIR}"
   pushd "${DOWNLOAD_DIR}" || return 1
 
+  if test -e "${GITHUB_LIBS}"
+    then zflag=(-z "${GITHUB_LIBS}")
+    else zflag=()
+  fi
+
   echo "Fetching: ${URL} and placing in ${DOWNLOAD_DIR}"
-  if ! curl -LO "${URL}"; then
+  if ! curl -o "${GITHUB_LIBS}" "${zflag[@]}" -L "${URL}"; then
+    echo "Curl failed"
     return 1
   fi
 
@@ -120,7 +127,6 @@ function DownloadVcpkgLibraries
     set -x
     tar -xJf "${GITHUB_LIBS}" ${TAR_OPTIONS}
   ) || return $?
-  rm "${GITHUB_LIBS}"
   popd || return 1
 
   # Make sure modification times are not in the future.
@@ -179,7 +185,7 @@ function DownloadLibraries
       OS_VERSION="macos-10.15"
       # Hard-coded to match pre-built binaries in CI
       XCODE_VERSION="12.1.0"
-    elif [[ "$(sw_vers -productVersion)" == "11.0"* ]]; then
+    elif [[ "$(sw_vers -productVersion)" == "11."* ]]; then
       echo "Found MacOS Big Sur"
       OS_VERSION="macos-11.0"
       # Hard-coded to match pre-built binaries in CI
@@ -347,7 +353,7 @@ function main
       # Make the build type to be a debug build.
       --debug)
         BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_BUILD_TYPE=Debug"
-        echo "[+] Enabling a debug build of remill"
+        echo "[+] Enabling a debug build of rellic"
       ;;
 
       --extra-cmake-args)

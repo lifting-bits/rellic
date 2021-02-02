@@ -81,7 +81,11 @@ set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
-find_package(Z3 CONFIG 4.7.1 REQUIRED)
+if (NOT DEFINED ENV{TRAILOFBITS_LIBRARIES})
+  find_package(Z3 CONFIG 4.7.1 REQUIRED)
+else()
+  find_package(Z3 4.7.1 REQUIRED)
+endif()
 # Fixup bad LLVM z3 linkage
 get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
 list(REMOVE_ITEM LLVMSupport_LIBS Z3)

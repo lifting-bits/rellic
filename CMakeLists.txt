@@ -24,7 +24,9 @@ endif()
 
 project(rellic)
 cmake_minimum_required(VERSION 3.2)
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
+  set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/settings.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
@@ -79,34 +81,45 @@ set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
-set(LLVM_Z3_INSTALL_DIR "${Z3_INSTALL_PREFIX}")
-find_package(Z3 4.7.1 MODULE)
-if(Z3_FOUND)
-  list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIR})
-  list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
-elseif (DEFINED Z3_INSTALL_PREFIX)
-  # acquire OpenMP for z3
-  find_package(OpenMP)
-  # import libz3.a
-  add_library(z3 STATIC IMPORTED)
-  set_target_properties(z3 PROPERTIES IMPORTED_LOCATION ${Z3_INSTALL_PREFIX}/bin/libz3.a)
-  # set variables
-  list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INSTALL_PREFIX}/include)
-  if(OpenMP_CXX_FOUND)
-    list(APPEND PROJECT_LIBRARIES OpenMP::OpenMP_CXX z3)
-  else()
-    message(WARNING "OpenMP libraries not found Z3 may not work")
-  endif()
+if (NOT DEFINED ENV{TRAILOFBITS_LIBRARIES})
+  find_package(Z3 CONFIG 4.7.1 REQUIRED)
+  list(APPEND PROJECT_LIBRARIES z3::libz3)
+  # Fixup bad LLVM z3 linkage
+  get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
+  list(REMOVE_ITEM LLVMSupport_LIBS Z3)
+  list(APPEND LLVMSupport_LIBS z3::libz3)
+  set_target_properties(LLVMSupport PROPERTIES
+    INTERFACE_LINK_LIBRARIES "${LLVMSupport_LIBS}")
 else()
-  message(FATAL_ERROR "Could not find Z3 installation")
+  set(LLVM_Z3_INSTALL_DIR "${Z3_INSTALL_PREFIX}")
+  find_package(Z3 4.7.1 MODULE)
+  if(Z3_FOUND)
+    list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIR})
+    list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
+  elseif (DEFINED Z3_INSTALL_PREFIX)
+    # acquire OpenMP for z3
+    find_package(OpenMP)
+    # import libz3.a
+    add_library(z3 STATIC IMPORTED)
+    set_target_properties(z3 PROPERTIES IMPORTED_LOCATION ${Z3_INSTALL_PREFIX}/bin/libz3.a)
+    # set variables
+    list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INSTALL_PREFIX}/include)
+    if(OpenMP_CXX_FOUND)
+      list(APPEND PROJECT_LIBRARIES OpenMP::OpenMP_CXX z3)
+    else()
+      message(WARNING "OpenMP libraries not found Z3 may not work")
+    endif()
+  else()
+    message(FATAL_ERROR "Could not find Z3 installation")
+  endif()
 endif()
 
 # google log module
-find_package(glog REQUIRED)
+find_package(glog CONFIG REQUIRED)
 list(APPEND PROJECT_LIBRARIES glog::glog)
 
 # gflags
-find_package(gflags REQUIRED)
+find_package(gflags CONFIG REQUIRED)
 list(APPEND PROJECT_LIBRARIES gflags)
 
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")

@@ -56,6 +56,33 @@ jobs:
           CLANG_BIN="$(find ../../pre-built-llvm-${{ matrix.llvm }} -name clang | grep "bin/clang")"
           ../scripts/roundtrip.py "./tools/rellic-decomp-${{ matrix.llvm }}.0" ../tests/tools/decomp "${CLANG_BIN}"
 
+      - name: Locate the packages
+        id: package_names
+        shell: bash
+        working-directory: rellic-build
+        run: |
+          echo ::set-output name=DEB_PACKAGE_PATH::rellic-build/$(ls *.deb)
+          echo ::set-output name=RPM_PACKAGE_PATH::rellic-build/$(ls *.rpm)
+          echo ::set-output name=TGZ_PACKAGE_PATH::rellic-build/$(ls *.tar.gz)
+
+      - name: Store the DEB package
+        uses: actions/upload-artifact@v1
+        with:
+          name: ${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm${{ matrix.llvm }}_deb_package
+          path: ${{ steps.package_names.outputs.DEB_PACKAGE_PATH }}
+
+      - name: Store the RPM package
+        uses: actions/upload-artifact@v1
+        with:
+          name: ${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm${{ matrix.llvm }}_rpm_package
+          path: ${{ steps.package_names.outputs.RPM_PACKAGE_PATH }}
+
+      - name: Store the TGZ package
+        uses: actions/upload-artifact@v1
+        with:
+          name: ${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm${{ matrix.llvm }}_tgz_package
+          path: ${{ steps.package_names.outputs.TGZ_PACKAGE_PATH }}
+
   build_mac:
     strategy:
       fail-fast: false
@@ -88,3 +115,114 @@ jobs:
           # Run tests manually (kinda ugly, so use CMake way)
           CLANG_BIN="$(find ../../pre-built-llvm-${{ matrix.llvm }} -name clang | grep "bin/clang")"
           ../scripts/roundtrip.py "./tools/rellic-decomp-${{ matrix.llvm }}.0" ../tests/tools/decomp "${CLANG_BIN}"
+      - name: Locate the packages
+        id: package_names
+        shell: bash
+        working-directory: rellic-build
+        run: |
+          echo ::set-output name=TGZ_PACKAGE_PATH::rellic-build/$(ls *.tar.gz)
+
+      - name: Store the TGZ package
+        uses: actions/upload-artifact@v1
+        with:
+          name: macos-11.0_llvm${{ matrix.llvm }}_tgz_package
+          path: ${{ steps.package_names.outputs.TGZ_PACKAGE_PATH }}
+
+
+  release_linux:
+    # Do not run the release procedure if any of the builds has failed
+    needs: [ build_linux, build_mac ]
+    runs-on: ubuntu-20.04
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v2
+
+      - name: Draft the new release
+        id: create_release
+        uses: actions/create-release@v1
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Version ${{ github.ref }}
+          draft: true
+          prerelease: true
+
+      - name: Group the packages by platform
+        run: |
+          zip -r9 rellic_ubuntu-18.04_packages.zip \
+                  ubuntu-18.04*
+
+          zip -r9 rellic_ubuntu-20.04_packages.zip \
+                  ubuntu-20.04*
+
+      - name: Upload the Ubuntu 18.04 packages
+        uses: actions/upload-release-asset@v1
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rellic_ubuntu-18.04_packages.zip
+          asset_name: rellic_ubuntu-18.04_packages.zip
+          asset_content_type: application/gzip
+
+      - name: Upload the Ubuntu 20.04 packages
+        uses: actions/upload-release-asset@v1
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rellic_ubuntu-20.04_packages.zip
+          asset_name: rellic_ubuntu-20.04_packages.zip
+          asset_content_type: application/gzip
+
+
+
+
+  release_macos:
+    # Do not run the release procedure if any of the builds has failed
+    needs: [ build_linux, build_mac ]
+    runs-on: 'macos-11.0'
+    if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v2
+
+      - name: Draft the new release
+        id: create_release
+        uses: actions/create-release@v1
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Version ${{ github.ref }}
+          draft: true
+          prerelease: true
+
+      - name: Group the packages by platform
+        run: |
+          zip -r9 rellic_macos-11.0_packages.zip \
+                  macos-11.0*
+
+      - name: Upload the macOS 11.0 packages
+        uses: actions/upload-release-asset@v1
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rellic_macos-11.0_packages.zip
+          asset_name: rellic_macos-11.0_packages.zip
+          asset_content_type: application/gzip

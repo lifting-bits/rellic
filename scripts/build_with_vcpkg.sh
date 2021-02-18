@@ -28,6 +28,7 @@ LLVM_VERSION=llvm-9
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
+CXX_COMMON_VERSION="v0.1.1"
 
 # There are pre-build versions of various libraries for specific
 # Ubuntu releases.
@@ -102,7 +103,7 @@ function GetArchVersion
 function DownloadVcpkgLibraries
 {
   local GITHUB_LIBS="${LIBRARY_VERSION}.tar.xz"
-  local URL="https://github.com/trailofbits/cxx-common/releases/latest/download/${GITHUB_LIBS}"
+  local URL="https://github.com/trailofbits/cxx-common/releases/download/${CXX_COMMON_VERSION}/${GITHUB_LIBS}"
 
   mkdir -p "${DOWNLOAD_DIR}"
   pushd "${DOWNLOAD_DIR}" || return 1

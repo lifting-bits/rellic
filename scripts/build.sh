@@ -28,6 +28,7 @@ ARCH_VERSION=unknown
 BUILD_FLAGS=
 USE_HOST_COMPILER=0
 LIBRARIES="${BUILD_DIR}/libraries"
+CXX_COMMON_VERSION="v0.1.1"
 
 Z3_ARCHIVE=z3-
 Z3_VERSION=4.7.1
@@ -102,7 +103,7 @@ function GetArchVersion
 function DownloadCxxCommon
 {
   local GITHUB_LIBS="${LIBRARY_VERSION}.tar.xz"
-  local URL="https://github.com/trailofbits/cxx-common/releases/latest/download/${GITHUB_LIBS}"
+  local URL="https://github.com/trailofbits/cxx-common/releases/download/${CXX_COMMON_VERSION}/${GITHUB_LIBS}"
 
   echo "Fetching: ${URL}"
   if ! curl -LO "${URL}"; then

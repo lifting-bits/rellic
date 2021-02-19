@@ -28,6 +28,7 @@ LLVM_VERSION=llvm-9
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
+CXX_COMMON_VERSION="v0.1.1"
 
 # There are pre-build versions of various libraries for specific
 # Ubuntu releases.
@@ -102,7 +103,7 @@ function GetArchVersion
 function DownloadVcpkgLibraries
 {
   local GITHUB_LIBS="${LIBRARY_VERSION}.tar.xz"
-  local URL="https://github.com/trailofbits/cxx-common/releases/latest/download/${GITHUB_LIBS}"
+  local URL="https://github.com/trailofbits/cxx-common/releases/download/${CXX_COMMON_VERSION}/${GITHUB_LIBS}"
 
   mkdir -p "${DOWNLOAD_DIR}"
   pushd "${DOWNLOAD_DIR}" || return 1
@@ -264,6 +265,41 @@ function Build
   return $?
 }
 
+# Create the packages
+function Package
+{
+  tag_count=$(cd "${SRC_DIR}" && git tag | wc -l)
+  if [[ ${tag_count} == 0 ]]; then
+    echo "WARNING: No tag found, marking this release as 0.0.0"
+    rellic_tag="v0.0.0"
+  else
+    rellic_tag=$(cd "${SRC_DIR}" && git describe --tags --always --abbrev=0)
+  fi
+
+  rellic_commit=$(cd "${SRC_DIR}" && git rev-parse HEAD | cut -c1-7)
+  rellic_version="${rellic_tag:1}.${rellic_commit}"
+
+  (
+    set -x
+
+    if [[ -d "install" ]]; then
+      rm -rf "install"
+    fi
+
+    mkdir "install"
+    export DESTDIR="$(pwd)/install"
+
+    cmake --build . \
+      --target install
+
+    cpack -D RELLIC_DATA_PATH="${DESTDIR}" \
+      -R ${rellic_version} \
+      --config "${SRC_DIR}/packaging/main.cmake"
+  ) || return $?
+
+  return $?
+}
+
 # Get a LLVM version name for the build. This is used to find the version of
 # cxx-common to download.
 function GetLLVMVersion
@@ -375,7 +411,7 @@ function main
   mkdir -p "${BUILD_DIR}"
   cd "${BUILD_DIR}" || exit 1
 
-  if ! (DownloadLibraries && Configure && Build); then
+  if ! (DownloadLibraries && Configure && Build && Package); then
     echo "[x] Build aborted."
     exit 1
   fi

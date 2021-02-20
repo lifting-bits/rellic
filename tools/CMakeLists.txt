@@ -29,3 +29,12 @@ target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_NAME})
 add_project_properties(${RELLIC_HEADERGEN})
 
 install(TARGETS ${RELLIC_HEADERGEN} DESTINATION "bin")
+
+#
+# IDA UI plugin
+#
+
+install(
+  FILES "${CMAKE_CURRENT_SOURCE_DIR}/plugins/ida-rellic.py"
+  DESTINATION "share/rellic"
+)

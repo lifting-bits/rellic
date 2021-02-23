@@ -19,19 +19,51 @@ from shutil import which
 
 
 class rellic_decompile_function_t(ida_kernwin.action_handler_t):
-    def get_program_suffix(self):
-        suffix_list = ["9.0", "10.0", "11.0"]
+    _anvill_decompile_json_path = None
+    _rellic_decomp_path = None
+    _opt_path = None
 
-        for suffix in suffix_list:
-            if which("anvill-decompile-json-" + suffix) is None:
-                continue
+    def __init__(self):
+        self.locate_external_programs()
 
-            if which("rellic-decomp-" + suffix) is None:
-                continue
+        print("rellic: Found `opt` executable:", self._opt_path)
+        print("rellic: Found `anvill-decompile-json` executable:",
+              self._anvill_decompile_json_path)
 
-            return suffix
+        print("rellic: Found `rellic-decomp` executable:",
+              self._rellic_decomp_path)
 
-        return None
+        print("rellic: Place the cursor inside a function and use the right-click menu, or press CTRL+Y")
+
+    def locate_external_programs(self):
+        opt_path = which("opt")
+        if opt_path is None:
+            return False
+
+        llvm_version_list = ["11.0", "10.0", "9.0"]
+
+        for llvm_version in llvm_version_list:
+            anvill_decompile_json_path = which(
+                "anvill-decompile-json-" + llvm_version)
+            rellic_decomp_path = which("rellic-decomp-" + llvm_version)
+
+            if anvill_decompile_json_path is not None and rellic_decomp_path is not None:
+                major_llvm_version = llvm_version.split(".")[0]
+
+                remill_semantics_path = "/usr/local/share/remill/" + \
+                    major_llvm_version + "/semantics"
+
+                if not os.path.isdir(remill_semantics_path):
+                    raise RuntimeError(
+                        "rellic: anvill and rellic have been compiled for llvm {}, but the matching remill semantics were not found".format(llvm_version))
+
+                self._opt_path = opt_path
+                self._anvill_decompile_json_path = anvill_decompile_json_path
+                self._rellic_decomp_path = rellic_decomp_path
+
+                return True
+
+        raise RuntimeError("rellic: Failed to locate rellic/anvill/remill/opt")
 
     def display_output(self, window_name, decompiled_function):
         # Make sure we have a newline at the end
@@ -50,9 +82,6 @@ class rellic_decompile_function_t(ida_kernwin.action_handler_t):
             print("rellic: Failed to create the display window")
 
     def activate(self, ctx):
-        program_suffix = self.get_program_suffix()
-        print("rellic: Using tools for LLVM version {}".format(program_suffix))
-
         # Identify the function at the cursor
         screen_cursor = ida_kernwin.get_screen_ea()
         function_name = ida_funcs.get_func_name(screen_cursor)
@@ -92,12 +121,25 @@ class rellic_decompile_function_t(ida_kernwin.action_handler_t):
         ir_file_path = os.path.join(working_directory, "out.ir")
 
         try:
-            subprocess.check_call(["anvill-decompile-json-" + program_suffix, "-spec",
-                                   spec_file_path, "-bc_out", bc_file_path, "-ir_out", ir_file_path])
+            subprocess.check_output([self._anvill_decompile_json_path, "-spec", spec_file_path,
+                                     "-bc_out", bc_file_path, "-ir_out", ir_file_path], text=True, stderr=subprocess.STDOUT)
 
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             print(
-                "rellic: Failed to start the anvill-decompile-json process. Error details follow:\n{}".format(e))
+                "rellic: Failed to start the anvill-decompile-json process. Error details follow:\n{}".format(e.output))
+
+            return
+
+        # Run the reg2mem pass on the generated bitcode
+        processed_bc_file_path = os.path.join(working_directory, "reg2mem.bc")
+
+        try:
+            subprocess.check_output([self._opt_path, "-reg2mem", bc_file_path,
+                                     "-o=" + processed_bc_file_path], text=True, stderr=subprocess.STDOUT)
+
+        except subprocess.CalledProcessError as e:
+            print(
+                "rellic: Failed to start the opt process. Error details follow:\n{}".format(e.output))
 
             return
 
@@ -105,12 +147,12 @@ class rellic_decompile_function_t(ida_kernwin.action_handler_t):
         c_file_path = os.path.join(working_directory, 'out.c')
 
         try:
-            subprocess.check_call(
-                ["rellic-decomp-" + program_suffix, "--input", bc_file_path, "--output", c_file_path])
+            subprocess.check_output([self._rellic_decomp_path, "--input", processed_bc_file_path,
+                                     "--output", c_file_path], text=True, stderr=subprocess.STDOUT)
 
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             print(
-                "rellic: Failed to start the rellic-decomp process. Error details follow:\n{}".format(e))
+                "rellic: Failed to start the rellic-decomp process. Error details follow:\n{}".format(e.output))
 
             return
 

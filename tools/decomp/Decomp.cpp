@@ -17,9 +17,11 @@
 #include <clang/Basic/TargetInfo.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/IR/InstIterator.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/InitializePasses.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Transforms/Utils/Local.h>
 
 #include <memory>
 #include <system_error>
@@ -44,10 +46,26 @@
 DEFINE_string(input, "", "Input LLVM bitcode file.");
 DEFINE_string(output, "", "Output file.");
 DEFINE_bool(disable_z3, false, "Disable Z3 based AST tranformations.");
+DEFINE_bool(remove_phi_nodes, false,
+            "Remove PHINodes from input bitcode before decompilation.");
 
 DECLARE_bool(version);
 
 namespace {
+
+static void RemovePHINodes(llvm::Module& module) {
+  std::vector<llvm::PHINode*> work_list;
+  for (auto& func : module) {
+    for (auto& inst : llvm::instructions(func)) {
+      if (auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
+        work_list.push_back(phi);
+      }
+    }
+  }
+  for (auto phi : work_list) {
+    DemotePHIToStack(phi);
+  }
+}
 
 static void InitOptPasses(void) {
   auto& pr = *llvm::PassRegistry::getPassRegistry();
@@ -198,6 +216,10 @@ int main(int argc, char* argv[]) {
   std::error_code ec;
   llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
   CHECK(!ec) << "Failed to create output file: " << ec.message();
+
+  if (FLAGS_remove_phi_nodes) {
+    RemovePHINodes(*module);
+  }
 
   GeneratePseudocode(*module, output);
 

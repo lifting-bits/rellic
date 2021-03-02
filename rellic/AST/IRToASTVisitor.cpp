@@ -170,7 +170,18 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
           break;
 
         case clang::BuiltinType::Kind::Short:
+          result = CreateCStyleCastExpr(
+              ast_ctx, ast_ctx.ShortTy, clang::CastKind::CK_IntegralCast,
+              CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy));
+          break;
+
         case clang::BuiltinType::Kind::UShort:
+          result = CreateCStyleCastExpr(
+              ast_ctx, ast_ctx.UnsignedShortTy,
+              clang::CastKind::CK_IntegralCast,
+              CreateIntegerLiteral(ast_ctx, val, ast_ctx.UnsignedIntTy));
+          break;
+
         case clang::BuiltinType::Kind::Int:
         case clang::BuiltinType::Kind::UInt:
         case clang::BuiltinType::Kind::Long:

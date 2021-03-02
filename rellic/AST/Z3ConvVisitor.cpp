@@ -207,10 +207,21 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
       auto t_size{ti.getTypeWidth(ti.getLeastIntTypeByWidth(s_size, 0))};
       auto t_lit{ast_ctx->getIntTypeForBitwidth(t_size, 0)};
       llvm::APInt val(t_size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
-      if (t_lit->isCharType()) {
-        result = CreateCharacterLiteral(*ast_ctx, val, t_lit);
-      } else {
-        result = CreateIntegerLiteral(*ast_ctx, val, t_lit);
+      switch (clang::cast<clang::BuiltinType>(t_lit)->getKind()) {
+        case clang::BuiltinType::Kind::UChar:
+          result = CreateCharacterLiteral(*ast_ctx, val, t_lit);
+          break;
+
+        case clang::BuiltinType::Kind::UShort:
+          result = CreateCStyleCastExpr(
+              *ast_ctx, ast_ctx->UnsignedShortTy,
+              clang::CastKind::CK_IntegralCast,
+              CreateIntegerLiteral(*ast_ctx, val, ast_ctx->UnsignedIntTy));
+          break;
+
+        default:
+          result = CreateIntegerLiteral(*ast_ctx, val, t_lit);
+          break;
       }
     } break;
 

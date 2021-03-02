@@ -18,19 +18,17 @@ class RunError(Exception):
 
 def run_cmd(cmd, timeout):
     try:
-        p = subprocess.run(cmd, stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE,
-                           timeout=timeout, universal_newlines=True)
+        p = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            universal_newlines=True,
+        )
     except FileNotFoundError as e:
-        raise RunError(
-            "Error: No such file or directory: \"" +
-            e.filename +
-            "\"")
+        raise RunError('Error: No such file or directory: "' + e.filename + '"')
     except PermissionError as e:
-        raise RunError(
-            "Error: File \"" +
-            e.filename +
-            "\" is not an executable.")
+        raise RunError('Error: File "' + e.filename + '" is not an executable.')
 
     return p
 
@@ -44,8 +42,9 @@ def compile(self, clang, input, output, timeout, options=None):
     p = run_cmd(cmd, timeout)
 
     self.assertEqual(p.returncode, 0, "clang failure")
-    self.assertEqual(len(p.stderr), 0,
-                     "errors or warnings during compilation: %s" % p.stderr)
+    self.assertEqual(
+        len(p.stderr), 0, "errors or warnings during compilation: %s" % p.stderr
+    )
 
     return p
 
@@ -57,8 +56,9 @@ def decompile(self, rellic, input, output, timeout):
     p = run_cmd(cmd, timeout)
 
     self.assertEqual(p.returncode, 0, "rellic-decomp failure: %s" % p.stderr)
-    self.assertEqual(len(p.stderr), 0,
-                     "errors or warnings during decompilation: %s" % p.stderr)
+    self.assertEqual(
+        len(p.stderr), 0, "errors or warnings during decompilation: %s" % p.stderr
+    )
 
     return p
 
@@ -85,8 +85,7 @@ def roundtrip(self, rellic, filename, clang, timeout):
 
         self.assertEqual(cp1.stderr, cp2.stderr, "Different stderr")
         self.assertEqual(cp1.stdout, cp2.stdout, "Different stdout")
-        self.assertEqual(cp1.returncode, cp2.returncode,
-                         "Different return code")
+        self.assertEqual(cp1.returncode, cp2.returncode, "Different return code")
 
 
 class TestRoundtrip(unittest.TestCase):
@@ -96,25 +95,22 @@ class TestRoundtrip(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("rellic", help="path to rellic-decomp")
-    parser.add_argument("tests",
-                        help="path to test directory")
+    parser.add_argument("tests", help="path to test directory")
     parser.add_argument("clang", help="path to clang")
-    parser.add_argument(
-        "-t",
-        "--timeout",
-        help="set timeout in seconds",
-        type=int)
+    parser.add_argument("-t", "--timeout", help="set timeout in seconds", type=int)
 
     args = parser.parse_args()
 
     def test_generator(path):
         def test(self):
             roundtrip(self, args.rellic, path, args.clang, args.timeout)
+
         return test
 
     for item in os.scandir(args.tests):
-        test_name = 'test_%s' % os.path.splitext(item.name)[0]
-        test = test_generator(item.path)
-        setattr(TestRoundtrip, test_name, test)
+        if item.is_file():
+            test_name = "test_%s" % os.path.splitext(item.name)[0]
+            test = test_generator(item.path)
+            setattr(TestRoundtrip, test_name, test)
 
     unittest.main(argv=[sys.argv[0]])

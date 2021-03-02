@@ -21,6 +21,7 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/InitializePasses.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Transforms/Utils.h>
 #include <llvm/Transforms/Utils/Local.h>
 
 #include <memory>
@@ -48,6 +49,8 @@ DEFINE_string(output, "", "Output file.");
 DEFINE_bool(disable_z3, false, "Disable Z3 based AST tranformations.");
 DEFINE_bool(remove_phi_nodes, false,
             "Remove PHINodes from input bitcode before decompilation.");
+DEFINE_bool(lower_switch, false,
+            "Remove SwitchInst by lowering them to branches.");
 
 DECLARE_bool(version);
 
@@ -65,6 +68,12 @@ static void RemovePHINodes(llvm::Module& module) {
   for (auto phi : work_list) {
     DemotePHIToStack(phi);
   }
+}
+
+static void LowerSwitches(llvm::Module& module) {
+  llvm::legacy::PassManager pm;
+  pm.add(llvm::createLowerSwitchPass());
+  pm.run(module);
 }
 
 static void InitOptPasses(void) {
@@ -219,6 +228,10 @@ int main(int argc, char* argv[]) {
 
   if (FLAGS_remove_phi_nodes) {
     RemovePHINodes(*module);
+  }
+
+  if (FLAGS_lower_switch) {
+    LowerSwitches(*module);
   }
 
   GeneratePseudocode(*module, output);

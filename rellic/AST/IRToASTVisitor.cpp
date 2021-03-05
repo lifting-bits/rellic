@@ -162,7 +162,9 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       switch (clang::cast<clang::BuiltinType>(c_type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
         case clang::BuiltinType::Kind::SChar:
-          result = CreateCharacterLiteral(ast_ctx, val, c_type);
+          result = CreateCStyleCastExpr(
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
+              CreateCharacterLiteral(ast_ctx, val, ast_ctx.IntTy));
           break;
 
         case clang::BuiltinType::Kind::Bool:

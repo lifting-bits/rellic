@@ -238,6 +238,9 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   return result;
 }
 
+#define ASSERT_ON_VALUE_TYPE(x) \
+  if (llvm::isa<x>(val)) { LOG(FATAL) << "Invalid operand [" #x "]"; }
+
 clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
   // Operand is a constant value

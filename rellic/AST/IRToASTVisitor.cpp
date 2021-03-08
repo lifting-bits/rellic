@@ -270,7 +270,21 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
                            clang::cast<clang::Expr>(GetOrCreateStmt(val)));
   }
 
-  LOG(FATAL) << "Invalid operand";
+  ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
+  ASSERT_ON_VALUE_TYPE(llvm::Constant);
+  ASSERT_ON_VALUE_TYPE(llvm::BasicBlock);
+  ASSERT_ON_VALUE_TYPE(llvm::GlobalVariable);
+  ASSERT_ON_VALUE_TYPE(llvm::GlobalAlias);
+  ASSERT_ON_VALUE_TYPE(llvm::GlobalIFunc);
+  ASSERT_ON_VALUE_TYPE(llvm::GlobalIndirectSymbol);
+  ASSERT_ON_VALUE_TYPE(llvm::GlobalObject);
+  ASSERT_ON_VALUE_TYPE(llvm::FPMathOperator);
+  ASSERT_ON_VALUE_TYPE(llvm::Operator);
+  ASSERT_ON_VALUE_TYPE(llvm::BlockAddress);
+
+  LOG(FATAL) << "Invalid operand value id: [" << val->getValueID() << "]\n"
+             << "Bitcode: [" << LLVMThingToString(val) << "]\n"
+             << "Type: [" << LLVMThingToString(val->getType()) << "]\n";
 
   return nullptr;
 }

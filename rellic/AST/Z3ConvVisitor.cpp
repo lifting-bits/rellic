@@ -202,25 +202,27 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
     } break;
 
     case Z3_BV_SORT: {
-      auto s_size{GetZ3SortSize(sort)};
-      auto &ti{ast_ctx->getTargetInfo()};
-      auto t_size{ti.getTypeWidth(ti.getLeastIntTypeByWidth(s_size, 0))};
-      auto t_lit{ast_ctx->getIntTypeForBitwidth(t_size, 0)};
-      llvm::APInt val(t_size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
-      switch (clang::cast<clang::BuiltinType>(t_lit)->getKind()) {
+      auto type{GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(sort),
+                                           /*sign=*/0)};
+      auto size{ast_ctx->getTypeSize(type)};
+      llvm::APInt val(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
+      switch (clang::cast<clang::BuiltinType>(type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
-          result = CreateCharacterLiteral(*ast_ctx, val, t_lit);
+          result = CreateCharacterLiteral(*ast_ctx, val, type);
           break;
 
         case clang::BuiltinType::Kind::UShort:
           result = CreateCStyleCastExpr(
               *ast_ctx, ast_ctx->UnsignedShortTy,
               clang::CastKind::CK_IntegralCast,
-              CreateIntegerLiteral(*ast_ctx, val, ast_ctx->UnsignedIntTy));
+              CreateIntegerLiteral(
+                  *ast_ctx,
+                  val.zextOrSelf(ast_ctx->getIntWidth(ast_ctx->UnsignedIntTy)),
+                  ast_ctx->UnsignedIntTy));
           break;
 
         default:
-          result = CreateIntegerLiteral(*ast_ctx, val, t_lit);
+          result = CreateIntegerLiteral(*ast_ctx, val, type);
           break;
       }
     } break;
@@ -795,12 +797,10 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
 
     case Z3_OP_EXTRACT: {
       CHECK(t_sub->isIntegerType()) << "Extract operand is not an integer";
-      auto s_size{GetZ3SortSize(z_op.get_sort())};
-      auto t_sign{t_sub->isSignedIntegerType()};
-      auto &ti{ast_ctx->getTargetInfo()};
-      auto t_size{ti.getTypeWidth(ti.getLeastIntTypeByWidth(s_size, t_sign))};
-      auto t_op{ast_ctx->getIntTypeForBitwidth(t_size, t_sign)};
-      c_op = CreateCStyleCastExpr(*ast_ctx, t_op,
+      auto size{GetZ3SortSize(z_op.get_sort())};
+      auto sign{t_sub->isSignedIntegerType()};
+      auto type{GetLeastIntTypeForBitWidth(*ast_ctx, size, sign)};
+      c_op = CreateCStyleCastExpr(*ast_ctx, type,
                                   clang::CastKind::CK_IntegralCast, c_sub);
     } break;
 
@@ -897,7 +897,8 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
     } break;
 
     case Z3_OP_CONCAT: {
-      if (auto c_lit = clang::dyn_cast<clang::IntegerLiteral>(lhs)) {
+      if (auto c_lit =
+              clang::dyn_cast<clang::IntegerLiteral>(lhs->IgnoreParenCasts())) {
         auto val = c_lit->getValue();
         auto s_size = GetZ3SortSize(z_op.get_sort());
         auto t_sign = val.isNullValue() ? 0 : 1;

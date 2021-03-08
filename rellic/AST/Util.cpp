@@ -68,6 +68,13 @@ bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map) {
   return change;
 }
 
+clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
+                                           unsigned size, unsigned sign) {
+  auto &ti{ctx.getTargetInfo()};
+  auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
+  return ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
+}
+
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
                                         std::string name) {
   std::string str = "";
@@ -170,6 +177,7 @@ clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
 
 clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
                                   clang::QualType type) {
+  // CHECK_EQ(val.getBitWidth(), ctx.getIntWidth(type));
   return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
 }
 

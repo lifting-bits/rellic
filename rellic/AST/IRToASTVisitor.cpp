@@ -56,10 +56,9 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       break;
 
     case llvm::Type::IntegerTyID: {
-      auto size = type->getIntegerBitWidth();
+      auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result =
-          size == 1 ? ast_ctx.IntTy : ast_ctx.getIntTypeForBitwidth(size, 0);
+      result = GetLeastIntTypeForBitWidth(ast_ctx, size, /*sign=*/0);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -165,20 +164,15 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
           result = CreateCharacterLiteral(ast_ctx, val, c_type);
           break;
 
-        case clang::BuiltinType::Kind::Bool:
-          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy);
-          break;
-
         case clang::BuiltinType::Kind::Short:
           result = CreateCStyleCastExpr(
-              ast_ctx, ast_ctx.ShortTy, clang::CastKind::CK_IntegralCast,
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
               CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy));
           break;
 
         case clang::BuiltinType::Kind::UShort:
           result = CreateCStyleCastExpr(
-              ast_ctx, ast_ctx.UnsignedShortTy,
-              clang::CastKind::CK_IntegralCast,
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
               CreateIntegerLiteral(ast_ctx, val, ast_ctx.UnsignedIntTy));
           break;
 

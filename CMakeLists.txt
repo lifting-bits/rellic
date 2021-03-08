@@ -162,7 +162,14 @@ endif()
 
 message(STATUS "Clang path for tests: \"${CLANG_PATH}\"")
 
-add_test(NAME test_roundtrip
+# Tests that survive a complete roundtrip
+add_test(NAME test_roundtrip_rebuild
   COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# Tests that may not roundtrip yet, but should emit C
+add_test(NAME test_roundtrip_translate_only
+  COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild "${CLANG_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

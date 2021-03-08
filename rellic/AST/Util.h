@@ -16,11 +16,10 @@
 
 #pragma once
 
-#include <llvm/Support/Host.h>
-
 #include <clang/AST/ASTContext.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <llvm/Support/Host.h>
 
 #include <unordered_map>
 
@@ -50,6 +49,9 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
   }
   return result;
 }
+
+clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
+                                           unsigned size, unsigned sign);
 
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
                                         std::string name);

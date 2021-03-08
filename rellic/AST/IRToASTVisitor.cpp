@@ -56,10 +56,9 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       break;
 
     case llvm::Type::IntegerTyID: {
-      auto size = type->getIntegerBitWidth();
+      auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result =
-          size == 1 ? ast_ctx.IntTy : ast_ctx.getIntTypeForBitwidth(size, 0);
+      result = GetLeastIntTypeForBitWidth(ast_ctx, size, /*sign=*/0);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -167,20 +166,19 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
               CreateCharacterLiteral(ast_ctx, val, ast_ctx.IntTy));
           break;
 
-        case clang::BuiltinType::Kind::Bool:
-          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy);
-          break;
-
         case clang::BuiltinType::Kind::Short:
+          // We create an `int` and cast to a `short` to avoid
+          // to avoid clang printing the `i16` literal suffix.
           result = CreateCStyleCastExpr(
-              ast_ctx, ast_ctx.ShortTy, clang::CastKind::CK_IntegralCast,
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
               CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy));
           break;
 
         case clang::BuiltinType::Kind::UShort:
+          // We create an `unsigned int` and cast to a `unsigned short`
+          // to avoid clang printing the `Ui16` literal suffix.
           result = CreateCStyleCastExpr(
-              ast_ctx, ast_ctx.UnsignedShortTy,
-              clang::CastKind::CK_IntegralCast,
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
               CreateIntegerLiteral(ast_ctx, val, ast_ctx.UnsignedIntTy));
           break;
 

@@ -170,6 +170,6 @@ add_test(NAME test_roundtrip_rebuild
 
 # Tests that may not roundtrip yet, but should emit C
 add_test(NAME test_roundtrip_translate_only
-  COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild "${CLANG_PATH}"
+  COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

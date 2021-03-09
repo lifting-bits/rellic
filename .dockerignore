@@ -2,6 +2,9 @@
 !rellic
 !scripts
 !tests/tools/decomp/*.c
+!tests/tools/decomp/*.cpp
+!tests/tools/decomp/failing-rebuild/*.c
+!tests/tools/decomp/failing-rebuild/*.cpp
 !tests/tools/headergen/*.hpp
 !tools
 !cmake

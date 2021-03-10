@@ -343,6 +343,7 @@ z3::expr Z3ConvVisitor::CreateZ3BitwiseCast(z3::expr expr, size_t src,
   }
 
   CHECK(expr.is_bv()) << "z3::expr is not a bitvector!";
+  CHECK_EQ(GetZ3SortSize(expr.get_sort()), src);
 
   int64_t diff = dst - src;
   // extend

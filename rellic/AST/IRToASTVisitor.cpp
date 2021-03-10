@@ -245,8 +245,10 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   return result;
 }
 
-#define ASSERT_ON_VALUE_TYPE(x) \
-  if (llvm::isa<x>(val)) { LOG(FATAL) << "Invalid operand [" #x "]"; }
+#define ASSERT_ON_VALUE_TYPE(x)               \
+  if (llvm::isa<x>(val)) {                    \
+    LOG(FATAL) << "Invalid operand [" #x "]"; \
+  }
 
 clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
@@ -718,9 +720,10 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
                                 operand);
   };
 
-  // Get result type
-  auto l_type{inst.getType()};
-  auto c_type{GetQualType(l_type)};
+  // Determine C operator result type from it's operands
+  auto c_type{ast_ctx.getIntegerTypeOrder(lhs->getType(), rhs->getType()) < 0
+                  ? rhs->getType()
+                  : lhs->getType()};
   // Where the magic happens
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr:
@@ -739,12 +742,14 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
 
     case llvm::BinaryOperator::And:
       binop = BinOpExpr(
-          l_type->isIntegerTy(1U) ? clang::BO_LAnd : clang::BO_And, c_type);
+          inst.getType()->isIntegerTy(1U) ? clang::BO_LAnd : clang::BO_And,
+          c_type);
       break;
 
     case llvm::BinaryOperator::Or:
-      binop = BinOpExpr(l_type->isIntegerTy(1U) ? clang::BO_LOr : clang::BO_Or,
-                        c_type);
+      binop = BinOpExpr(
+          inst.getType()->isIntegerTy(1U) ? clang::BO_LOr : clang::BO_Or,
+          c_type);
       break;
 
     case llvm::BinaryOperator::Xor:

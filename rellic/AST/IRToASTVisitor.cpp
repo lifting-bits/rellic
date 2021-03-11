@@ -25,6 +25,7 @@
 
 #include "rellic/AST/Util.h"
 #include "rellic/BC/Compat/Value.h"
+#include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {

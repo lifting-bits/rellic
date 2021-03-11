@@ -460,7 +460,9 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
   if (llvm::isDbgInfoIntrinsic(inst.getIntrinsicID())) {
     DLOG(INFO) << "Skipping debug data intrinsic";
     return;
-  } else if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
+  }
+  
+  if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
     // Some of this overlaps with the debug data case above.
     // This is fine. We want debug data special cased as we know it is present
     // and we may make use of it earlier than other annotations
@@ -937,13 +939,9 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     return;
   }
 
-  auto oper = inst.getOperand(0);
-  if (!oper) {
-    return;
-  }
-
-  // Get cast operand
-  auto operand = GetOperandExpr(oper);
+  // There should always be an operand with a cast instruction
+  // Get a C-language expression of the operand
+  auto operand = GetOperandExpr(inst.getOperand(0));
   // Get destination type
   auto type = GetQualType(inst.getType());
   // Convenience wrapper

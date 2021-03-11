@@ -435,6 +435,47 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   decl->getAsFunction()->setParams(params);
 }
 
+void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
+  DLOG(INFO) << "visitIntrinsicInst: " << LLVMThingToString(&inst);
+
+  // NOTE(artem): As of this writing, rellic does not do anything
+  // with debug intrinsics and debug metadata. Processing them to C
+  // is useless (since there is no C equivalent anyway).
+  // All it does it lead to triggering of asserts for things that are
+  // low-priority on the "to fix" list
+
+  if (llvm::IsDbgInfoIntrinsic(inst.getIntrinsicID()) {
+    DLOG(INFO) << "Skipping debug data intrinsic";
+    return;
+  } else if (inst.IsAssumeLikeIntrinsic()) {
+    // This should handle approximately the following intrinsics:
+    //
+    // case Intrinsic::assume:
+    // case Intrinsic::sideeffect:
+    // case Intrinsic::pseudoprobe:
+    // case Intrinsic::dbg_declare:
+    // case Intrinsic::dbg_value:
+    // case Intrinsic::dbg_label:
+    // case Intrinsic::invariant_start:
+    // case Intrinsic::invariant_end:
+    // case Intrinsic::lifetime_start:
+    // case Intrinsic::lifetime_end:
+    // case Intrinsic::experimental_noalias_scope_decl:
+    // case Intrinsic::objectsize:
+    // case Intrinsic::ptr_annotation:
+    // case Intrinsic::var_annotation:
+    //
+    // Some of this overlaps with the debug data case above.
+    // This is fine. We want debug data special cased as we know it is present
+    // and we may make use of it earlier than other annotations
+    DLOG(INFO) << "Skipping non-debug annotation";
+    return;
+  } else {
+    // handle this as a CallInst, which IntrinsicInst derives from
+    return visitCallInst(inst);
+  }
+}
+
 void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   DLOG(INFO) << "visitCallInst: " << LLVMThingToString(&inst);
   auto &callexpr = stmts[&inst];

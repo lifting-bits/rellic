@@ -109,6 +109,10 @@ llvm::Module *LoadModuleFromFile(llvm::LLVMContext *context,
   return module;
 }
 
+bool IsGlobalMetadata(const llvm::GlobalObject &go) {
+  return go.getSection() == "llvm.metadata";
+}
+
 bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id) {
   // this is a copy of IntrinsicInst::isAssumeLikeIntrinsic in LLVM12+
   // NOTE(artem): This probalby needs some compat wrappers for older LLVM
@@ -127,9 +131,9 @@ bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id) {
     case llvm::Intrinsic::objectsize:
     case llvm::Intrinsic::ptr_annotation:
     case llvm::Intrinsic::var_annotation:
-      return false;
+      return true;
   }
-  return true;
+  return false;
 }
 
 }  // namespace rellic

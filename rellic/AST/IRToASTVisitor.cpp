@@ -364,9 +364,14 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
 }
 
 void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
-  DLOG(INFO) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
+  LOG(ERROR) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
   auto &var = value_decls[&gvar];
   if (var) {
+    return;
+  }
+
+  if (IsGlobalMetadata(gvar)) {
+    DLOG(INFO) << "Skipping global variable only used for metadata";
     return;
   }
 

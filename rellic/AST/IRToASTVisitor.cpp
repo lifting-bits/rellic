@@ -364,7 +364,7 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
 }
 
 void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
-  LOG(ERROR) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
+  DLOG(INFO) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
   auto &var = value_decls[&gvar];
   if (var) {
     return;

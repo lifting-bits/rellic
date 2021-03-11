@@ -37,4 +37,7 @@ bool VerifyModule(llvm::Module *module);
 llvm::Module *LoadModuleFromFile(llvm::LLVMContext *context,
                                  std::string file_name,
                                  bool allow_failure = false);
+
+bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id);
+
 }  // namespace rellic

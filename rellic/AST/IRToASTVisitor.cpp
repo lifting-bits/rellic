@@ -409,6 +409,12 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   auto name = func.getName().str();
   DLOG(INFO) << "VisitFunctionDecl: " << name;
+
+  if(IsAnnotationIntrinsic(func.getIntrinsicID())) {
+    DLOG(INFO) << "Skipping creating declaration for LLVM intrinsic";
+    return;
+  }
+
   auto &decl = value_decls[&func];
   if (decl) {
     return;
@@ -447,27 +453,10 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
   if (llvm::isDbgInfoIntrinsic(inst.getIntrinsicID())) {
     DLOG(INFO) << "Skipping debug data intrinsic";
     return;
-  }
-
-  // this is a copy of IntrinsicInst::isAssumeLikeIntrinsic in LLVM12+
-  switch (inst.getIntrinsicID()) {
+  } else if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
       // Some of this overlaps with the debug data case above.
       // This is fine. We want debug data special cased as we know it is present
       // and we may make use of it earlier than other annotations
-    case llvm::Intrinsic::assume:
-    case llvm::Intrinsic::sideeffect:
-    //case llvm::Intrinsic::pseudoprobe:
-    case llvm::Intrinsic::dbg_declare:
-    case llvm::Intrinsic::dbg_value:
-    case llvm::Intrinsic::dbg_label:
-    case llvm::Intrinsic::invariant_start:
-    case llvm::Intrinsic::invariant_end:
-    case llvm::Intrinsic::lifetime_start:
-    case llvm::Intrinsic::lifetime_end:
-    //case llvm::Intrinsic::experimental_noalias_scope_decl:
-    case llvm::Intrinsic::objectsize:
-    case llvm::Intrinsic::ptr_annotation:
-    case llvm::Intrinsic::var_annotation:
       DLOG(INFO) << "Skipping non-debug annotation";
       return;
   }
@@ -940,8 +929,14 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   if (cast) {
     return;
   }
+
+  auto oper = inst.getOperand(0);
+  if (!oper) {
+    return;
+  }
+
   // Get cast operand
-  auto operand = GetOperandExpr(inst.getOperand(0));
+  auto operand = GetOperandExpr(oper);
   // Get destination type
   auto type = GetQualType(inst.getType());
   // Convenience wrapper

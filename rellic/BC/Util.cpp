@@ -109,4 +109,27 @@ llvm::Module *LoadModuleFromFile(llvm::LLVMContext *context,
   return module;
 }
 
+bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id) {
+  // this is a copy of IntrinsicInst::isAssumeLikeIntrinsic in LLVM12+
+  // NOTE(artem): This probalby needs some compat wrappers for older LLVM
+  switch (id) {
+    case llvm::Intrinsic::assume:
+    case llvm::Intrinsic::sideeffect:
+    // case llvm::Intrinsic::pseudoprobe:
+    case llvm::Intrinsic::dbg_declare:
+    case llvm::Intrinsic::dbg_value:
+    case llvm::Intrinsic::dbg_label:
+    case llvm::Intrinsic::invariant_start:
+    case llvm::Intrinsic::invariant_end:
+    case llvm::Intrinsic::lifetime_start:
+    case llvm::Intrinsic::lifetime_end:
+    // case llvm::Intrinsic::experimental_noalias_scope_decl:
+    case llvm::Intrinsic::objectsize:
+    case llvm::Intrinsic::ptr_annotation:
+    case llvm::Intrinsic::var_annotation:
+      return false;
+  }
+  return true;
+}
+
 }  // namespace rellic

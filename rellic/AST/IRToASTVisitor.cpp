@@ -444,36 +444,36 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
   // All it does it lead to triggering of asserts for things that are
   // low-priority on the "to fix" list
 
-  if (llvm::IsDbgInfoIntrinsic(inst.getIntrinsicID()) {
+  if (llvm::isDbgInfoIntrinsic(inst.getIntrinsicID())) {
     DLOG(INFO) << "Skipping debug data intrinsic";
     return;
-  } else if (inst.IsAssumeLikeIntrinsic()) {
-    // This should handle approximately the following intrinsics:
-    //
-    // case Intrinsic::assume:
-    // case Intrinsic::sideeffect:
-    // case Intrinsic::pseudoprobe:
-    // case Intrinsic::dbg_declare:
-    // case Intrinsic::dbg_value:
-    // case Intrinsic::dbg_label:
-    // case Intrinsic::invariant_start:
-    // case Intrinsic::invariant_end:
-    // case Intrinsic::lifetime_start:
-    // case Intrinsic::lifetime_end:
-    // case Intrinsic::experimental_noalias_scope_decl:
-    // case Intrinsic::objectsize:
-    // case Intrinsic::ptr_annotation:
-    // case Intrinsic::var_annotation:
-    //
-    // Some of this overlaps with the debug data case above.
-    // This is fine. We want debug data special cased as we know it is present
-    // and we may make use of it earlier than other annotations
-    DLOG(INFO) << "Skipping non-debug annotation";
-    return;
-  } else {
-    // handle this as a CallInst, which IntrinsicInst derives from
-    return visitCallInst(inst);
   }
+
+  // this is a copy of IntrinsicInst::isAssumeLikeIntrinsic in LLVM12+
+  switch (inst.getIntrinsicID()) {
+      // Some of this overlaps with the debug data case above.
+      // This is fine. We want debug data special cased as we know it is present
+      // and we may make use of it earlier than other annotations
+    case llvm::Intrinsic::assume:
+    case llvm::Intrinsic::sideeffect:
+    //case llvm::Intrinsic::pseudoprobe:
+    case llvm::Intrinsic::dbg_declare:
+    case llvm::Intrinsic::dbg_value:
+    case llvm::Intrinsic::dbg_label:
+    case llvm::Intrinsic::invariant_start:
+    case llvm::Intrinsic::invariant_end:
+    case llvm::Intrinsic::lifetime_start:
+    case llvm::Intrinsic::lifetime_end:
+    //case llvm::Intrinsic::experimental_noalias_scope_decl:
+    case llvm::Intrinsic::objectsize:
+    case llvm::Intrinsic::ptr_annotation:
+    case llvm::Intrinsic::var_annotation:
+      DLOG(INFO) << "Skipping non-debug annotation";
+      return;
+  }
+
+  // handle this as a CallInst, which IntrinsicInst derives from
+  return visitCallInst(inst);
 }
 
 void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {

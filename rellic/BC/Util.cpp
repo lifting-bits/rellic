@@ -132,8 +132,9 @@ bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id) {
     case llvm::Intrinsic::ptr_annotation:
     case llvm::Intrinsic::var_annotation:
       return true;
+    default:
+      return false;
   }
-  return false;
 }
 
 }  // namespace rellic

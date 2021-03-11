@@ -240,8 +240,10 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   return result;
 }
 
-#define ASSERT_ON_VALUE_TYPE(x) \
-  if (llvm::isa<x>(val)) { LOG(FATAL) << "Invalid operand [" #x "]"; }
+#define ASSERT_ON_VALUE_TYPE(x)               \
+  if (llvm::isa<x>(val)) {                    \
+    LOG(FATAL) << "Invalid operand [" #x "]"; \
+  }
 
 clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
@@ -415,7 +417,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   auto name = func.getName().str();
   DLOG(INFO) << "VisitFunctionDecl: " << name;
 
-  if(IsAnnotationIntrinsic(func.getIntrinsicID())) {
+  if (IsAnnotationIntrinsic(func.getIntrinsicID())) {
     DLOG(INFO) << "Skipping creating declaration for LLVM intrinsic";
     return;
   }
@@ -459,11 +461,11 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
     DLOG(INFO) << "Skipping debug data intrinsic";
     return;
   } else if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
-      // Some of this overlaps with the debug data case above.
-      // This is fine. We want debug data special cased as we know it is present
-      // and we may make use of it earlier than other annotations
-      DLOG(INFO) << "Skipping non-debug annotation";
-      return;
+    // Some of this overlaps with the debug data case above.
+    // This is fine. We want debug data special cased as we know it is present
+    // and we may make use of it earlier than other annotations
+    DLOG(INFO) << "Skipping non-debug annotation";
+    return;
   }
 
   // handle this as a CallInst, which IntrinsicInst derives from

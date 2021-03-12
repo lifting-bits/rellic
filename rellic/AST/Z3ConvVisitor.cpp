@@ -57,9 +57,17 @@ static unsigned GetZ3SortSize(z3::expr expr) {
   return GetZ3SortSize(expr.get_sort());
 }
 
+// Determine if `op` is a `z3::concat(l, r)` that's
+// equivalent to a sign extension. This is done by
+// checking if `l` is an "all-one" or "all-zero" bit
+// value. 
 static bool IsSignExt(z3::expr op) {
+  if (op.decl().decl_kind() != Z3_OP_CONCAT) {
+    return false;
+  }
+ 
   auto lhs{op.arg(0)};
-  if (lhs.is_numeral()) {
+  if ( && lhs.is_numeral()) {
     auto size{GetZ3SortSize(lhs)};
     llvm::APInt val(size, Z3_get_numeral_string(op.ctx(), op), 10);
     return val.isAllOnesValue() || val.isNullValue();

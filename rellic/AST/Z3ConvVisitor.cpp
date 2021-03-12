@@ -67,7 +67,7 @@ static bool IsSignExt(z3::expr op) {
   }
  
   auto lhs{op.arg(0)};
-  if ( && lhs.is_numeral()) {
+  if (lhs.is_numeral()) {
     auto size{GetZ3SortSize(lhs)};
     llvm::APInt val(size, Z3_get_numeral_string(op.ctx(), op), 10);
     return val.isAllOnesValue() || val.isNullValue();

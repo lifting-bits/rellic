@@ -118,6 +118,8 @@ clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
 
 clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
                                       clang::ValueDecl *val) {
+  CHECK(val) << "should not be null in CreateDeclRefExpr";
+
   DLOG(INFO) << "Creating DeclRefExpr for " << val->getNameAsString();
   return clang::DeclRefExpr::Create(
       ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val, false,

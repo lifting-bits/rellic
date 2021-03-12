@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include "rellic/BC/Util.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
 #include <llvm/ADT/SmallVector.h>
-
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
@@ -27,7 +27,6 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
-
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
@@ -35,7 +34,6 @@
 #include "rellic/BC/Compat/Error.h"
 #include "rellic/BC/Compat/IRReader.h"
 #include "rellic/BC/Compat/Verifier.h"
-#include "rellic/BC/Util.h"
 
 namespace rellic {
 
@@ -107,6 +105,34 @@ llvm::Module *LoadModuleFromFile(llvm::LLVMContext *context,
   }
 
   return module;
+}
+
+bool IsGlobalMetadata(const llvm::GlobalObject &go) {
+  return go.getSection() == "llvm.metadata";
+}
+
+bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id) {
+  // this is a copy of IntrinsicInst::isAssumeLikeIntrinsic in LLVM12+
+  // NOTE(artem): This probalby needs some compat wrappers for older LLVM
+  switch (id) {
+    case llvm::Intrinsic::assume:
+    case llvm::Intrinsic::sideeffect:
+    // case llvm::Intrinsic::pseudoprobe:
+    case llvm::Intrinsic::dbg_declare:
+    case llvm::Intrinsic::dbg_value:
+    case llvm::Intrinsic::dbg_label:
+    case llvm::Intrinsic::invariant_start:
+    case llvm::Intrinsic::invariant_end:
+    case llvm::Intrinsic::lifetime_start:
+    case llvm::Intrinsic::lifetime_end:
+    // case llvm::Intrinsic::experimental_noalias_scope_decl:
+    case llvm::Intrinsic::objectsize:
+    case llvm::Intrinsic::ptr_annotation:
+    case llvm::Intrinsic::var_annotation:
+      return true;
+    default:
+      return false;
+  }
 }
 
 }  // namespace rellic

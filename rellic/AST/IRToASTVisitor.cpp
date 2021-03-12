@@ -24,6 +24,7 @@
 #include <iterator>
 
 #include "rellic/AST/Util.h"
+#include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
 
@@ -383,6 +384,11 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     return;
   }
 
+  if (IsGlobalMetadata(gvar)) {
+    DLOG(INFO) << "Skipping global variable only used for metadata";
+    return;
+  }
+
   auto type = llvm::cast<llvm::PointerType>(gvar.getType())->getElementType();
   auto tudecl = ast_ctx.getTranslationUnitDecl();
   auto name = gvar.getName().str();
@@ -422,6 +428,12 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   auto name = func.getName().str();
   DLOG(INFO) << "VisitFunctionDecl: " << name;
+
+  if (IsAnnotationIntrinsic(func.getIntrinsicID())) {
+    DLOG(INFO) << "Skipping creating declaration for LLVM intrinsic";
+    return;
+  }
+
   auto &decl = value_decls[&func];
   if (decl) {
     return;
@@ -446,6 +458,32 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   }
 
   decl->getAsFunction()->setParams(params);
+}
+
+void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
+  DLOG(INFO) << "visitIntrinsicInst: " << LLVMThingToString(&inst);
+
+  // NOTE(artem): As of this writing, rellic does not do anything
+  // with debug intrinsics and debug metadata. Processing them to C
+  // is useless (since there is no C equivalent anyway).
+  // All it does it lead to triggering of asserts for things that are
+  // low-priority on the "to fix" list
+
+  if (llvm::isDbgInfoIntrinsic(inst.getIntrinsicID())) {
+    DLOG(INFO) << "Skipping debug data intrinsic";
+    return;
+  }
+  
+  if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
+    // Some of this overlaps with the debug data case above.
+    // This is fine. We want debug data special cased as we know it is present
+    // and we may make use of it earlier than other annotations
+    DLOG(INFO) << "Skipping non-debug annotation";
+    return;
+  }
+
+  // handle this as a CallInst, which IntrinsicInst derives from
+  return visitCallInst(inst);
 }
 
 void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
@@ -885,7 +923,9 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   if (cast) {
     return;
   }
-  // Get cast operand
+
+  // There should always be an operand with a cast instruction
+  // Get a C-language expression of the operand
   auto operand = GetOperandExpr(inst.getOperand(0));
   // Get destination type
   auto type = GetQualType(inst.getType());

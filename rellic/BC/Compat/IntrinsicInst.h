@@ -1,3 +1,4 @@
+#pragma once
 #include "llvm/IR/IntrinsicInst.h"
 #include "rellic/BC/Version.h"
 

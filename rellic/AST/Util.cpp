@@ -86,24 +86,24 @@ clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
   auto MakeCast = [&ctx, dst, op](clang::CastKind kind) {
     return CreateCStyleCastExpr(ctx, dst, kind, op);
   };
-
-  // CK_FloatingCast
+  
+  // Widen floating point type
   if (IsFloat(dst) && IsFloat(src) && IsSmaller) {
     return MakeCast(clang::CastKind::CK_FloatingCast);
   }
-  // CK_IntegralCast
+  // Widen integral type
   if (IsInt(dst) && IsInt(src) && IsSmaller) {
     return MakeCast(clang::CastKind::CK_IntegralCast);
   }
-  // CK_IntegralToFloatingCast
+  // Convert integral to floating point type
   if (IsFloat(dst) && IsInt(src)) {
     return MakeCast(clang::CastKind::CK_IntegralToFloating);
   }
-  // CK_FloatingToIntegralCast
+  // Convert floating point to integral type
   if (IsInt(dst) && IsFloat(src)) {
     return MakeCast(clang::CastKind::CK_FloatingToIntegral);
   }
-  // Nothing
+  // Do nothing
   return op;
 }
 

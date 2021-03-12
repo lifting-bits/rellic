@@ -220,6 +220,8 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
                                            /*sign=*/0)};
       auto size{ast_ctx->getTypeSize(type)};
       llvm::APInt val(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
+      // Handle `char` and `short` types separately, because clang
+      // adds non-standard `Ui8` and `Ui16` suffixes respectively.
       switch (clang::cast<clang::BuiltinType>(type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
           result = CreateCStyleCastExpr(
@@ -922,6 +924,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
   // Create C binary operator
   clang::Expr *c_op{nullptr};
   switch (z_func.decl_kind()) {
+    // `&&` in z3 can be n-ary, so we create a tree of C binary `&&`.
     case Z3_OP_AND: {
       c_op = lhs;
       for (auto i = 1U; i < z_op.num_args(); ++i) {
@@ -930,7 +933,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
                                     ast_ctx->IntTy);
       }
     } break;
-
+    // `||` in z3 can be n-ary, so we create a tree of C binary `||`.
     case Z3_OP_OR: {
       c_op = lhs;
       for (auto i = 1U; i < z_op.num_args(); ++i) {

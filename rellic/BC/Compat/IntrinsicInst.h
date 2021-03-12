@@ -1,3 +1,4 @@
+#include "llvm/IR/IntrinsicInst.h"
 #include "rellic/BC/Version.h"
 
 #if LLVM_VERSION_NUMBER < LLVM_VERSION(11, 0)

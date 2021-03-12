@@ -51,6 +51,9 @@ static unsigned GetZ3SortSize(z3::sort sort) {
       LOG(FATAL) << "Unknown Z3 sort: " << sort;
       break;
   }
+  // This code is unreachable, but sometimes we need to
+  // fix 'error: control reaches end of non-void function' on some compilers.
+  return (unsigned)(-1);
 }
 
 static unsigned GetZ3SortSize(z3::expr expr) {
@@ -62,11 +65,13 @@ static unsigned GetZ3SortSize(z3::expr expr) {
 // checking if `l` is an "all-one" or "all-zero" bit
 // value. 
 static bool IsSignExt(z3::expr op) {
+
   if (op.decl().decl_kind() != Z3_OP_CONCAT) {
     return false;
   }
  
   auto lhs{op.arg(0)};
+
   if (lhs.is_numeral()) {
     auto size{GetZ3SortSize(lhs)};
     llvm::APInt val(size, Z3_get_numeral_string(op.ctx(), op), 10);

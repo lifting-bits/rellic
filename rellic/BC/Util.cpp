@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include "rellic/BC/Util.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
 #include <llvm/ADT/SmallVector.h>
-
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
@@ -27,7 +27,6 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
-
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
@@ -35,7 +34,6 @@
 #include "rellic/BC/Compat/Error.h"
 #include "rellic/BC/Compat/IRReader.h"
 #include "rellic/BC/Compat/Verifier.h"
-#include "rellic/BC/Util.h"
 
 namespace rellic {
 

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <string>
+#include "rellic/BC/Compat/IntrinsicInst.h"
 
 namespace llvm {
 class Module;
@@ -24,11 +25,6 @@ class Type;
 class Value;
 class LLVMContext;
 class GlobalObject;
-
-namespace Intrinsic {
-typedef unsigned ID;
-}  // namespace Intrinsic
-
 }  // namespace llvm
 
 namespace rellic {

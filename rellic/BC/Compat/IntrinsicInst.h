@@ -16,3 +16,11 @@ static inline bool isDbgInfoIntrinsic(Intrinsic::ID ID) {
 }
 } // namespace llvm
 #endif
+
+namespace Intrinsic {
+#if LLVM_VERSION_NUMBER < LLVM_VERSION(10, 0)
+enum ID : unsigned;
+#else
+typedef unsigned ID;
+#endif
+}  // namespace Intrinsic

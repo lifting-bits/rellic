@@ -50,9 +50,10 @@ def compile(self, clang, input, output, timeout, options=None):
 
 
 def decompile(self, rellic, input, output, timeout):
-    cmd = []
-    cmd.append(rellic)
-    cmd.extend(["--input", input, "--output", output])
+    cmd = [rellic]
+    cmd.extend(
+        ["--lower_switch", "--remove_phi_nodes", "--input", input, "--output", output]
+    )
     p = run_cmd(cmd, timeout)
 
     self.assertEqual(p.returncode, 0, "rellic-decomp failure: %s" % p.stderr)
@@ -63,7 +64,7 @@ def decompile(self, rellic, input, output, timeout):
     return p
 
 
-def roundtrip(self, rellic, filename, clang, timeout):
+def roundtrip(self, rellic, filename, clang, timeout, translate_only):
     with tempfile.TemporaryDirectory() as tempdir:
         out1 = os.path.join(tempdir, "out1")
         compile(self, clang, filename, out1, timeout)
@@ -77,15 +78,23 @@ def roundtrip(self, rellic, filename, clang, timeout):
         rt_c = os.path.join(tempdir, "rt.c")
         decompile(self, rellic, rt_bc, rt_c, timeout)
 
-        out2 = os.path.join(tempdir, "out2")
-        compile(self, clang, rt_c, out2, timeout, ["-Wno-everything"])
+        # ensure there is a C output file
+        self.assertTrue(os.path.exists(rt_c))
 
-        # capture outputs of binary after roundtrip
-        cp2 = run_cmd([out2], timeout)
+        # ensure the file has some C
+        self.assertTrue(os.path.getsize(rt_c) > 0)
 
-        self.assertEqual(cp1.stderr, cp2.stderr, "Different stderr")
-        self.assertEqual(cp1.stdout, cp2.stdout, "Different stdout")
-        self.assertEqual(cp1.returncode, cp2.returncode, "Different return code")
+        # We should recompile, lets see how this goes
+        if not translate_only:
+            out2 = os.path.join(tempdir, "out2")
+            compile(self, clang, rt_c, out2, timeout, ["-Wno-everything"])
+
+            # capture outputs of binary after roundtrip
+            cp2 = run_cmd([out2], timeout)
+
+            self.assertEqual(cp1.stderr, cp2.stderr, "Different stderr")
+            self.assertEqual(cp1.stdout, cp2.stdout, "Different stdout")
+            self.assertEqual(cp1.returncode, cp2.returncode, "Different return code")
 
 
 class TestRoundtrip(unittest.TestCase):
@@ -97,20 +106,26 @@ if __name__ == "__main__":
     parser.add_argument("rellic", help="path to rellic-decomp")
     parser.add_argument("tests", help="path to test directory")
     parser.add_argument("clang", help="path to clang")
+    parser.add_argument(
+        "--translate-only", action="store_true", default=False, help="Translate only, do not recompile"
+    )
     parser.add_argument("-t", "--timeout", help="set timeout in seconds", type=int)
 
     args = parser.parse_args()
 
     def test_generator(path):
         def test(self):
-            roundtrip(self, args.rellic, path, args.clang, args.timeout)
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only)
 
         return test
 
     for item in os.scandir(args.tests):
         if item.is_file():
-            test_name = "test_%s" % os.path.splitext(item.name)[0]
-            test = test_generator(item.path)
-            setattr(TestRoundtrip, test_name, test)
+            name, ext = os.path.splitext(item.name)
+            # Allow for READMEs and data/headers
+            if ext in [".c", ".cpp"]:
+                test_name = f"test_{name}"
+                test = test_generator(item.path)
+                setattr(TestRoundtrip, test_name, test)
 
     unittest.main(argv=[sys.argv[0]])

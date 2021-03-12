@@ -56,10 +56,9 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       break;
 
     case llvm::Type::IntegerTyID: {
-      auto size = type->getIntegerBitWidth();
+      auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result =
-          size == 1 ? ast_ctx.IntTy : ast_ctx.getIntTypeForBitwidth(size, 0);
+      result = GetLeastIntTypeForBitWidth(ast_ctx, size, /*sign=*/0);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -162,24 +161,30 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       switch (clang::cast<clang::BuiltinType>(c_type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
         case clang::BuiltinType::Kind::SChar:
-          result = CreateCharacterLiteral(ast_ctx, val, c_type);
-          break;
-
-        case clang::BuiltinType::Kind::Bool:
-          result = CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy);
+          result = CreateCStyleCastExpr(
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
+              CreateCharacterLiteral(ast_ctx, val, ast_ctx.IntTy));
           break;
 
         case clang::BuiltinType::Kind::Short:
+          // We create an `int` and cast to a `short` to avoid
+          // to avoid clang printing the `i16` literal suffix.
           result = CreateCStyleCastExpr(
-              ast_ctx, ast_ctx.ShortTy, clang::CastKind::CK_IntegralCast,
-              CreateIntegerLiteral(ast_ctx, val, ast_ctx.IntTy));
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
+              CreateIntegerLiteral(
+                  ast_ctx, val.sextOrSelf(ast_ctx.getTypeSize(ast_ctx.IntTy)),
+                  ast_ctx.IntTy));
           break;
 
         case clang::BuiltinType::Kind::UShort:
+          // We create an `unsigned int` and cast to a `unsigned short`
+          // to avoid clang printing the `Ui16` literal suffix.
           result = CreateCStyleCastExpr(
-              ast_ctx, ast_ctx.UnsignedShortTy,
-              clang::CastKind::CK_IntegralCast,
-              CreateIntegerLiteral(ast_ctx, val, ast_ctx.UnsignedIntTy));
+              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
+              CreateIntegerLiteral(
+                  ast_ctx,
+                  val.zextOrSelf(ast_ctx.getTypeSize(ast_ctx.UnsignedIntTy)),
+                  ast_ctx.UnsignedIntTy));
           break;
 
         case clang::BuiltinType::Kind::Int:
@@ -240,8 +245,10 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   return result;
 }
 
-#define ASSERT_ON_VALUE_TYPE(x) \
-  if (llvm::isa<x>(val)) { LOG(FATAL) << "Invalid operand [" #x "]"; }
+#define ASSERT_ON_VALUE_TYPE(x)               \
+  if (llvm::isa<x>(val)) {                    \
+    LOG(FATAL) << "Invalid operand [" #x "]"; \
+  }
 
 clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
@@ -275,6 +282,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
                            clang::cast<clang::Expr>(GetOrCreateStmt(val)));
   }
 
+  ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
   ASSERT_ON_VALUE_TYPE(llvm::Constant);
   ASSERT_ON_VALUE_TYPE(llvm::BasicBlock);
   ASSERT_ON_VALUE_TYPE(llvm::GlobalVariable);
@@ -282,8 +290,13 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   ASSERT_ON_VALUE_TYPE(llvm::GlobalIFunc);
   ASSERT_ON_VALUE_TYPE(llvm::GlobalIndirectSymbol);
   ASSERT_ON_VALUE_TYPE(llvm::GlobalObject);
+  ASSERT_ON_VALUE_TYPE(llvm::FPMathOperator);
+  ASSERT_ON_VALUE_TYPE(llvm::Operator);
+  ASSERT_ON_VALUE_TYPE(llvm::BlockAddress);
 
-  LOG(FATAL) << "Invalid operand: " << LLVMThingToString(val);
+  LOG(FATAL) << "Invalid operand value id: [" << val->getValueID() << "]\n"
+             << "Bitcode: [" << LLVMThingToString(val) << "]\n"
+             << "Type: [" << LLVMThingToString(val->getType()) << "]\n";
 
   return nullptr;
 }
@@ -683,37 +696,6 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
   }
 }
 
-clang::Expr *IRToASTVisitor::CastOperand(clang::QualType dst, clang::Expr *op) {
-  // Get operand type
-  auto src = op->getType();
-  // Helpers
-  auto IsInt = [this](clang::QualType t) { return t->isIntegralType(ast_ctx); };
-  auto IsFloat = [](clang::QualType t) { return t->isFloatingType(); };
-  auto IsSmaller = ast_ctx.getTypeSize(src) < ast_ctx.getTypeSize(dst);
-  auto MakeCast = [this, dst, op](clang::CastKind kind) {
-    return CreateCStyleCastExpr(ast_ctx, dst, kind, op);
-  };
-
-  // CK_FloatingCast
-  if (IsFloat(dst) && IsFloat(src) && IsSmaller) {
-    return MakeCast(clang::CastKind::CK_FloatingCast);
-  }
-  // CK_IntegralCast
-  if (IsInt(dst) && IsInt(src) && IsSmaller) {
-    return MakeCast(clang::CastKind::CK_IntegralCast);
-  }
-  // CK_IntegralToFloatingCast
-  if (IsFloat(dst) && IsInt(src)) {
-    return MakeCast(clang::CastKind::CK_IntegralToFloating);
-  }
-  // CK_FloatingToIntegralCast
-  if (IsInt(dst) && IsFloat(src)) {
-    return MakeCast(clang::CastKind::CK_FloatingToIntegral);
-  }
-  // Nothing
-  return op;
-}
-
 void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   DLOG(INFO) << "visitBinaryOperator: " << LLVMThingToString(&inst);
   auto &binop = stmts[&inst];
@@ -724,11 +706,12 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto lhs = GetOperandExpr(inst.getOperand(0));
   auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
-  auto BinOpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc,
+  auto BinOpExpr{[this, &lhs, &rhs](clang::BinaryOperatorKind opc,
                                     clang::QualType type) {
-    return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
-                                CastOperand(lhs->getType(), rhs), type);
-  };
+    return CreateBinaryOperator(ast_ctx, opc,
+                                CastExpr(ast_ctx, rhs->getType(), lhs),
+                                CastExpr(ast_ctx, lhs->getType(), rhs), type);
+  }};
   // Sign-cast int operand
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {
     auto type = ast_ctx.getIntTypeForBitwidth(
@@ -737,9 +720,10 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
                                 operand);
   };
 
-  // Get result type
-  auto l_type{inst.getType()};
-  auto c_type{GetQualType(l_type)};
+  // Determine C operator result type from it's operands
+  auto c_type{ast_ctx.getIntegerTypeOrder(lhs->getType(), rhs->getType()) < 0
+                  ? rhs->getType()
+                  : lhs->getType()};
   // Where the magic happens
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr:
@@ -758,12 +742,14 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
 
     case llvm::BinaryOperator::And:
       binop = BinOpExpr(
-          l_type->isIntegerTy(1U) ? clang::BO_LAnd : clang::BO_And, c_type);
+          inst.getType()->isIntegerTy(1U) ? clang::BO_LAnd : clang::BO_And,
+          c_type);
       break;
 
     case llvm::BinaryOperator::Or:
-      binop = BinOpExpr(l_type->isIntegerTy(1U) ? clang::BO_LOr : clang::BO_Or,
-                        c_type);
+      binop = BinOpExpr(
+          inst.getType()->isIntegerTy(1U) ? clang::BO_LOr : clang::BO_Or,
+          c_type);
       break;
 
     case llvm::BinaryOperator::Xor:
@@ -830,9 +816,9 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto rhs = GetOperandExpr(inst.getOperand(1));
   // Convenience wrapper
   auto CmpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc) {
-    return CreateBinaryOperator(ast_ctx, opc, CastOperand(rhs->getType(), lhs),
-                                CastOperand(lhs->getType(), rhs),
-                                ast_ctx.IntTy);
+    return CreateBinaryOperator(
+        ast_ctx, opc, CastExpr(ast_ctx, rhs->getType(), lhs),
+        CastExpr(ast_ctx, lhs->getType(), rhs), ast_ctx.IntTy);
   };
   // Sign-cast int operand
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {

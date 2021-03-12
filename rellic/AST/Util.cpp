@@ -68,6 +68,45 @@ bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map) {
   return change;
 }
 
+clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
+                                           unsigned size, unsigned sign) {
+  auto &ti{ctx.getTargetInfo()};
+  auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
+  return ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
+}
+
+clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
+                      clang::Expr *op) {
+  // Get operand type
+  auto src = op->getType();
+  // Helpers
+  auto IsInt = [&ctx](clang::QualType t) { return t->isIntegralType(ctx); };
+  auto IsFloat = [](clang::QualType t) { return t->isFloatingType(); };
+  auto IsSmaller = ctx.getTypeSize(src) < ctx.getTypeSize(dst);
+  auto MakeCast = [&ctx, dst, op](clang::CastKind kind) {
+    return CreateCStyleCastExpr(ctx, dst, kind, op);
+  };
+  
+  // Widen floating point type
+  if (IsFloat(dst) && IsFloat(src) && IsSmaller) {
+    return MakeCast(clang::CastKind::CK_FloatingCast);
+  }
+  // Widen integral type
+  if (IsInt(dst) && IsInt(src) && IsSmaller) {
+    return MakeCast(clang::CastKind::CK_IntegralCast);
+  }
+  // Convert integral to floating point type
+  if (IsFloat(dst) && IsInt(src)) {
+    return MakeCast(clang::CastKind::CK_IntegralToFloating);
+  }
+  // Convert floating point to integral type
+  if (IsInt(dst) && IsFloat(src)) {
+    return MakeCast(clang::CastKind::CK_FloatingToIntegral);
+  }
+  // Do nothing
+  return op;
+}
+
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
                                         std::string name) {
   std::string str = "";
@@ -77,12 +116,12 @@ clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
   return &ctx.Idents.get(str);
 }
 
-clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ast_ctx,
+clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
                                       clang::ValueDecl *val) {
   DLOG(INFO) << "Creating DeclRefExpr for " << val->getNameAsString();
   return clang::DeclRefExpr::Create(
-      ast_ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val,
-      false, val->getLocation(), val->getType(), clang::VK_LValue);
+      ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val, false,
+      val->getLocation(), val->getType(), clang::VK_LValue);
 }
 
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
@@ -170,6 +209,7 @@ clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
 
 clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
                                   clang::QualType type) {
+  CHECK_EQ(val.getBitWidth(), ctx.getIntWidth(type));
   return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
 }
 

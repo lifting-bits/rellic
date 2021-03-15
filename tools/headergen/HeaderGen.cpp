@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
+#include <clang/Tooling/Tooling.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <rellic/Version/Version.h>
 
 #include <fstream>
 #include <iostream>
 #include <streambuf>
 
-#include <clang/Tooling/Tooling.h>
-
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
-
-#include <rellic/Version/Version.h>
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR
@@ -54,21 +52,23 @@ static void SetVersion(void) {
   std::stringstream version;
 
   auto vs = rellic::Version::GetVersionString();
-  if(0 == vs.size()) {
-      vs = "unknown";
+  if (0 == vs.size()) {
+    vs = "unknown";
   }
   version << vs << "\n";
-  if(!rellic::Version::HasVersionData()) {
+  if (!rellic::Version::HasVersionData()) {
     version << "No extended version information found!\n";
   } else {
     version << "Commit Hash: " << rellic::Version::GetCommitHash() << "\n";
     version << "Commit Date: " << rellic::Version::GetCommitDate() << "\n";
-    version << "Last commit by: " << rellic::Version::GetAuthorName() << " [" << rellic::Version::GetAuthorEmail() << "]\n";
-    version << "Commit Subject: [" << rellic::Version::GetCommitSubject() << "]\n";
+    version << "Last commit by: " << rellic::Version::GetAuthorName() << " ["
+            << rellic::Version::GetAuthorEmail() << "]\n";
+    version << "Commit Subject: [" << rellic::Version::GetCommitSubject()
+            << "]\n";
     version << "\n";
-    if(rellic::Version::HasUncommittedChanges()) {
+    if (rellic::Version::HasUncommittedChanges()) {
       version << "Uncommitted changes were present during build.\n";
-    } else  {
+    } else {
       version << "All changes were committed prior to building.\n";
     }
   }
@@ -118,9 +118,9 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
   // Run our visitor on the CXX AST
-  clang::CompilerInstance c_ins;
-  rellic::InitCompilerInstance(c_ins);
-  auto& c_ast_ctx = c_ins.getASTContext();
+  std::vector<std::string> args{"-target", llvm::sys::getDefaultTargetTriple()};
+  auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
+  auto& c_ast_ctx = ast_unit->getASTContext();
   rellic::CXXToCDeclVisitor visitor(c_ast_ctx);
   // cxx_ast_unit->getASTContext().getTranslationUnitDecl()->dump();
   visitor.TraverseDecl(cxx_ast_unit->getASTContext().getTranslationUnitDecl());

@@ -15,6 +15,7 @@
  */
 
 #include <clang/Basic/TargetInfo.h>
+#include <clang/Tooling/Tooling.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <llvm/IR/InstIterator.h>
@@ -86,10 +87,9 @@ static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
 
-  clang::CompilerInstance ins;
-  rellic::InitCompilerInstance(ins, module.getTargetTriple());
-
-  auto& ast_ctx{ins.getASTContext()};
+  std::vector<std::string> args{"-target", module.getTargetTriple()};
+  auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
+  auto& ast_ctx{ast_unit->getASTContext()};
 
   rellic::IRToASTVisitor gen(ast_ctx);
 

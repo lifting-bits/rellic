@@ -28,14 +28,7 @@
 
 namespace rellic {
 
-void InitCompilerInstance(
-    clang::CompilerInstance &ins,
-    std::string target_triple = llvm::sys::getDefaultTargetTriple());
-
 using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
-
-void InitCompilerInstance(clang::CompilerInstance &ins,
-                          std::string target_triple);
 
 bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map);
 

@@ -20,16 +20,6 @@
 
 #include "rellic/AST/Compat/Expr.h"
 
-// namespace llvm {
-// class APInt;
-// class APFloat;
-// }  // namespace llvm
-
-// namespace clang {
-// class ASTContext;
-// class Expr;
-// }  // namespace clang
-
 namespace rellic {
 
 class ASTBuilder {

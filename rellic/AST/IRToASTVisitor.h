@@ -24,12 +24,15 @@
 #include <unordered_map>
 
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/ASTBuilder.h"
 
 namespace rellic {
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
   clang::ASTContext &ast_ctx;
+
+  ASTBuilder ast;
 
   std::unordered_map<llvm::Type *, clang::TypeDecl *> type_decls;
   std::unordered_map<llvm::Value *, clang::ValueDecl *> value_decls;

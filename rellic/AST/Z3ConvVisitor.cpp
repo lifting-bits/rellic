@@ -63,13 +63,12 @@ static unsigned GetZ3SortSize(z3::expr expr) {
 // Determine if `op` is a `z3::concat(l, r)` that's
 // equivalent to a sign extension. This is done by
 // checking if `l` is an "all-one" or "all-zero" bit
-// value. 
+// value.
 static bool IsSignExt(z3::expr op) {
-
   if (op.decl().decl_kind() != Z3_OP_CONCAT) {
     return false;
   }
- 
+
   auto lhs{op.arg(0)};
 
   if (lhs.is_numeral()) {
@@ -91,6 +90,7 @@ static std::string CreateZ3DeclName(clang::NamedDecl *decl) {
 
 Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx)
     : ast_ctx(c_ctx),
+      ast(*c_ctx),
       z3_ctx(z3_ctx),
       z3_expr_vec(*z3_ctx),
       z3_decl_vec(*z3_ctx) {}
@@ -188,7 +188,6 @@ z3::sort Z3ConvVisitor::GetZ3Sort(clang::QualType type) {
   if (type->isRealFloatingType()) {
     switch (bitwidth) {
       case 16:
-        // return z3_ctx.fpa_sort<16>();
         return z3::to_sort(*z3_ctx, Z3_mk_fpa_sort_16(*z3_ctx));
         break;
 
@@ -258,8 +257,7 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
     } break;
 
     case Z3_FLOATING_POINT_SORT: {
-      auto type{GetRealTypeForBitwidth(*ast_ctx, GetZ3SortSize(sort))};
-      auto size{ast_ctx->getIntWidth(type)};
+      auto size{GetZ3SortSize(sort)};
       const llvm::fltSemantics *semantics{nullptr};
       switch (size) {
         case 16:
@@ -278,9 +276,11 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
           LOG(FATAL) << "Unknown Z3 floating-point sort!";
           break;
       }
-      llvm::APInt ival(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
-      llvm::APFloat fval(*semantics, ival);
-      result = CreateFloatingLiteral(*ast_ctx, fval, type);
+      z3::expr bv(*z3_ctx, Z3_mk_fpa_to_ieee_bv(*z3_ctx, z_expr));
+      std::string bits;
+      CHECK(bv.simplify().as_binary(bits));
+      llvm::APInt api(size, bits, /*radix=*/2U);
+      result = ast.CreateFPLit(llvm::APFloat(*semantics, api));
     } break;
 
     default:
@@ -731,7 +731,7 @@ bool Z3ConvVisitor::VisitCharacterLiteral(clang::CharacterLiteral *c_lit) {
   return true;
 }
 
-// Translates clang integer literals references to Z3 numeral values.
+// Translates clang integer literal references to Z3 numeral values.
 bool Z3ConvVisitor::VisitIntegerLiteral(clang::IntegerLiteral *c_lit) {
   auto c_val = c_lit->getValue().getLimitedValue();
   DLOG(INFO) << "VisitIntegerLiteral: " << c_val;
@@ -743,6 +743,25 @@ bool Z3ConvVisitor::VisitIntegerLiteral(clang::IntegerLiteral *c_lit) {
   auto z_val = z_sort.is_bool() ? z3_ctx->bool_val(c_val != 0)
                                 : z3_ctx->num_val(c_val, z_sort);
   InsertZ3Expr(c_lit, z_val);
+
+  return true;
+}
+
+// Translates clang floating point literal references to Z3 numeral values.
+bool Z3ConvVisitor::VisitFloatingLiteral(clang::FloatingLiteral *lit) {
+  auto api{lit->getValue().bitcastToAPInt()};
+  DLOG(INFO) << "VisitFloatingLiteral: " << api.bitsToDouble();
+  if (z3_expr_map.count(lit)) {
+    return true;
+  }
+
+  auto size{api.getBitWidth()};
+  auto bits{api.toString(/*Radix=*/10, /*Signed=*/false)};
+  auto sort{GetZ3Sort(lit->getType())};
+  auto bv{z3_ctx->bv_val(bits.c_str(), size)};
+  auto fpa{z3::to_expr(*z3_ctx, Z3_mk_fpa_to_fp_bv(*z3_ctx, bv, sort))};
+
+  InsertZ3Expr(lit, fpa);
 
   return true;
 }
@@ -794,6 +813,13 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
     case Z3_OP_ANUM:
     // Bitvector numerals
     case Z3_OP_BNUM:
+    // Floating-point numerals
+    case Z3_OP_FPA_NUM:
+    case Z3_OP_FPA_PLUS_INF:
+    case Z3_OP_FPA_MINUS_INF:
+    case Z3_OP_FPA_NAN:
+    case Z3_OP_FPA_PLUS_ZERO:
+    case Z3_OP_FPA_MINUS_ZERO:
       c_expr = CreateLiteralExpr(z_const);
       break;
     // Internal constants handled by parent Z3 exprs
@@ -806,7 +832,7 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
 
     // Unknowns
     default:
-      LOG(FATAL) << "Unknown Z3 constant!";
+      LOG(FATAL) << "Unknown Z3 constant: " << z_const;
       break;
   }
   InsertCExpr(z_const, c_expr);
@@ -962,6 +988,10 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
 
     case Z3_OP_SLEQ:
       c_op = BinOpExpr(clang::BO_LE, ast_ctx->IntTy);
+      break;
+
+    case Z3_OP_FPA_LT:
+      c_op = BinOpExpr(clang::BO_LT, ast_ctx->IntTy);
       break;
 
     // Given a `(concat l r)` we generate `((t)l << w) | r` where

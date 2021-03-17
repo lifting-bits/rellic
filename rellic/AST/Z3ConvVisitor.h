@@ -21,11 +21,15 @@
 
 #include <unordered_map>
 
+#include "rellic/AST/ASTBuilder.h"
+
 namespace rellic {
 
 class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
  private:
   clang::ASTContext *ast_ctx;
+  ASTBuilder ast;
+  
   z3::context *z3_ctx;
 
   // Expression maps
@@ -79,8 +83,9 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   bool VisitBinaryOperator(clang::BinaryOperator *c_op);
   bool VisitConditionalOperator(clang::ConditionalOperator *c_op);
   bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
-  bool VisitCharacterLiteral(clang::CharacterLiteral *c_lit);
-  bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
+  bool VisitCharacterLiteral(clang::CharacterLiteral *lit);
+  bool VisitIntegerLiteral(clang::IntegerLiteral *lit);
+  bool VisitFloatingLiteral(clang::FloatingLiteral *lit);
 
   bool VisitVarDecl(clang::VarDecl *var);
   bool VisitFieldDecl(clang::FieldDecl *field);

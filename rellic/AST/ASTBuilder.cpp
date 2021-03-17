@@ -20,7 +20,6 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/ASTContext.h"
-#include "rellic/AST/Compat/Expr.h"
 
 namespace rellic {
 

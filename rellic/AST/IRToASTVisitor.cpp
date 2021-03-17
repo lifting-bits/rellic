@@ -30,7 +30,8 @@
 
 namespace rellic {
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx) : ast_ctx(ctx) {}
+IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx)
+    : ast_ctx(ctx), ast(ast_ctx) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
@@ -153,8 +154,8 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     case llvm::Type::FloatTyID:
     case llvm::Type::DoubleTyID:
     case llvm::Type::X86_FP80TyID: {
-      auto val{llvm::cast<llvm::ConstantFP>(constant)->getValueAPF()};
-      result = CreateFloatingLiteral(ast_ctx, val, c_type);
+      result = ast.CreateFPLit(
+          llvm::cast<llvm::ConstantFP>(constant)->getValueAPF());
     } break;
     // Integers
     case llvm::Type::IntegerTyID: {
@@ -473,7 +474,7 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
     DLOG(INFO) << "Skipping debug data intrinsic";
     return;
   }
-  
+
   if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
     // Some of this overlaps with the debug data case above.
     // This is fine. We want debug data special cased as we know it is present

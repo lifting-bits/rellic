@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: true
     - name: Native LLVM 9.0 on Ubuntu 18.04 Build
       run: |
         sudo apt-get update
@@ -32,6 +35,9 @@ jobs:
         ubuntu: ["20.04", "18.04"]
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: true
     - name: Build LLVM ${{ matrix.llvm }} on ${{ matrix.ubuntu }}
       run: |
         docker build . -t docker.pkg.github.com/lifting-bits/rellic/rellic-llvm${{ matrix.llvm }}-ubuntu${{ matrix.ubuntu }}-amd64:latest -f Dockerfile --build-arg UBUNTU_VERSION=${{ matrix.ubuntu }} --build-arg ARCH=amd64 --build-arg LLVM_VERSION=${{ matrix.llvm }}

@@ -136,6 +136,12 @@ macro(add_project_properties target)
 endmacro()
 
 #
+# third party libraries
+#
+
+add_subdirectory(libraries)
+
+#
 # rellic libraries
 #
 
@@ -152,6 +158,8 @@ add_subdirectory(tools)
 #
 
 enable_testing()
+
+add_subdirectory(unittests)
 
 if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
   set(CLANG_PATH ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang)

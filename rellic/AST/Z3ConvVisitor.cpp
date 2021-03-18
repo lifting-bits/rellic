@@ -269,8 +269,9 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
           break;
       }
       z3::expr bv(*z3_ctx, Z3_mk_fpa_to_ieee_bv(*z3_ctx, z_expr));
-      std::string bits;
-      CHECK(bv.simplify().as_binary(bits));
+      auto bits{Z3_get_numeral_binary_string(*z3_ctx, bv.simplify())};
+      CHECK(std::strlen(bits) > 0)
+          << "Failed to convert IEEE bitvector to string!";
       llvm::APInt api(size, bits, /*radix=*/2U);
       result = ast.CreateFPLit(llvm::APFloat(*semantics, api));
     } break;

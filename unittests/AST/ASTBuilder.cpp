@@ -6,7 +6,8 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-TEST_CASE("main") { printf("hello from <main.cpp>\n"); }
+#include "rellic/AST/ASTBuilder.h"
+
+TEST_CASE("ASTBuilder") { printf("hello from <ASTBuilder.cpp>\n"); }

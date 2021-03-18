@@ -19,7 +19,7 @@ ASTBuilder::ASTBuilder(clang::ASTContext &context) : ctx(context) {}
 
 clang::FloatingLiteral *ASTBuilder::CreateFPLit(llvm::APFloat val) {
   auto size{llvm::APFloat::getSizeInBits(val.getSemantics())};
-  auto type{ctx.getRealTypeForBitwidth(size, /*ExplicitIEEE=*/true)};
+  auto type{GetRealTypeForBitwidth(ctx, size)};
   CHECK(!type.isNull()) << "Unable to infer type for given value.";
   return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
                                         clang::SourceLocation());

@@ -9,12 +9,14 @@ add_executable(${RELLIC_UNITTEST}
   UnitTest.cpp
 )
 
+add_project_properties(${RELLIC_UNITTEST})
+
 target_link_libraries(${RELLIC_UNITTEST} PRIVATE
     ${PROJECT_NAME}
     thirdparty_doctest
 )
 
-add_project_properties(${RELLIC_UNITTEST})
+target_compile_options(${RELLIC_UNITTEST} PRIVATE -fexceptions)
 
 add_test(
   NAME test_${RELLIC_UNITTEST}

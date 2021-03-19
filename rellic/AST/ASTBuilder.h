@@ -21,10 +21,10 @@ class ASTBuilder {
  public:
   ASTBuilder(clang::ASTContext &context);
   // Literals
-  clang::FloatingLiteral *CreateFPLit(llvm::APFloat val);
   clang::Expr *CreateIntLit(llvm::APInt val);
-  clang::Expr *CreateCharLit(llvm::APInt val);
+  clang::CharacterLiteral *CreateCharLit(llvm::APInt val);
   clang::Expr *CreateStrLit(std::string val);
+  clang::FloatingLiteral *CreateFPLit(llvm::APFloat val);
 };
 
 }  // namespace rellic

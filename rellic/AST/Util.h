@@ -94,11 +94,11 @@ clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
 
 clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 
-clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, llvm::APInt val,
-                                    clang::QualType type);
+// clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, llvm::APInt val,
+//                                     clang::QualType type);
 
-clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
-                                 clang::QualType);
+// clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
+//                                  clang::QualType);
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
                                 std::vector<clang::Expr *> &exprs,

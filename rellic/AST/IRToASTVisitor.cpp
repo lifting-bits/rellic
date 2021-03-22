@@ -155,9 +155,9 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       switch (clang::cast<clang::BuiltinType>(c_type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
         case clang::BuiltinType::Kind::SChar:
-          result = CreateCStyleCastExpr(
-              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
-              CreateCharacterLiteral(ast_ctx, val, ast_ctx.IntTy));
+          result = CreateCStyleCastExpr(ast_ctx, c_type,
+                                        clang::CastKind::CK_IntegralCast,
+                                        ast.CreateCharLit(val));
           break;
 
         case clang::BuiltinType::Kind::Short:
@@ -217,7 +217,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
         if (auto arr = llvm::dyn_cast<llvm::ConstantDataArray>(constant)) {
           init = arr->getAsString().str();
         }
-        result = CreateStringLiteral(ast_ctx, init, c_type);
+        result = ast.CreateStrLit(init);
       } else {
         result = CreateInitListLiteral();
       }

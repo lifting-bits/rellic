@@ -201,19 +201,19 @@ clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
   return CreateIntegerLiteral(ctx, val, type);
 }
 
-clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, llvm::APInt val,
-                                    clang::QualType type) {
-  return new (ctx) clang::CharacterLiteral(
-      val.getLimitedValue(), clang::CharacterLiteral::CharacterKind::Ascii,
-      type, clang::SourceLocation());
-}
+// clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, llvm::APInt val,
+//                                     clang::QualType type) {
+//   return new (ctx) clang::CharacterLiteral(
+//       val.getLimitedValue(), clang::CharacterLiteral::CharacterKind::Ascii,
+//       type, clang::SourceLocation());
+// }
 
-clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
-                                 clang::QualType type) {
-  return clang::StringLiteral::Create(
-      ctx, val, clang::StringLiteral::StringKind::Ascii,
-      /*Pascal=*/false, type, clang::SourceLocation());
-}
+// clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
+//                                  clang::QualType type) {
+//   return clang::StringLiteral::Create(
+//       ctx, val, clang::StringLiteral::StringKind::Ascii,
+//       /*Pascal=*/false, type, clang::SourceLocation());
+// }
 
 clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
                                 std::vector<clang::Expr *> &exprs,

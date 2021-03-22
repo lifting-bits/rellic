@@ -23,7 +23,7 @@ class ASTBuilder {
   // Literals
   clang::Expr *CreateIntLit(llvm::APInt val);
   clang::CharacterLiteral *CreateCharLit(llvm::APInt val);
-  clang::Expr *CreateStrLit(std::string val);
+  clang::StringLiteral *CreateStrLit(std::string val);
   clang::FloatingLiteral *CreateFPLit(llvm::APFloat val);
 };
 

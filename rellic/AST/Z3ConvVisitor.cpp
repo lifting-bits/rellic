@@ -228,9 +228,9 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
       // adds non-standard `Ui8` and `Ui16` suffixes respectively.
       switch (clang::cast<clang::BuiltinType>(type)->getKind()) {
         case clang::BuiltinType::Kind::UChar:
-          result = CreateCStyleCastExpr(
-              *ast_ctx, type, clang::CastKind::CK_IntegralCast,
-              CreateCharacterLiteral(*ast_ctx, val, ast_ctx->IntTy));
+          result = CreateCStyleCastExpr(*ast_ctx, type,
+                                        clang::CastKind::CK_IntegralCast,
+                                        ast.CreateCharLit(val));
           break;
 
         case clang::BuiltinType::Kind::UShort:

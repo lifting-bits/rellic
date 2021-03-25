@@ -70,9 +70,18 @@ bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map) {
 
 clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
                                            unsigned size, unsigned sign) {
+  auto result{ctx.getIntTypeForBitwidth(size, sign)};
+  if (!result.isNull()) {
+    return result;
+  }
   auto &ti{ctx.getTargetInfo()};
   auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
-  return ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
+  CHECK(target_type != clang::TargetInfo::IntType::NoInt)
+      << "Failed to infer clang::TargetInfo::IntType for bitwidth: " << size;
+  result = ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
+  CHECK(!result.isNull()) << "Failed to infer clang::QualType for bitwidth: "
+                          << size;
+  return result;
 }
 
 clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
@@ -86,7 +95,7 @@ clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
   auto MakeCast = [&ctx, dst, op](clang::CastKind kind) {
     return CreateCStyleCastExpr(ctx, dst, kind, op);
   };
-  
+
   // Widen floating point type
   if (IsFloat(dst) && IsFloat(src) && IsSmaller) {
     return MakeCast(clang::CastKind::CK_FloatingCast);

@@ -6,10 +6,11 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/NestedScopeCombiner.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/NestedScopeCombiner.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -18,9 +19,7 @@ char NestedScopeCombiner::ID = 0;
 
 NestedScopeCombiner::NestedScopeCombiner(clang::ASTContext &ctx,
                                          rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(NestedScopeCombiner::ID),
-      ast_ctx(&ctx),
-      ast_gen(&ast_gen) {}
+    : ModulePass(NestedScopeCombiner::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
 
 bool NestedScopeCombiner::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
@@ -46,11 +45,11 @@ bool NestedScopeCombiner::VisitCompoundStmt(clang::CompoundStmt *compound) {
       new_body.push_back(stmt);
     }
   }
-  
+
   if (has_compound) {
     substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
   }
-  
+
   return true;
 }
 

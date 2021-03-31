@@ -23,7 +23,7 @@ static std::unique_ptr<clang::ASTUnit> GetEmptyASTUnit() {
 // via `SCENARIO` rather than `TEST_SUITE`. This needs better
 // support for value-parametrized tests from doctest. Should be in
 // version 2.5.0
-TEST_SUITE("ASTBuilder::CreateIntLit") {   
+TEST_SUITE("ASTBuilder::CreateIntLit") {
   SCENARIO("Create clang::IntegerLiteral for 1 bit integer value") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
@@ -48,12 +48,22 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       rellic::ASTBuilder ast(ctx);
       GIVEN("8 bit unsigned llvm::APInt") {
         llvm::APInt api(8U, 42U, /*isSigned=*/false);
-        auto lit{ast.CreateIntLit(api)};
-        THEN("return a `unsigned char` typed integer literal") {
+        THEN("return a `unsigned int` typed integer literal") {
+          auto lit{ast.CreateIntLit(api)};
           REQUIRE(lit != nullptr);
-          CHECK(clang::isa<clang::CStyleCastExpr>(lit));
-          CHECK(clang::isa<clang::IntegerLiteral>(lit->IgnoreCasts()));
-          CHECK(lit->getType() == ctx.UnsignedCharTy);
+          CHECK(clang::isa<clang::IntegerLiteral>(lit));
+          CHECK(lit->getType() == ctx.UnsignedIntTy);
+        }
+        THEN(
+            "return a `unsigned int` typed integer literal casted to `unsigned "
+            "char`") {
+          auto cast{ast.CreateAdjustedIntLit(api)};
+          REQUIRE(cast != nullptr);
+          CHECK(clang::isa<clang::CStyleCastExpr>(cast));
+          CHECK(cast->getType() == ctx.UnsignedCharTy);
+          auto lit{cast->IgnoreCasts()};
+          CHECK(clang::isa<clang::IntegerLiteral>(lit));
+          CHECK(lit->getType() == ctx.UnsignedIntTy);
         }
       }
     }
@@ -66,12 +76,22 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       rellic::ASTBuilder ast(ctx);
       GIVEN("16 bits wide llvm::APInt") {
         llvm::APInt api(16U, 42U, /*isSigned=*/false);
-        auto lit{ast.CreateIntLit(api)};
-        THEN("return a `unsigned short` typed integer literal") {
+        THEN("return a `unsigned int` typed integer literal") {
+          auto lit{ast.CreateIntLit(api)};
           REQUIRE(lit != nullptr);
-          CHECK(clang::isa<clang::CStyleCastExpr>(lit));
-          CHECK(clang::isa<clang::IntegerLiteral>(lit->IgnoreCasts()));
-          CHECK(lit->getType() == ctx.UnsignedShortTy);
+          CHECK(clang::isa<clang::IntegerLiteral>(lit));
+          CHECK(lit->getType() == ctx.UnsignedIntTy);
+        }
+        THEN(
+            "return a `unsigned int` typed integer literal casted to `unsigned "
+            "short`") {
+          auto cast{ast.CreateAdjustedIntLit(api)};
+          REQUIRE(cast != nullptr);
+          CHECK(clang::isa<clang::CStyleCastExpr>(cast));
+          CHECK(cast->getType() == ctx.UnsignedShortTy);
+          auto lit{cast->IgnoreCasts()};
+          CHECK(clang::isa<clang::IntegerLiteral>(lit));
+          CHECK(lit->getType() == ctx.UnsignedIntTy);
         }
       }
     }

@@ -21,7 +21,18 @@ class ASTBuilder {
  public:
   ASTBuilder(clang::ASTContext &context);
   // Literals
-  clang::Expr *CreateIntLit(llvm::APInt val);
+  clang::IntegerLiteral *CreateIntLit(llvm::APSInt val);
+
+  clang::IntegerLiteral *CreateIntLit(llvm::APInt val) {
+    return CreateIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
+  };
+
+  clang::Expr *CreateAdjustedIntLit(llvm::APSInt val);
+
+  clang::Expr *CreateAdjustedIntLit(llvm::APInt val) {
+    return CreateAdjustedIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
+  };
+
   clang::CharacterLiteral *CreateCharLit(llvm::APInt val);
   clang::StringLiteral *CreateStrLit(std::string val);
   clang::FloatingLiteral *CreateFPLit(llvm::APFloat val);

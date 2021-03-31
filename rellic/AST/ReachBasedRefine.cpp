@@ -6,10 +6,10 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/ReachBasedRefine.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-#include "rellic/AST/ReachBasedRefine.h"
 
 namespace rellic {
 

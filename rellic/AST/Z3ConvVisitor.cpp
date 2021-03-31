@@ -213,39 +213,16 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
 
   switch (sort.sort_kind()) {
     case Z3_BOOL_SORT: {
-      auto type{ast_ctx->UnsignedIntTy};
-      auto size{ast_ctx->getIntWidth(type)};
-      llvm::APInt val(size, z_expr.bool_value() == Z3_L_TRUE ? 1 : 0);
-      result = CreateIntegerLiteral(*ast_ctx, val, type);
+      auto val{z_expr.bool_value() == Z3_L_TRUE ? 1U : 0U};
+      result = ast.CreateIntLit(llvm::APInt(/*BitWidth=*/1U, val));
     } break;
 
     case Z3_BV_SORT: {
-      auto type{GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(sort),
-                                           /*sign=*/0)};
-      auto size{ast_ctx->getTypeSize(type)};
-      llvm::APInt val(size, Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
+      llvm::APInt val(GetZ3SortSize(z_expr),
+                      Z3_get_numeral_string(z_expr.ctx(), z_expr), 10);
       // Handle `char` and `short` types separately, because clang
       // adds non-standard `Ui8` and `Ui16` suffixes respectively.
-      switch (clang::cast<clang::BuiltinType>(type)->getKind()) {
-        case clang::BuiltinType::Kind::UChar:
-          result = CreateCStyleCastExpr(*ast_ctx, type,
-                                        clang::CastKind::CK_IntegralCast,
-                                        ast.CreateCharLit(val));
-          break;
-
-        case clang::BuiltinType::Kind::UShort:
-          result = CreateCStyleCastExpr(
-              *ast_ctx, type, clang::CastKind::CK_IntegralCast,
-              CreateIntegerLiteral(
-                  *ast_ctx,
-                  val.zextOrSelf(ast_ctx->getIntWidth(ast_ctx->UnsignedIntTy)),
-                  ast_ctx->UnsignedIntTy));
-          break;
-
-        default:
-          result = CreateIntegerLiteral(*ast_ctx, val, type);
-          break;
-      }
+      result = ast.CreateAdjustedIntLit(val);
     } break;
 
     case Z3_FLOATING_POINT_SORT: {

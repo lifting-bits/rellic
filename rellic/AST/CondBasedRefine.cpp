@@ -6,10 +6,11 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/CondBasedRefine.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {

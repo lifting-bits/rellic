@@ -18,14 +18,21 @@ namespace rellic {
 
 ASTBuilder::ASTBuilder(clang::ASTContext &context) : ctx(context) {}
 
-clang::Expr *ASTBuilder::CreateIntLit(llvm::APInt val) {
-  auto sign{val.isNegative()};
+clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
+  auto sign{val.isSigned()};
   auto value_size{val.getBitWidth()};
-  auto type{GetLeastIntTypeForBitWidth(ctx, value_size, sign)};
-  auto type_size{ctx.getIntWidth(type)};
+  // Infer integer type wide enough to accommodate the value,
+  // with `unsigned int` being the smallest type allowed.
+  clang::QualType type;
+  if (value_size <= ctx.getIntWidth(ctx.IntTy)) {
+    type = sign ? ctx.IntTy : ctx.UnsignedIntTy;
+  } else {
+    type = GetLeastIntTypeForBitWidth(ctx, value_size, sign);
+  }
   // Extend the literal value based on it's sign if we have a
-  // mismatch between the bit width of the value and infered type.
-  if (value_size != type_size) {
+  // mismatch between the bit width of the value and inferred type.
+  auto type_size{ctx.getIntWidth(type)};
+  if (value_size < type_size) {
     val = sign ? val.sextOrSelf(type_size) : val.zextOrSelf(type_size);
   }
   // Clang does this check in the `clang::IntegerLiteral::Create`, but
@@ -33,6 +40,20 @@ clang::Expr *ASTBuilder::CreateIntLit(llvm::APInt val) {
   // just in case we have ours here too.
   CHECK_EQ(val.getBitWidth(), ctx.getIntWidth(type));
   return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
+}
+
+clang::Expr *ASTBuilder::CreateAdjustedIntLit(llvm::APSInt val) {
+  auto lit{CreateIntLit(val)};
+  auto value_size{val.getBitWidth()};
+  // Cast the integer literal to a type of the smallest bit width
+  // that can contain `val`. Either `short` or `char`.
+  if (value_size <= ctx.getIntWidth(ctx.ShortTy)) {
+    return CreateCStyleCastExpr(
+        ctx, GetLeastIntTypeForBitWidth(ctx, value_size, val.isSigned()),
+        clang::CastKind::CK_IntegralCast, lit);
+  } else {
+    return lit;
+  }
 }
 
 clang::CharacterLiteral *ASTBuilder::CreateCharLit(llvm::APInt val) {

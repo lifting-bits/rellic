@@ -152,51 +152,10 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     // Integers
     case llvm::Type::IntegerTyID: {
       auto val{llvm::cast<llvm::ConstantInt>(constant)->getValue()};
-      switch (clang::cast<clang::BuiltinType>(c_type)->getKind()) {
-        case clang::BuiltinType::Kind::UChar:
-        case clang::BuiltinType::Kind::SChar:
-          result = CreateCStyleCastExpr(ast_ctx, c_type,
-                                        clang::CastKind::CK_IntegralCast,
-                                        ast.CreateCharLit(val));
-          break;
-
-        case clang::BuiltinType::Kind::Short:
-          // We create an `int` and cast to a `short` to avoid
-          // to avoid clang printing the `i16` literal suffix.
-          result = CreateCStyleCastExpr(
-              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
-              CreateIntegerLiteral(
-                  ast_ctx, val.sextOrSelf(ast_ctx.getTypeSize(ast_ctx.IntTy)),
-                  ast_ctx.IntTy));
-          break;
-
-        case clang::BuiltinType::Kind::UShort:
-          // We create an `unsigned int` and cast to a `unsigned short`
-          // to avoid clang printing the `Ui16` literal suffix.
-          result = CreateCStyleCastExpr(
-              ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
-              CreateIntegerLiteral(
-                  ast_ctx,
-                  val.zextOrSelf(ast_ctx.getTypeSize(ast_ctx.UnsignedIntTy)),
-                  ast_ctx.UnsignedIntTy));
-          break;
-
-        case clang::BuiltinType::Kind::Int:
-        case clang::BuiltinType::Kind::UInt:
-        case clang::BuiltinType::Kind::Long:
-        case clang::BuiltinType::Kind::ULong:
-        case clang::BuiltinType::Kind::LongLong:
-        case clang::BuiltinType::Kind::ULongLong: {
-          result = CreateIntegerLiteral(ast_ctx, val.abs(), c_type);
-          if (val.isNegative()) {
-            result =
-                CreateUnaryOperator(ast_ctx, clang::UO_Minus, result, c_type);
-          }
-        } break;
-
-        default:
-          LOG(FATAL) << "Unsupported integer literal type";
-          break;
+      if (val.getBitWidth() == 1U) {
+        result = ast.CreateIntLit(val);
+      } else {
+        result = ast.CreateAdjustedIntLit(val);
       }
     } break;
 
@@ -603,10 +562,7 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
     auto base_type = base->getType();
     CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
     auto type = clang::cast<clang::PointerType>(base_type)->getPointeeType();
-    auto idx = CreateIntegerLiteral(
-        ast_ctx,
-        llvm::APInt(ast_ctx.getIntWidth(ast_ctx.UnsignedIntTy), ev_idx),
-        ast_ctx.UnsignedIntTy);
+    auto idx{ast.CreateIntLit(llvm::APInt(sizeof(unsigned) * 8U, ev_idx))};
     base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
   };
 

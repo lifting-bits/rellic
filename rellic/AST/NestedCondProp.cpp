@@ -6,10 +6,11 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/NestedCondProp.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/Util.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 

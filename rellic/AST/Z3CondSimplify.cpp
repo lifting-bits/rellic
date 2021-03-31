@@ -6,10 +6,10 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/Z3CondSimplify.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-#include "rellic/AST/Z3CondSimplify.h"
 
 namespace rellic {
 

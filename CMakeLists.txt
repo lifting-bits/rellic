@@ -17,16 +17,16 @@ if (POLICY CMP0025)
   cmake_policy(SET CMP0025 NEW)
 endif ()
 
-if (NOT DEFINED ENV{TRAILOFBITS_LIBRARIES})
-  message(STATUS "Using new vcpkg build system")
+if (DEFINED VCPKG_ROOT)
+  message(WARNING "Building with VCPKG")
   include(cmake/vcpkg_helper.cmake)
+else()
+  message(WARNING "Running the standard CMake build; if this is a mistake, reconfigure again and pass `-DVCPKG_ROOT=/path/to/vcpkg`")
+  set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 endif()
 
 project(rellic)
 cmake_minimum_required(VERSION 3.2)
-if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
-  set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
-endif()
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/settings.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
@@ -43,8 +43,8 @@ if(NOT DEFINED WIN32)
     ${GLOBAL_CXXFLAGS}
     -Werror
     # -Wconversion
-    -pedantic 
-    -Wno-unreachable-code-return 
+    -pedantic
+    -Wno-unreachable-code-return
   )
 endif()
 
@@ -81,37 +81,17 @@ set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
-if (NOT DEFINED ENV{TRAILOFBITS_LIBRARIES})
-  find_package(Z3 CONFIG 4.7.1 REQUIRED)
-  list(APPEND PROJECT_LIBRARIES z3::libz3)
-  # Fixup bad LLVM z3 linkage
-  get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
+find_package(Z3 CONFIG 4.7.1 REQUIRED)
+list(APPEND PROJECT_LIBRARIES z3::libz3)
+
+# Potentially fixup bad LLVM z3 linkage
+get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
+list(FIND LLVMSupport_LIBS "Z3" _index)
+if (${_index} GREATER -1)
   list(REMOVE_ITEM LLVMSupport_LIBS Z3)
   list(APPEND LLVMSupport_LIBS z3::libz3)
   set_target_properties(LLVMSupport PROPERTIES
     INTERFACE_LINK_LIBRARIES "${LLVMSupport_LIBS}")
-else()
-  set(LLVM_Z3_INSTALL_DIR "${Z3_INSTALL_PREFIX}")
-  find_package(Z3 4.7.1 MODULE)
-  if(Z3_FOUND)
-    list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INCLUDE_DIR})
-    list(APPEND PROJECT_LIBRARIES ${Z3_LIBRARIES})
-  elseif (DEFINED Z3_INSTALL_PREFIX)
-    # acquire OpenMP for z3
-    find_package(OpenMP)
-    # import libz3.a
-    add_library(z3 STATIC IMPORTED)
-    set_target_properties(z3 PROPERTIES IMPORTED_LOCATION ${Z3_INSTALL_PREFIX}/bin/libz3.a)
-    # set variables
-    list(APPEND PROJECT_INCLUDEDIRECTORIES ${Z3_INSTALL_PREFIX}/include)
-    if(OpenMP_CXX_FOUND)
-      list(APPEND PROJECT_LIBRARIES OpenMP::OpenMP_CXX z3)
-    else()
-      message(WARNING "OpenMP libraries not found Z3 may not work")
-    endif()
-  else()
-    message(FATAL_ERROR "Could not find Z3 installation")
-  endif()
 endif()
 
 # google log module
@@ -153,12 +133,8 @@ add_subdirectory(tools)
 
 enable_testing()
 
-if (DEFINED ENV{TRAILOFBITS_LIBRARIES})
-  set(CLANG_PATH ${LIBRARY_REPOSITORY_ROOT}/llvm/bin/clang)
-else()
-  find_package(Clang CONFIG REQUIRED)
-  get_target_property(CLANG_PATH clang LOCATION)
-endif()
+find_package(Clang CONFIG REQUIRED)
+get_target_property(CLANG_PATH clang LOCATION)
 
 message(STATUS "Clang path for tests: \"${CLANG_PATH}\"")
 

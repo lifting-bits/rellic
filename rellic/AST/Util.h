@@ -86,13 +86,13 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                     clang::IdentifierInfo *id,
                                     clang::RecordDecl *prev_decl = nullptr);
 
-clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
-                                   clang::QualType type);
+// clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
+//                                    clang::QualType type);
 
-clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
-                                  clang::QualType type);
+// clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
+//                                   clang::QualType type);
 
-clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
+// clang::Expr *CreateTrueExpr(clang::ASTContext &ctx);
 
 // clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, llvm::APInt val,
 //                                     clang::QualType type);
@@ -111,9 +111,9 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                               clang::ValueDecl *member, clang::QualType type,
                               bool is_arrow = false);
 
-clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx);
+// clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx);
 
-clang::Expr *CreateUndefExpr(clang::ASTContext &ctx, clang::QualType type);
+// clang::Expr *CreateUndefExpr(clang::ASTContext &ctx, clang::QualType type);
 
 clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
                                   clang::CastKind cast, clang::Expr *op);

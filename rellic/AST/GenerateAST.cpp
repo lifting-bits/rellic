@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/Util.h"
 #include "rellic/BC/Util.h"
 
@@ -182,7 +183,7 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   }
   // Create `if(1)` in case we still don't have a reaching condition
   if (!cond) {
-    cond = CreateTrueExpr(*ast_ctx);
+    cond = ast.CreateTrue();
   }
   // Done
   return cond;
@@ -346,7 +347,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     loop_body.insert(std::next(it), exit_stmt);
   }
   // Create the loop statement
-  auto loop_stmt = CreateWhileStmt(*ast_ctx, CreateTrueExpr(*ast_ctx),
+  auto loop_stmt = CreateWhileStmt(*ast_ctx, ast.CreateTrue(),
                                    CreateCompoundStmt(*ast_ctx, loop_body));
   // Insert it at the beginning of the region body
   region_body.insert(region_body.begin(), loop_stmt);
@@ -379,7 +380,7 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 char GenerateAST::ID = 0;
 
 GenerateAST::GenerateAST(clang::ASTContext &ctx, rellic::IRToASTVisitor &gen)
-    : ModulePass(GenerateAST::ID), ast_ctx(&ctx), ast_gen(&gen) {}
+    : ModulePass(GenerateAST::ID), ast_ctx(&ctx), ast_gen(&gen), ast(ctx) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
   usage.addRequired<llvm::DominatorTreeWrapperPass>();

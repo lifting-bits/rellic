@@ -192,23 +192,23 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
                                    clang::SourceLocation(), id, prev_decl);
 }
 
-clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
-                                   clang::QualType type) {
-  return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
-                                        clang::SourceLocation());
-}
+// clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
+//                                    clang::QualType type) {
+//   return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
+//                                         clang::SourceLocation());
+// }
 
-clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
-                                  clang::QualType type) {
-  CHECK_EQ(val.getBitWidth(), ctx.getIntWidth(type));
-  return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
-}
+// clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
+//                                   clang::QualType type) {
+//   CHECK_EQ(val.getBitWidth(), ctx.getIntWidth(type));
+//   return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
+// }
 
-clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
-  auto type = ctx.UnsignedIntTy;
-  auto val = llvm::APInt(ctx.getIntWidth(type), 1);
-  return CreateIntegerLiteral(ctx, val, type);
-}
+// clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
+//   auto type = ctx.UnsignedIntTy;
+//   auto val = llvm::APInt(ctx.getIntWidth(type), 1);
+//   return CreateIntegerLiteral(ctx, val, type);
+// }
 
 // clang::Expr *CreateCharacterLiteral(clang::ASTContext &ctx, llvm::APInt val,
 //                                     clang::QualType type) {
@@ -248,20 +248,20 @@ clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
       clang::SourceLocation());
 }
 
-clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
-  auto type = ctx.UnsignedIntTy;
-  auto val = llvm::APInt::getNullValue(ctx.getTypeSize(type));
-  auto zero = CreateIntegerLiteral(ctx, val, type);
-  return CreateCStyleCastExpr(ctx, ctx.VoidPtrTy,
-                              clang::CastKind::CK_NullToPointer, zero);
-}
+// clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
+//   auto type = ctx.UnsignedIntTy;
+//   auto val = llvm::APInt::getNullValue(ctx.getTypeSize(type));
+//   auto zero = CreateIntegerLiteral(ctx, val, type);
+//   return CreateCStyleCastExpr(ctx, ctx.VoidPtrTy,
+//                               clang::CastKind::CK_NullToPointer, zero);
+// }
 
-clang::Expr *CreateUndefExpr(clang::ASTContext &ctx, clang::QualType type) {
-  auto null = CreateNullPointerExpr(ctx);
-  auto cast = CreateCStyleCastExpr(ctx, ctx.getPointerType(type),
-                                   clang::CastKind::CK_NullToPointer, null);
-  return CreateUnaryOperator(ctx, clang::UO_Deref, cast, type);
-}
+// clang::Expr *CreateUndefExpr(clang::ASTContext &ctx, clang::QualType type) {
+//   auto null = CreateNullPointerExpr(ctx);
+//   auto cast = CreateCStyleCastExpr(ctx, ctx.getPointerType(type),
+//                                    clang::CastKind::CK_NullToPointer, null);
+//   return CreateUnaryOperator(ctx, clang::UO_Deref, cast, type);
+// }
 
 clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl) {
   return new (ctx)

@@ -161,9 +161,9 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
 
     case llvm::Type::PointerTyID: {
       if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
-        result = CreateNullPointerExpr(ast_ctx);
+        result = ast.CreateNull();
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
-        result = CreateUndefExpr(ast_ctx, c_type);
+        result = ast.CreateUndef(c_type);
       } else {
         LOG(FATAL) << "Unsupported pointer constant";
       }

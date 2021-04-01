@@ -27,15 +27,26 @@ class ASTBuilder {
     return CreateIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
   };
 
-  clang::Expr *CreateAdjustedIntLit(llvm::APSInt val);
+  clang::IntegerLiteral *CreateTrue() {
+    return CreateIntLit(llvm::APInt(/*numBits=*/1U, /*val*/ 1U));
+  };
 
-  clang::Expr *CreateAdjustedIntLit(llvm::APInt val) {
-    return CreateAdjustedIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
+  clang::IntegerLiteral *CreateFalse() {
+    return CreateIntLit(llvm::APInt(/*numBits=*/1U, /*val*/ 0U));
   };
 
   clang::CharacterLiteral *CreateCharLit(llvm::APInt val);
   clang::StringLiteral *CreateStrLit(std::string val);
   clang::FloatingLiteral *CreateFPLit(llvm::APFloat val);
+  // Casted literals
+  clang::Expr *CreateAdjustedIntLit(llvm::APSInt val);
+
+  clang::Expr *CreateAdjustedIntLit(llvm::APInt val) {
+    return CreateAdjustedIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
+  };
+  // Special values
+  clang::Expr *CreateNull();
+  clang::Expr *CreateUndef(clang::QualType type);
 };
 
 }  // namespace rellic

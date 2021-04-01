@@ -841,12 +841,12 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         // Shift value
         auto c_shift_val{llvm::APInt(t_uint_size, z_op.lo())};
         // Shift literal
-        auto c_shift_lit{CreateIntegerLiteral(*ast_ctx, c_shift_val, t_uint)};
+        auto c_shift_lit{ast.CreateIntLit(c_shift_val)};
         // Mask value
         auto c_mask_val{
             llvm::APInt::getBitsSet(t_uint_size, z_op.lo(), z_op.hi() + 1)};
         // Mask literal
-        auto c_mask_lit{CreateIntegerLiteral(*ast_ctx, c_mask_val, t_uint)};
+        auto c_mask_lit{ast.CreateIntLit(c_mask_val)};
         // And
         auto c_and{CreateBinaryOperator(
             *ast_ctx, clang::BO_And, CastExpr(*ast_ctx, t_res, c_sub),
@@ -981,7 +981,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
         auto c_shift_val{llvm::APInt(
             t_uint_size, ast_ctx->getTypeSize(lhs->getType()), /*isSigned=*/0)};
 
-        auto c_shift_lit{CreateIntegerLiteral(*ast_ctx, c_shift_val, t_uint)};
+        auto c_shift_lit{ast.CreateIntLit(c_shift_val)};
 
         auto c_shift{CreateBinaryOperator(
             *ast_ctx, clang::BO_Shl, CastExpr(*ast_ctx, t_uint, c_cast),

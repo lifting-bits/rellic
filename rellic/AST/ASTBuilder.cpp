@@ -78,4 +78,19 @@ clang::FloatingLiteral *ASTBuilder::CreateFPLit(llvm::APFloat val) {
                                         clang::SourceLocation());
 }
 
+clang::Expr *ASTBuilder::CreateNull() {
+  auto type{ctx.UnsignedIntTy};
+  auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
+  auto lit{CreateIntLit(val)};
+  return CreateCStyleCastExpr(ctx, ctx.VoidPtrTy,
+                              clang::CastKind::CK_NullToPointer, lit);
+};
+
+clang::Expr *ASTBuilder::CreateUndef(clang::QualType type) {
+  auto null{CreateNull()};
+  auto cast{CreateCStyleCastExpr(ctx, ctx.getPointerType(type),
+                                 clang::CastKind::CK_NullToPointer, null)};
+  return CreateUnaryOperator(ctx, clang::UO_Deref, cast, type);
+};
+
 }  // namespace rellic

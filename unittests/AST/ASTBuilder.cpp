@@ -17,6 +17,18 @@ static std::unique_ptr<clang::ASTUnit> GetEmptyASTUnit() {
   REQUIRE(unit != nullptr);
   return unit;
 }
+
+static void IsNullPtrExprCheck(clang::ASTContext &ctx, clang::Expr *expr) {
+  CHECK(
+      expr->isNullPointerConstant(ctx, clang::Expr::NPC_NeverValueDependent) ==
+      clang::Expr::NPCK_ZeroLiteral);
+  CHECK(
+      expr->isNullPointerConstant(ctx, clang::Expr::NPC_ValueDependentIsNull) ==
+      clang::Expr::NPCK_ZeroLiteral);
+  CHECK(expr->isNullPointerConstant(ctx,
+                                    clang::Expr::NPC_ValueDependentIsNotNull) ==
+        clang::Expr::NPCK_ZeroLiteral);
+}
 }  // namespace
 
 // TODO(surovic): Add test cases for signed `llvm::APInt` and group
@@ -138,7 +150,7 @@ TEST_SUITE("ASTBuilder::CreateCharLit") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(ctx);
-      GIVEN("8 bit unsigned llvm::APInt") {
+      GIVEN("8 bit wide unsigned llvm::APInt") {
         llvm::APInt api(8U, 'x', /*isSigned=*/false);
         auto lit{ast.CreateCharLit(api)};
         THEN("return a `int` typed character literal") {
@@ -195,10 +207,47 @@ TEST_SUITE("ASTBuilder::CreateFPLit") {
       rellic::ASTBuilder ast(ctx);
       GIVEN("`double` initialized llvm::APFloat") {
         auto lit{ast.CreateFPLit(llvm::APFloat(double(3.14)))};
-        THEN("Return a `double` typed floating point literal") {
+        THEN("return a `double` typed floating point literal") {
           REQUIRE(lit != nullptr);
           CHECK(clang::isa<clang::FloatingLiteral>(lit));
           CHECK(lit->getType() == ctx.DoubleTy);
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateNull") {
+  SCENARIO("Create clang::Expr representing a null pointer") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      THEN("return a `0U` integer literal casted to a `void` pointer") {
+        auto expr{ast.CreateNull()};
+        REQUIRE(expr != nullptr);
+        IsNullPtrExprCheck(ctx, expr);
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateUndef") {
+  SCENARIO("Create clang::Expr whose value is undefined") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("an arbitrary type `t`") {
+        auto type{ctx.DoubleTy};
+        THEN("return a null pointer dereference of type `t`") {
+          auto expr{ast.CreateUndef(type)};
+          REQUIRE(expr != nullptr);
+          CHECK(expr->getType() == ctx.DoubleTy);
+          auto deref{clang::dyn_cast<clang::UnaryOperator>(expr)};
+          REQUIRE(deref != nullptr);
+          CHECK(deref->getOpcode() == clang::UO_Deref);
+          IsNullPtrExprCheck(ctx, deref->getSubExpr()->IgnoreCasts());
         }
       }
     }

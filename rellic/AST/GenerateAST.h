@@ -22,6 +22,8 @@ class GenerateAST : public llvm::ModulePass {
  private:
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
+  rellic::ASTBuilder ast;
+  
   std::unordered_map<llvm::BasicBlock *, clang::Expr *> reaching_conds;
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;

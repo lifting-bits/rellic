@@ -50,4 +50,4 @@ case ${LLVM_VERSION} in
   ;;
 esac
 
-/opt/trailofbits/rellic/bin/rellic-decomp-${V} "$@"
+/opt/trailofbits/bin/rellic-decomp-${V} "$@"

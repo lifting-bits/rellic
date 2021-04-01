@@ -51,7 +51,7 @@ jobs:
       - name: Build with build script
         shell: bash
         run: |
-          ./scripts/build_with_vcpkg.sh --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" --llvm-version ${{ matrix.llvm }}
+          ./scripts/build.sh --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" --llvm-version ${{ matrix.llvm }}
           cmake --build rellic-build --target install
       - name: Tests
         shell: bash
@@ -112,7 +112,7 @@ jobs:
       - name: Build with build script
         shell: bash
         run: |
-          ./scripts/build_with_vcpkg.sh --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" --llvm-version ${{ matrix.llvm }}
+          ./scripts/build.sh --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" --llvm-version ${{ matrix.llvm }}
           cmake --build rellic-build --target install
       - name: Tests
         shell: bash
@@ -221,3 +221,18 @@ jobs:
           asset_path: rellic_macos-10.15_packages.zip
           asset_name: rellic_macos-10.15_packages.zip
           asset_content_type: application/gzip
+
+  Docker_Linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        llvm: ["11"]
+        ubuntu: ["18.04"]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build LLVM ${{ matrix.llvm }} on ${{ matrix.ubuntu }}
+      run: |
+        docker build . -t docker.pkg.github.com/lifting-bits/rellic/rellic-llvm${{ matrix.llvm }}-ubuntu${{ matrix.ubuntu }}-amd64:latest -f Dockerfile --build-arg UBUNTU_VERSION=${{ matrix.ubuntu }} --build-arg ARCH=amd64 --build-arg LLVM_VERSION=${{ matrix.llvm }}
+    - name: Test Docker image
+      run: |
+        docker run --rm -t -i docker.pkg.github.com/lifting-bits/rellic/rellic-llvm${{ matrix.llvm }}-ubuntu${{ matrix.ubuntu }}-amd64:latest --version

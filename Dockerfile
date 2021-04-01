@@ -31,7 +31,7 @@ ARG LIBRARIES
 ENV TRAILOFBITS_LIBRARIES="${LIBRARIES}"
 ENV PATH="${LIBRARIES}/llvm/bin/:${LIBRARIES}/cmake/bin:${PATH}"
 
-WORKDIR /rellic-build
+WORKDIR /rellic
 COPY ./ ./
 RUN ./scripts/build.sh \
   --llvm-version ${LLVM_VERSION} \
@@ -47,6 +47,6 @@ FROM base as install
 ARG LLVM_VERSION
 
 COPY --from=build /opt/trailofbits /opt/trailofbits
-COPY scripts/docker-decomp-entrypoint.sh /opt/trailofbits/rellic
+COPY scripts/docker-decomp-entrypoint.sh /opt/trailofbits
 ENV LLVM_VERSION=llvm${LLVM_VERSION}
 ENTRYPOINT ["/opt/trailofbits/docker-decomp-entrypoint.sh"]

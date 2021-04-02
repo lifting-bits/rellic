@@ -63,13 +63,12 @@ static unsigned GetZ3SortSize(z3::expr expr) {
 // Determine if `op` is a `z3::concat(l, r)` that's
 // equivalent to a sign extension. This is done by
 // checking if `l` is an "all-one" or "all-zero" bit
-// value. 
+// value.
 static bool IsSignExt(z3::expr op) {
-
   if (op.decl().decl_kind() != Z3_OP_CONCAT) {
     return false;
   }
- 
+
   auto lhs{op.arg(0)};
 
   if (lhs.is_numeral()) {
@@ -598,6 +597,20 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       rhs = Z3BoolCast(rhs);
     }
   }};
+  // Conditionally cast operands to a bitvector
+  auto CondBoolToBVCast{[this, &lhs, &rhs]() {
+    auto src{z3_ctx->bool_sort()};
+    auto dst{z3_ctx->bv_sort(ast_ctx->getTypeSize(ast_ctx->IntTy))};
+    auto fun{z3_ctx->function("BoolToBV", src, dst)};
+    if (lhs.is_bool()) {
+      CHECK(rhs.is_bv());
+      lhs = fun(lhs);
+    }
+    if (rhs.is_bool()) {
+      CHECK(lhs.is_bv());
+      rhs = fun(rhs);
+    }
+  }};
   // Create z3 binary op
   switch (c_op->getOpcode()) {
     case clang::BO_LAnd:
@@ -657,6 +670,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_And:
+      CondBoolToBVCast();
       InsertZ3Expr(c_op, lhs & rhs);
       break;
 
@@ -665,7 +679,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_Xor:
-      CondBoolCast();
+      CondBoolToBVCast();
       InsertZ3Expr(c_op, lhs ^ rhs);
       break;
 

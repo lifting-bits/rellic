@@ -253,6 +253,7 @@ jobs:
       run: |
         mkdir build && cd build
         cmake -G Ninja -DBUILD_SHARED_LIBS=${{matrix.shared}} ..
+        cmake --build .
     - name: Test
       run: |
         env CTEST_OUTPUT_ON_FAILURE=1 ctest -V

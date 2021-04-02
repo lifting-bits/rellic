@@ -60,29 +60,68 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR})
 # libraries
 #
 
+# clang
+find_package(Clang CONFIG REQUIRED)
+message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
+set(FOUND_CLANG_STATIC FALSE)
+set(CLANG_DYN_LINK_LLVM FALSE)
+
+if (NOT BUILD_SHARED_LIBS)
+  if (TARGET clangBasic)
+    # Check if clang is dynamically linked to LLVM
+    get_target_property(CLANG_LLVM_LINK_LIBS clangBasic INTERFACE_LINK_LIBRARIES)
+    list(FIND CLANG_LLVM_LINK_LIBS "LLVM" _index)
+    if (${_index} GREATER -1)
+      # Clang was built with dynamically linked LLVM lib
+      set(CLANG_DYN_LINK_LLVM TRUE)
+    endif()
+
+    set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
+    set(FOUND_CLANG_STATIC TRUE)
+  endif()
+  if (NOT FOUND_CLANG_STATIC)
+    message(WARNING "Could not find static Clang libs. Linking Clang and LLVM dynamically.")
+    set(CLANG_DYN_LINK_LLVM TRUE)
+  endif()
+endif()
+if (BUILD_SHARED_LIBS OR NOT FOUND_CLANG_STATIC)
+  set(CLANG_LIBS clang-cpp)
+endif()
+list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
+
+
 # llvm
 find_package(LLVM REQUIRED CONFIG HINTS ${FINDPACKAGE_LLVM_HINTS})
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
 string(REPLACE "." ";" LLVM_VERSION_LIST ${LLVM_PACKAGE_VERSION})
 list(GET LLVM_VERSION_LIST 0 LLVM_MAJOR_VERSION)
 list(GET LLVM_VERSION_LIST 1 LLVM_MINOR_VERSION)
 
-#set(LLVM_LIBRARIES
-#  LLVMCore LLVMSupport LLVMAnalysis LLVMipo LLVMIRReader
-#  LLVMBitReader LLVMBitWriter LLVMTransformUtils LLVMScalarOpts
-#  LLVMLTO
-#)
-set(LLVM_LIBRARIES LLVM)
+# Not possible to statically link LLVM if clang was linked dynamically.
+# The required LLVM components are not listed for our listed Clang components.
+# We still try to link everything else statically though
+if (BUILD_SHARED_LIBS OR CLANG_DYN_LINK_LLVM)
+  if (CLANG_DYN_LINK_LLVM)
+    message(WARNING "Linking LLVM dynamically due to incompatible Clang linking")
+  endif()
+  set(LLVM_LIBRARIES LLVM)
+else()
+  set(llvm_component_list
+    core
+    ScalarOpts
+    IRReader
+    BitWriter
+    )
+  llvm_map_components_to_libnames(LLVM_LIBRARIES ${llvm_component_list})
+  message(STATUS "Linking against LLVM components ${LLVM_LIBRARIES}")
+endif()
 
 list(APPEND PROJECT_LIBRARIES ${LLVM_LIBRARIES})
 list(APPEND PROJECT_DEFINITIONS ${LLVM_DEFINITIONS})
 list(APPEND PROJECT_INCLUDEDIRECTORIES ${LLVM_INCLUDE_DIRS})
 
-# clang
-find_package(Clang REQUIRED)
-#set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
-set(CLANG_LIBS clang-cpp)
-list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
 set(min_z3_version "4.7.1")

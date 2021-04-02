@@ -60,9 +60,25 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR})
 # libraries
 #
 
-# clang
+# LLVM/Clang
+
+# LLVM first for checking version
+find_package(LLVM REQUIRED CONFIG HINTS ${FINDPACKAGE_LLVM_HINTS})
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+string(REPLACE "." ";" LLVM_VERSION_LIST ${LLVM_PACKAGE_VERSION})
+list(GET LLVM_VERSION_LIST 0 LLVM_MAJOR_VERSION)
+list(GET LLVM_VERSION_LIST 1 LLVM_MINOR_VERSION)
+
+if (LLVM_MAJOR_VERSION LESS 8)
+  message(FATAL_ERROR "LLVM Version older than 8 are not supported")
+endif()
+
+# Clang
 find_package(Clang CONFIG REQUIRED)
 message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
+set(REQUIRED_CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 set(FOUND_CLANG_STATIC FALSE)
 set(CLANG_DYN_LINK_LLVM FALSE)
 
@@ -76,7 +92,7 @@ if (NOT BUILD_SHARED_LIBS)
       set(CLANG_DYN_LINK_LLVM TRUE)
     endif()
 
-    set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
+    set(CLANG_LIBS ${REQUIRED_CLANG_LIBS})
     set(FOUND_CLANG_STATIC TRUE)
   endif()
   if (NOT FOUND_CLANG_STATIC)
@@ -85,19 +101,17 @@ if (NOT BUILD_SHARED_LIBS)
   endif()
 endif()
 if (BUILD_SHARED_LIBS OR NOT FOUND_CLANG_STATIC)
-  set(CLANG_LIBS clang-cpp)
+  # Older versions than clang-9 don't have shared clang-cpp
+  if (TARGET clang-cpp)
+    set(CLANG_LIBS clang-cpp)
+  else()
+    message(WARNING "Could not find clang-cpp shared lib. Linking statically")
+    set(CLANG_LIBS ${REQUIRED_CLANG_LIBS})
+  endif()
 endif()
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
-
-# llvm
-find_package(LLVM REQUIRED CONFIG HINTS ${FINDPACKAGE_LLVM_HINTS})
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-
-string(REPLACE "." ";" LLVM_VERSION_LIST ${LLVM_PACKAGE_VERSION})
-list(GET LLVM_VERSION_LIST 0 LLVM_MAJOR_VERSION)
-list(GET LLVM_VERSION_LIST 1 LLVM_MINOR_VERSION)
+# LLVM
 
 # Not possible to statically link LLVM if clang was linked dynamically.
 # The required LLVM components are not listed for our listed Clang components.

@@ -249,7 +249,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake ninja-build libgflags-dev libgoogle-glog-dev libz3-dev zlib1g-dev git llvm-dev clang libclang-dev
+        sudo apt-get install -y cmake ninja-build libgflags-dev libgoogle-glog-dev libz3-dev zlib1g-dev git llvm-8-dev clang-8 libclang-8-dev
     - name: Build
       run: |
         mkdir build && cd build

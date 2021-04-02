@@ -236,3 +236,22 @@ jobs:
     - name: Test Docker image
       run: |
         docker run --rm docker.pkg.github.com/lifting-bits/rellic/rellic-llvm${{ matrix.llvm }}-ubuntu${{ matrix.ubuntu }}-amd64:latest --version
+
+  Native_Linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shared: ["ON", "OFF"]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        apt-get update
+        apt-get install -y cmake ninja-build libgflags-dev libgoogle-glog-dev libz3-dev zlib1g-dev git llvm-dev clang libclang-dev
+    - name: Build
+      run: |
+        mkdir build && cd build
+        cmake -G Ninja -DBUILD_SHARED_LIBS=${{matrix.shared}} ..
+    - name: Test
+      run: |
+        env CTEST_OUTPUT_ON_FAILURE=1 ctest -V

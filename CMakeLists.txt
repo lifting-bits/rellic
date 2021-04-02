@@ -95,11 +95,19 @@ if (${_index} GREATER -1)
 endif()
 
 # google log module
-find_package(glog CONFIG REQUIRED)
-list(APPEND PROJECT_LIBRARIES glog::glog)
+find_package(glog CONFIG QUIET)
+if (NOT glog_FOUND)
+  find_package(glog REQUIRED)
+  list(APPEND PROJECT_LIBRARIES glog)
+else()
+  list(APPEND PROJECT_LIBRARIES glog::glog)
+endif()
 
 # gflags
-find_package(gflags CONFIG REQUIRED)
+find_package(gflags CONFIG QUIET)
+if (NOT gflags_FOUND)
+  find_package(gflags REQUIRED)
+endif()
 list(APPEND PROJECT_LIBRARIES gflags)
 
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")

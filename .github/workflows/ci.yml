@@ -239,7 +239,7 @@ jobs:
         docker run --rm docker.pkg.github.com/lifting-bits/rellic/rellic-llvm${{ matrix.llvm }}-ubuntu${{ matrix.ubuntu }}-amd64:latest --version
 
   Ubuntu_System_Deps:
-    name: Ubuntu System Dependencies
+    name: Ubuntu LLVM 8 (min supported)
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -253,7 +253,10 @@ jobs:
     - name: Build
       run: |
         mkdir build && cd build
-        cmake -G Ninja -DBUILD_SHARED_LIBS=${{matrix.shared}} ..
+        cmake -G Ninja -DBUILD_SHARED_LIBS=${{matrix.shared}} \
+          -DLLVM_DIR=/usr/lib/llvm-8/cmake \
+          -DClang_DIR=/usr/lib/llvm-8/lib/cmake/clang \
+          ..
         cmake --build .
     - name: Test
       run: |

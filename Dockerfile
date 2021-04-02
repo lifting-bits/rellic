@@ -27,9 +27,6 @@ RUN apt-get update && \
 # Source code build
 FROM deps as build
 ARG LLVM_VERSION
-ARG LIBRARIES
-ENV TRAILOFBITS_LIBRARIES="${LIBRARIES}"
-ENV PATH="${LIBRARIES}/llvm/bin/:${LIBRARIES}/cmake/bin:${PATH}"
 
 WORKDIR /rellic
 COPY ./ ./

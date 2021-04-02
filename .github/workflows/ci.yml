@@ -238,7 +238,8 @@ jobs:
       run: |
         docker run --rm docker.pkg.github.com/lifting-bits/rellic/rellic-llvm${{ matrix.llvm }}-ubuntu${{ matrix.ubuntu }}-amd64:latest --version
 
-  Native_Linux:
+  Ubuntu_System_Deps:
+    name: Ubuntu System Dependencies
     runs-on: ubuntu-latest
     strategy:
       matrix:

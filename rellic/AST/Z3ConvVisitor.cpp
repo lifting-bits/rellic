@@ -63,13 +63,12 @@ static unsigned GetZ3SortSize(z3::expr expr) {
 // Determine if `op` is a `z3::concat(l, r)` that's
 // equivalent to a sign extension. This is done by
 // checking if `l` is an "all-one" or "all-zero" bit
-// value. 
+// value.
 static bool IsSignExt(z3::expr op) {
-
   if (op.decl().decl_kind() != Z3_OP_CONCAT) {
     return false;
   }
- 
+
   auto lhs{op.arg(0)};
 
   if (lhs.is_numeral()) {
@@ -142,6 +141,18 @@ z3::expr Z3ConvVisitor::Z3BoolCast(z3::expr expr) {
     auto cast{expr != z3_ctx->num_val(0, expr.get_sort())};
     return cast.simplify();
   }
+}
+
+z3::expr Z3ConvVisitor::Z3BoolToBVCast(z3::expr expr) {
+  if (expr.is_bv()) {
+    return expr;
+  }
+
+  CHECK(expr.is_bool());
+
+  auto src{z3_ctx->bool_sort()};
+  auto dst{z3_ctx->bv_sort(ast_ctx->getTypeSize(ast_ctx->IntTy))};
+  return z3_ctx->function("BoolToBV", src, dst)(expr);
 }
 
 void Z3ConvVisitor::InsertCExpr(z3::expr z_expr, clang::Expr *c_expr) {
@@ -366,9 +377,7 @@ bool Z3ConvVisitor::VisitFunctionDecl(clang::FunctionDecl *func) {
 z3::expr Z3ConvVisitor::CreateZ3BitwiseCast(z3::expr expr, size_t src,
                                             size_t dst, bool sign) {
   if (expr.is_bool()) {
-    auto s_src{z3_ctx->bool_sort()};
-    auto s_dst{z3_ctx->bv_sort(ast_ctx->getTypeSize(ast_ctx->IntTy))};
-    expr = z3_ctx->function("BoolToBV", s_src, s_dst)(expr);
+    expr = Z3BoolToBVCast(expr);
   }
 
   CHECK(expr.is_bv()) << "z3::expr is not a bitvector!";
@@ -552,6 +561,12 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
   }
   // Get operand
   auto operand = GetOrCreateZ3Expr(c_op->getSubExpr());
+  // Conditionally cast operands to a bitvector
+  auto CondBoolToBVCast{[this, &operand]() {
+    if (operand.is_bool()) {
+      operand = Z3BoolToBVCast(operand);
+    }
+  }};
   // Create z3 unary op
   switch (c_op->getOpcode()) {
     case clang::UO_LNot:
@@ -560,6 +575,11 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
 
     case clang::UO_Minus:
       InsertZ3Expr(c_op, -operand);
+      break;
+
+    case clang::UO_Not:
+      CondBoolToBVCast();
+      InsertZ3Expr(c_op, ~operand);
       break;
 
     case clang::UO_AddrOf: {
@@ -596,6 +616,17 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
     if (lhs.is_bool() || rhs.is_bool()) {
       lhs = Z3BoolCast(lhs);
       rhs = Z3BoolCast(rhs);
+    }
+  }};
+  // Conditionally cast operands to a bitvector
+  auto CondBoolToBVCast{[this, &lhs, &rhs]() {
+    if (lhs.is_bool()) {
+      CHECK(rhs.is_bv());
+      lhs = Z3BoolToBVCast(lhs);
+    }
+    if (rhs.is_bool()) {
+      CHECK(lhs.is_bv());
+      rhs = Z3BoolToBVCast(rhs);
     }
   }};
   // Create z3 binary op
@@ -657,15 +688,17 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_And:
+      CondBoolToBVCast();
       InsertZ3Expr(c_op, lhs & rhs);
       break;
 
     case clang::BO_Or:
+      CondBoolToBVCast();
       InsertZ3Expr(c_op, lhs | rhs);
       break;
 
     case clang::BO_Xor:
-      CondBoolCast();
+      CondBoolToBVCast();
       InsertZ3Expr(c_op, lhs ^ rhs);
       break;
 
@@ -827,6 +860,11 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
     case Z3_OP_NOT:
       c_op = CreateNotExpr(*ast_ctx, c_sub);
       break;
+
+    case Z3_OP_BNOT:
+      c_op = CreateUnaryOperator(*ast_ctx, clang::UO_Not,
+                                 CreateParenExpr(*ast_ctx, c_sub), t_sub);
+      break;
     // Given a `(extract hi lo o)` we generate `((o & m) >> lo)` where:
     //
     //  * `o`   is the operand from which we extract a bit sequence
@@ -897,7 +935,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
     } break;
 
     default:
-      LOG(FATAL) << "Unknown Z3 unary operator!";
+      LOG(FATAL) << "Unknown Z3 unary operator: " << z_func.name().str();
       break;
   }
   // Save
@@ -1008,6 +1046,10 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
 
     case Z3_OP_BASHR:
       c_op = BinOpExpr(clang::BO_Shr, GetIntResultType());
+      break;
+
+    case Z3_OP_BOR:
+      c_op = BinOpExpr(clang::BO_Or, GetIntResultType());
       break;
 
     case Z3_OP_BXOR:

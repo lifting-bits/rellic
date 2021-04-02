@@ -28,6 +28,8 @@ endif()
 project(rellic)
 cmake_minimum_required(VERSION 3.2)
 
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/settings.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
 
@@ -65,11 +67,12 @@ string(REPLACE "." ";" LLVM_VERSION_LIST ${LLVM_PACKAGE_VERSION})
 list(GET LLVM_VERSION_LIST 0 LLVM_MAJOR_VERSION)
 list(GET LLVM_VERSION_LIST 1 LLVM_MINOR_VERSION)
 
-set(LLVM_LIBRARIES
-  LLVMCore LLVMSupport LLVMAnalysis LLVMipo LLVMIRReader
-  LLVMBitReader LLVMBitWriter LLVMTransformUtils LLVMScalarOpts
-  LLVMLTO
-)
+#set(LLVM_LIBRARIES
+#  LLVMCore LLVMSupport LLVMAnalysis LLVMipo LLVMIRReader
+#  LLVMBitReader LLVMBitWriter LLVMTransformUtils LLVMScalarOpts
+#  LLVMLTO
+#)
+set(LLVM_LIBRARIES LLVM)
 
 list(APPEND PROJECT_LIBRARIES ${LLVM_LIBRARIES})
 list(APPEND PROJECT_DEFINITIONS ${LLVM_DEFINITIONS})
@@ -77,12 +80,19 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES ${LLVM_INCLUDE_DIRS})
 
 # clang
 find_package(Clang REQUIRED)
-set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
+#set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
+set(CLANG_LIBS clang-cpp)
 list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
 # z3
-find_package(Z3 CONFIG 4.7.1 REQUIRED)
-list(APPEND PROJECT_LIBRARIES z3::libz3)
+set(min_z3_version "4.7.1")
+find_package(Z3 CONFIG ${min_z3_version} QUIET)
+if (NOT Z3_FOUND)
+  find_package(Z3 ${min_z3_version} REQUIRED)
+  list(APPEND PROJECT_LIBRARIES Z3)
+else()
+  list(APPEND PROJECT_LIBRARIES z3::libz3)
+endif()
 
 # Potentially fixup bad LLVM z3 linkage
 get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)

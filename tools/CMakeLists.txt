@@ -8,7 +8,7 @@ add_executable(${RELLIC_DECOMP}
   decomp/Decomp.cpp
 )
 
-target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_NAME})
+target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_NAME} RellicVersion)
 add_project_properties(${RELLIC_DECOMP})
 
 set(RELLIC_DECOMP ${RELLIC_DECOMP} PARENT_SCOPE)
@@ -25,7 +25,7 @@ add_executable(${RELLIC_HEADERGEN}
   headergen/HeaderGen.cpp
 )
 
-target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_NAME})
+target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_NAME} RellicVersion)
 add_project_properties(${RELLIC_HEADERGEN})
 
 install(TARGETS ${RELLIC_HEADERGEN} DESTINATION "bin")

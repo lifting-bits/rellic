@@ -209,7 +209,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
           if (least_size <= ast_ctx.getTypeSize(ast_ctx.UnsignedLongLongTy)) {
             result = CreateCStyleCastExpr(
                 ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
-                CreateIntegerLiteral(ast_ctx, val.truncSSat(least_size),
+                CreateIntegerLiteral(ast_ctx, val.trunc(least_size),
                                      least_type));
           } else {
             LOG(FATAL) << "Integer literal is too large to be represented in "

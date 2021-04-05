@@ -201,6 +201,22 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
           }
         } break;
 
+        case clang::BuiltinType::Kind::UInt128: {
+          auto least_type{GetLeastIntTypeForBitWidth(ast_ctx,
+                                                     val.getMinSignedBits(),
+                                                     /*sign=*/0)};
+          auto least_size{ast_ctx.getTypeSize(least_type)};
+          if (least_size <= ast_ctx.getTypeSize(ast_ctx.UnsignedLongLongTy)) {
+            result = CreateCStyleCastExpr(
+                ast_ctx, c_type, clang::CastKind::CK_IntegralCast,
+                CreateIntegerLiteral(ast_ctx, val.truncSSat(least_size),
+                                     least_type));
+          } else {
+            LOG(FATAL) << "Integer literal is too large to be represented in "
+                          "any integer type";
+          }
+        } break;
+
         default:
           LOG(FATAL) << "Unsupported integer literal type";
           break;
@@ -473,7 +489,7 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
     DLOG(INFO) << "Skipping debug data intrinsic";
     return;
   }
-  
+
   if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
     // Some of this overlaps with the debug data case above.
     // This is fine. We want debug data special cased as we know it is present

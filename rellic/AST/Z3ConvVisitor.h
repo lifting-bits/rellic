@@ -64,6 +64,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   bool shouldTraversePostOrder() { return true; }
 
   z3::expr Z3BoolCast(z3::expr expr);
+  z3::expr Z3BoolToBVCast(z3::expr expr);
 
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
   bool VisitImplicitCastExpr(clang::ImplicitCastExpr *cast);

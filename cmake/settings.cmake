@@ -25,28 +25,6 @@ macro(main)
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
   #
-  # cxx-common
-  #
-
-  if(DEFINED ENV{TRAILOFBITS_LIBRARIES})
-    set(LIBRARY_REPOSITORY_ROOT $ENV{TRAILOFBITS_LIBRARIES}
-      CACHE PATH "Location of cxx-common libraries."
-    )
-  endif()
-
-  if(DEFINED LIBRARY_REPOSITORY_ROOT)
-    set(TOB_CMAKE_INCLUDE "${LIBRARY_REPOSITORY_ROOT}/cmake_modules/repository.cmake")
-    if(NOT EXISTS "${TOB_CMAKE_INCLUDE}")
-      message(FATAL_ERROR "The library repository could not be found!")
-    endif()
-
-    include("${TOB_CMAKE_INCLUDE}")
-
-  else()
-    message(STATUS "Using system libraries")
-  endif()
-
-  #
   # compiler and linker flags
   #
 
@@ -88,7 +66,7 @@ macro(main)
       -fno-omit-frame-pointer -fvisibility-inlines-hidden -fno-exceptions
       -fno-asynchronous-unwind-tables
     )
-    
+
     if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
       set(GLOBAL_CXXFLAGS
         ${GLOBAL_CXXFLAGS}
@@ -120,7 +98,7 @@ macro(main)
     else()
       set(PLATFORM_NAME "linux")
     endif()
-  
+
   elseif(WIN32)
     set(PLATFORM_NAME "windows")
 

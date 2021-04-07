@@ -141,6 +141,8 @@ add_subdirectory(tools)
 
 enable_testing()
 
+add_subdirectory(unittests)
+
 find_package(Clang CONFIG REQUIRED)
 get_target_property(CLANG_PATH clang LOCATION)
 

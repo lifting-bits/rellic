@@ -253,3 +253,181 @@ TEST_SUITE("ASTBuilder::CreateUndef") {
     }
   }
 }
+
+TEST_SUITE("ASTBuilder::CreateCStyleCast") {
+  SCENARIO("Create clang::CStyleCastExpr a `CK_NullToPointer` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("a `0U` literal") {
+        auto lit{ast.CreateIntLit(llvm::APInt(32, 0))};
+        REQUIRE(lit != nullptr);
+        REQUIRE(lit->getType() == ctx.UnsignedIntTy);
+        GIVEN("a `void *` type") {
+          auto void_ptr_ty{ctx.VoidPtrTy};
+          THEN("return an null-to-pointer cast to `void *`") {
+            auto nullptr_cast{ast.CreateCStyleCast(void_ptr_ty, lit)};
+            REQUIRE(nullptr_cast != nullptr);
+            CHECK(nullptr_cast->getType() == void_ptr_ty);
+            CHECK(nullptr_cast->getCastKind() ==
+                  clang::CastKind::CK_NullToPointer);
+          }
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create clang::CStyleCastExpr a `CK_BitCast` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("a `void *` type expression") {
+        auto void_ty_expr{ast.CreateNull()};
+        REQUIRE(void_ty_expr != nullptr);
+        REQUIRE(void_ty_expr->getType() == ctx.VoidPtrTy);
+        GIVEN("a pointer type `int *`") {
+          auto int_ptr_ty{ctx.getPointerType(ctx.IntTy)};
+          THEN("return a bitcast to `int *`") {
+            auto bitcast{ast.CreateCStyleCast(int_ptr_ty, void_ty_expr)};
+            REQUIRE(bitcast != nullptr);
+            CHECK(bitcast->getType() == int_ptr_ty);
+            CHECK(bitcast->getCastKind() == clang::CastKind::CK_BitCast);
+          }
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create clang::CStyleCastExpr a `CK_IntegralCast` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("an integer literal") {
+        auto lit{ast.CreateIntLit(llvm::APInt(8, 0xff))};
+        REQUIRE(lit != nullptr);
+        REQUIRE(lit->getType() == ctx.UnsignedIntTy);
+        GIVEN("a `unsigned long int` type") {
+          auto ulong_ty{ctx.UnsignedLongTy};
+          THEN("return an integeral cast to `unsigned long int`") {
+            auto intcast{ast.CreateCStyleCast(ulong_ty, lit)};
+            REQUIRE(intcast != nullptr);
+            CHECK(intcast->getType() == ulong_ty);
+            CHECK(intcast->getCastKind() == clang::CastKind::CK_IntegralCast);
+          }
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create clang::CStyleCastExpr a `CK_PointerToIntegral` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("a null pointer expression") {
+        auto null{ast.CreateNull()};
+        REQUIRE(null != nullptr);
+        GIVEN("an `unsigned int` type") {
+          auto int_ty{ctx.UnsignedIntTy};
+          THEN("return an pointer-to-integral cast to `unsigned int`") {
+            auto ptr2int_cast{ast.CreateCStyleCast(int_ty, null)};
+            REQUIRE(ptr2int_cast != nullptr);
+            CHECK(ptr2int_cast->getType() == int_ty);
+            CHECK(ptr2int_cast->getCastKind() ==
+                  clang::CastKind::CK_PointerToIntegral);
+          }
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create clang::CStyleCastExpr a `CK_IntegralToPointer` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("an integer literal") {
+        auto lit{ast.CreateIntLit(llvm::APInt(16, 0xbeef))};
+        REQUIRE(lit != nullptr);
+        GIVEN("a `unsigned int *` type") {
+          auto uint_ptr_ty{ctx.getPointerType(ctx.UnsignedIntTy)};
+          THEN("return an integral-to-pointer cast to `unsigned int *`") {
+            auto int2ptr_cast{ast.CreateCStyleCast(uint_ptr_ty, lit)};
+            REQUIRE(int2ptr_cast != nullptr);
+            CHECK(int2ptr_cast->getType() == uint_ptr_ty);
+            CHECK(int2ptr_cast->getCastKind() ==
+                  clang::CastKind::CK_IntegralToPointer);
+          }
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create clang::CStyleCastExpr a `CK_FloatingCast` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("a `float` type literal") {
+        auto lit{ast.CreateFPLit(llvm::APFloat(float(3.14)))};
+        REQUIRE(lit != nullptr);
+        GIVEN("a `double` type") {
+          auto double_ty{ctx.DoubleTy};
+          THEN("return a floating cast to `double`") {
+            auto fp_cast{ast.CreateCStyleCast(double_ty, lit)};
+            REQUIRE(fp_cast != nullptr);
+            CHECK(fp_cast->getType() == double_ty);
+            CHECK(fp_cast->getCastKind() == clang::CastKind::CK_FloatingCast);
+          }
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create clang::CStyleCastExpr a `CK_IntegralToFloating` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("an integer literal") {
+        auto lit{ast.CreateIntLit(llvm::APInt(16, 0xdead))};
+        REQUIRE(lit != nullptr);
+        GIVEN("a `float` type") {
+          auto float_ty{ctx.FloatTy};
+          THEN("return a integral-to-floating cast to `float`") {
+            auto int2fp_cast{ast.CreateCStyleCast(float_ty, lit)};
+            REQUIRE(int2fp_cast != nullptr);
+            CHECK(int2fp_cast->getType() == float_ty);
+            CHECK(int2fp_cast->getCastKind() ==
+                  clang::CastKind::CK_IntegralToFloating);
+          }
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create clang::CStyleCastExpr a `CK_FloatingToIntegral` cast") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetEmptyASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(ctx);
+      GIVEN("a `double` type literal") {
+        auto lit{ast.CreateFPLit(llvm::APFloat(double(3.14)))};
+        REQUIRE(lit != nullptr);
+        GIVEN("an `unsigned long int` type") {
+          auto ulong_ty{ctx.UnsignedLongTy};
+          THEN("return a floating-to-integral cast to `unsigned long int`") {
+            auto fp2int_cast{ast.CreateCStyleCast(ulong_ty, lit)};
+            REQUIRE(fp2int_cast != nullptr);
+            CHECK(fp2int_cast->getType() == ulong_ty);
+            CHECK(fp2int_cast->getCastKind() ==
+                  clang::CastKind::CK_FloatingToIntegral);
+          }
+        }
+      }
+    }
+  }
+}

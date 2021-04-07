@@ -89,8 +89,13 @@ clang::Expr *ASTBuilder::CreateNull() {
 clang::Expr *ASTBuilder::CreateUndef(clang::QualType type) {
   auto null{CreateNull()};
   auto cast{CreateCStyleCastExpr(ctx, ctx.getPointerType(type),
-                                 clang::CastKind::CK_NullToPointer, null)};
+                                 clang::CastKind::CK_BitCast, null)};
   return CreateUnaryOperator(ctx, clang::UO_Deref, cast, type);
 };
 
+clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
+                                                    clang::Expr *expr) {
+  
+  return nullptr;
+}
 }  // namespace rellic

@@ -47,6 +47,9 @@ class ASTBuilder {
   // Special values
   clang::Expr *CreateNull();
   clang::Expr *CreateUndef(clang::QualType type);
+  // C-style casting
+  clang::CStyleCastExpr *CreateCStyleCast(clang::QualType type,
+                                          clang::Expr *expr);
 };
 
 }  // namespace rellic

@@ -23,7 +23,7 @@ class GenerateAST : public llvm::ModulePass {
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
   rellic::ASTBuilder ast;
-  
+
   std::unordered_map<llvm::BasicBlock *, clang::Expr *> reaching_conds;
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
@@ -51,13 +51,13 @@ class GenerateAST : public llvm::ModulePass {
  public:
   static char ID;
 
-  GenerateAST(clang::ASTContext &ctx, rellic::IRToASTVisitor &gen);
+  GenerateAST(clang::ASTUnit &unit, rellic::IRToASTVisitor &gen);
 
   void getAnalysisUsage(llvm::AnalysisUsage &usage) const override;
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createGenerateASTPass(clang::ASTContext &ctx,
+llvm::ModulePass *createGenerateASTPass(clang::ASTUnit &unit,
                                         rellic::IRToASTVisitor &gen);
 }  // namespace rellic
 

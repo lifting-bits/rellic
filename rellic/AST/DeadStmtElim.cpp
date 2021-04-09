@@ -6,20 +6,21 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/DeadStmtElim.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
 
 char DeadStmtElim::ID = 0;
 
-DeadStmtElim::DeadStmtElim(clang::ASTContext &ctx,
+DeadStmtElim::DeadStmtElim(clang::ASTUnit &unit,
                            rellic::IRToASTVisitor &ast_gen)
     : ModulePass(DeadStmtElim::ID),
-      ast_ctx(&ctx),
+      ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
@@ -65,8 +66,8 @@ bool DeadStmtElim::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createDeadStmtElimPass(clang::ASTContext &ctx,
+llvm::ModulePass *createDeadStmtElimPass(clang::ASTUnit &unit,
                                          rellic::IRToASTVisitor &gen) {
-  return new DeadStmtElim(ctx, gen);
+  return new DeadStmtElim(unit, gen);
 }
 }  // namespace rellic

@@ -83,15 +83,15 @@ static bool GeneratePseudocode(llvm::Module& module,
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
   auto& ast_ctx{ast_unit->getASTContext()};
 
-  rellic::IRToASTVisitor gen(ast_ctx);
+  rellic::IRToASTVisitor gen(*ast_unit);
 
   llvm::legacy::PassManager ast;
-  ast.add(rellic::createGenerateASTPass(ast_ctx, gen));
-  ast.add(rellic::createDeadStmtElimPass(ast_ctx, gen));
+  ast.add(rellic::createGenerateASTPass(*ast_unit, gen));
+  ast.add(rellic::createDeadStmtElimPass(*ast_unit, gen));
   ast.run(module);
 
   // Simplifier to use during condition-based refinement
-  auto cbr_simplifier{new rellic::Z3CondSimplify(ast_ctx, gen)};
+  auto cbr_simplifier{new rellic::Z3CondSimplify(*ast_unit, gen)};
   cbr_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(cbr_simplifier->GetZ3Context(), "aig") &
@@ -101,27 +101,27 @@ static bool GeneratePseudocode(llvm::Module& module,
   llvm::legacy::PassManager cbr;
   if (!FLAGS_disable_z3) {
     cbr.add(cbr_simplifier);
-    cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+    cbr.add(rellic::createNestedCondPropPass(*ast_unit, gen));
   }
 
-  cbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
+  cbr.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
 
   if (!FLAGS_disable_z3) {
-    cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
-    cbr.add(rellic::createReachBasedRefinePass(ast_ctx, gen));
+    cbr.add(rellic::createCondBasedRefinePass(*ast_unit, gen));
+    cbr.add(rellic::createReachBasedRefinePass(*ast_unit, gen));
   }
 
   while (cbr.run(module))
     ;
 
   llvm::legacy::PassManager loop;
-  loop.add(rellic::createLoopRefinePass(ast_ctx, gen));
-  loop.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
+  loop.add(rellic::createLoopRefinePass(*ast_unit, gen));
+  loop.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
   while (loop.run(module))
     ;
 
   // Simplifier to use during final refinement
-  auto fin_simplifier{new rellic::Z3CondSimplify(ast_ctx, gen)};
+  auto fin_simplifier{new rellic::Z3CondSimplify(*ast_unit, gen)};
   fin_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
@@ -137,11 +137,11 @@ static bool GeneratePseudocode(llvm::Module& module,
   llvm::legacy::PassManager fin;
   if (!FLAGS_disable_z3) {
     fin.add(fin_simplifier);
-    fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+    fin.add(rellic::createNestedCondPropPass(*ast_unit, gen));
   }
 
-  fin.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
-  fin.add(rellic::createExprCombinePass(ast_ctx, gen));
+  fin.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
+  fin.add(rellic::createExprCombinePass(*ast_unit, gen));
   fin.run(module);
 
   ast_ctx.getTranslationUnitDecl()->print(output);

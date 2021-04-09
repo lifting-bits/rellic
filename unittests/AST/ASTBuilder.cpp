@@ -40,7 +40,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("1 bit unsigned llvm::APInt") {
         llvm::APInt api(1U, 0U, /*isSigned=*/false);
         auto lit{ast.CreateIntLit(api)};
@@ -57,7 +57,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("8 bit unsigned llvm::APInt") {
         llvm::APInt api(8U, 42U, /*isSigned=*/false);
         THEN("return a `unsigned int` typed integer literal") {
@@ -85,7 +85,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("16 bits wide llvm::APInt") {
         llvm::APInt api(16U, 42U, /*isSigned=*/false);
         THEN("return a `unsigned int` typed integer literal") {
@@ -113,7 +113,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("32 bits wide llvm::APInt") {
         llvm::APInt api(32U, 42U, /*isSigned=*/false);
         auto lit{ast.CreateIntLit(api)};
@@ -130,7 +130,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("64 bits wide llvm::APInt") {
         llvm::APInt api(64U, 42U, /*isSigned=*/false);
         auto lit{ast.CreateIntLit(api)};
@@ -149,7 +149,7 @@ TEST_SUITE("ASTBuilder::CreateCharLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("8 bit wide unsigned llvm::APInt") {
         llvm::APInt api(8U, 'x', /*isSigned=*/false);
         auto lit{ast.CreateCharLit(api)};
@@ -168,7 +168,7 @@ TEST_SUITE("ASTBuilder::CreateStrLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("std::string object by value") {
         std::string str("a string");
         auto lit{ast.CreateStrLit(str)};
@@ -188,7 +188,7 @@ TEST_SUITE("ASTBuilder::CreateFPLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("`float` initialized llvm::APFloat") {
         auto lit{ast.CreateFPLit(llvm::APFloat(float(3.14)))};
         THEN("return a `float` typed floating point literal") {
@@ -204,7 +204,7 @@ TEST_SUITE("ASTBuilder::CreateFPLit") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("`double` initialized llvm::APFloat") {
         auto lit{ast.CreateFPLit(llvm::APFloat(double(3.14)))};
         THEN("return a `double` typed floating point literal") {
@@ -222,7 +222,7 @@ TEST_SUITE("ASTBuilder::CreateNull") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       THEN("return a `0U` integer literal casted to a `void` pointer") {
         auto expr{ast.CreateNull()};
         REQUIRE(expr != nullptr);
@@ -237,7 +237,7 @@ TEST_SUITE("ASTBuilder::CreateUndef") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("an arbitrary type `t`") {
         auto type{ctx.DoubleTy};
         THEN("return a null pointer dereference of type `t`") {
@@ -259,7 +259,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("a `0U` literal") {
         auto lit{ast.CreateIntLit(llvm::APInt(32, 0))};
         REQUIRE(lit != nullptr);
@@ -282,7 +282,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("a `void *` type expression") {
         auto void_ty_expr{ast.CreateNull()};
         REQUIRE(void_ty_expr != nullptr);
@@ -304,7 +304,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("an integer literal") {
         auto lit{ast.CreateIntLit(llvm::APInt(8, 0xff))};
         REQUIRE(lit != nullptr);
@@ -326,7 +326,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("a null pointer expression") {
         auto null{ast.CreateNull()};
         REQUIRE(null != nullptr);
@@ -348,7 +348,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("an integer literal") {
         auto lit{ast.CreateIntLit(llvm::APInt(16, 0xbeef))};
         REQUIRE(lit != nullptr);
@@ -370,7 +370,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("a `float` type literal") {
         auto lit{ast.CreateFPLit(llvm::APFloat(float(3.14)))};
         REQUIRE(lit != nullptr);
@@ -391,7 +391,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("an integer literal") {
         auto lit{ast.CreateIntLit(llvm::APInt(16, 0xdead))};
         REQUIRE(lit != nullptr);
@@ -413,7 +413,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetEmptyASTUnit()};
       auto &ctx{unit->getASTContext()};
-      rellic::ASTBuilder ast(ctx);
+      rellic::ASTBuilder ast(*unit);
       GIVEN("a `double` type literal") {
         auto lit{ast.CreateFPLit(llvm::APFloat(double(3.14)))};
         REQUIRE(lit != nullptr);

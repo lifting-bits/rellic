@@ -6,11 +6,12 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/LoopRefine.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "rellic/AST/InferenceRule.h"
-#include "rellic/AST/LoopRefine.h"
 
 namespace rellic {
 
@@ -275,8 +276,10 @@ class CondToSeqNegRule : public InferenceRule {
 
 char LoopRefine::ID = 0;
 
-LoopRefine::LoopRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(LoopRefine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
+LoopRefine::LoopRefine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen)
+    : ModulePass(LoopRefine::ID),
+      ast_ctx(&unit.getASTContext()),
+      ast_gen(&ast_gen) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
@@ -308,8 +311,8 @@ bool LoopRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createLoopRefinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createLoopRefinePass(clang::ASTUnit &unit,
                                        rellic::IRToASTVisitor &gen) {
-  return new LoopRefine(ctx, gen);
+  return new LoopRefine(unit, gen);
 }
 }  // namespace rellic

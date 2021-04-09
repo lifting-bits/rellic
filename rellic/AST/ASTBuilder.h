@@ -8,18 +8,26 @@
 
 #pragma once
 
+#include <clang/Frontend/ASTUnit.h>
+
 #include <string>
 
 #include "rellic/AST/Compat/Expr.h"
+
+namespace clang {
+class Sema;
+}  // namespace clang
 
 namespace rellic {
 
 class ASTBuilder {
  private:
+  clang::ASTUnit &unit;
   clang::ASTContext &ctx;
+  clang::Sema &sema;
 
  public:
-  ASTBuilder(clang::ASTContext &context);
+  ASTBuilder(clang::ASTUnit &unit);
   // Literals
   clang::IntegerLiteral *CreateIntLit(llvm::APSInt val);
 

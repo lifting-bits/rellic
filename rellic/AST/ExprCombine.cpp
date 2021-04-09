@@ -6,10 +6,11 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/ExprCombine.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/InferenceRule.h"
 #include "rellic/AST/Util.h"
 
@@ -177,9 +178,10 @@ class MemberExprAddrOfRule : public InferenceRule {
 
 char ExprCombine::ID = 0;
 
-ExprCombine::ExprCombine(clang::ASTContext &ctx,
-                         rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(ExprCombine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
+ExprCombine::ExprCombine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen)
+    : ModulePass(ExprCombine::ID),
+      ast_ctx(&unit.getASTContext()),
+      ast_gen(&ast_gen) {}
 
 bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
   // DLOG(INFO) << "VisitParenExpr";
@@ -248,8 +250,8 @@ bool ExprCombine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createExprCombinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createExprCombinePass(clang::ASTUnit &unit,
                                         rellic::IRToASTVisitor &gen) {
-  return new ExprCombine(ctx, gen);
+  return new ExprCombine(unit, gen);
 }
 }  // namespace rellic

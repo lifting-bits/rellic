@@ -80,9 +80,9 @@ static std::string CreateZ3DeclName(clang::NamedDecl *decl) {
 
 }  // namespace
 
-Z3ConvVisitor::Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx)
-    : ast_ctx(c_ctx),
-      ast(*c_ctx),
+Z3ConvVisitor::Z3ConvVisitor(clang::ASTUnit &unit, z3::context *z3_ctx)
+    : ast_ctx(&unit.getASTContext()),
+      ast(unit),
       z3_ctx(z3_ctx),
       z3_expr_vec(*z3_ctx),
       z3_decl_vec(*z3_ctx) {}

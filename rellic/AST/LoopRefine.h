@@ -26,14 +26,14 @@ class LoopRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  LoopRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  LoopRefine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitWhileStmt(clang::WhileStmt *loop);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createLoopRefinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createLoopRefinePass(clang::ASTUnit &unit,
                                        rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

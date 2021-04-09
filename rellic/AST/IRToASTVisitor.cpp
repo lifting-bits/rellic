@@ -22,8 +22,8 @@
 
 namespace rellic {
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTContext &ctx)
-    : ast_ctx(ctx), ast(ast_ctx) {}
+IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
+    : ast_ctx(unit.getASTContext()), ast(unit) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);

@@ -38,14 +38,14 @@ class CondBasedRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  CondBasedRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  CondBasedRefine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
                                             rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

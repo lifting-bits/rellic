@@ -379,8 +379,11 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 char GenerateAST::ID = 0;
 
-GenerateAST::GenerateAST(clang::ASTContext &ctx, rellic::IRToASTVisitor &gen)
-    : ModulePass(GenerateAST::ID), ast_ctx(&ctx), ast_gen(&gen), ast(ctx) {}
+GenerateAST::GenerateAST(clang::ASTUnit &unit, rellic::IRToASTVisitor &gen)
+    : ModulePass(GenerateAST::ID),
+      ast_ctx(&unit.getASTContext()),
+      ast_gen(&gen),
+      ast(unit) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
   usage.addRequired<llvm::DominatorTreeWrapperPass>();
@@ -441,9 +444,9 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
   return true;
 }
 
-llvm::ModulePass *createGenerateASTPass(clang::ASTContext &ctx,
+llvm::ModulePass *createGenerateASTPass(clang::ASTUnit &unit,
                                         rellic::IRToASTVisitor &gen) {
-  return new GenerateAST(ctx, gen);
+  return new GenerateAST(unit, gen);
 }
 
 }  // namespace rellic

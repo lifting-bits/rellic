@@ -33,13 +33,13 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char CondBasedRefine::ID = 0;
 
-CondBasedRefine::CondBasedRefine(clang::ASTContext &ctx,
+CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit,
                                  rellic::IRToASTVisitor &ast_gen)
     : ModulePass(CondBasedRefine::ID),
-      ast_ctx(&ctx),
+      ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(ast_ctx, z3_ctx.get())),
+      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
 
 bool CondBasedRefine::Prove(z3::expr expr) {
@@ -143,8 +143,8 @@ bool CondBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
                                             rellic::IRToASTVisitor &gen) {
-  return new CondBasedRefine(ctx, gen);
+  return new CondBasedRefine(unit, gen);
 }
 }  // namespace rellic

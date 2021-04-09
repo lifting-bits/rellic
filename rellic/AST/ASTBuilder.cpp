@@ -8,6 +8,7 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
+#include <clang/Sema/Sema.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -16,7 +17,8 @@
 
 namespace rellic {
 
-ASTBuilder::ASTBuilder(clang::ASTContext &context) : ctx(context) {}
+ASTBuilder::ASTBuilder(clang::ASTUnit &unit)
+    : unit(unit), ctx(unit.getASTContext()), sema(unit.getSema()) {}
 
 clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   auto sign{val.isSigned()};
@@ -95,7 +97,9 @@ clang::Expr *ASTBuilder::CreateUndef(clang::QualType type) {
 
 clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
                                                     clang::Expr *expr) {
-  
-  return nullptr;
+  clang::ActionResult<clang::Expr *> ar(expr);
+  auto kind{sema.PrepareScalarCast(ar, type)};
+  return clang::dyn_cast<clang::CStyleCastExpr>(
+      CreateCStyleCastExpr(ctx, type, kind, expr));
 }
 }  // namespace rellic

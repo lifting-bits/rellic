@@ -39,14 +39,14 @@ class ReachBasedRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  ReachBasedRefine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  ReachBasedRefine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createReachBasedRefinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createReachBasedRefinePass(clang::ASTUnit &unit,
                                              rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

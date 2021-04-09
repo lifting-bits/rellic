@@ -38,7 +38,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(clang::ASTContext &ctx);
+  IRToASTVisitor(clang::ASTUnit &unit);
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);

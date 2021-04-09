@@ -26,7 +26,7 @@ class ExprCombine : public llvm::ModulePass,
  public:
   static char ID;
 
-  ExprCombine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  ExprCombine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitUnaryOperator(clang::UnaryOperator *op);
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
@@ -36,7 +36,7 @@ class ExprCombine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createExprCombinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createExprCombinePass(clang::ASTUnit &unit,
                                         rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

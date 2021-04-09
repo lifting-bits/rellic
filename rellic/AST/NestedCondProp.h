@@ -34,14 +34,14 @@ class NestedCondProp : public llvm::ModulePass,
 
   bool shouldTraversePostOrder() { return false; }
 
-  NestedCondProp(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  NestedCondProp(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createNestedCondPropPass(clang::ASTContext &ctx,
+llvm::ModulePass *createNestedCondPropPass(clang::ASTUnit &unit,
                                            rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

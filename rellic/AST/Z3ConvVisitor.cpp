@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define GOOGLE_STRIP_LOG 1
+// #define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/Z3ConvVisitor.h"
 
@@ -73,7 +73,7 @@ static bool IsSignExt(z3::expr op) {
 
   if (lhs.is_numeral()) {
     auto size{GetZ3SortSize(lhs)};
-    llvm::APInt val(size, Z3_get_numeral_string(op.ctx(), op), 10);
+    llvm::APInt val(size, Z3_get_numeral_string(lhs.ctx(), lhs), 10);
     return val.isAllOnesValue() || val.isNullValue();
   }
   return false;

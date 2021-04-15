@@ -28,14 +28,16 @@ clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   clang::QualType type;
   if (value_size <= ctx.getIntWidth(ctx.IntTy)) {
     type = sign ? ctx.IntTy : ctx.UnsignedIntTy;
+  } else if (value_size > ctx.getIntWidth(ctx.LongLongTy)) {
+    type = sign ? ctx.LongLongTy : ctx.UnsignedLongLongTy;
   } else {
     type = GetLeastIntTypeForBitWidth(ctx, value_size, sign);
   }
   // Extend the literal value based on it's sign if we have a
   // mismatch between the bit width of the value and inferred type.
   auto type_size{ctx.getIntWidth(type)};
-  if (value_size < type_size) {
-    val = sign ? val.sextOrSelf(type_size) : val.zextOrSelf(type_size);
+  if (val.getBitWidth() != type_size && val.getMinSignedBits() < type_size) {
+    val = val.extOrTrunc(type_size);
   }
   // Clang does this check in the `clang::IntegerLiteral::Create`, but
   // we've had the calls with mismatched bit widths succeed before so
@@ -49,7 +51,8 @@ clang::Expr *ASTBuilder::CreateAdjustedIntLit(llvm::APSInt val) {
   auto value_size{val.getBitWidth()};
   // Cast the integer literal to a type of the smallest bit width
   // that can contain `val`. Either `short` or `char`.
-  if (value_size <= ctx.getIntWidth(ctx.ShortTy)) {
+  if (value_size <= ctx.getIntWidth(ctx.ShortTy) ||
+      value_size > ctx.getIntWidth(ctx.LongLongTy)) {
     return CreateCStyleCast(
         GetLeastIntTypeForBitWidth(ctx, value_size, val.isSigned()), lit);
   } else {

@@ -38,7 +38,7 @@ class ArraySubscriptAddrOfRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto sub = clang::cast<clang::ArraySubscriptExpr>(stmt);
     CHECK(sub == match) << "Substituted ArraySubscriptExpr is not the matched "
@@ -62,7 +62,7 @@ class AddrOfArraySubscriptRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("addr_of");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto addr_of = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(addr_of == match)
@@ -85,7 +85,7 @@ class DerefAddrOfRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("deref");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
@@ -112,8 +112,9 @@ class NegComparisonRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
+    auto &ctx{unit.getASTContext()};
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
@@ -137,7 +138,7 @@ class ParenDeclRefExprStripRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::ParenExpr>("paren");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto paren = clang::cast<clang::ParenExpr>(stmt);
     CHECK(paren == match)
@@ -162,8 +163,9 @@ class MemberExprAddrOfRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
+    auto &ctx{unit.getASTContext()};
     auto arrow = clang::cast<clang::MemberExpr>(stmt);
     CHECK(arrow == match)
         << "Substituted MemberExpr is not the matched MemberExpr!";
@@ -178,15 +180,13 @@ class MemberExprAddrOfRule : public InferenceRule {
 
 char ExprCombine::ID = 0;
 
-ExprCombine::ExprCombine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(ExprCombine::ID),
-      ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen) {}
+ExprCombine::ExprCombine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
+    : ModulePass(ExprCombine::ID), unit(u), ast_gen(&ast_gen) {}
 
 bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
   // DLOG(INFO) << "VisitParenExpr";
   std::vector<InferenceRule *> rules({new ParenDeclRefExprStripRule});
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, paren, rules);
+  auto sub = ApplyFirstMatchingRule(unit, paren, rules);
   if (sub != paren) {
     substitutions[paren] = sub;
   }
@@ -199,7 +199,7 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
 bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
   std::vector<InferenceRule *> rules({new ArraySubscriptAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, expr, rules);
+  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -217,7 +217,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.push_back(new DerefAddrOfRule);
   rules.push_back(new AddrOfArraySubscriptRule);
 
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, op, rules);
+  auto sub = ApplyFirstMatchingRule(unit, op, rules);
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -232,7 +232,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
 bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
   std::vector<InferenceRule *> rules({new MemberExprAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, expr, rules);
+  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -245,8 +245,7 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
 bool ExprCombine::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Rule-based statement simplification";
   Initialize();
-
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
+  TraverseDecl(unit.getASTContext().getTranslationUnitDecl());
   return changed;
 }
 

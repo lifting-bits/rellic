@@ -11,6 +11,10 @@
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
 
+namespace clang {
+class ASTUnit;
+}
+
 namespace rellic {
 
 class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
@@ -29,11 +33,11 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
     return cond;
   }
 
-  virtual clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  virtual clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                                clang::Stmt *stmt) = 0;
 };
 
-clang::Stmt *ApplyFirstMatchingRule(clang::ASTContext &ctx, clang::Stmt *stmt,
+clang::Stmt *ApplyFirstMatchingRule(clang::ASTUnit &unit, clang::Stmt *stmt,
                                     std::vector<InferenceRule *> &rules);
 
 }  // namespace rellic

@@ -20,7 +20,7 @@ namespace rellic {
 class LoopRefine : public llvm::ModulePass,
                    public TransformVisitor<LoopRefine> {
  private:
-  clang::ASTContext *ast_ctx;
+  clang::ASTUnit &unit;
   rellic::IRToASTVisitor *ast_gen;
 
  public:

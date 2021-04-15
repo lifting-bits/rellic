@@ -8,9 +8,11 @@
 
 #include "rellic/AST/InferenceRule.h"
 
+#include <clang/Frontend/ASTUnit.h>
+
 namespace rellic {
 
-clang::Stmt *ApplyFirstMatchingRule(clang::ASTContext &ctx, clang::Stmt *stmt,
+clang::Stmt *ApplyFirstMatchingRule(clang::ASTUnit &unit, clang::Stmt *stmt,
                                     std::vector<InferenceRule *> &rules) {
   clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
   clang::ast_matchers::MatchFinder finder(opts);
@@ -19,11 +21,11 @@ clang::Stmt *ApplyFirstMatchingRule(clang::ASTContext &ctx, clang::Stmt *stmt,
     finder.addMatcher(rule->GetCondition(), rule);
   }
 
-  finder.match(*stmt, ctx);
+  finder.match(*stmt, unit.getASTContext());
 
   for (auto rule : rules) {
     if (*rule) {
-      return rule->GetOrCreateSubstitution(ctx, stmt);
+      return rule->GetOrCreateSubstitution(unit, stmt);
     }
   }
 

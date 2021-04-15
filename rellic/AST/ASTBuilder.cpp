@@ -141,30 +141,34 @@ clang::ImplicitCastExpr *ASTBuilder::CreateImplicitCast(clang::QualType type,
   return nullptr;
 }
 
-clang::UnaryOperator *ASTBuilder::CreateDeref(clang::Expr *expr) {
-  auto type{expr->getType()};
-  CHECK(type->isPointerType());
-  return CreateUnaryOperator(ctx, clang::UO_Deref, expr,
-                             type->getPointeeType());
-}
+clang::UnaryOperator *ASTBuilder::CreateUnaryOp(clang::UnaryOperatorKind opc,
+                                                clang::Expr *expr) {
+  clang::QualType result_ty;
+  switch (opc) {
+    case clang::UO_Deref:
+      CHECK(expr->getType()->isPointerType());
+      result_ty = expr->getType()->getPointeeType();
+      break;
 
-clang::UnaryOperator *ASTBuilder::CreateAddrOf(clang::Expr *expr) {
-  auto type{ctx.getPointerType(expr->getType())};
-  return CreateUnaryOperator(ctx, clang::UO_AddrOf, expr, type);
-}
+    case clang::UO_AddrOf:
+      result_ty = ctx.getPointerType(expr->getType());
+      break;
 
-clang::UnaryOperator *ASTBuilder::CreateAddrOf(clang::ValueDecl *decl) {
-  CHECK(clang::isa<clang::FunctionDecl>(decl) ||
-        clang::isa<clang::VarDecl>(decl));
-  return CreateAddrOf(CreateDeclRef(decl));
-}
+    case clang::UO_LNot:
+      result_ty = ctx.IntTy;
+      break;
 
-clang::UnaryOperator *ASTBuilder::CreateLNot(clang::Expr *expr) {
-  return nullptr;
-}
+    case clang::UO_Not:
+      result_ty = expr->getType();
+      break;
 
-clang::UnaryOperator *ASTBuilder::CreateNot(clang::Expr *expr) {
-  return nullptr;
+    default:
+      LOG(FATAL) << "Unknown UnaryOperatorKind: "
+                 << clang::UnaryOperator::getOpcodeStr(opc).str();
+      break;
+  }
+
+  return CreateUnaryOperator(ctx, opc, expr, result_ty);
 }
 
 }  // namespace rellic

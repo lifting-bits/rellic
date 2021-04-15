@@ -138,7 +138,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
             ast_gen->GetOrCreateStmt(br->getCondition()));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
-          result = CreateNotExpr(*ast_ctx, result);
+          result = ast.CreateLNot(result);
         }
       }
     } break;

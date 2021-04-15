@@ -205,25 +205,25 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
 
 clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
-  // Operand is a constant value
-  if (llvm::isa<llvm::ConstantExpr>(val) ||
-      llvm::isa<llvm::ConstantAggregate>(val) ||
-      llvm::isa<llvm::ConstantData>(val)) {
+  // Helper functions
+  auto CreateExpr = [this, &val] {
     return clang::cast<clang::Expr>(GetOrCreateStmt(val));
-  }
-  // Helper function for creating declaration references
+  };
+
   auto CreateRef = [this, &val] {
     return ast.CreateDeclRef(
         clang::cast<clang::ValueDecl>(GetOrCreateDecl(val)));
   };
+  // Operand is a constant value
+  if (llvm::isa<llvm::ConstantExpr>(val) ||
+      llvm::isa<llvm::ConstantAggregate>(val) ||
+      llvm::isa<llvm::ConstantData>(val)) {
+    return CreateExpr();
+  }
   // Operand is an l-value (variable, function, ...)
   if (llvm::isa<llvm::GlobalValue>(val) || llvm::isa<llvm::AllocaInst>(val)) {
-    clang::Expr *ref = CreateRef();
     // Add a `&` operator
-    ref = CreateParenExpr(
-        ast_ctx, CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, ref,
-                                     ast_ctx.getPointerType(ref->getType())));
-    return ref;
+    return CreateParenExpr(ast_ctx, ast.CreateAddrOf(CreateRef()));
   }
   // Operand is a function argument or local variable
   if (llvm::isa<llvm::Argument>(val)) {
@@ -231,8 +231,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a result of an expression
   if (llvm::isa<llvm::Instruction>(val)) {
-    return CreateParenExpr(ast_ctx,
-                           clang::cast<clang::Expr>(GetOrCreateStmt(val)));
+    return CreateParenExpr(ast_ctx, CreateExpr());
   }
 
   ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
@@ -540,8 +539,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     base = CreateParenExpr(ast_ctx, base);
   }
 
-  ref = CreateUnaryOperator(ast_ctx, clang::UO_AddrOf, base,
-                            ast_ctx.getPointerType(base->getType()));
+  ref = ast.CreateAddrOf(base);
 }
 
 void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
@@ -641,9 +639,8 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   auto rhs = GetOperandExpr(val);
   // Create the assignemnt itself
   auto type = GetQualType(ptr->getType()->getPointerElementType());
-  assign = CreateBinaryOperator(
-      ast_ctx, clang::BO_Assign,
-      CreateUnaryOperator(ast_ctx, clang::UO_Deref, lhs, type), rhs, type);
+  assign = CreateBinaryOperator(ast_ctx, clang::BO_Assign, ast.CreateDeref(lhs),
+                                rhs, type);
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
@@ -652,12 +649,7 @@ void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   if (ref) {
     return;
   }
-
-  auto ptr = inst.getPointerOperand();
-  auto op = GetOperandExpr(ptr);
-  auto res_type = GetQualType(inst.getType());
-
-  ref = CreateUnaryOperator(ast_ctx, clang::UO_Deref, op, res_type);
+  ref = ast.CreateDeref(GetOperandExpr(inst.getPointerOperand()));
 }
 
 void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {

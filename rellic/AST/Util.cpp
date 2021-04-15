@@ -144,11 +144,11 @@ clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
       clang::ParenExpr(clang::SourceLocation(), clang::SourceLocation(), expr);
 }
 
-clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
-  CHECK(op) << "No operand given for unary logical expression";
-  return CreateUnaryOperator(ctx, clang::UO_LNot, CreateParenExpr(ctx, op),
-                             ctx.IntTy);
-}
+// clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
+//   CHECK(op) << "No operand given for unary logical expression";
+//   return CreateUnaryOperator(ctx, clang::UO_LNot, CreateParenExpr(ctx, op),
+//                              ctx.IntTy);
+// }
 
 clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
                            clang::Expr *rhs) {

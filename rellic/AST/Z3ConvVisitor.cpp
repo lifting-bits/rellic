@@ -856,12 +856,11 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
   clang::Expr *c_op{nullptr};
   switch (z_func.decl_kind()) {
     case Z3_OP_NOT:
-      c_op = CreateNotExpr(*ast_ctx, c_sub);
+      c_op = ast.CreateLNot(c_sub);
       break;
 
     case Z3_OP_BNOT:
-      c_op = CreateUnaryOperator(*ast_ctx, clang::UO_Not,
-                                 CreateParenExpr(*ast_ctx, c_sub), t_sub);
+      c_op = ast.CreateNot(CreateParenExpr(*ast_ctx, c_sub));
       break;
     // Given a `(extract hi lo o)` we generate `((o & m) >> lo)` where:
     //
@@ -906,12 +905,9 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       // Resolve opcode
       auto z_func_name{z_func.name().str()};
       if (z_func_name == "AddrOf") {
-        auto t_op = ast_ctx->getPointerType(t_sub);
-        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_AddrOf, c_sub, t_op);
+        c_op = ast.CreateAddrOf(c_sub);
       } else if (z_func_name == "Deref") {
-        CHECK(t_sub->isPointerType()) << "Deref operand type is not a pointer";
-        auto t_op = t_sub->getPointeeType();
-        c_op = CreateUnaryOperator(*ast_ctx, clang::UO_Deref, c_sub, t_op);
+        c_op = ast.CreateDeref(c_sub);
       } else if (z_func_name == "Paren") {
         c_op = CreateParenExpr(*ast_ctx, c_sub);
       } else if (z_func_name == "PtrDecay") {

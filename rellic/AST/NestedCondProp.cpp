@@ -35,6 +35,7 @@ char NestedCondProp::ID = 0;
 NestedCondProp::NestedCondProp(clang::ASTUnit &unit,
                                rellic::IRToASTVisitor &ast_gen)
     : ModulePass(NestedCondProp::ID),
+      ast(unit),
       ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
@@ -59,10 +60,10 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
     if (stmt_else) {
       if (auto comp = clang::dyn_cast<clang::CompoundStmt>(stmt_else)) {
         for (auto child : GetIfStmts(comp)) {
-          parent_conds[child] = CreateNotExpr(*ast_ctx, cond);
+          parent_conds[child] = ast.CreateLNot(cond);
         }
       } else if (auto elif = clang::dyn_cast<clang::IfStmt>(stmt_else)) {
-        parent_conds[elif] = CreateNotExpr(*ast_ctx, cond);
+        parent_conds[elif] = ast.CreateLNot(cond);
       } else {
         LOG(FATAL)
             << "Else branch must be a clang::CompoundStmt or clang::IfStmt!";

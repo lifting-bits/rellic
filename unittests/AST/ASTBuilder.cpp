@@ -553,7 +553,7 @@ TEST_SUITE("ASTBuilder::CreateDeclRef") {
   }
 }
 
-TEST_SUITE("ASTBuilder::CreateDeref") {
+TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
   SCENARIO("Create a pointer dereference operation") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetASTUnit()};
@@ -561,7 +561,7 @@ TEST_SUITE("ASTBuilder::CreateDeref") {
       GIVEN("a void * type expression e") {
         auto expr{ast.CreateNull()};
         REQUIRE(expr != nullptr);
-        THEN("return a pointer dereference operation over e") {
+        THEN("return *e") {
           auto deref{ast.CreateDeref(expr)};
           REQUIRE(deref != nullptr);
           CHECK(deref->getSubExpr() == expr);
@@ -571,9 +571,7 @@ TEST_SUITE("ASTBuilder::CreateDeref") {
       }
     }
   }
-}
 
-TEST_SUITE("ASTBuilder::CreateAddrOf") {
   SCENARIO("Create a pointer address-of operation") {
     GIVEN("A declaration of global variable a") {
       auto unit{GetASTUnit("int a;")};
@@ -584,7 +582,7 @@ TEST_SUITE("ASTBuilder::CreateAddrOf") {
       GIVEN("a reference to a") {
         auto declref{ast.CreateDeclRef(vardecl)};
         REQUIRE(declref != nullptr);
-        THEN("return a address-of operation over a") {
+        THEN("return &a") {
           auto addrof{ast.CreateAddrOf(declref)};
           REQUIRE(addrof != nullptr);
           CHECK(addrof->getSubExpr() == declref);
@@ -592,25 +590,51 @@ TEST_SUITE("ASTBuilder::CreateAddrOf") {
           CHECK(addrof->getOpcode() == clang::UO_AddrOf);
         }
       }
+    }
+  }
 
-      THEN("return a address-of operation over a") {
-        auto addrof{ast.CreateAddrOf(vardecl)};
-        REQUIRE(addrof != nullptr);
-        CHECK(clang::isa<clang::DeclRefExpr>(addrof->getSubExpr()));
-        CHECK(addrof->getType() == ctx.getPointerType(vardecl->getType()));
-        CHECK(addrof->getOpcode() == clang::UO_AddrOf);
+  SCENARIO("Create a logical negation operation") {
+    GIVEN("A declaration of global variable a") {
+      auto unit{GetASTUnit("int a;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto vardecl{GetDecl<clang::VarDecl>(tudecl, "a")};
+      GIVEN("a reference to a") {
+        auto declref{ast.CreateDeclRef(vardecl)};
+        REQUIRE(declref != nullptr);
+        THEN("return !a") {
+          auto lnot{ast.CreateLNot(declref)};
+          REQUIRE(lnot != nullptr);
+          CHECK(lnot->getSubExpr() == declref);
+          CHECK(lnot->getType() == ctx.IntTy);
+          CHECK(lnot->getOpcode() == clang::UO_LNot);
+        }
+      }
+    }
+  }
+
+  SCENARIO("Create a pointer bitwise negation operation") {
+    GIVEN("A declaration of global variable a") {
+      auto unit{GetASTUnit("int a;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto vardecl{GetDecl<clang::VarDecl>(tudecl, "a")};
+      GIVEN("a reference to a") {
+        auto declref{ast.CreateDeclRef(vardecl)};
+        REQUIRE(declref != nullptr);
+        THEN("return ~a") {
+          auto bnot{ast.CreateNot(declref)};
+          REQUIRE(bnot != nullptr);
+          CHECK(bnot->getSubExpr() == declref);
+          CHECK(bnot->getType() == declref->getType());
+          CHECK(bnot->getOpcode() == clang::UO_Not);
+        }
       }
     }
   }
 }
-
-// TEST_SUITE("ASTBuilder::CreateLNot") {
-//   SCENARIO("Create a pointer logical negation operation") {}
-// }
-
-// TEST_SUITE("ASTBuilder::CreateNot") {
-//   SCENARIO("Create a pointer bitwise negation operation") {}
-// }
 
 // TEST_SUITE("ASTBuilder::CreateImplicitCast") {
 //   SCENARIO("Create a CK_LValueToRValue clang::CreateImplicitCast") {}

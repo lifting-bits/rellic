@@ -13,6 +13,7 @@
 #include <llvm/Pass.h>
 #include <z3++.h>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 #include "rellic/AST/Z3ConvVisitor.h"
@@ -22,6 +23,7 @@ namespace rellic {
 class NestedCondProp : public llvm::ModulePass,
                        public TransformVisitor<NestedCondProp> {
  private:
+  ASTBuilder ast;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
   std::unique_ptr<z3::context> z3_ctx;

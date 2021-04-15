@@ -12,8 +12,6 @@
 
 #include <string>
 
-#include "rellic/AST/Compat/Expr.h"
-
 namespace clang {
 class Sema;
 }  // namespace clang
@@ -77,11 +75,24 @@ class ASTBuilder {
   clang::ImplicitCastExpr *CreateImplicitCast(clang::QualType type,
                                               clang::Expr *expr);
   // Unary operators
-  clang::UnaryOperator *CreateDeref(clang::Expr *expr);
-  clang::UnaryOperator *CreateAddrOf(clang::Expr *expr);
-  clang::UnaryOperator *CreateAddrOf(clang::ValueDecl *decl);
-  clang::UnaryOperator *CreateLNot(clang::Expr *expr);
-  clang::UnaryOperator *CreateNot(clang::Expr *expr);
+  clang::UnaryOperator *CreateUnaryOp(clang::UnaryOperatorKind opc,
+                                      clang::Expr *expr);
+
+  clang::UnaryOperator *CreateDeref(clang::Expr *expr) {
+    return CreateUnaryOp(clang::UO_Deref, expr);
+  }
+
+  clang::UnaryOperator *CreateAddrOf(clang::Expr *expr) {
+    return CreateUnaryOp(clang::UO_AddrOf, expr);
+  }
+
+  clang::UnaryOperator *CreateLNot(clang::Expr *expr) {
+    return CreateUnaryOp(clang::UO_LNot, expr);
+  }
+
+  clang::UnaryOperator *CreateNot(clang::Expr *expr) {
+    return CreateUnaryOp(clang::UO_Not, expr);
+  }
 };
 
 }  // namespace rellic

@@ -402,6 +402,7 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
       z_cast = z3_ctx->function("IntToPtr", s_ptr, s_src, s_dst)(z_ptr, z_sub);
     } break;
 
+    case clang::CastKind::CK_NoOp:
     case clang::CastKind::CK_IntegralCast:
     case clang::CastKind::CK_NullToPointer:
       break;
@@ -831,7 +832,7 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
       break;
     // Uninterpreted constants
     case Z3_OP_UNINTERPRETED:
-      c_expr = CreateDeclRefExpr(*ast_ctx, GetCValDecl(z_const.decl()));
+      c_expr = ast.CreateDeclRef(GetCValDecl(z_const.decl()));
       break;
 
     // Unknowns
@@ -921,8 +922,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       } else if (z_func_name == "PtrToInt") {
         auto s_size = GetZ3SortSize(z_op);
         auto t_op = ast_ctx->getIntTypeForBitwidth(s_size, /*sign=*/0);
-        c_op = CreateCStyleCastExpr(
-            *ast_ctx, t_op, clang::CastKind::CK_PointerToIntegral, c_sub);
+        c_op = ast.CreateCStyleCast(t_op, c_sub);
       } else if (z_func_name == "BoolToBV") {
         c_op = c_sub;
       } else {
@@ -1083,12 +1083,8 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
         auto mem = GetCValDecl(z_op.arg(1).decl());
         c_op = CreateMemberExpr(*ast_ctx, lhs, mem, mem->getType(),
                                 /*is_arrow=*/false);
-      } else if (name == "IntToPtr") {
-        c_op = CreateCStyleCastExpr(*ast_ctx, GetTypeFromOpaquePtrLiteral(),
-                                    clang::CastKind::CK_IntegralToPointer, rhs);
-      } else if (name == "BitCast") {
-        c_op = CreateCStyleCastExpr(*ast_ctx, GetTypeFromOpaquePtrLiteral(),
-                                    clang::CastKind::CK_BitCast, rhs);
+      } else if (name == "IntToPtr" || name == "BitCast") {
+        c_op = ast.CreateCStyleCast(GetTypeFromOpaquePtrLiteral(), rhs);
       } else {
         LOG(FATAL) << "Unknown Z3 uninterpreted binary function: " << name;
       }

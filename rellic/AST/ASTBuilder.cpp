@@ -50,9 +50,8 @@ clang::Expr *ASTBuilder::CreateAdjustedIntLit(llvm::APSInt val) {
   // Cast the integer literal to a type of the smallest bit width
   // that can contain `val`. Either `short` or `char`.
   if (value_size <= ctx.getIntWidth(ctx.ShortTy)) {
-    return CreateCStyleCastExpr(
-        ctx, GetLeastIntTypeForBitWidth(ctx, value_size, val.isSigned()),
-        clang::CastKind::CK_IntegralCast, lit);
+    return CreateCStyleCast(
+        GetLeastIntTypeForBitWidth(ctx, value_size, val.isSigned()), lit);
   } else {
     return lit;
   }
@@ -84,22 +83,85 @@ clang::Expr *ASTBuilder::CreateNull() {
   auto type{ctx.UnsignedIntTy};
   auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
   auto lit{CreateIntLit(val)};
-  return CreateCStyleCastExpr(ctx, ctx.VoidPtrTy,
-                              clang::CastKind::CK_NullToPointer, lit);
+  return CreateCStyleCast(ctx.VoidPtrTy, lit);
 };
 
 clang::Expr *ASTBuilder::CreateUndef(clang::QualType type) {
   auto null{CreateNull()};
-  auto cast{CreateCStyleCastExpr(ctx, ctx.getPointerType(type),
-                                 clang::CastKind::CK_BitCast, null)};
-  return CreateUnaryOperator(ctx, clang::UO_Deref, cast, type);
+  auto cast{CreateCStyleCast(ctx.getPointerType(type), null)};
+  return CreateDeref(cast);
 };
+
+clang::IdentifierInfo *ASTBuilder::CreateIdentifier(std::string name) {
+  std::string str{""};
+  for (auto chr : name) {
+    str.push_back(std::isalnum(chr) ? chr : '_');
+  }
+  return &ctx.Idents.get(str);
+}
+
+clang::VarDecl *ASTBuilder::CreateVarDecl(clang::DeclContext *decl_ctx,
+                                          clang::QualType type,
+                                          clang::IdentifierInfo *id) {
+  auto var{clang::VarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+                                  clang::SourceLocation(), id, type,
+                                  /*TypeSourceInfo=*/nullptr, clang::SC_None)};
+  decl_ctx->addDecl(var);
+  return var;
+}
+
+clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {
+  return new (ctx)
+      clang::DeclStmt(clang::DeclGroupRef(decl), clang::SourceLocation(),
+                      clang::SourceLocation());
+}
+
+clang::DeclRefExpr *ASTBuilder::CreateDeclRef(clang::ValueDecl *val) {
+  CHECK(val) << "Should not be null in CreateDeclRef.";
+  return clang::DeclRefExpr::Create(
+      ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val, false,
+      val->getLocation(), val->getType(), clang::VK_LValue);
+}
 
 clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
                                                     clang::Expr *expr) {
   clang::ActionResult<clang::Expr *> ar(expr);
   auto kind{sema.PrepareScalarCast(ar, type)};
-  return clang::dyn_cast<clang::CStyleCastExpr>(
-      CreateCStyleCastExpr(ctx, type, kind, expr));
+  return clang::CStyleCastExpr::Create(
+      ctx, type, clang::VK_RValue, kind, expr, nullptr,
+      ctx.getTrivialTypeSourceInfo(type), clang::SourceLocation(),
+      clang::SourceLocation());
 }
+
+clang::ImplicitCastExpr *ASTBuilder::CreateImplicitCast(clang::QualType type,
+                                                        clang::Expr *expr) {
+  return nullptr;
+}
+
+clang::UnaryOperator *ASTBuilder::CreateDeref(clang::Expr *expr) {
+  auto type{expr->getType()};
+  CHECK(type->isPointerType());
+  return CreateUnaryOperator(ctx, clang::UO_Deref, expr,
+                             type->getPointeeType());
+}
+
+clang::UnaryOperator *ASTBuilder::CreateAddrOf(clang::Expr *expr) {
+  auto type{ctx.getPointerType(expr->getType())};
+  return CreateUnaryOperator(ctx, clang::UO_AddrOf, expr, type);
+}
+
+clang::UnaryOperator *ASTBuilder::CreateAddrOf(clang::ValueDecl *decl) {
+  CHECK(clang::isa<clang::FunctionDecl>(decl) ||
+        clang::isa<clang::VarDecl>(decl));
+  return CreateAddrOf(CreateDeclRef(decl));
+}
+
+clang::UnaryOperator *ASTBuilder::CreateLNot(clang::Expr *expr) {
+  return nullptr;
+}
+
+clang::UnaryOperator *ASTBuilder::CreateNot(clang::Expr *expr) {
+  return nullptr;
+}
+
 }  // namespace rellic

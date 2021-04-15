@@ -213,8 +213,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Helper function for creating declaration references
   auto CreateRef = [this, &val] {
-    return CreateDeclRefExpr(
-        ast_ctx, clang::cast<clang::ValueDecl>(GetOrCreateDecl(val)));
+    return ast.CreateDeclRef(
+        clang::cast<clang::ValueDecl>(GetOrCreateDecl(val)));
   };
   // Operand is an l-value (variable, function, ...)
   if (llvm::isa<llvm::GlobalValue>(val) || llvm::isa<llvm::AllocaInst>(val)) {
@@ -345,19 +345,15 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   auto tudecl = ast_ctx.getTranslationUnitDecl();
   auto name = gvar.getName().str();
   if (name.empty()) {
-    auto num = GetNumDecls<clang::VarDecl>(tudecl);
-    name = "gvar" + std::to_string(num);
+    name = "gvar" + std::to_string(GetNumDecls<clang::VarDecl>(tudecl));
   }
   // Create a variable declaration
-  var = CreateVarDecl(ast_ctx, tudecl, CreateIdentifier(ast_ctx, name),
-                      GetQualType(type));
+  var = ast.CreateVarDecl(tudecl, GetQualType(type), name);
   // Create an initalizer literal
   if (gvar.hasInitializer()) {
     clang::cast<clang::VarDecl>(var)->setInit(
         GetOperandExpr(gvar.getInitializer()));
   }
-  // Add the global var
-  tudecl->addDecl(var);
 }
 
 void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
@@ -460,14 +456,14 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
     auto decl = GetOrCreateDecl(func)->getAsFunction();
     auto ptr = ast_ctx.getPointerType(decl->getType());
-    auto ref = CreateDeclRefExpr(ast_ctx, decl);
+    auto ref{ast.CreateDeclRef(decl)};
     auto cast = CreateImplicitCastExpr(ast_ctx, ptr,
                                        clang::CK_FunctionToPointerDecay, ref);
     callexpr = CreateCallExpr(ast_ctx, cast, args, type);
   } else if (auto iasm = llvm::dyn_cast<llvm::InlineAsm>(callee)) {
     auto decl = GetOrCreateIntrinsic(iasm)->getAsFunction();
     auto ptr = ast_ctx.getPointerType(decl->getType());
-    auto ref = CreateDeclRefExpr(ast_ctx, decl);
+    auto ref{ast.CreateDeclRef(decl)};
     auto cast = CreateImplicitCastExpr(ast_ctx, ptr,
                                        clang::CK_FunctionToPointerDecay, ref);
     callexpr = CreateCallExpr(ast_ctx, cast, args, type);
@@ -622,16 +618,12 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     auto fdecl = clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func));
     auto name = inst.getName().str();
     if (name.empty()) {
-      auto num = GetNumDecls<clang::VarDecl>(fdecl);
-      name = "var" + std::to_string(num);
+      name = "var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl));
     }
-
-    var = CreateVarDecl(ast_ctx, fdecl, CreateIdentifier(ast_ctx, name),
-                        GetQualType(inst.getAllocatedType()));
-    fdecl->addDecl(var);
+    var = ast.CreateVarDecl(fdecl, GetQualType(inst.getAllocatedType()), name);
   }
 
-  declstmt = CreateDeclStmt(ast_ctx, var);
+  declstmt = ast.CreateDeclStmt(var);
 }
 
 void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
@@ -703,8 +695,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {
     auto type = ast_ctx.getIntTypeForBitwidth(
         ast_ctx.getTypeSize(operand->getType()), sign);
-    return CreateCStyleCastExpr(ast_ctx, type, clang::CastKind::CK_IntegralCast,
-                                operand);
+    return ast.CreateCStyleCast(type, operand);
   };
 
   // Determine C operator result type from it's operands
@@ -811,8 +802,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {
     auto type = ast_ctx.getIntTypeForBitwidth(
         ast_ctx.getTypeSize(operand->getType()), sign);
-    return CreateCStyleCastExpr(ast_ctx, type, clang::CastKind::CK_IntegralCast,
-                                operand);
+    return ast.CreateCStyleCast(type, operand);
   };
   // Cast operands for signed predicates
   if (inst.isSigned()) {
@@ -880,7 +870,7 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   auto type = GetQualType(inst.getType());
   // Convenience wrapper
   auto CastExpr = [this, &operand, &type](clang::CastKind opc) {
-    return CreateCStyleCastExpr(ast_ctx, type, opc, operand);
+    return ast.CreateCStyleCast(type, operand);
   };
   // Create cast
   switch (inst.getOpcode()) {

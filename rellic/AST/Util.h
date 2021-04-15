@@ -49,8 +49,8 @@ clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
 
 clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx);
 
-clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
-                                      clang::ValueDecl *val);
+// clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
+//                                       clang::ValueDecl *val);
 
 clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr);
 
@@ -62,9 +62,9 @@ clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
 clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
                           clang::Expr *rhs);
 
-clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
-                              clang::DeclContext *decl_ctx,
-                              clang::IdentifierInfo *id, clang::QualType type);
+// clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
+//                               clang::DeclContext *decl_ctx,
+//                               clang::IdentifierInfo *id, clang::QualType type);
 
 clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
                                       clang::DeclContext *decl_ctx,
@@ -115,10 +115,10 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
 
 // clang::Expr *CreateUndefExpr(clang::ASTContext &ctx, clang::QualType type);
 
-clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
-                                  clang::CastKind cast, clang::Expr *op);
+// clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
+//                                   clang::CastKind cast, clang::Expr *op);
 
-clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl);
+// clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl);
 
 clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
                                     clang::QualType type, clang::CastKind cast,

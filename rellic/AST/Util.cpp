@@ -64,6 +64,16 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
   return result;
 }
 
+// clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx,
+//                                          clang::QualType type,
+//                                          clang::CastKind cast,
+//                                          clang::Expr *op) {
+//   return clang::CStyleCastExpr::Create(
+//       ctx, type, clang::VK_RValue, cast, op, nullptr,
+//       ctx.getTrivialTypeSourceInfo(type), clang::SourceLocation(),
+//       clang::SourceLocation());
+// }
+
 clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
                       clang::Expr *op) {
   // Get operand type
@@ -73,7 +83,10 @@ clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
   auto IsFloat = [](clang::QualType t) { return t->isFloatingType(); };
   auto IsSmaller = ctx.getTypeSize(src) < ctx.getTypeSize(dst);
   auto MakeCast = [&ctx, dst, op](clang::CastKind kind) {
-    return CreateCStyleCastExpr(ctx, dst, kind, op);
+    return clang::CStyleCastExpr::Create(
+        ctx, dst, clang::VK_RValue, kind, op, nullptr,
+        ctx.getTrivialTypeSourceInfo(dst), clang::SourceLocation(),
+        clang::SourceLocation());
   };
 
   // Widen floating point type
@@ -105,15 +118,15 @@ clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
   return &ctx.Idents.get(str);
 }
 
-clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
-                                      clang::ValueDecl *val) {
-  CHECK(val) << "should not be null in CreateDeclRefExpr";
+// clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
+//                                       clang::ValueDecl *val) {
+//   CHECK(val) << "should not be null in CreateDeclRefExpr";
 
-  DLOG(INFO) << "Creating DeclRefExpr for " << val->getNameAsString();
-  return clang::DeclRefExpr::Create(
-      ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val, false,
-      val->getLocation(), val->getType(), clang::VK_LValue);
-}
+//   DLOG(INFO) << "Creating DeclRefExpr for " << val->getNameAsString();
+//   return clang::DeclRefExpr::Create(
+//       ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val, false,
+//       val->getLocation(), val->getType(), clang::VK_LValue);
+// }
 
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *body) {
@@ -147,13 +160,13 @@ clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
   return CreateBoolBinOp(ctx, clang::BO_LOr, lhs, rhs);
 }
 
-clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
-                              clang::DeclContext *decl_ctx,
-                              clang::IdentifierInfo *id, clang::QualType type) {
-  return clang::VarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
-                                clang::SourceLocation(), id, type, nullptr,
-                                clang::SC_None);
-}
+// clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
+//                               clang::DeclContext *decl_ctx,
+//                               clang::IdentifierInfo *id, clang::QualType type) {
+//   return clang::VarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+//                                 clang::SourceLocation(), id, type, nullptr,
+//                                 clang::SC_None);
+// }
 
 clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
                                       clang::DeclContext *decl_ctx,
@@ -201,7 +214,8 @@ clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
 // clang::Expr *CreateIntegerLiteral(clang::ASTContext &ctx, llvm::APInt val,
 //                                   clang::QualType type) {
 //   CHECK_EQ(val.getBitWidth(), ctx.getIntWidth(type));
-//   return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
+//   return clang::IntegerLiteral::Create(ctx, val, type,
+//   clang::SourceLocation());
 // }
 
 // clang::Expr *CreateTrueExpr(clang::ASTContext &ctx) {
@@ -240,14 +254,6 @@ clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
                                 clang::OK_Ordinary, clang::SourceLocation());
 }
 
-clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
-                                  clang::CastKind cast, clang::Expr *op) {
-  return clang::CStyleCastExpr::Create(
-      ctx, type, clang::VK_RValue, cast, op, nullptr,
-      ctx.getTrivialTypeSourceInfo(type), clang::SourceLocation(),
-      clang::SourceLocation());
-}
-
 // clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
 //   auto type = ctx.UnsignedIntTy;
 //   auto val = llvm::APInt::getNullValue(ctx.getTypeSize(type));
@@ -263,11 +269,11 @@ clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx, clang::QualType type,
 //   return CreateUnaryOperator(ctx, clang::UO_Deref, cast, type);
 // }
 
-clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl) {
-  return new (ctx)
-      clang::DeclStmt(clang::DeclGroupRef(decl), clang::SourceLocation(),
-                      clang::SourceLocation());
-}
+// clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl) {
+//   return new (ctx)
+//       clang::DeclStmt(clang::DeclGroupRef(decl), clang::SourceLocation(),
+//                       clang::SourceLocation());
+// }
 
 clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
                                     clang::QualType type, clang::CastKind cast,

@@ -55,9 +55,33 @@ class ASTBuilder {
   // Special values
   clang::Expr *CreateNull();
   clang::Expr *CreateUndef(clang::QualType type);
+  // Identifiers
+  clang::IdentifierInfo *CreateIdentifier(std::string name);
+  // Variable declaration
+  clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx,
+                                clang::QualType type,
+                                clang::IdentifierInfo *id);
+
+  clang::VarDecl *CreateVarDecl(clang::DeclContext *ctx, clang::QualType type,
+                                std::string name) {
+    return CreateVarDecl(ctx, type, CreateIdentifier(name));
+  }
+
+  clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);
+  clang::DeclRefExpr *CreateDeclRef(clang::ValueDecl *val);
+
   // C-style casting
   clang::CStyleCastExpr *CreateCStyleCast(clang::QualType type,
                                           clang::Expr *expr);
+  // Implicit casting
+  clang::ImplicitCastExpr *CreateImplicitCast(clang::QualType type,
+                                              clang::Expr *expr);
+  // Unary operators
+  clang::UnaryOperator *CreateDeref(clang::Expr *expr);
+  clang::UnaryOperator *CreateAddrOf(clang::Expr *expr);
+  clang::UnaryOperator *CreateAddrOf(clang::ValueDecl *decl);
+  clang::UnaryOperator *CreateLNot(clang::Expr *expr);
+  clang::UnaryOperator *CreateNot(clang::Expr *expr);
 };
 
 }  // namespace rellic

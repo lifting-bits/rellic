@@ -41,6 +41,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+          submodules: true
       - name: Install utility tools
         shell: bash
         run: |
@@ -109,6 +110,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+          submodules: true
       - name: Build with build script
         shell: bash
         run: |
@@ -151,6 +153,7 @@ jobs:
         with:
           path: rellic
           fetch-depth: 0
+          submodules: true
 
       - name: Generate the changelog
         shell: bash
@@ -230,6 +233,9 @@ jobs:
         ubuntu: ["18.04"]
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: true
     - name: Build LLVM ${{ matrix.llvm }} on ${{ matrix.ubuntu }}
       run: |
         docker build . -t docker.pkg.github.com/lifting-bits/rellic/rellic-llvm${{ matrix.llvm }}-ubuntu${{ matrix.ubuntu }}-amd64:latest -f Dockerfile --build-arg UBUNTU_VERSION=${{ matrix.ubuntu }} --build-arg ARCH=amd64 --build-arg LLVM_VERSION=${{ matrix.llvm }}

@@ -52,7 +52,7 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx);
 // clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
 //                                       clang::ValueDecl *val);
 
-clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr);
+// clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr);
 
 // clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op);
 

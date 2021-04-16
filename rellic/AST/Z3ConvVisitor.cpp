@@ -860,7 +860,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       break;
 
     case Z3_OP_BNOT:
-      c_op = ast.CreateNot(CreateParenExpr(*ast_ctx, c_sub));
+      c_op = ast.CreateNot(ast.CreateParen(c_sub));
       break;
     // Given a `(extract hi lo o)` we generate `((o & m) >> lo)` where:
     //
@@ -892,13 +892,13 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
             CastExpr(*ast_ctx, t_res, c_mask_lit), t_res)};
         // LShr
         c_sub = CreateBinaryOperator(
-            *ast_ctx, clang::BO_Shr, CreateParenExpr(*ast_ctx, c_and),
+            *ast_ctx, clang::BO_Shr, ast.CreateParen(c_and),
             CastExpr(*ast_ctx, t_res, c_shift_lit), t_res);
       }
       c_op = CastExpr(
           *ast_ctx,
           GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op), /*sign=*/0),
-          CreateParenExpr(*ast_ctx, c_sub));
+          ast.CreateParen(c_sub));
     } break;
 
     case Z3_OP_UNINTERPRETED: {
@@ -909,7 +909,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       } else if (z_func_name == "Deref") {
         c_op = ast.CreateDeref(c_sub);
       } else if (z_func_name == "Paren") {
-        c_op = CreateParenExpr(*ast_ctx, c_sub);
+        c_op = ast.CreateParen(c_sub);
       } else if (z_func_name == "PtrDecay") {
         CHECK(t_sub->isArrayType()) << "PtrDecay operand type is not an array";
         auto t_op = ast_ctx->getArrayDecayedType(t_sub);
@@ -1025,13 +1025,12 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
 
         auto c_or{CreateBinaryOperator(
             *ast_ctx, clang::BO_Or,
-            CastExpr(*ast_ctx, rhs->getType(),
-                     CreateParenExpr(*ast_ctx, c_shift)),
+            CastExpr(*ast_ctx, rhs->getType(), ast.CreateParen(c_shift)),
             CastExpr(*ast_ctx, c_shift->getType(), rhs),
             ast_ctx->getIntegerTypeOrder(c_shift->getType(), rhs->getType()) < 0
                 ? rhs->getType()
                 : c_shift->getType())};
-        c_op = CreateParenExpr(*ast_ctx, c_or);
+        c_op = ast.CreateParen(c_or);
       } else {
         c_op = CastExpr(*ast_ctx, t_res, rhs);
       }
@@ -1110,7 +1109,7 @@ void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
       auto c_else{GetCExpr(z_op.arg(2))};
       c_op = CreateConditionalOperatorExpr(*ast_ctx, c_cond, c_then, c_else,
                                            c_then->getType());
-      c_op = CreateParenExpr(*ast_ctx, c_op);
+      c_op = ast.CreateParen(c_op);
     } break;
     // Unknowns
     default:

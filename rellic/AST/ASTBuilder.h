@@ -68,6 +68,8 @@ class ASTBuilder {
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);
   clang::DeclRefExpr *CreateDeclRef(clang::ValueDecl *val);
 
+  clang::ParenExpr *CreateParen(clang::Expr *expr);
+
   // C-style casting
   clang::CStyleCastExpr *CreateCStyleCast(clang::QualType type,
                                           clang::Expr *expr);

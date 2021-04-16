@@ -139,10 +139,10 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx) {
   return new (ctx) clang::BreakStmt(clang::SourceLocation());
 }
 
-clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
-  return new (ctx)
-      clang::ParenExpr(clang::SourceLocation(), clang::SourceLocation(), expr);
-}
+// clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
+//   return new (ctx)
+//       clang::ParenExpr(clang::SourceLocation(), clang::SourceLocation(), expr);
+// }
 
 // clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
 //   CHECK(op) << "No operand given for unary logical expression";

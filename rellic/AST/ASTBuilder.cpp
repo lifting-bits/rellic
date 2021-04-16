@@ -126,6 +126,11 @@ clang::DeclRefExpr *ASTBuilder::CreateDeclRef(clang::ValueDecl *val) {
       val->getLocation(), val->getType(), clang::VK_LValue);
 }
 
+clang::ParenExpr *ASTBuilder::CreateParen(clang::Expr *expr) {
+  return new (ctx)
+      clang::ParenExpr(clang::SourceLocation(), clang::SourceLocation(), expr);
+}
+
 clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
                                                     clang::Expr *expr) {
   clang::ActionResult<clang::Expr *> ar(expr);

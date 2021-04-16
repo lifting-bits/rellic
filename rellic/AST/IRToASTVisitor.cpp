@@ -223,7 +223,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   // Operand is an l-value (variable, function, ...)
   if (llvm::isa<llvm::GlobalValue>(val) || llvm::isa<llvm::AllocaInst>(val)) {
     // Add a `&` operator
-    return CreateParenExpr(ast_ctx, ast.CreateAddrOf(CreateRef()));
+    return ast.CreateParen(ast.CreateAddrOf(CreateRef()));
   }
   // Operand is a function argument or local variable
   if (llvm::isa<llvm::Argument>(val)) {
@@ -231,7 +231,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a result of an expression
   if (llvm::isa<llvm::Instruction>(val)) {
-    return CreateParenExpr(ast_ctx, CreateExpr());
+    return ast.CreateParen(CreateExpr());
   }
 
   ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
@@ -536,7 +536,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         break;
     }
     // Add parens to preserve expression semantics
-    base = CreateParenExpr(ast_ctx, base);
+    base = ast.CreateParen(base);
   }
 
   ref = ast.CreateAddrOf(base);
@@ -595,7 +595,7 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
         break;
     }
     // Add parens to preserve expression semantics
-    base = CreateParenExpr(ast_ctx, base);
+    base = ast.CreateParen(base);
   }
 
   ref = base;

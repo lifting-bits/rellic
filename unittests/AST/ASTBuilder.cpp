@@ -636,6 +636,28 @@ TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
   }
 }
 
+TEST_SUITE("ASTBuilder::CreateParen") {
+  SCENARIO("Create parenthesis around an expression") {
+    GIVEN("A declaration of global variable a") {
+      auto unit{GetASTUnit("int a;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto vardecl{GetDecl<clang::VarDecl>(tudecl, "a")};
+      GIVEN("a reference to a") {
+        auto declref{ast.CreateDeclRef(vardecl)};
+        REQUIRE(declref != nullptr);
+        THEN("return (a)") {
+          auto paren{ast.CreateParen(declref)};
+          REQUIRE(paren != nullptr);
+          CHECK(paren->getSubExpr() == declref);
+          CHECK(paren->getType() == declref->getType());
+        }
+      }
+    }
+  }
+}
+
 // TEST_SUITE("ASTBuilder::CreateImplicitCast") {
 //   SCENARIO("Create a CK_LValueToRValue clang::CreateImplicitCast") {}
 //   SCENARIO("Create a CK_FunctionToPointerDecay

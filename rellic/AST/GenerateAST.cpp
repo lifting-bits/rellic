@@ -170,15 +170,24 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   }
   // Gather reaching conditions from predecessors of the block
   for (auto pred : llvm::predecessors(block)) {
-    auto pred_cond = reaching_conds[pred];
-    auto edge_cond = CreateEdgeCond(pred, block);
-    // Construct reaching condition from `pred` to `block` as
-    // `reach_cond[pred] && edge_cond(pred, block)`
+    auto pred_cond{reaching_conds[pred]};
+    auto edge_cond{CreateEdgeCond(pred, block)};
     if (pred_cond || edge_cond) {
-      auto conj_cond = CreateAndExpr(*ast_ctx, pred_cond, edge_cond);
+      // Construct reaching condition from `pred` to `block` as
+      // `reach_cond[pred] && edge_cond(pred, block)` or one of
+      // the two if the other one is missing.
+      clang::Expr *conj_cond{nullptr};
+      if (!pred_cond) {
+        conj_cond = edge_cond;
+      } else if (!edge_cond) {
+        conj_cond = pred_cond;
+      } else {
+        conj_cond = ast.CreateLAnd(pred_cond, edge_cond);
+      }
       // Append `conj_cond` to reaching conditions of other
-      // predecessors via an `||`
-      cond = CreateOrExpr(*ast_ctx, cond, conj_cond);
+      // predecessors via an `||`. Use `conj_cond` if there
+      // is no `cond` yet.
+      cond = cond ? ast.CreateLOr(cond, conj_cond) : conj_cond;
     }
   }
   // Create `if(1)` in case we still don't have a reaching condition
@@ -332,8 +341,8 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto from = edge.first;
     auto to = edge.second;
     // Create edge condition
-    auto cond = CreateAndExpr(*ast_ctx, GetOrCreateReachingCond(from),
-                              CreateEdgeCond(from, to));
+    auto cond =
+        ast.CreateLAnd(GetOrCreateReachingCond(from), CreateEdgeCond(from, to));
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());

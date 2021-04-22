@@ -12,10 +12,10 @@
 
 namespace rellic {
 
-clang::UnaryOperator *CreateUnaryOperator(clang::ASTContext &ast_ctx,
-                                          clang::UnaryOperatorKind opc,
-                                          clang::Expr *expr,
-                                          clang::QualType res_type);
+// clang::UnaryOperator *CreateUnaryOperator(clang::ASTContext &ast_ctx,
+//                                           clang::UnaryOperatorKind opc,
+//                                           clang::Expr *expr,
+//                                           clang::QualType res_type);
 
 clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
                                             clang::BinaryOperatorKind opc,

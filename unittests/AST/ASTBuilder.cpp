@@ -40,6 +40,14 @@ static T *GetDecl(clang::DeclContext *decl_ctx, const std::string &name) {
   return decl;
 }
 
+template <typename T>
+static clang::DeclRefExpr *GetDeclRef(rellic::ASTBuilder &ast,
+                                      clang::DeclContext *decl_ctx,
+                                      const std::string &name) {
+  auto ref{ast.CreateDeclRef(GetDecl<T>(decl_ctx, name))};
+  REQUIRE(ref != nullptr);
+  return ref;
+}
 }  // namespace
 
 // TODO(surovic): Add test cases for signed llvm::APInt and group
@@ -476,7 +484,7 @@ TEST_SUITE("ASTBuilder::CreateCStyleCast") {
 
 TEST_SUITE("ASTBuilder::CreateVarDecl") {
   SCENARIO("Create a global clang::VarDecl") {
-    GIVEN("An empty translation unit") {
+    GIVEN("Empty translation unit") {
       auto unit{GetASTUnit()};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
@@ -495,7 +503,7 @@ TEST_SUITE("ASTBuilder::CreateVarDecl") {
   }
 
   SCENARIO("Create a function local clang::VarDecl") {
-    GIVEN("An empty function definition f") {
+    GIVEN("Function definition f") {
       auto unit{GetASTUnit("void f(){};")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
@@ -539,7 +547,7 @@ TEST_SUITE("ASTBuilder::CreateDeclStmt") {
 
 TEST_SUITE("ASTBuilder::CreateDeclRef") {
   SCENARIO("Create a clang::DeclRef to a global clang::VarDecl") {
-    GIVEN("a declaration of global variable a") {
+    GIVEN("Global variable int a;") {
       auto unit{GetASTUnit("int a;")};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{unit->getASTContext().getTranslationUnitDecl()};
@@ -548,6 +556,26 @@ TEST_SUITE("ASTBuilder::CreateDeclRef") {
         auto declref{ast.CreateDeclRef(vardecl)};
         REQUIRE(declref != nullptr);
         CHECK(declref->getDecl() == vardecl);
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateParen") {
+  SCENARIO("Create parenthesis around an expression") {
+    GIVEN("Global variable int a;") {
+      auto unit{GetASTUnit("int a;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      GIVEN("a reference to a") {
+        auto declref{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        THEN("return (a)") {
+          auto paren{ast.CreateParen(declref)};
+          REQUIRE(paren != nullptr);
+          CHECK(paren->getSubExpr() == declref);
+          CHECK(paren->getType() == declref->getType());
+        }
       }
     }
   }
@@ -573,20 +601,19 @@ TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
   }
 
   SCENARIO("Create a pointer address-of operation") {
-    GIVEN("A declaration of global variable a") {
+    GIVEN("Global variable int a;") {
       auto unit{GetASTUnit("int a;")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{ctx.getTranslationUnitDecl()};
-      auto vardecl{GetDecl<clang::VarDecl>(tudecl, "a")};
       GIVEN("a reference to a") {
-        auto declref{ast.CreateDeclRef(vardecl)};
-        REQUIRE(declref != nullptr);
+        auto declref{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
         THEN("return &a") {
           auto addrof{ast.CreateAddrOf(declref)};
           REQUIRE(addrof != nullptr);
-          CHECK(addrof->getSubExpr() == declref);
-          CHECK(addrof->getType() == ctx.getPointerType(vardecl->getType()));
+          auto subexpr{addrof->getSubExpr()};
+          CHECK(subexpr == declref);
+          CHECK(addrof->getType() == ctx.getPointerType(declref->getType()));
           CHECK(addrof->getOpcode() == clang::UO_AddrOf);
         }
       }
@@ -594,19 +621,20 @@ TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
   }
 
   SCENARIO("Create a logical negation operation") {
-    GIVEN("A declaration of global variable a") {
+    GIVEN("Global variable int a;") {
       auto unit{GetASTUnit("int a;")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{ctx.getTranslationUnitDecl()};
-      auto vardecl{GetDecl<clang::VarDecl>(tudecl, "a")};
       GIVEN("a reference to a") {
-        auto declref{ast.CreateDeclRef(vardecl)};
-        REQUIRE(declref != nullptr);
+        auto declref{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
         THEN("return !a") {
           auto lnot{ast.CreateLNot(declref)};
           REQUIRE(lnot != nullptr);
-          CHECK(lnot->getSubExpr() == declref);
+          auto subexpr{lnot->getSubExpr()};
+          CHECK(clang::isa<clang::ImplicitCastExpr>(subexpr));
+          CHECK(subexpr->isRValue());
+          CHECK(subexpr->IgnoreImpCasts() == declref);
           CHECK(lnot->getType() == ctx.IntTy);
           CHECK(lnot->getOpcode() == clang::UO_LNot);
         }
@@ -615,19 +643,20 @@ TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
   }
 
   SCENARIO("Create a pointer bitwise negation operation") {
-    GIVEN("A declaration of global variable a") {
+    GIVEN("Global variable int a;") {
       auto unit{GetASTUnit("int a;")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{ctx.getTranslationUnitDecl()};
-      auto vardecl{GetDecl<clang::VarDecl>(tudecl, "a")};
       GIVEN("a reference to a") {
-        auto declref{ast.CreateDeclRef(vardecl)};
-        REQUIRE(declref != nullptr);
+        auto declref{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
         THEN("return ~a") {
           auto bnot{ast.CreateNot(declref)};
           REQUIRE(bnot != nullptr);
-          CHECK(bnot->getSubExpr() == declref);
+          auto subexpr{bnot->getSubExpr()};
+          CHECK(clang::isa<clang::ImplicitCastExpr>(subexpr));
+          CHECK(subexpr->isRValue());
+          CHECK(subexpr->IgnoreImpCasts() == declref);
           CHECK(bnot->getType() == declref->getType());
           CHECK(bnot->getOpcode() == clang::UO_Not);
         }
@@ -636,33 +665,148 @@ TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
   }
 }
 
-TEST_SUITE("ASTBuilder::CreateParen") {
-  SCENARIO("Create parenthesis around an expression") {
-    GIVEN("A declaration of global variable a") {
-      auto unit{GetASTUnit("int a;")};
+TEST_SUITE("ASTBuilder::CreateBinaryOp") {
+  static void CheckBinOp(clang::BinaryOperator * op, clang::Expr * lhs,
+                         clang::Expr * rhs, clang::QualType type) {
+    REQUIRE(op != nullptr);
+    CHECK(op->getLHS()->IgnoreImpCasts() == lhs);
+    CHECK(op->getRHS()->IgnoreImpCasts() == rhs);
+    CHECK(op->getType() == type);
+  }
+
+  SCENARIO("Create logical and comparison operations") {
+    GIVEN("Global variables int a, b; short c; long d;") {
+      auto unit{GetASTUnit("int a,b; short c; long d;")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{ctx.getTranslationUnitDecl()};
-      auto vardecl{GetDecl<clang::VarDecl>(tudecl, "a")};
-      GIVEN("a reference to a") {
-        auto declref{ast.CreateDeclRef(vardecl)};
-        REQUIRE(declref != nullptr);
-        THEN("return (a)") {
-          auto paren{ast.CreateParen(declref)};
-          REQUIRE(paren != nullptr);
-          CHECK(paren->getSubExpr() == declref);
-          CHECK(paren->getType() == declref->getType());
+      GIVEN("references to a, b, c and d") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        auto ref_b{GetDeclRef<clang::VarDecl>(ast, tudecl, "b")};
+        auto ref_c{GetDeclRef<clang::VarDecl>(ast, tudecl, "c")};
+        auto ref_d{GetDeclRef<clang::VarDecl>(ast, tudecl, "d")};
+        // BO_LAnd
+        THEN("return a && b") {
+          auto land{ast.CreateLAnd(ref_a, ref_b)};
+          CheckBinOp(land, ref_a, ref_b, ctx.IntTy);
+          CHECK(land->getLHS()->getType() == land->getRHS()->getType());
+        }
+        THEN("return a && c") {
+          auto land{ast.CreateLAnd(ref_a, ref_c)};
+          CheckBinOp(land, ref_a, ref_c, ctx.IntTy);
+          CHECK(land->getLHS()->getType() == land->getRHS()->getType());
+        }
+        THEN("return d && b") {
+          auto land{ast.CreateLAnd(ref_d, ref_b)};
+          CheckBinOp(land, ref_d, ref_b, ctx.IntTy);
+        }
+        // BO_LOr
+        THEN("return a || b") {
+          auto lor{ast.CreateLOr(ref_a, ref_b)};
+          CheckBinOp(lor, ref_a, ref_b, ctx.IntTy);
+          CHECK(lor->getLHS()->getType() == lor->getRHS()->getType());
+        }
+        THEN("return a || c") {
+          auto lor{ast.CreateLOr(ref_a, ref_c)};
+          CheckBinOp(lor, ref_a, ref_c, ctx.IntTy);
+          CHECK(lor->getLHS()->getType() == lor->getRHS()->getType());
+        }
+        THEN("return d || b") {
+          auto lor{ast.CreateLOr(ref_d, ref_b)};
+          CheckBinOp(lor, ref_d, ref_b, ctx.IntTy);
+        }
+        // BO_EQ
+        THEN("return a == b") {
+          auto eq{ast.CreateEQ(ref_a, ref_b)};
+          CheckBinOp(eq, ref_a, ref_b, ctx.IntTy);
+          CHECK(eq->getLHS()->getType() == eq->getRHS()->getType());
+        }
+        THEN("return a == c") {
+          auto eq{ast.CreateEQ(ref_a, ref_c)};
+          CheckBinOp(eq, ref_a, ref_c, ctx.IntTy);
+          CHECK(eq->getLHS()->getType() == eq->getRHS()->getType());
+        }
+        THEN("return d == b") {
+          auto eq{ast.CreateEQ(ref_d, ref_b)};
+          CheckBinOp(eq, ref_d, ref_b, ctx.IntTy);
+          CHECK(eq->getLHS()->getType() == eq->getRHS()->getType());
+        }
+        // BO_NE
+        THEN("return a != b") {
+          auto ne{ast.CreateNE(ref_a, ref_b)};
+          CheckBinOp(ne, ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a != c") {
+          auto ne{ast.CreateNE(ref_a, ref_c)};
+          CheckBinOp(ne, ref_a, ref_c, ctx.IntTy);
+          CHECK(ne->getLHS()->getType() == ne->getRHS()->getType());
+        }
+        THEN("return d != b") {
+          auto ne{ast.CreateNE(ref_d, ref_b)};
+          CheckBinOp(ne, ref_d, ref_b, ctx.IntTy);
+          CHECK(ne->getLHS()->getType() == ne->getRHS()->getType());
+        }
+        // BO_GE
+        THEN("return a >= b") {
+          auto ge{ast.CreateGE(ref_a, ref_b)};
+          CheckBinOp(ge, ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a >= c") {
+          auto ge{ast.CreateGE(ref_a, ref_c)};
+          CheckBinOp(ge, ref_a, ref_c, ctx.IntTy);
+          CHECK(ge->getLHS()->getType() == ge->getRHS()->getType());
+        }
+        THEN("return d >= b") {
+          auto ge{ast.CreateGE(ref_d, ref_b)};
+          CheckBinOp(ge, ref_d, ref_b, ctx.IntTy);
+          CHECK(ge->getLHS()->getType() == ge->getRHS()->getType());
+        }
+        // BO_GT
+        THEN("return a > b") {
+          auto gt{ast.CreateGT(ref_a, ref_b)};
+          CheckBinOp(gt, ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a > c") {
+          auto gt{ast.CreateGT(ref_a, ref_c)};
+          CheckBinOp(gt, ref_a, ref_c, ctx.IntTy);
+          CHECK(gt->getLHS()->getType() == gt->getRHS()->getType());
+        }
+        THEN("return d > b") {
+          auto gt{ast.CreateGT(ref_d, ref_b)};
+          CheckBinOp(gt, ref_d, ref_b, ctx.IntTy);
+          CHECK(gt->getLHS()->getType() == gt->getRHS()->getType());
+        }
+        // BO_LE
+        THEN("return a <= b") {
+          auto le{ast.CreateLE(ref_a, ref_b)};
+          CheckBinOp(le, ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a <= c") {
+          auto le{ast.CreateLE(ref_a, ref_c)};
+          CheckBinOp(le, ref_a, ref_c, ctx.IntTy);
+          CHECK(le->getLHS()->getType() == le->getRHS()->getType());
+        }
+        THEN("return d <= b") {
+          auto le{ast.CreateLE(ref_d, ref_b)};
+          CheckBinOp(le, ref_d, ref_b, ctx.IntTy);
+          CHECK(le->getLHS()->getType() == le->getRHS()->getType());
+        }
+        // BO_LT
+        THEN("return a < b") {
+          auto lt{ast.CreateLT(ref_a, ref_b)};
+          CheckBinOp(lt, ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a < c") {
+          auto lt{ast.CreateLT(ref_a, ref_c)};
+          CheckBinOp(lt, ref_a, ref_c, ctx.IntTy);
+          CHECK(lt->getLHS()->getType() == lt->getRHS()->getType());
+        }
+        THEN("return d < b") {
+          auto lt{ast.CreateLT(ref_d, ref_b)};
+          CheckBinOp(lt, ref_d, ref_b, ctx.IntTy);
+          CHECK(lt->getLHS()->getType() == lt->getRHS()->getType());
         }
       }
     }
   }
 }
-
-// TEST_SUITE("ASTBuilder::CreateImplicitCast") {
-//   SCENARIO("Create a CK_LValueToRValue clang::CreateImplicitCast") {}
-//   SCENARIO("Create a CK_FunctionToPointerDecay
-//   clang::CreateImplicitCast")
-//   {} SCENARIO("Create a CK_ArrayToPointerDecay
-//   clang::CreateImplicitCast")
-//   {}
-// }

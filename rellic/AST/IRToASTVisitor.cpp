@@ -674,8 +674,8 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
     return;
   }
   // Get operands
-  auto lhs = GetOperandExpr(inst.getOperand(0));
-  auto rhs = GetOperandExpr(inst.getOperand(1));
+  auto lhs{GetOperandExpr(inst.getOperand(0))};
+  auto rhs{GetOperandExpr(inst.getOperand(1))};
   // Convenience wrapper
   auto BinOpExpr{[this, &lhs, &rhs](clang::BinaryOperatorKind opc,
                                     clang::QualType type) {
@@ -782,19 +782,13 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
     return;
   }
   // Get operands
-  auto lhs = GetOperandExpr(inst.getOperand(0));
-  auto rhs = GetOperandExpr(inst.getOperand(1));
-  // Convenience wrapper
-  auto CmpExpr = [this, lhs, rhs](clang::BinaryOperatorKind opc) {
-    return CreateBinaryOperator(
-        ast_ctx, opc, CastExpr(ast_ctx, rhs->getType(), lhs),
-        CastExpr(ast_ctx, lhs->getType(), rhs), ast_ctx.IntTy);
-  };
+  auto lhs{GetOperandExpr(inst.getOperand(0))};
+  auto rhs{GetOperandExpr(inst.getOperand(1))};
   // Sign-cast int operand
-  auto IntSignCast = [this](clang::Expr *operand, bool sign) {
-    auto type = ast_ctx.getIntTypeForBitwidth(
-        ast_ctx.getTypeSize(operand->getType()), sign);
-    return ast.CreateCStyleCast(type, operand);
+  auto IntSignCast = [this](clang::Expr *op, bool sign) {
+    auto ot{op->getType()};
+    auto rt{ast_ctx.getIntTypeForBitwidth(ast_ctx.getTypeSize(ot), sign)};
+    return rt == ot ? op : ast.CreateCStyleCast(rt, op);
   };
   // Cast operands for signed predicates
   if (inst.isSigned()) {
@@ -811,39 +805,39 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
     case llvm::CmpInst::ICMP_UGT:
     case llvm::CmpInst::ICMP_SGT:
     case llvm::CmpInst::FCMP_OGT:
-      cmp = CmpExpr(clang::BO_GT);
+      cmp = ast.CreateGT(lhs, rhs);
       break;
 
     case llvm::CmpInst::ICMP_ULT:
     case llvm::CmpInst::ICMP_SLT:
     case llvm::CmpInst::FCMP_OLT:
-      cmp = CmpExpr(clang::BO_LT);
+      cmp = ast.CreateLT(lhs, rhs);
       break;
 
     case llvm::CmpInst::ICMP_UGE:
     case llvm::CmpInst::ICMP_SGE:
     case llvm::CmpInst::FCMP_OGE:
-      cmp = CmpExpr(clang::BO_GE);
+      cmp = ast.CreateGE(lhs, rhs);
       break;
 
     case llvm::CmpInst::ICMP_ULE:
     case llvm::CmpInst::ICMP_SLE:
     case llvm::CmpInst::FCMP_OLE:
-      cmp = CmpExpr(clang::BO_LE);
+      cmp = ast.CreateLE(lhs, rhs);
       break;
 
     case llvm::CmpInst::ICMP_EQ:
     case llvm::CmpInst::FCMP_OEQ:
-      cmp = CmpExpr(clang::BO_EQ);
+      cmp = ast.CreateEQ(lhs, rhs);
       break;
 
     case llvm::CmpInst::ICMP_NE:
     case llvm::CmpInst::FCMP_UNE:
-      cmp = CmpExpr(clang::BO_NE);
+      cmp = ast.CreateNE(lhs, rhs);
       break;
 
     default:
-      LOG(FATAL) << "Unknown CmpInst predicate";
+      LOG(FATAL) << "Unknown CmpInst predicate: " << inst.getOpcodeName();
       break;
   }
 }

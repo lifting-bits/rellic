@@ -56,11 +56,11 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx);
 
 // clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op);
 
-clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
-                           clang::Expr *rhs);
+// clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
+//                            clang::Expr *rhs);
 
-clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
-                          clang::Expr *rhs);
+// clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
+//                           clang::Expr *rhs);
 
 // clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
 //                               clang::DeclContext *decl_ctx,

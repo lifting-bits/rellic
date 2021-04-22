@@ -133,47 +133,29 @@ clang::ParenExpr *ASTBuilder::CreateParen(clang::Expr *expr) {
 
 clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
                                                     clang::Expr *expr) {
-  clang::ActionResult<clang::Expr *> ar(expr);
-  auto kind{sema.PrepareScalarCast(ar, type)};
+  clang::ActionResult<clang::Expr *> er(expr);
+  auto kind{sema.PrepareScalarCast(er, type)};
   return clang::CStyleCastExpr::Create(
       ctx, type, clang::VK_RValue, kind, expr, nullptr,
       ctx.getTrivialTypeSourceInfo(type), clang::SourceLocation(),
       clang::SourceLocation());
 }
 
-clang::ImplicitCastExpr *ASTBuilder::CreateImplicitCast(clang::QualType type,
-                                                        clang::Expr *expr) {
-  return nullptr;
-}
-
 clang::UnaryOperator *ASTBuilder::CreateUnaryOp(clang::UnaryOperatorKind opc,
                                                 clang::Expr *expr) {
-  clang::QualType result_ty;
-  switch (opc) {
-    case clang::UO_Deref:
-      CHECK(expr->getType()->isPointerType());
-      result_ty = expr->getType()->getPointeeType();
-      break;
+  CHECK(expr) << "Should not be null in CreateUnaryOp.";
+  auto er{sema.CreateBuiltinUnaryOp(clang::SourceLocation(), opc, expr)};
+  CHECK(er.isUsable());
+  return er.getAs<clang::UnaryOperator>();
+}
 
-    case clang::UO_AddrOf:
-      result_ty = ctx.getPointerType(expr->getType());
-      break;
-
-    case clang::UO_LNot:
-      result_ty = ctx.IntTy;
-      break;
-
-    case clang::UO_Not:
-      result_ty = expr->getType();
-      break;
-
-    default:
-      LOG(FATAL) << "Unknown UnaryOperatorKind: "
-                 << clang::UnaryOperator::getOpcodeStr(opc).str();
-      break;
-  }
-
-  return CreateUnaryOperator(ctx, opc, expr, result_ty);
+clang::BinaryOperator *ASTBuilder::CreateBinaryOp(clang::BinaryOperatorKind opc,
+                                                  clang::Expr *lhs,
+                                                  clang::Expr *rhs) {
+  CHECK(lhs && rhs) << "Should not be null in CreateBinaryOp.";
+  auto er{sema.CreateBuiltinBinOp(clang::SourceLocation(), opc, lhs, rhs)};
+  CHECK(er.isUsable());
+  return er.getAs<clang::BinaryOperator>();
 }
 
 }  // namespace rellic

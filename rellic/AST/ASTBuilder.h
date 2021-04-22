@@ -73,9 +73,6 @@ class ASTBuilder {
   // C-style casting
   clang::CStyleCastExpr *CreateCStyleCast(clang::QualType type,
                                           clang::Expr *expr);
-  // Implicit casting
-  clang::ImplicitCastExpr *CreateImplicitCast(clang::QualType type,
-                                              clang::Expr *expr);
   // Unary operators
   clang::UnaryOperator *CreateUnaryOp(clang::UnaryOperatorKind opc,
                                       clang::Expr *expr);
@@ -94,6 +91,81 @@ class ASTBuilder {
 
   clang::UnaryOperator *CreateNot(clang::Expr *expr) {
     return CreateUnaryOp(clang::UO_Not, expr);
+  }
+  // Binary operators
+  clang::BinaryOperator *CreateBinaryOp(clang::BinaryOperatorKind opc,
+                                        clang::Expr *lhs, clang::Expr *rhs);
+  // Logical binary operators
+  clang::BinaryOperator *CreateLAnd(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_LAnd, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateLOr(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_LOr, lhs, rhs);
+  }
+  // Comparison operators
+  clang::BinaryOperator *CreateEQ(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_EQ, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateNE(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_NE, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateGE(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_GE, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateGT(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_GT, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateLE(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_LE, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateLT(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_LT, lhs, rhs);
+  }
+  // Bitwise binary operators
+  clang::BinaryOperator *CreateAnd(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_And, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateOr(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Or, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateXor(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Xor, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateShl(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Shl, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateShr(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Shr, lhs, rhs);
+  }
+  // Arithmetic operators
+  clang::BinaryOperator *CreateAdd(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Add, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateSub(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Sub, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateMul(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Mul, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateDiv(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Div, lhs, rhs);
+  }
+
+  clang::BinaryOperator *CreateRem(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Rem, lhs, rhs);
   }
 };
 

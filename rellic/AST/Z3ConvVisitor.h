@@ -21,7 +21,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
  private:
   clang::ASTContext *ast_ctx;
   ASTBuilder ast;
-  
+
   z3::context *z3_ctx;
 
   // Expression maps
@@ -53,6 +53,9 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
                                bool sign);
 
   void VisitZ3Expr(z3::expr z3_expr);
+
+  template <typename T>
+  bool HandleCastExpr(T *c_cast);
 
  public:
   z3::func_decl GetOrCreateZ3Decl(clang::ValueDecl *c_decl);

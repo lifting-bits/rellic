@@ -18,23 +18,23 @@
 
 namespace rellic {
 
-namespace {
+// namespace {
 
-static clang::Expr *CreateBoolBinOp(clang::ASTContext &ctx,
-                                    clang::BinaryOperatorKind opc,
-                                    clang::Expr *lhs, clang::Expr *rhs) {
-  CHECK(lhs || rhs) << "No operand given for binary logical expression";
+// static clang::Expr *CreateBoolBinOp(clang::ASTContext &ctx,
+//                                     clang::BinaryOperatorKind opc,
+//                                     clang::Expr *lhs, clang::Expr *rhs) {
+//   CHECK(lhs || rhs) << "No operand given for binary logical expression";
 
-  if (!lhs) {
-    return rhs;
-  } else if (!rhs) {
-    return lhs;
-  } else {
-    return CreateBinaryOperator(ctx, opc, lhs, rhs, ctx.IntTy);
-  }
-}
+//   if (!lhs) {
+//     return rhs;
+//   } else if (!rhs) {
+//     return lhs;
+//   } else {
+//     return CreateBinaryOperator(ctx, opc, lhs, rhs, ctx.IntTy);
+//   }
+// }
 
-}  // namespace
+// }  // namespace
 
 bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map) {
   auto change = false;
@@ -150,15 +150,15 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx) {
 //                              ctx.IntTy);
 // }
 
-clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
-                           clang::Expr *rhs) {
-  return CreateBoolBinOp(ctx, clang::BO_LAnd, lhs, rhs);
-}
+// clang::Expr *CreateAndExpr(clang::ASTContext &ctx, clang::Expr *lhs,
+//                            clang::Expr *rhs) {
+//   return CreateBoolBinOp(ctx, clang::BO_LAnd, lhs, rhs);
+// }
 
-clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
-                          clang::Expr *rhs) {
-  return CreateBoolBinOp(ctx, clang::BO_LOr, lhs, rhs);
-}
+// clang::Expr *CreateOrExpr(clang::ASTContext &ctx, clang::Expr *lhs,
+//                           clang::Expr *rhs) {
+//   return CreateBoolBinOp(ctx, clang::BO_LOr, lhs, rhs);
+// }
 
 // clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
 //                               clang::DeclContext *decl_ctx,

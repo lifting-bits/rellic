@@ -12,24 +12,24 @@
 
 namespace rellic {
 
-clang::UnaryOperator *CreateUnaryOperator(clang::ASTContext &ast_ctx,
-                                          clang::UnaryOperatorKind opc,
-                                          clang::Expr *op,
-                                          clang::QualType res_type) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
-  return clang::UnaryOperator::Create(
-      ast_ctx, op, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
-      clang::SourceLocation(), false, clang::FPOptionsOverride());
-#elif LLVM_VERSION_NUMBER >= LLVM_VERSION(7, 0)
-  return new (ast_ctx)
-      clang::UnaryOperator(op, opc, res_type, clang::VK_RValue,
-                           clang::OK_Ordinary, clang::SourceLocation(), false);
-#else
-  return new (ast_ctx)
-      clang::UnaryOperator(op, opc, res_type, clang::VK_RValue,
-                           clang::OK_Ordinary, clang::SourceLocation());
-#endif
-}
+// clang::UnaryOperator *CreateUnaryOperator(clang::ASTContext &ast_ctx,
+//                                           clang::UnaryOperatorKind opc,
+//                                           clang::Expr *op,
+//                                           clang::QualType res_type) {
+// #if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
+//   return clang::UnaryOperator::Create(
+//       ast_ctx, op, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
+//       clang::SourceLocation(), false, clang::FPOptionsOverride());
+// #elif LLVM_VERSION_NUMBER >= LLVM_VERSION(7, 0)
+//   return new (ast_ctx)
+//       clang::UnaryOperator(op, opc, res_type, clang::VK_RValue,
+//                            clang::OK_Ordinary, clang::SourceLocation(), false);
+// #else
+//   return new (ast_ctx)
+//       clang::UnaryOperator(op, opc, res_type, clang::VK_RValue,
+//                            clang::OK_Ordinary, clang::SourceLocation());
+// #endif
+// }
 
 clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
                                             clang::BinaryOperatorKind opc,

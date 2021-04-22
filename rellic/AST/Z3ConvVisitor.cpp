@@ -351,7 +351,7 @@ z3::expr Z3ConvVisitor::CreateZ3BitwiseCast(z3::expr expr, size_t src,
     expr = Z3BoolToBVCast(expr);
   }
 
-  CHECK(expr.is_bv()) << "z3::expr is not a bitvector!";
+  // CHECK(expr.is_bv()) << "z3::expr is not a bitvector!";
   CHECK_EQ(GetZ3SortSize(expr), src);
 
   int64_t diff = dst - src;
@@ -367,11 +367,10 @@ z3::expr Z3ConvVisitor::CreateZ3BitwiseCast(z3::expr expr, size_t src,
   return expr;
 }
 
-bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
-  DLOG(INFO) << "VisitCStyleCastExpr";
-  if (z3_expr_map.count(c_cast)) {
-    return true;
-  }
+template <typename T>
+bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
+  CHECK(clang::isa<clang::CStyleCastExpr>(c_cast) ||
+        clang::isa<clang::ImplicitCastExpr>(c_cast));
   // C exprs
   auto c_sub = c_cast->getSubExpr();
   // C types
@@ -402,9 +401,17 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
       z_cast = z3_ctx->function("IntToPtr", s_ptr, s_src, s_dst)(z_ptr, z_sub);
     } break;
 
+    case clang::CastKind::CK_ArrayToPointerDecay: {
+      CHECK(z_sub.is_bv()) << "Pointer cast operand is not a bit-vector";
+      auto s_ptr = GetZ3Sort(c_cast->getType());
+      auto s_arr = z_sub.get_sort();
+      z_cast = z3_ctx->function("PtrDecay", s_arr, s_ptr)(z_sub);
+    } break;
+
     case clang::CastKind::CK_NoOp:
     case clang::CastKind::CK_IntegralCast:
     case clang::CastKind::CK_NullToPointer:
+    case clang::CastKind::CK_LValueToRValue:
       break;
 
     case clang::CastKind::CK_BitCast: {
@@ -421,11 +428,18 @@ bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
       LOG(FATAL) << "Unsupported cast type: " << c_cast->getCastKindName();
       break;
   }
-
   // Save
   InsertZ3Expr(c_cast, z_cast);
 
   return true;
+}
+
+bool Z3ConvVisitor::VisitCStyleCastExpr(clang::CStyleCastExpr *c_cast) {
+  DLOG(INFO) << "VisitCStyleCastExpr";
+  if (z3_expr_map.count(c_cast)) {
+    return true;
+  }
+  return HandleCastExpr<clang::CStyleCastExpr>(c_cast);
 }
 
 bool Z3ConvVisitor::VisitImplicitCastExpr(clang::ImplicitCastExpr *c_cast) {
@@ -433,25 +447,7 @@ bool Z3ConvVisitor::VisitImplicitCastExpr(clang::ImplicitCastExpr *c_cast) {
   if (z3_expr_map.count(c_cast)) {
     return true;
   }
-
-  auto c_sub = c_cast->getSubExpr();
-  auto z_sub = GetOrCreateZ3Expr(c_sub);
-
-  switch (c_cast->getCastKind()) {
-    case clang::CastKind::CK_ArrayToPointerDecay: {
-      CHECK(z_sub.is_bv()) << "Pointer cast operand is not a bit-vector";
-      auto s_ptr = GetZ3Sort(c_cast->getType());
-      auto s_arr = z_sub.get_sort();
-      auto z_func = z3_ctx->function("PtrDecay", s_arr, s_ptr);
-      InsertZ3Expr(c_cast, z_func(z_sub));
-    } break;
-
-    default:
-      LOG(FATAL) << "Unsupported cast type: " << c_cast->getCastKindName();
-      break;
-  }
-
-  return true;
+  return HandleCastExpr<clang::ImplicitCastExpr>(c_cast);
 }
 
 bool Z3ConvVisitor::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub) {
@@ -973,8 +969,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       c_op = lhs;
       for (auto i = 1U; i < z_op.num_args(); ++i) {
         rhs = GetCExpr(z_op.arg(i));
-        c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LAnd, c_op, rhs,
-                                    ast_ctx->IntTy);
+        c_op = ast.CreateLAnd(c_op, rhs);
       }
     } break;
     // `||` in z3 can be n-ary, so we create a tree of C binary `||`.
@@ -982,21 +977,20 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       c_op = lhs;
       for (auto i = 1U; i < z_op.num_args(); ++i) {
         rhs = GetCExpr(z_op.arg(i));
-        c_op = CreateBinaryOperator(*ast_ctx, clang::BO_LOr, c_op, rhs,
-                                    ast_ctx->IntTy);
+        c_op = ast.CreateLOr(c_op, rhs);
       }
     } break;
 
     case Z3_OP_EQ:
-      c_op = BinOpExpr(clang::BO_EQ, ast_ctx->IntTy);
+      c_op = ast.CreateEQ(rhs, lhs);
       break;
 
     case Z3_OP_SLEQ:
-      c_op = BinOpExpr(clang::BO_LE, ast_ctx->IntTy);
+      c_op = ast.CreateLE(rhs, lhs);
       break;
 
     case Z3_OP_FPA_LT:
-      c_op = BinOpExpr(clang::BO_LT, ast_ctx->IntTy);
+      c_op = ast.CreateLT(rhs, lhs);
       break;
 
     // Given a `(concat l r)` we generate `((t)l << w) | r` where

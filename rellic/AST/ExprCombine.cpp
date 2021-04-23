@@ -114,15 +114,14 @@ class NegComparisonRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    auto &ctx{unit.getASTContext()};
+    ASTBuilder ast(unit);
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
     auto subexpr = op->getSubExpr()->IgnoreParenCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
-    return CreateBinaryOperator(ctx, opc, binop->getLHS(), binop->getRHS(),
-                                binop->getType());
+    return ast.CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
   }
 };
 

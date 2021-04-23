@@ -676,97 +676,73 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   // Get operands
   auto lhs{GetOperandExpr(inst.getOperand(0))};
   auto rhs{GetOperandExpr(inst.getOperand(1))};
-  // Convenience wrapper
-  auto BinOpExpr{[this, &lhs, &rhs](clang::BinaryOperatorKind opc,
-                                    clang::QualType type) {
-    return CreateBinaryOperator(ast_ctx, opc,
-                                CastExpr(ast_ctx, rhs->getType(), lhs),
-                                CastExpr(ast_ctx, lhs->getType(), rhs), type);
-  }};
   // Sign-cast int operand
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {
     auto type = ast_ctx.getIntTypeForBitwidth(
         ast_ctx.getTypeSize(operand->getType()), sign);
     return ast.CreateCStyleCast(type, operand);
   };
-
-  // Determine C operator result type from it's operands
-  auto c_type{ast_ctx.getIntegerTypeOrder(lhs->getType(), rhs->getType()) < 0
-                  ? rhs->getType()
-                  : lhs->getType()};
   // Where the magic happens
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr:
-      lhs = IntSignCast(lhs, false);
-      binop = BinOpExpr(clang::BO_Shr, c_type);
+      binop = ast.CreateShr(IntSignCast(lhs, false), rhs);
       break;
 
     case llvm::BinaryOperator::AShr:
-      lhs = IntSignCast(lhs, true);
-      binop = BinOpExpr(clang::BO_Shr, c_type);
+      binop = ast.CreateShr(IntSignCast(lhs, true), rhs);
       break;
 
     case llvm::BinaryOperator::Shl:
-      binop = BinOpExpr(clang::BO_Shl, c_type);
+      binop = ast.CreateShl(lhs, rhs);
       break;
 
     case llvm::BinaryOperator::And:
-      binop = BinOpExpr(
-          inst.getType()->isIntegerTy(1U) ? clang::BO_LAnd : clang::BO_And,
-          c_type);
+      binop = inst.getType()->isIntegerTy(1U) ? ast.CreateLAnd(lhs, rhs)
+                                              : ast.CreateAnd(lhs, rhs);
       break;
 
     case llvm::BinaryOperator::Or:
-      binop = BinOpExpr(
-          inst.getType()->isIntegerTy(1U) ? clang::BO_LOr : clang::BO_Or,
-          c_type);
+      binop = inst.getType()->isIntegerTy(1U) ? ast.CreateLOr(lhs, rhs)
+                                              : ast.CreateOr(lhs, rhs);
       break;
 
     case llvm::BinaryOperator::Xor:
-      binop = BinOpExpr(clang::BO_Xor, c_type);
+      binop = ast.CreateXor(lhs, rhs);
       break;
 
     case llvm::BinaryOperator::URem:
-      rhs = IntSignCast(rhs, false);
-      lhs = IntSignCast(lhs, false);
-      binop = BinOpExpr(clang::BO_Rem, lhs->getType());
+      binop = ast.CreateRem(IntSignCast(lhs, false), IntSignCast(rhs, false));
       break;
 
     case llvm::BinaryOperator::SRem:
-      rhs = IntSignCast(rhs, true);
-      lhs = IntSignCast(lhs, true);
-      binop = BinOpExpr(clang::BO_Rem, lhs->getType());
+      binop = ast.CreateRem(IntSignCast(lhs, true), IntSignCast(rhs, true));
       break;
 
     case llvm::BinaryOperator::UDiv:
-      rhs = IntSignCast(rhs, false);
-      lhs = IntSignCast(lhs, false);
-      binop = BinOpExpr(clang::BO_Div, lhs->getType());
+      binop = ast.CreateDiv(IntSignCast(lhs, false), IntSignCast(rhs, false));
       break;
 
     case llvm::BinaryOperator::SDiv:
-      rhs = IntSignCast(rhs, true);
-      lhs = IntSignCast(lhs, true);
-      binop = BinOpExpr(clang::BO_Div, lhs->getType());
+      binop = ast.CreateDiv(IntSignCast(lhs, true), IntSignCast(rhs, true));
       break;
 
     case llvm::BinaryOperator::FDiv:
-      binop = BinOpExpr(clang::BO_Div, c_type);
+      binop = ast.CreateDiv(lhs, rhs);
       break;
 
     case llvm::BinaryOperator::Add:
     case llvm::BinaryOperator::FAdd:
-      binop = BinOpExpr(clang::BO_Add, c_type);
+      binop = ast.CreateAdd(lhs, rhs);
       break;
 
     case llvm::BinaryOperator::Sub:
     case llvm::BinaryOperator::FSub:
-      binop = BinOpExpr(clang::BO_Sub, c_type);
+      binop = ast.CreateSub(lhs, rhs);
       break;
 
     case llvm::BinaryOperator::Mul:
     case llvm::BinaryOperator::FMul:
-      binop = BinOpExpr(clang::BO_Mul, c_type);
+      binop = ast.CreateMul(lhs, rhs);
       break;
 
     default:
@@ -848,69 +824,45 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   if (cast) {
     return;
   }
-
   // There should always be an operand with a cast instruction
   // Get a C-language expression of the operand
   auto operand = GetOperandExpr(inst.getOperand(0));
   // Get destination type
   auto type = GetQualType(inst.getType());
-  // Convenience wrapper
-  auto CastExpr = [this, &operand, &type](clang::CastKind opc) {
-    return ast.CreateCStyleCast(type, operand);
-  };
-  // Create cast
+  // Adjust type
   switch (inst.getOpcode()) {
     case llvm::CastInst::Trunc: {
-      auto bitwidth = ast_ctx.getTypeSize(type);
-      auto sign = operand->getType()->isSignedIntegerType();
+      auto bitwidth{ast_ctx.getTypeSize(type)};
+      auto sign{operand->getType()->isSignedIntegerType()};
       type = ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
-      cast = CastExpr(clang::CastKind::CK_IntegralCast);
     } break;
 
-    case llvm::CastInst::BitCast:
-      cast = CastExpr(clang::CastKind::CK_BitCast);
-      break;
-
     case llvm::CastInst::SExt: {
-      auto bitwidth = ast_ctx.getTypeSize(type);
+      auto bitwidth{ast_ctx.getTypeSize(type)};
       type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1);
-      cast = CastExpr(clang::CastKind::CK_IntegralCast);
     } break;
 
     case llvm::CastInst::ZExt:
-      cast = CastExpr(clang::CastKind::CK_IntegralCast);
-      break;
-
+    case llvm::CastInst::BitCast:
     case llvm::CastInst::PtrToInt:
-      cast = CastExpr(clang::CastKind::CK_PointerToIntegral);
-      break;
-
     case llvm::CastInst::IntToPtr:
-      cast = CastExpr(clang::CastKind::CK_IntegralToPointer);
-      break;
-
     case llvm::CastInst::SIToFP:
-      cast = CastExpr(clang::CastKind::CK_IntegralToFloating);
-      break;
-
     case llvm::CastInst::FPToUI:
     case llvm::CastInst::FPToSI:
-      cast = CastExpr(clang::CastKind::CK_FloatingToIntegral);
-      break;
-
     case llvm::CastInst::FPExt:
     case llvm::CastInst::FPTrunc:
-      cast = CastExpr(clang::CastKind::CK_FloatingCast);
       break;
 
     default:
       LOG(FATAL) << "Unknown CastInst cast type";
       break;
   }
+  // Create cast
+  cast = ast.CreateCStyleCast(type, operand);
 }
 
 void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
-  DLOG(INFO) << "visitCastInst: " << LLVMThingToString(&inst);
+  DLOG(INFO) << "visitSelectInst: " << LLVMThingToString(&inst);
   auto &select = stmts[&inst];
   if (select) {
     return;

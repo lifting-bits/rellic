@@ -38,8 +38,8 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
 clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
                                            unsigned size, unsigned sign);
 
-clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
-                         clang::Expr *op);
+// clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
+//                          clang::Expr *op);
 
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
                                         std::string name);

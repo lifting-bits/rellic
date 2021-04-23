@@ -674,6 +674,12 @@ TEST_SUITE("ASTBuilder::CreateBinaryOp") {
     CHECK(op->getType() == type);
   }
 
+  static void CheckRelOp(clang::BinaryOperator * op, clang::Expr * lhs,
+                         clang::Expr * rhs, clang::QualType type) {
+    CheckBinOp(op, lhs, rhs, type);
+    CHECK(op->getLHS()->getType() == op->getRHS()->getType());
+  }
+
   SCENARIO("Create logical and comparison operations") {
     GIVEN("Global variables int a, b; short c; long d;") {
       auto unit{GetASTUnit("int a,b; short c; long d;")};
@@ -717,94 +723,197 @@ TEST_SUITE("ASTBuilder::CreateBinaryOp") {
         }
         // BO_EQ
         THEN("return a == b") {
-          auto eq{ast.CreateEQ(ref_a, ref_b)};
-          CheckBinOp(eq, ref_a, ref_b, ctx.IntTy);
-          CHECK(eq->getLHS()->getType() == eq->getRHS()->getType());
+          CheckRelOp(ast.CreateEQ(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
         }
         THEN("return a == c") {
-          auto eq{ast.CreateEQ(ref_a, ref_c)};
-          CheckBinOp(eq, ref_a, ref_c, ctx.IntTy);
-          CHECK(eq->getLHS()->getType() == eq->getRHS()->getType());
+          CheckRelOp(ast.CreateEQ(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
         }
         THEN("return d == b") {
-          auto eq{ast.CreateEQ(ref_d, ref_b)};
-          CheckBinOp(eq, ref_d, ref_b, ctx.IntTy);
-          CHECK(eq->getLHS()->getType() == eq->getRHS()->getType());
+          CheckRelOp(ast.CreateEQ(ref_d, ref_b), ref_d, ref_b, ctx.IntTy);
         }
         // BO_NE
         THEN("return a != b") {
-          auto ne{ast.CreateNE(ref_a, ref_b)};
-          CheckBinOp(ne, ref_a, ref_b, ctx.IntTy);
+          CheckRelOp(ast.CreateNE(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
         }
         THEN("return a != c") {
-          auto ne{ast.CreateNE(ref_a, ref_c)};
-          CheckBinOp(ne, ref_a, ref_c, ctx.IntTy);
-          CHECK(ne->getLHS()->getType() == ne->getRHS()->getType());
+          CheckRelOp(ast.CreateNE(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
         }
         THEN("return d != b") {
-          auto ne{ast.CreateNE(ref_d, ref_b)};
-          CheckBinOp(ne, ref_d, ref_b, ctx.IntTy);
-          CHECK(ne->getLHS()->getType() == ne->getRHS()->getType());
+          CheckRelOp(ast.CreateNE(ref_d, ref_b), ref_d, ref_b, ctx.IntTy);
         }
         // BO_GE
         THEN("return a >= b") {
-          auto ge{ast.CreateGE(ref_a, ref_b)};
-          CheckBinOp(ge, ref_a, ref_b, ctx.IntTy);
+          CheckRelOp(ast.CreateGE(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
         }
         THEN("return a >= c") {
-          auto ge{ast.CreateGE(ref_a, ref_c)};
-          CheckBinOp(ge, ref_a, ref_c, ctx.IntTy);
-          CHECK(ge->getLHS()->getType() == ge->getRHS()->getType());
+          CheckRelOp(ast.CreateGE(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
         }
         THEN("return d >= b") {
-          auto ge{ast.CreateGE(ref_d, ref_b)};
-          CheckBinOp(ge, ref_d, ref_b, ctx.IntTy);
-          CHECK(ge->getLHS()->getType() == ge->getRHS()->getType());
+          CheckRelOp(ast.CreateGE(ref_d, ref_b), ref_d, ref_b, ctx.IntTy);
         }
         // BO_GT
         THEN("return a > b") {
-          auto gt{ast.CreateGT(ref_a, ref_b)};
-          CheckBinOp(gt, ref_a, ref_b, ctx.IntTy);
+          CheckRelOp(ast.CreateGT(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
         }
         THEN("return a > c") {
-          auto gt{ast.CreateGT(ref_a, ref_c)};
-          CheckBinOp(gt, ref_a, ref_c, ctx.IntTy);
-          CHECK(gt->getLHS()->getType() == gt->getRHS()->getType());
+          CheckRelOp(ast.CreateGT(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
         }
         THEN("return d > b") {
-          auto gt{ast.CreateGT(ref_d, ref_b)};
-          CheckBinOp(gt, ref_d, ref_b, ctx.IntTy);
-          CHECK(gt->getLHS()->getType() == gt->getRHS()->getType());
+          CheckRelOp(ast.CreateGT(ref_d, ref_b), ref_d, ref_b, ctx.IntTy);
         }
         // BO_LE
         THEN("return a <= b") {
-          auto le{ast.CreateLE(ref_a, ref_b)};
-          CheckBinOp(le, ref_a, ref_b, ctx.IntTy);
+          CheckRelOp(ast.CreateLE(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
         }
         THEN("return a <= c") {
-          auto le{ast.CreateLE(ref_a, ref_c)};
-          CheckBinOp(le, ref_a, ref_c, ctx.IntTy);
-          CHECK(le->getLHS()->getType() == le->getRHS()->getType());
+          CheckRelOp(ast.CreateLE(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
         }
         THEN("return d <= b") {
-          auto le{ast.CreateLE(ref_d, ref_b)};
-          CheckBinOp(le, ref_d, ref_b, ctx.IntTy);
-          CHECK(le->getLHS()->getType() == le->getRHS()->getType());
+          CheckRelOp(ast.CreateLE(ref_d, ref_b), ref_d, ref_b, ctx.IntTy);
         }
         // BO_LT
         THEN("return a < b") {
-          auto lt{ast.CreateLT(ref_a, ref_b)};
-          CheckBinOp(lt, ref_a, ref_b, ctx.IntTy);
+          CheckRelOp(ast.CreateLT(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
         }
         THEN("return a < c") {
-          auto lt{ast.CreateLT(ref_a, ref_c)};
-          CheckBinOp(lt, ref_a, ref_c, ctx.IntTy);
-          CHECK(lt->getLHS()->getType() == lt->getRHS()->getType());
+          CheckRelOp(ast.CreateLT(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
         }
         THEN("return d < b") {
-          auto lt{ast.CreateLT(ref_d, ref_b)};
-          CheckBinOp(lt, ref_d, ref_b, ctx.IntTy);
-          CHECK(lt->getLHS()->getType() == lt->getRHS()->getType());
+          CheckRelOp(ast.CreateLT(ref_d, ref_b), ref_d, ref_b, ctx.IntTy);
+        }
+      }
+    }
+  }
+
+  static void CheckArithOp(clang::BinaryOperator * op, clang::Expr * lhs,
+                           clang::Expr * rhs, clang::QualType type) {
+    CheckRelOp(op, lhs, rhs, type);
+  }
+
+  SCENARIO("Create bitwise arithmetic operations") {
+    GIVEN("Global variables int a, b; short c; long d;") {
+      auto unit{GetASTUnit("int a,b; short c; long d;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      GIVEN("references to a, b, c and d") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        auto ref_b{GetDeclRef<clang::VarDecl>(ast, tudecl, "b")};
+        auto ref_c{GetDeclRef<clang::VarDecl>(ast, tudecl, "c")};
+        auto ref_d{GetDeclRef<clang::VarDecl>(ast, tudecl, "d")};
+        // BO_And
+        THEN("return a & b") {
+          CheckArithOp(ast.CreateAnd(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a & c") {
+          CheckArithOp(ast.CreateAnd(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d & b") {
+          CheckBinOp(ast.CreateAnd(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Or
+        THEN("return a | b") {
+          CheckArithOp(ast.CreateOr(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a | c") {
+          CheckArithOp(ast.CreateOr(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d | b") {
+          CheckBinOp(ast.CreateOr(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Xor
+        THEN("return a ^ b") {
+          CheckArithOp(ast.CreateXor(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a ^ c") {
+          CheckArithOp(ast.CreateXor(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d ^ b") {
+          CheckBinOp(ast.CreateXor(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Shl
+        THEN("return a << b") {
+          CheckArithOp(ast.CreateShl(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a << c") {
+          CheckArithOp(ast.CreateShl(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d << b") {
+          CheckBinOp(ast.CreateShl(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Shr
+        THEN("return a >> b") {
+          CheckArithOp(ast.CreateShr(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a >> c") {
+          CheckArithOp(ast.CreateShr(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d >> b") {
+          CheckBinOp(ast.CreateShr(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+      }
+    }
+  }
+  SCENARIO("Create integer arithmetic operations") {
+    GIVEN("Global variables int a, b; short c; long d;") {
+      auto unit{GetASTUnit("int a,b; short c; long d;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      GIVEN("references to a, b, c and d") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        auto ref_b{GetDeclRef<clang::VarDecl>(ast, tudecl, "b")};
+        auto ref_c{GetDeclRef<clang::VarDecl>(ast, tudecl, "c")};
+        auto ref_d{GetDeclRef<clang::VarDecl>(ast, tudecl, "d")};
+        // BO_Add
+        THEN("return a + b") {
+          CheckArithOp(ast.CreateAdd(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a + c") {
+          CheckArithOp(ast.CreateAdd(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d + b") {
+          CheckBinOp(ast.CreateAdd(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Add
+        THEN("return a - b") {
+          CheckArithOp(ast.CreateSub(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a - c") {
+          CheckArithOp(ast.CreateSub(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d - b") {
+          CheckBinOp(ast.CreateSub(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Mul
+        THEN("return a * b") {
+          CheckArithOp(ast.CreateMul(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a * c") {
+          CheckArithOp(ast.CreateMul(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d * b") {
+          CheckBinOp(ast.CreateMul(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Div
+        THEN("return a / b") {
+          CheckArithOp(ast.CreateDiv(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a / c") {
+          CheckArithOp(ast.CreateDiv(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d / b") {
+          CheckBinOp(ast.CreateDiv(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+        // BO_Rem
+        THEN("return a % b") {
+          CheckArithOp(ast.CreateRem(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a % c") {
+          CheckArithOp(ast.CreateRem(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d % b") {
+          CheckBinOp(ast.CreateRem(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
         }
       }
     }

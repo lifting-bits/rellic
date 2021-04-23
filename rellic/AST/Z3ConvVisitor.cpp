@@ -408,8 +408,10 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
       z_cast = z3_ctx->function("PtrDecay", s_arr, s_ptr)(z_sub);
     } break;
 
-    case clang::CastKind::CK_NoOp:
     case clang::CastKind::CK_IntegralCast:
+      break;
+
+    case clang::CastKind::CK_NoOp:
     case clang::CastKind::CK_NullToPointer:
     case clang::CastKind::CK_LValueToRValue:
       break;
@@ -579,6 +581,16 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
   // Get operands
   auto lhs{GetOrCreateZ3Expr(c_op->getLHS())};
   auto rhs{GetOrCreateZ3Expr(c_op->getRHS())};
+  // Conditionally cast operands match size to the wider one
+  auto CondSizeCast{[this, &lhs, &rhs] {
+    auto lhs_size{GetZ3SortSize(lhs)};
+    auto rhs_size{GetZ3SortSize(rhs)};
+    if (lhs_size < rhs_size) {
+      lhs = CreateZ3BitwiseCast(lhs, lhs_size, rhs_size, /*sign=*/true);
+    } else if (lhs_size > rhs_size) {
+      rhs = CreateZ3BitwiseCast(rhs, rhs_size, lhs_size, /*sign=*/true);
+    }
+  }};
   // Conditionally cast operands to bool
   auto CondBoolCast{[this, &lhs, &rhs]() {
     if (lhs.is_bool() || rhs.is_bool()) {
@@ -671,6 +683,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_Shr:
+      CondSizeCast();
       InsertZ3Expr(c_op, c_op->getLHS()->getType()->isSignedIntegerType()
                              ? z3::ashr(lhs, rhs)
                              : z3::lshr(lhs, rhs));
@@ -869,33 +882,24 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
     //  * `m`   is a bitmask integer literal
     case Z3_OP_EXTRACT: {
       if (z_op.lo() != 0) {
-        auto t_uint{ast_ctx->UnsignedIntTy};
-        auto t_uint_size{ast_ctx->getTypeSize(t_uint)};
-        auto t_res{ast_ctx->getIntegerTypeOrder(t_sub, t_uint) < 0 ? t_uint
-                                                                   : t_sub};
-        // Shift value
-        auto c_shift_val{llvm::APInt(t_uint_size, z_op.lo())};
-        // Shift literal
-        auto c_shift_lit{ast.CreateIntLit(c_shift_val)};
-        // Mask value
-        auto c_mask_val{
-            llvm::APInt::getBitsSet(t_uint_size, z_op.lo(), z_op.hi() + 1)};
-        // Mask literal
-        auto c_mask_lit{ast.CreateIntLit(c_mask_val)};
-        // And
-        auto c_and{CreateBinaryOperator(
-            *ast_ctx, clang::BO_And, CastExpr(*ast_ctx, t_res, c_sub),
-            CastExpr(*ast_ctx, t_res, c_mask_lit), t_res)};
-        // LShr
-        c_sub = CreateBinaryOperator(
-            *ast_ctx, clang::BO_Shr, ast.CreateParen(c_and),
-            CastExpr(*ast_ctx, t_res, c_shift_lit), t_res);
+        auto shift_val{ast.CreateIntLit(llvm::APInt(32U, z_op.lo()))};
+        auto mask_val{ast.CreateIntLit(llvm::APInt::getBitsSet(
+            ast_ctx->getTypeSize(c_sub->getType()), z_op.lo(), z_op.hi() + 1))};
+        auto band{ast.CreateAnd(c_sub, mask_val)};
+        c_sub = ast.CreateShr(ast.CreateParen(band), shift_val);
       }
-      c_op = CastExpr(
-          *ast_ctx,
-          GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op), /*sign=*/0),
+      c_op = ast.CreateCStyleCast(
+          GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
+                                     /*sign=*/0),
           ast.CreateParen(c_sub));
     } break;
+
+    case Z3_OP_SIGN_EXT:
+      c_op = ast.CreateCStyleCast(
+          GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
+                                     /*sign=*/1),
+          c_sub);
+      break;
 
     case Z3_OP_UNINTERPRETED: {
       // Resolve opcode
@@ -938,20 +942,6 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
   // Get operands
   auto lhs{GetCExpr(z_op.arg(0))};
   auto rhs{GetCExpr(z_op.arg(1))};
-  // Get result type for integers
-  auto GetIntResultType{[this, &lhs, &rhs] {
-    auto lht{lhs->getType()};
-    auto rht{rhs->getType()};
-    auto order{ast_ctx->getIntegerTypeOrder(lht, rht)};
-    return order < 0 ? rht : lht;
-  }};
-  // Convenience wrapper
-  auto BinOpExpr{[this, lhs, rhs](clang::BinaryOperatorKind opc,
-                                  clang::QualType type) {
-    return CreateBinaryOperator(*ast_ctx, opc,
-                                CastExpr(*ast_ctx, rhs->getType(), lhs),
-                                CastExpr(*ast_ctx, lhs->getType(), rhs), type);
-  }};
   // Get result type for casts
   auto GetTypeFromOpaquePtrLiteral{[&lhs] {
     auto c_lit{clang::cast<clang::IntegerLiteral>(lhs)};
@@ -982,15 +972,15 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
     } break;
 
     case Z3_OP_EQ:
-      c_op = ast.CreateEQ(rhs, lhs);
+      c_op = ast.CreateEQ(lhs, rhs);
       break;
 
     case Z3_OP_SLEQ:
-      c_op = ast.CreateLE(rhs, lhs);
+      c_op = ast.CreateLE(lhs, rhs);
       break;
 
     case Z3_OP_FPA_LT:
-      c_op = ast.CreateLT(rhs, lhs);
+      c_op = ast.CreateLT(lhs, rhs);
       break;
 
     // Given a `(concat l r)` we generate `((t)l << w) | r` where
@@ -999,65 +989,49 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
     //  * `t` is the smallest integer type that can fit the result
     //        of `(concat l r)`
     case Z3_OP_CONCAT: {
-      auto t_res{GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
-                                            /*sign=*/0)};
+      auto res_ty{GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
+                                             /*sign=*/0)};
       if (!IsSignExt(z_op)) {
-        auto t_uint{ast_ctx->UnsignedIntTy};
-        auto t_uint_size{ast_ctx->getTypeSize(t_uint)};
-
-        auto c_cast{CastExpr(*ast_ctx, t_res, lhs)};
-
-        auto c_shift_val{llvm::APInt(
-            t_uint_size, ast_ctx->getTypeSize(lhs->getType()), /*isSigned=*/0)};
-
-        auto c_shift_lit{ast.CreateIntLit(c_shift_val)};
-
-        auto c_shift{CreateBinaryOperator(
-            *ast_ctx, clang::BO_Shl, CastExpr(*ast_ctx, t_uint, c_cast),
-            CastExpr(*ast_ctx, t_res, c_shift_lit),
-            ast_ctx->getIntegerTypeOrder(t_res, t_uint) < 0 ? t_uint : t_res)};
-
-        auto c_or{CreateBinaryOperator(
-            *ast_ctx, clang::BO_Or,
-            CastExpr(*ast_ctx, rhs->getType(), ast.CreateParen(c_shift)),
-            CastExpr(*ast_ctx, c_shift->getType(), rhs),
-            ast_ctx->getIntegerTypeOrder(c_shift->getType(), rhs->getType()) < 0
-                ? rhs->getType()
-                : c_shift->getType())};
-        c_op = ast.CreateParen(c_or);
+        auto cast{ast.CreateCStyleCast(res_ty, lhs)};
+        auto shl_val{ast.CreateIntLit(
+            llvm::APInt(32U, ast_ctx->getTypeSize(lhs->getType()),
+                        /*isSigned=*/0))};
+        auto shl{ast.CreateShl(cast, shl_val)};
+        auto bor{ast.CreateOr(ast.CreateParen(shl), rhs)};
+        c_op = ast.CreateParen(bor);
       } else {
-        c_op = CastExpr(*ast_ctx, t_res, rhs);
+        c_op = ast.CreateCStyleCast(res_ty, rhs);
       }
     } break;
 
     case Z3_OP_BADD:
-      c_op = BinOpExpr(clang::BO_Add, GetIntResultType());
+      c_op = ast.CreateAdd(lhs, rhs);
       break;
 
     case Z3_OP_BASHR:
-      c_op = BinOpExpr(clang::BO_Shr, GetIntResultType());
+      c_op = ast.CreateShr(lhs, rhs);
       break;
 
     case Z3_OP_BOR:
-      c_op = BinOpExpr(clang::BO_Or, GetIntResultType());
+      c_op = ast.CreateOr(lhs, rhs);
       break;
 
     case Z3_OP_BXOR:
-      c_op = BinOpExpr(clang::BO_Xor, GetIntResultType());
+      c_op = ast.CreateXor(lhs, rhs);
       break;
 
     case Z3_OP_BMUL:
-      c_op = BinOpExpr(clang::BO_Mul, GetIntResultType());
+      c_op = ast.CreateMul(lhs, rhs);
       break;
 
     case Z3_OP_BSDIV:
     case Z3_OP_BSDIV_I:
-      c_op = BinOpExpr(clang::BO_Div, GetIntResultType());
+      c_op = ast.CreateDiv(lhs, rhs);
       break;
 
     case Z3_OP_BSREM:
     case Z3_OP_BSREM_I:
-      c_op = BinOpExpr(clang::BO_Rem, GetIntResultType());
+      c_op = ast.CreateRem(lhs, rhs);
       break;
 
     case Z3_OP_UNINTERPRETED: {

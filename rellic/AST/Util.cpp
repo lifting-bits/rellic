@@ -74,40 +74,40 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 //       clang::SourceLocation());
 // }
 
-clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
-                      clang::Expr *op) {
-  // Get operand type
-  auto src = op->getType();
-  // Helpers
-  auto IsInt = [&ctx](clang::QualType t) { return t->isIntegralType(ctx); };
-  auto IsFloat = [](clang::QualType t) { return t->isFloatingType(); };
-  auto IsSmaller = ctx.getTypeSize(src) < ctx.getTypeSize(dst);
-  auto MakeCast = [&ctx, dst, op](clang::CastKind kind) {
-    return clang::CStyleCastExpr::Create(
-        ctx, dst, clang::VK_RValue, kind, op, nullptr,
-        ctx.getTrivialTypeSourceInfo(dst), clang::SourceLocation(),
-        clang::SourceLocation());
-  };
+// clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
+//                       clang::Expr *op) {
+//   // Get operand type
+//   auto src = op->getType();
+//   // Helpers
+//   auto IsInt = [&ctx](clang::QualType t) { return t->isIntegralType(ctx); };
+//   auto IsFloat = [](clang::QualType t) { return t->isFloatingType(); };
+//   auto IsSmaller = ctx.getTypeSize(src) < ctx.getTypeSize(dst);
+//   auto MakeCast = [&ctx, dst, op](clang::CastKind kind) {
+//     return clang::CStyleCastExpr::Create(
+//         ctx, dst, clang::VK_RValue, kind, op, nullptr,
+//         ctx.getTrivialTypeSourceInfo(dst), clang::SourceLocation(),
+//         clang::SourceLocation());
+//   };
 
-  // Widen floating point type
-  if (IsFloat(dst) && IsFloat(src) && IsSmaller) {
-    return MakeCast(clang::CastKind::CK_FloatingCast);
-  }
-  // Widen integral type
-  if (IsInt(dst) && IsInt(src) && IsSmaller) {
-    return MakeCast(clang::CastKind::CK_IntegralCast);
-  }
-  // Convert integral to floating point type
-  if (IsFloat(dst) && IsInt(src)) {
-    return MakeCast(clang::CastKind::CK_IntegralToFloating);
-  }
-  // Convert floating point to integral type
-  if (IsInt(dst) && IsFloat(src)) {
-    return MakeCast(clang::CastKind::CK_FloatingToIntegral);
-  }
-  // Do nothing
-  return op;
-}
+//   // Widen floating point type
+//   if (IsFloat(dst) && IsFloat(src) && IsSmaller) {
+//     return MakeCast(clang::CastKind::CK_FloatingCast);
+//   }
+//   // Widen integral type
+//   if (IsInt(dst) && IsInt(src) && IsSmaller) {
+//     return MakeCast(clang::CastKind::CK_IntegralCast);
+//   }
+//   // Convert integral to floating point type
+//   if (IsFloat(dst) && IsInt(src)) {
+//     return MakeCast(clang::CastKind::CK_IntegralToFloating);
+//   }
+//   // Convert floating point to integral type
+//   if (IsInt(dst) && IsFloat(src)) {
+//     return MakeCast(clang::CastKind::CK_FloatingToIntegral);
+//   }
+//   // Do nothing
+//   return op;
+// }
 
 clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
                                         std::string name) {

@@ -915,6 +915,35 @@ TEST_SUITE("ASTBuilder::CreateBinaryOp") {
         THEN("return d % b") {
           CheckBinOp(ast.CreateRem(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
         }
+        // BO_Assign
+        THEN("return a = b") {
+          CheckArithOp(ast.CreateAssign(ref_a, ref_b), ref_a, ref_b, ctx.IntTy);
+        }
+        THEN("return a = c") {
+          CheckArithOp(ast.CreateAssign(ref_a, ref_c), ref_a, ref_c, ctx.IntTy);
+        }
+        THEN("return d = b") {
+          CheckBinOp(ast.CreateAssign(ref_d, ref_b), ref_d, ref_b, ctx.LongTy);
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateArraySub") {
+  SCENARIO("Create array subscript operations") {
+    GIVEN("Global variable const char a[] = \"Hello\";") {
+      auto unit{GetASTUnit("int a,b; short c; long d;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      GIVEN("reference to a and a 1U literal") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        auto lit{ast.CreateIntLit(llvm::APInt(32, 1U))};
+        THEN("return a[1U]") {
+          auto array_sub{ast.CreateArraySub(ref_a, lit)};
+          CHECK(array_sub != nullptr);
+        }
       }
     }
   }

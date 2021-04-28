@@ -22,7 +22,7 @@ LLVM_VERSION=llvm-11
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
-CXX_COMMON_VERSION="v0.1.1"
+CXX_COMMON_VERSION="v0.1.3"
 
 # There are pre-build versions of various libraries for specific
 # Ubuntu releases.

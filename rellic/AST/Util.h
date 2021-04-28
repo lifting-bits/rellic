@@ -104,8 +104,8 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
                                 std::vector<clang::Expr *> &exprs,
                                 clang::QualType type);
 
-clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
-                                      clang::Expr *idx, clang::QualType type);
+// clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
+//                                       clang::Expr *idx, clang::QualType type);
 
 clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                               clang::ValueDecl *member, clang::QualType type,

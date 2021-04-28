@@ -247,12 +247,12 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
   return init;
 }
 
-clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
-                                      clang::Expr *idx, clang::QualType type) {
-  return new (ctx)
-      clang::ArraySubscriptExpr(base, idx, type, clang::VK_LValue,
-                                clang::OK_Ordinary, clang::SourceLocation());
-}
+// clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
+//                                       clang::Expr *idx, clang::QualType type) {
+//   return new (ctx)
+//       clang::ArraySubscriptExpr(base, idx, type, clang::VK_LValue,
+//                                 clang::OK_Ordinary, clang::SourceLocation());
+// }
 
 // clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx) {
 //   auto type = ctx.UnsignedIntTy;

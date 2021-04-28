@@ -65,7 +65,7 @@ static bool IsSignExt(z3::expr op) {
 
   if (lhs.is_numeral()) {
     auto size{GetZ3SortSize(lhs)};
-    llvm::APInt val(size, Z3_get_numeral_string(op.ctx(), op), 10);
+    llvm::APInt val(size, Z3_get_numeral_string(op.ctx(), lhs), 10);
     return val.isAllOnesValue() || val.isNullValue();
   }
   return false;
@@ -1052,8 +1052,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       if (name == "ArraySub") {
         auto base_type = lhs->getType()->getAs<clang::PointerType>();
         CHECK(base_type) << "Operand is not a clang::PointerType";
-        c_op = CreateArraySubscriptExpr(*ast_ctx, lhs, rhs,
-                                        base_type->getPointeeType());
+        c_op = ast.CreateArraySub(lhs, rhs);
       } else if (name == "Member") {
         auto mem = GetCValDecl(z_op.arg(1).decl());
         c_op = CreateMemberExpr(*ast_ctx, lhs, mem, mem->getType(),

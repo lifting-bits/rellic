@@ -144,9 +144,6 @@ clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
 clang::UnaryOperator *ASTBuilder::CreateUnaryOp(clang::UnaryOperatorKind opc,
                                                 clang::Expr *expr) {
   CHECK(expr) << "Should not be null in CreateUnaryOp.";
-  if(opc == clang::UO_AddrOf) {
-    CHECK(expr->getValueKind() == clang::VK_LValue);
-  }
   auto er{sema.CreateBuiltinUnaryOp(clang::SourceLocation(), opc, expr)};
   CHECK(er.isUsable());
   return er.getAs<clang::UnaryOperator>();
@@ -159,6 +156,15 @@ clang::BinaryOperator *ASTBuilder::CreateBinaryOp(clang::BinaryOperatorKind opc,
   auto er{sema.CreateBuiltinBinOp(clang::SourceLocation(), opc, lhs, rhs)};
   CHECK(er.isUsable());
   return er.getAs<clang::BinaryOperator>();
+}
+
+clang::ArraySubscriptExpr *ASTBuilder::CreateArraySub(clang::Expr *base,
+                                                      clang::Expr *idx) {
+  CHECK(base && idx) << "Should not be null in CreateBinaryOp.";
+  auto er{sema.CreateBuiltinArraySubscriptExpr(base, clang::SourceLocation(),
+                                               idx, clang::SourceLocation())};
+  CHECK(er.isUsable());
+  return er.getAs<clang::ArraySubscriptExpr>();
 }
 
 }  // namespace rellic

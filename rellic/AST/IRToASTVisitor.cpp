@@ -487,9 +487,8 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto IndexPtr = [&](llvm::Value &gep_idx) {
     auto base_type = base->getType();
     CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
-    auto type = clang::cast<clang::PointerType>(base_type)->getPointeeType();
     auto idx = GetOperandExpr(&gep_idx);
-    base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
+    base = ast.CreateArraySub(base, idx);
   };
 
   auto IndexStruct = [&](llvm::Value &gep_idx) {
@@ -555,9 +554,8 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
   auto IndexPtr = [&](unsigned ev_idx) {
     auto base_type = base->getType();
     CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
-    auto type = clang::cast<clang::PointerType>(base_type)->getPointeeType();
     auto idx{ast.CreateIntLit(llvm::APInt(sizeof(unsigned) * 8U, ev_idx))};
-    base = CreateArraySubscriptExpr(ast_ctx, base, idx, type);
+    base = ast.CreateArraySub(base, idx);
   };
 
   auto IndexStruct = [&](unsigned ev_idx) {

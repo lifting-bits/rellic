@@ -167,6 +167,13 @@ class ASTBuilder {
   clang::BinaryOperator *CreateRem(clang::Expr *lhs, clang::Expr *rhs) {
     return CreateBinaryOp(clang::BO_Rem, lhs, rhs);
   }
+
+  clang::BinaryOperator *CreateAssign(clang::Expr *lhs, clang::Expr *rhs) {
+    return CreateBinaryOp(clang::BO_Assign, lhs, rhs);
+  }
+
+  clang::ArraySubscriptExpr *CreateArraySub(clang::Expr *base,
+                                            clang::Expr *idx);
 };
 
 }  // namespace rellic

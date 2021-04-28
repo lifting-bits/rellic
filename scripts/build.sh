@@ -28,7 +28,7 @@ LLVM_VERSION=llvm-11
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
-CXX_COMMON_VERSION="v0.1.1"
+CXX_COMMON_VERSION="v0.1.3"
 
 # There are pre-build versions of various libraries for specific
 # Ubuntu releases.
@@ -180,17 +180,15 @@ function DownloadLibraries
     #BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_OSX_SYSROOT=${sdk_root}"
     # Min version supported
     OS_VERSION="macos-10.15"
-    XCODE_VERSION="12.1.0"
+    # Hard-coded to match pre-built binaries in CI
+    XCODE_VERSION="12.4"
     if [[ "$(sw_vers -productVersion)" == "10.15"* ]]; then
       echo "Found MacOS Catalina"
       OS_VERSION="macos-10.15"
-      # Hard-coded to match pre-built binaries in CI
-      XCODE_VERSION="12.1.0"
     elif [[ "$(sw_vers -productVersion)" == "11."* ]]; then
       echo "Found MacOS Big Sur"
-      OS_VERSION="macos-11.0"
-      # Hard-coded to match pre-built binaries in CI
-      XCODE_VERSION="12.2.0"
+      # Uses 10.15 binaries
+      OS_VERSION="macos-10.15"
     else
       echo "WARNING: ****Likely unsupported MacOS Version****"
       echo "WARNING: ****Using ${OS_VERSION}****"

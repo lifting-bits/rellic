@@ -786,6 +786,12 @@ void Z3ConvVisitor::VisitZ3Expr(z3::expr z_expr) {
     for (auto i = 0U; i < z_expr.num_args(); ++i) {
       GetOrCreateCExpr(z_expr.arg(i));
     }
+    // TODO(msurovic): Rework this into a visitor based on
+    // z_expr.decl().decl_kind()
+    if (z_expr.decl().decl_kind() == Z3_OP_CONCAT) {
+      InsertCExpr(z_expr, HandleZ3Concat(z_expr));
+      return;
+    }
     switch (z_expr.decl().arity()) {
       case 0:
         VisitConstant(z_expr);
@@ -804,7 +810,7 @@ void Z3ConvVisitor::VisitZ3Expr(z3::expr z_expr) {
         break;
 
       default:
-        LOG(FATAL) << "Unexpected Z3 operation!";
+        LOG(FATAL) << "Unexpected Z3 operation: " << z_expr.decl().name().str();
         break;
     }
   } else if (z_expr.is_quantifier()) {
@@ -818,9 +824,8 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
   DLOG(INFO) << "VisitConstant: " << z_const;
   CHECK(z_const.is_const()) << "Z3 expression is not a constant!";
   // Create C literals and variable references
-  auto kind{z_const.decl().decl_kind()};
   clang::Expr *c_expr{nullptr};
-  switch (kind) {
+  switch (z_const.decl().decl_kind()) {
     // Boolean literals
     case Z3_OP_TRUE:
     case Z3_OP_FALSE:
@@ -938,6 +943,31 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
   InsertCExpr(z_op, c_op);
 }
 
+clang::Expr *Z3ConvVisitor::HandleZ3Concat(z3::expr z_op) {
+  auto lhs{GetCExpr(z_op.arg(0U))};
+  for (auto i{1U}; i < z_op.num_args(); ++i) {
+    // Given a `(concat l r)` we generate `((t)l << w) | r` where
+    //  * `w` is the bitwidth of `r`
+    //
+    //  * `t` is the smallest integer type that can fit the result
+    //        of `(concat l r)`
+    auto rhs{GetCExpr(z_op.arg(i))};
+    auto res_ty{GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
+                                           /*sign=*/0)};
+    if (!IsSignExt(z_op)) {
+      auto cast{ast.CreateCStyleCast(res_ty, lhs)};
+      auto shl_val{
+          ast.CreateIntLit(llvm::APInt(32U, GetZ3SortSize(z_op.arg(1U))))};
+      auto shl{ast.CreateShl(cast, shl_val)};
+      auto bor{ast.CreateOr(shl, rhs)};
+      lhs = ast.CreateParen(bor);
+    } else {
+      lhs = ast.CreateCStyleCast(res_ty, rhs);
+    }
+  }
+  return lhs;
+}
+
 void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
   DLOG(INFO) << "VisitBinaryApp: " << z_op;
   CHECK(z_op.is_app() && z_op.decl().arity() == 2)
@@ -985,26 +1015,6 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
     case Z3_OP_FPA_LT:
       c_op = ast.CreateLT(lhs, rhs);
       break;
-
-    // Given a `(concat l r)` we generate `((t)l << w) | r` where
-    //  * `w` is the bitwidth of `r`
-    //
-    //  * `t` is the smallest integer type that can fit the result
-    //        of `(concat l r)`
-    case Z3_OP_CONCAT: {
-      auto res_ty{GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
-                                             /*sign=*/0)};
-      if (!IsSignExt(z_op)) {
-        auto cast{ast.CreateCStyleCast(res_ty, lhs)};
-        auto shl_val{
-            ast.CreateIntLit(llvm::APInt(32U, GetZ3SortSize(z_op.arg(1U))))};
-        auto shl{ast.CreateShl(cast, shl_val)};
-        auto bor{ast.CreateOr(shl, rhs)};
-        c_op = ast.CreateParen(bor);
-      } else {
-        c_op = ast.CreateCStyleCast(res_ty, rhs);
-      }
-    } break;
 
     case Z3_OP_BADD:
       c_op = ast.CreateAdd(lhs, rhs);
@@ -1083,7 +1093,7 @@ void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
     } break;
     // Unknowns
     default:
-      LOG(FATAL) << "Unknown Z3 binary operator!";
+      LOG(FATAL) << "Unknown Z3 ternary operator: " << z_func.name().str();
       break;
   }
   // Save

@@ -56,6 +56,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
 
   template <typename T>
   bool HandleCastExpr(T *c_cast);
+  clang::Expr *HandleZ3Concat(z3::expr z_op);
 
  public:
   z3::func_decl GetOrCreateZ3Decl(clang::ValueDecl *c_decl);

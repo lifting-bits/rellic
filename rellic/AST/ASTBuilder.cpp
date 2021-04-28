@@ -144,6 +144,9 @@ clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
 clang::UnaryOperator *ASTBuilder::CreateUnaryOp(clang::UnaryOperatorKind opc,
                                                 clang::Expr *expr) {
   CHECK(expr) << "Should not be null in CreateUnaryOp.";
+  if(opc == clang::UO_AddrOf) {
+    CHECK(expr->getValueKind() == clang::VK_LValue);
+  }
   auto er{sema.CreateBuiltinUnaryOp(clang::SourceLocation(), opc, expr)};
   CHECK(er.isUsable());
   return er.getAs<clang::UnaryOperator>();

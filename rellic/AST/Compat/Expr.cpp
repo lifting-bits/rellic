@@ -68,11 +68,11 @@ clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                               bool is_arrow) {
 #if LLVM_VERSION_NUMBER >= LLVM_VERSION(9, 0)
   return clang::MemberExpr::CreateImplicit(
-      ctx, base, is_arrow, member, type, clang::VK_RValue, clang::OK_Ordinary);
+      ctx, base, is_arrow, member, type, clang::VK_LValue, clang::OK_Ordinary);
 #else
   return new (ctx) clang::MemberExpr(base, is_arrow, clang::SourceLocation(),
                                      member, clang::SourceLocation(), type,
-                                     clang::VK_RValue, clang::OK_Ordinary);
+                                     clang::VK_LValue, clang::OK_Ordinary);
 #endif
 }
 

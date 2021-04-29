@@ -133,12 +133,11 @@ clang::ParenExpr *ASTBuilder::CreateParen(clang::Expr *expr) {
 
 clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
                                                     clang::Expr *expr) {
-  clang::ActionResult<clang::Expr *> er(expr);
-  auto kind{sema.PrepareScalarCast(er, type)};
-  return clang::CStyleCastExpr::Create(
-      ctx, type, clang::VK_RValue, kind, expr, nullptr,
-      ctx.getTrivialTypeSourceInfo(type), clang::SourceLocation(),
-      clang::SourceLocation());
+  auto er{sema.BuildCStyleCastExpr(clang::SourceLocation(),
+                                   ctx.getTrivialTypeSourceInfo(type),
+                                   clang::SourceLocation(), expr)};
+  CHECK(er.isUsable());
+  return er.getAs<clang::CStyleCastExpr>();
 }
 
 clang::UnaryOperator *ASTBuilder::CreateUnaryOp(clang::UnaryOperatorKind opc,

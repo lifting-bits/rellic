@@ -933,7 +933,7 @@ TEST_SUITE("ASTBuilder::CreateBinaryOp") {
 TEST_SUITE("ASTBuilder::CreateArraySub") {
   SCENARIO("Create array subscript operations") {
     GIVEN("Global variable const char a[] = \"Hello\";") {
-      auto unit{GetASTUnit("int a,b; short c; long d;")};
+      auto unit{GetASTUnit("const char a[] = \"Hello\";")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{ctx.getTranslationUnitDecl()};

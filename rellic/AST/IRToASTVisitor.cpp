@@ -630,15 +630,11 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   }
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
-  auto ptr = inst.getPointerOperand();
-  auto lhs = GetOperandExpr(ptr);
+  auto lhs{GetOperandExpr(inst.getPointerOperand())};
   // Get the operand we're assigning from
-  auto val = inst.getValueOperand();
-  auto rhs = GetOperandExpr(val);
+  auto rhs{GetOperandExpr(inst.getValueOperand())};
   // Create the assignemnt itself
-  auto type = GetQualType(ptr->getType()->getPointerElementType());
-  assign = CreateBinaryOperator(ast_ctx, clang::BO_Assign, ast.CreateDeref(lhs),
-                                rhs, type);
+  assign = ast.CreateAssign(ast.CreateDeref(lhs), rhs);
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
@@ -658,8 +654,7 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
   }
 
   if (auto retval = inst.getReturnValue()) {
-    auto retexpr = GetOperandExpr(retval);
-    retstmt = CreateReturnStmt(ast_ctx, retexpr);
+    retstmt = CreateReturnStmt(ast_ctx, GetOperandExpr(retval));
   } else {
     retstmt = CreateReturnStmt(ast_ctx, nullptr);
   }

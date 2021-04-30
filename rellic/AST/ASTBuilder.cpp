@@ -106,11 +106,17 @@ clang::IdentifierInfo *ASTBuilder::CreateIdentifier(std::string name) {
 clang::VarDecl *ASTBuilder::CreateVarDecl(clang::DeclContext *decl_ctx,
                                           clang::QualType type,
                                           clang::IdentifierInfo *id) {
-  auto var{clang::VarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
-                                  clang::SourceLocation(), id, type,
-                                  /*TypeSourceInfo=*/nullptr, clang::SC_None)};
+  auto var{clang::VarDecl::Create(
+      ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id, type,
+      ctx.getTrivialTypeSourceInfo(type), clang::SC_None)};
   decl_ctx->addDecl(var);
   return var;
+}
+
+clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::DeclContext *decl_ctx,
+                                              clang::QualType type,
+                                              clang::IdentifierInfo *id) {
+  return nullptr;
 }
 
 clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {
@@ -121,9 +127,11 @@ clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {
 
 clang::DeclRefExpr *ASTBuilder::CreateDeclRef(clang::ValueDecl *val) {
   CHECK(val) << "Should not be null in CreateDeclRef.";
-  return clang::DeclRefExpr::Create(
-      ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val, false,
-      val->getLocation(), val->getType(), clang::VK_LValue);
+  clang::DeclarationNameInfo dni(val->getDeclName(), clang::SourceLocation());
+  clang::CXXScopeSpec ss;
+  auto er{sema.BuildDeclarationNameExpr(ss, dni, val)};
+  CHECK(er.isUsable());
+  return er.getAs<clang::DeclRefExpr>();
 }
 
 clang::ParenExpr *ASTBuilder::CreateParen(clang::Expr *expr) {

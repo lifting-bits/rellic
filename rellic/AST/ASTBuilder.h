@@ -60,9 +60,18 @@ class ASTBuilder {
                                 clang::QualType type,
                                 clang::IdentifierInfo *id);
 
-  clang::VarDecl *CreateVarDecl(clang::DeclContext *ctx, clang::QualType type,
-                                std::string name) {
-    return CreateVarDecl(ctx, type, CreateIdentifier(name));
+  clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx,
+                                clang::QualType type, std::string name) {
+    return CreateVarDecl(decl_ctx, type, CreateIdentifier(name));
+  }
+
+  clang::FieldDecl *CreateFieldDecl(clang::DeclContext *decl_ctx,
+                                    clang::QualType type,
+                                    clang::IdentifierInfo *id);
+
+  clang::FieldDecl *CreateFieldDecl(clang::DeclContext *decl_ctx,
+                                    clang::QualType type, std::string name) {
+    return CreateFieldDecl(decl_ctx, type, CreateIdentifier(name));
   }
 
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);

@@ -6,7 +6,7 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-// #define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/Z3ConvVisitor.h"
 
@@ -158,7 +158,7 @@ void Z3ConvVisitor::InsertCExpr(z3::expr z_expr, clang::Expr *c_expr) {
 
 clang::Expr *Z3ConvVisitor::GetCExpr(z3::expr z_expr) {
   auto hash{z_expr.hash()};
-  CHECK(c_expr_map.count(hash)) << "No Z3 equivalent for C declaration!";
+  CHECK(c_expr_map.count(hash)) << "No Z3 equivalent for C expression!";
   return c_expr_map[hash];
 }
 
@@ -846,9 +846,14 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
     case Z3_OP_INTERNAL:
       break;
     // Uninterpreted constants
-    case Z3_OP_UNINTERPRETED:
-      c_expr = ast.CreateDeclRef(GetCValDecl(z_const.decl()));
-      break;
+    case Z3_OP_UNINTERPRETED: {
+      auto c_decl{GetCValDecl(z_const.decl())};
+      if (clang::isa<clang::FieldDecl>(c_decl)) {
+        c_expr = ast.CreateNull();
+      } else {
+        c_expr = ast.CreateDeclRef(c_decl);
+      }
+    } break;
 
     // Unknowns
     default:

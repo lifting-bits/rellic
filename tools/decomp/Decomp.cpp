@@ -79,7 +79,7 @@ static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
 
-  std::vector<std::string> args{"-target", module.getTargetTriple()};
+  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target", module.getTargetTriple()};
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
   auto& ast_ctx{ast_unit->getASTContext()};
 

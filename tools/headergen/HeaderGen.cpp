@@ -113,9 +113,9 @@ int main(int argc, char* argv[]) {
   std::vector<std::string> args{"-target", llvm::sys::getDefaultTargetTriple()};
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
   auto& c_ast_ctx = ast_unit->getASTContext();
-  rellic::CXXToCDeclVisitor visitor(c_ast_ctx);
+  rellic::CXXToCDeclVisitor visitor(*ast_unit);
   // cxx_ast_unit->getASTContext().getTranslationUnitDecl()->dump();
-  visitor.TraverseDecl(cxx_ast_unit->getASTContext().getTranslationUnitDecl());
+  visitor.TraverseDecl(c_ast_ctx.getTranslationUnitDecl());
   // Print output
   c_ast_ctx.getTranslationUnitDecl()->print(output);
 

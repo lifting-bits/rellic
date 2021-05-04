@@ -106,17 +106,37 @@ clang::IdentifierInfo *ASTBuilder::CreateIdentifier(std::string name) {
 clang::VarDecl *ASTBuilder::CreateVarDecl(clang::DeclContext *decl_ctx,
                                           clang::QualType type,
                                           clang::IdentifierInfo *id) {
-  auto var{clang::VarDecl::Create(
+  return clang::VarDecl::Create(
       ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id, type,
-      ctx.getTrivialTypeSourceInfo(type), clang::SC_None)};
-  decl_ctx->addDecl(var);
-  return var;
+      ctx.getTrivialTypeSourceInfo(type), clang::SC_None);
 }
 
-clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::DeclContext *decl_ctx,
+clang::FunctionDecl *ASTBuilder::CreateFunctionDecl(
+    clang::DeclContext *decl_ctx, clang::QualType type,
+    clang::IdentifierInfo *id) {
+  return clang::FunctionDecl::Create(
+      ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(),
+      clang::DeclarationName(id), type, ctx.getTrivialTypeSourceInfo(type),
+      clang::SC_None, /*isInlineSpecified=*/false);
+}
+
+clang::RecordDecl *ASTBuilder::CreateStructDecl(clang::DeclContext *decl_ctx,
+                                                clang::IdentifierInfo *id,
+                                                clang::RecordDecl *prev_decl) {
+  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Struct,
+                                   decl_ctx, clang::SourceLocation(),
+                                   clang::SourceLocation(), id, prev_decl);
+}
+
+clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
                                               clang::QualType type,
                                               clang::IdentifierInfo *id) {
-  return nullptr;
+  return sema.CheckFieldDecl(
+      clang::DeclarationName(id), type, ctx.getTrivialTypeSourceInfo(type),
+      record, clang::SourceLocation(), /*Mutable=*/false, /*BitWidth=*/nullptr,
+      clang::ICIS_NoInit, clang::SourceLocation(),
+      clang::AccessSpecifier::AS_none,
+      /*PrevDecl=*/nullptr);
 }
 
 clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {

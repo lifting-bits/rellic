@@ -90,13 +90,12 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
           sname = "struct" + std::to_string(num);
         }
         // Create a C struct declaration
-        auto sid = CreateIdentifier(ast_ctx, sname);
-        decl = sdecl = CreateStructDecl(ast_ctx, tudecl, sid);
+        decl = sdecl = ast.CreateStructDecl(tudecl, sname);
         // Add fields to the C struct
         for (auto ecnt = 0U; ecnt < strct->getNumElements(); ++ecnt) {
           auto etype = GetQualType(strct->getElementType(ecnt));
-          auto eid = CreateIdentifier(ast_ctx, "field" + std::to_string(ecnt));
-          sdecl->addDecl(CreateFieldDecl(ast_ctx, sdecl, eid, etype));
+          auto fname{"field" + std::to_string(ecnt)};
+          sdecl->addDecl(ast.CreateFieldDecl(sdecl, etype, fname));
         }
         // Complete the C struct definition
         sdecl->completeDefinition();
@@ -259,12 +258,10 @@ clang::Decl *IRToASTVisitor::GetOrCreateIntrinsic(llvm::InlineAsm *val) {
     return decl;
   }
 
-  auto tudecl = ast_ctx.getTranslationUnitDecl();
-  auto num = GetNumDecls<clang::FunctionDecl>(tudecl);
-  auto name = "asm_" + std::to_string(num);
-  auto id = CreateIdentifier(ast_ctx, name);
-  auto type = GetQualType(val->getType()->getPointerElementType());
-  decl = CreateFunctionDecl(ast_ctx, tudecl, id, type);
+  auto tudecl{ast_ctx.getTranslationUnitDecl()};
+  auto name{"asm_" + std::to_string(GetNumDecls<clang::FunctionDecl>(tudecl))};
+  auto type{GetQualType(val->getType()->getPointerElementType())};
+  decl = ast.CreateFunctionDecl(tudecl, type, name);
 
   return decl;
 }
@@ -348,6 +345,8 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
   // Create a variable declaration
   var = ast.CreateVarDecl(tudecl, GetQualType(type), name);
+  // Add to translation unit
+  tudecl->addDecl(var);
   // Create an initalizer literal
   if (gvar.hasInitializer()) {
     clang::cast<clang::VarDecl>(var)->setInit(
@@ -387,10 +386,9 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   }
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
-  auto tudecl = ast_ctx.getTranslationUnitDecl();
-
-  decl = CreateFunctionDecl(ast_ctx, tudecl, CreateIdentifier(ast_ctx, name),
-                            GetQualType(func.getFunctionType()));
+  auto tudecl{ast_ctx.getTranslationUnitDecl()};
+  auto type{GetQualType(func.getFunctionType())};
+  decl = ast.CreateFunctionDecl(tudecl, type, name);
 
   tudecl->addDecl(decl);
 
@@ -617,6 +615,7 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
       name = "var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl));
     }
     var = ast.CreateVarDecl(fdecl, GetQualType(inst.getAllocatedType()), name);
+    fdecl->addDecl(var);
   }
 
   declstmt = ast.CreateDeclStmt(var);

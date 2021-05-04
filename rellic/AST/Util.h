@@ -71,20 +71,20 @@ clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
                                       clang::IdentifierInfo *id,
                                       clang::QualType type);
 
-clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
-                                        clang::DeclContext *decl_ctx,
-                                        clang::IdentifierInfo *id,
-                                        clang::QualType type);
+// clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
+//                                         clang::DeclContext *decl_ctx,
+//                                         clang::IdentifierInfo *id,
+//                                         clang::QualType type);
 
-clang::FieldDecl *CreateFieldDecl(clang::ASTContext &ctx,
-                                  clang::DeclContext *decl_ctx,
-                                  clang::IdentifierInfo *id,
-                                  clang::QualType type);
+// clang::FieldDecl *CreateFieldDecl(clang::ASTContext &ctx,
+//                                   clang::DeclContext *decl_ctx,
+//                                   clang::IdentifierInfo *id,
+//                                   clang::QualType type);
 
-clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
-                                    clang::DeclContext *decl_ctx,
-                                    clang::IdentifierInfo *id,
-                                    clang::RecordDecl *prev_decl = nullptr);
+// clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
+//                                     clang::DeclContext *decl_ctx,
+//                                     clang::IdentifierInfo *id,
+//                                     clang::RecordDecl *prev_decl = nullptr);
 
 // clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
 //                                    clang::QualType type);

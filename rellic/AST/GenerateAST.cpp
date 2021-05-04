@@ -213,6 +213,7 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
       auto expr{clang::cast<clang::Expr>(stmt)};
       auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
       auto var{ast.CreateVarDecl(fdecl, expr->getType(), name)};
+      fdecl->addDecl(var);
       var->setInit(expr);
       stmt = ast.CreateDeclStmt(var);
       ast_gen->SetStmt(&inst, ast.CreateDeclRef(var));
@@ -438,8 +439,8 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
         clang::cast<clang::FunctionDecl>(ast_gen->GetOrCreateDecl(&func));
     // Create a redeclaration of `fdecl` that will serve as a definition
     auto tudecl = ast_ctx->getTranslationUnitDecl();
-    auto fdefn = CreateFunctionDecl(*ast_ctx, tudecl, fdecl->getIdentifier(),
-                                    fdecl->getType());
+    auto fdefn = ast.CreateFunctionDecl(tudecl, fdecl->getType(),
+                                        fdecl->getIdentifier());
     fdefn->setPreviousDecl(fdecl);
     tudecl->addDecl(fdefn);
     // Set parameters to the same as the previous declaration

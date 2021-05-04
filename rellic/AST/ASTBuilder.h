@@ -64,21 +64,41 @@ class ASTBuilder {
                                 clang::QualType type, std::string name) {
     return CreateVarDecl(decl_ctx, type, CreateIdentifier(name));
   }
+  // Function declaration
+  clang::FunctionDecl *CreateFunctionDecl(clang::DeclContext *decl_ctx,
+                                          clang::QualType type,
+                                          clang::IdentifierInfo *id);
 
-  clang::FieldDecl *CreateFieldDecl(clang::DeclContext *decl_ctx,
+  clang::FunctionDecl *CreateFunctionDecl(clang::DeclContext *decl_ctx,
+                                          clang::QualType type,
+                                          std::string name) {
+    return CreateFunctionDecl(decl_ctx, type, CreateIdentifier(name));
+  }
+  // Structure declaration
+  clang::RecordDecl *CreateStructDecl(clang::DeclContext *decl_ctx,
+                                      clang::IdentifierInfo *id,
+                                      clang::RecordDecl *prev_decl = nullptr);
+
+  clang::RecordDecl *CreateStructDecl(clang::DeclContext *decl_ctx,
+                                      std::string name,
+                                      clang::RecordDecl *prev_decl = nullptr) {
+    return CreateStructDecl(decl_ctx, CreateIdentifier(name), prev_decl);
+  }
+  // Structure field declaration
+  clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
                                     clang::QualType type,
                                     clang::IdentifierInfo *id);
 
-  clang::FieldDecl *CreateFieldDecl(clang::DeclContext *decl_ctx,
+  clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
                                     clang::QualType type, std::string name) {
-    return CreateFieldDecl(decl_ctx, type, CreateIdentifier(name));
+    return CreateFieldDecl(record, type, CreateIdentifier(name));
   }
-
+  // Declaration statement
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);
+  // Declaration reference
   clang::DeclRefExpr *CreateDeclRef(clang::ValueDecl *val);
-
+  // Parentheses
   clang::ParenExpr *CreateParen(clang::Expr *expr);
-
   // C-style casting
   clang::CStyleCastExpr *CreateCStyleCast(clang::QualType type,
                                           clang::Expr *expr);

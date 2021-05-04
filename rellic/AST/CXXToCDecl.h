@@ -8,12 +8,17 @@
 
 #pragma once
 
+#include <clang/AST/RecursiveASTVisitor.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <clang/AST/RecursiveASTVisitor.h>
-
 #include <unordered_map>
+
+#include "rellic/AST/ASTBuilder.h"
+
+namespace clang {
+class ASTUnit;
+}
 
 namespace rellic {
 
@@ -22,12 +27,14 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
   clang::ASTContext &ast_ctx;
   clang::TranslationUnitDecl *c_tu;
 
+  ASTBuilder ast;
+
   std::unordered_map<clang::Decl *, clang::Decl *> c_decls;
 
   clang::QualType GetAsCType(clang::QualType type);
 
  public:
-  CXXToCDeclVisitor(clang::ASTContext &ctx);
+  CXXToCDeclVisitor(clang::ASTUnit &unit);
 
   bool shouldVisitTemplateInstantiations() { return true; }
 

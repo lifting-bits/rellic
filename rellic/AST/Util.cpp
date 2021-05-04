@@ -177,33 +177,33 @@ clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
                                     clang::SC_None, nullptr);
 }
 
-clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
-                                        clang::DeclContext *decl_ctx,
-                                        clang::IdentifierInfo *id,
-                                        clang::QualType type) {
-  return clang::FunctionDecl::Create(
-      ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(),
-      clang::DeclarationName(id), type, nullptr, clang::SC_None, false);
-}
+// clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
+//                                         clang::DeclContext *decl_ctx,
+//                                         clang::IdentifierInfo *id,
+//                                         clang::QualType type) {
+//   return clang::FunctionDecl::Create(
+//       ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(),
+//       clang::DeclarationName(id), type, nullptr, clang::SC_None, false);
+// }
 
-clang::FieldDecl *CreateFieldDecl(clang::ASTContext &ctx,
-                                  clang::DeclContext *decl_ctx,
-                                  clang::IdentifierInfo *id,
-                                  clang::QualType type) {
-  return clang::FieldDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
-                                  clang::SourceLocation(), id, type,
-                                  /*TInfo=*/nullptr, /*BitWidth=*/nullptr,
-                                  /*Mutable=*/false, clang::ICIS_NoInit);
-}
+// clang::FieldDecl *CreateFieldDecl(clang::ASTContext &ctx,
+//                                   clang::DeclContext *decl_ctx,
+//                                   clang::IdentifierInfo *id,
+//                                   clang::QualType type) {
+//   return clang::FieldDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+//                                   clang::SourceLocation(), id, type,
+//                                   /*TInfo=*/nullptr, /*BitWidth=*/nullptr,
+//                                   /*Mutable=*/false, clang::ICIS_NoInit);
+// }
 
-clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
-                                    clang::DeclContext *decl_ctx,
-                                    clang::IdentifierInfo *id,
-                                    clang::RecordDecl *prev_decl) {
-  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Struct,
-                                   decl_ctx, clang::SourceLocation(),
-                                   clang::SourceLocation(), id, prev_decl);
-}
+// clang::RecordDecl *CreateStructDecl(clang::ASTContext &ctx,
+//                                     clang::DeclContext *decl_ctx,
+//                                     clang::IdentifierInfo *id,
+//                                     clang::RecordDecl *prev_decl) {
+//   return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Struct,
+//                                    decl_ctx, clang::SourceLocation(),
+//                                    clang::SourceLocation(), id, prev_decl);
+// }
 
 // clang::Expr *CreateFloatingLiteral(clang::ASTContext &ctx, llvm::APFloat val,
 //                                    clang::QualType type) {

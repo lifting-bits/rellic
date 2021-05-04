@@ -497,7 +497,6 @@ TEST_SUITE("ASTBuilder::CreateVarDecl") {
         CHECK(vardecl->hasGlobalStorage());
         CHECK(!vardecl->isStaticLocal());
         CHECK(vardecl->getName() == "my_var");
-        CHECK(tudecl->containsDecl(vardecl));
       }
     }
   }
@@ -517,7 +516,60 @@ TEST_SUITE("ASTBuilder::CreateVarDecl") {
         CHECK(vardecl->getType() == type);
         CHECK(vardecl->isLocalVarDecl());
         CHECK(vardecl->getName() == "my_var");
-        CHECK(fdecl->containsDecl(vardecl));
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateFunctionDecl") {
+  SCENARIO("Create a clang::FunctionDecl") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit("")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      THEN("return a function declaration void f(void)") {
+        auto type{ctx.getFunctionType(
+            ctx.VoidTy, {}, clang::FunctionProtoType::ExtProtoInfo())};
+        auto fdecl{ast.CreateFunctionDecl(tudecl, type, "f")};
+        REQUIRE(fdecl != nullptr);
+        CHECK(fdecl->getName() == "f");
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateStructDecl") {
+  SCENARIO("Create a clang::RecordDecl") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      THEN("return an empty structure s") {
+        auto record_decl{ast.CreateStructDecl(tudecl, "s")};
+        REQUIRE(record_decl != nullptr);
+        CHECK(record_decl->getName() == "s");
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateFieldDecl") {
+  SCENARIO("Create a clang::FieldDecl") {
+    GIVEN("Structure definition s") {
+      auto unit{GetASTUnit("struct s{};")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto record_decl{GetDecl<clang::RecordDecl>(tudecl, "s")};
+      REQUIRE(record_decl->field_empty());
+      THEN("return structure s with member int f") {
+        auto type{ctx.IntTy};
+        auto field_decl{ast.CreateFieldDecl(record_decl, type, "f")};
+        REQUIRE(field_decl != nullptr);
+        CHECK(field_decl->getType() == type);
+        CHECK(field_decl->getName() == "f");
       }
     }
   }
@@ -939,7 +991,7 @@ TEST_SUITE("ASTBuilder::CreateArraySub") {
       auto tudecl{ctx.getTranslationUnitDecl()};
       GIVEN("reference to a and a 1U literal") {
         auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
-        auto lit{ast.CreateIntLit(llvm::APInt(32, 1U))};
+        auto lit{ast.CreateIntLit(llvm::APInt(32U, 1U))};
         THEN("return a[1U]") {
           auto array_sub{ast.CreateArraySub(ref_a, lit)};
           CHECK(array_sub != nullptr);

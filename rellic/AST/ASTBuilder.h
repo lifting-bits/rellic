@@ -74,6 +74,16 @@ class ASTBuilder {
                                           std::string name) {
     return CreateFunctionDecl(decl_ctx, type, CreateIdentifier(name));
   }
+  // Function parameter declaration
+  clang::ParmVarDecl *CreateParamDecl(clang::DeclContext *decl_ctx,
+                                        clang::QualType type,
+                                        clang::IdentifierInfo *id);
+
+  clang::ParmVarDecl *CreateParamDecl(clang::DeclContext *decl_ctx,
+                                        clang::QualType type,
+                                        std::string name) {
+    return CreateParamDecl(decl_ctx, type, CreateIdentifier(name));
+  }
   // Structure declaration
   clang::RecordDecl *CreateStructDecl(clang::DeclContext *decl_ctx,
                                       clang::IdentifierInfo *id,

@@ -120,6 +120,18 @@ clang::FunctionDecl *ASTBuilder::CreateFunctionDecl(
       clang::SC_None, /*isInlineSpecified=*/false);
 }
 
+clang::ParmVarDecl *ASTBuilder::CreateParamDecl(clang::DeclContext *decl_ctx,
+                                                  clang::QualType type,
+                                                  clang::IdentifierInfo *id) {
+  // return clang::ParmVarDecl::Create(
+  //     ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id,
+  //     type, ctx.getTrivialTypeSourceInfo(type), clang::SC_None,
+  //     /*DefArg=*/nullptr);
+  return sema.CheckParameter(
+      decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id, type,
+      ctx.getTrivialTypeSourceInfo(type), clang::SC_None);
+}
+
 clang::RecordDecl *ASTBuilder::CreateStructDecl(clang::DeclContext *decl_ctx,
                                                 clang::IdentifierInfo *id,
                                                 clang::RecordDecl *prev_decl) {

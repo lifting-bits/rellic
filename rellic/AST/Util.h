@@ -66,10 +66,10 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx);
 //                               clang::DeclContext *decl_ctx,
 //                               clang::IdentifierInfo *id, clang::QualType type);
 
-clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
-                                      clang::DeclContext *decl_ctx,
-                                      clang::IdentifierInfo *id,
-                                      clang::QualType type);
+// clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
+//                                       clang::DeclContext *decl_ctx,
+//                                       clang::IdentifierInfo *id,
+//                                       clang::QualType type);
 
 // clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
 //                                         clang::DeclContext *decl_ctx,

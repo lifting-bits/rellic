@@ -98,10 +98,9 @@ bool CXXToCDeclVisitor::VisitFunctionDecl(clang::FunctionDecl *cxx_func) {
   // Declare parameters
   std::vector<clang::ParmVarDecl *> param_decls;
   for (auto cxx_param : cxx_func->parameters()) {
-    auto param_id = CreateIdentifier(ast_ctx, cxx_param->getNameAsString());
-    auto param_type = GetAsCType(cxx_param->getType());
     param_decls.push_back(
-        CreateParmVarDecl(ast_ctx, func_decl, param_id, param_type));
+        ast.CreateParamDecl(func_decl, GetAsCType(cxx_param->getType()),
+                              cxx_param->getNameAsString()));
   }
   // Set C function parameters
   func_decl->setParams(param_decls);
@@ -144,8 +143,7 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
   auto func_decl =
       ast.CreateFunctionDecl(c_tu, func_type, old_func->getIdentifier());
   // Declare parameters
-  auto this_id = CreateIdentifier(ast_ctx, "this");
-  auto this_decl = CreateParmVarDecl(ast_ctx, func_decl, this_id, this_type);
+  auto this_decl = ast.CreateParamDecl(func_decl, this_type, "this");
   std::vector<clang::ParmVarDecl *> param_decls({this_decl});
   param_decls.insert(param_decls.end(), old_func->param_begin(),
                      old_func->param_end());

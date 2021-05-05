@@ -502,8 +502,8 @@ TEST_SUITE("ASTBuilder::CreateVarDecl") {
   }
 
   SCENARIO("Create a function local clang::VarDecl") {
-    GIVEN("Function definition f") {
-      auto unit{GetASTUnit("void f(){};")};
+    GIVEN("Function definition void f(){}") {
+      auto unit{GetASTUnit("void f(){}")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{ctx.getTranslationUnitDecl()};
@@ -528,12 +528,31 @@ TEST_SUITE("ASTBuilder::CreateFunctionDecl") {
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       auto tudecl{ctx.getTranslationUnitDecl()};
-      THEN("return a function declaration void f(void)") {
+      THEN("return a function declaration void f()") {
         auto type{ctx.getFunctionType(
             ctx.VoidTy, {}, clang::FunctionProtoType::ExtProtoInfo())};
         auto fdecl{ast.CreateFunctionDecl(tudecl, type, "f")};
         REQUIRE(fdecl != nullptr);
         CHECK(fdecl->getName() == "f");
+        CHECK(fdecl->getType() == type);
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateParamDecl") {
+  SCENARIO("Create a clang::ParmVarDecl") {
+    GIVEN("Function definition void f(){}") {
+      auto unit{GetASTUnit("void f(){}")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto fdecl{GetDecl<clang::FunctionDecl>(tudecl, "f")};
+      THEN("return a parameter declaration p of void f(int p){}") {
+        auto pdecl{ast.CreateParamDecl(fdecl, ctx.IntTy, "p")};
+        REQUIRE(pdecl != nullptr);
+        CHECK(pdecl->getName() == "p");
+        CHECK(pdecl->getType() == ctx.IntTy);
       }
     }
   }

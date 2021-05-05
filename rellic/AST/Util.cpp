@@ -168,14 +168,14 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx) {
 //                                 clang::SC_None);
 // }
 
-clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
-                                      clang::DeclContext *decl_ctx,
-                                      clang::IdentifierInfo *id,
-                                      clang::QualType type) {
-  return clang::ParmVarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
-                                    clang::SourceLocation(), id, type, nullptr,
-                                    clang::SC_None, nullptr);
-}
+// clang::ParmVarDecl *CreateParmVarDecl(clang::ASTContext &ctx,
+//                                       clang::DeclContext *decl_ctx,
+//                                       clang::IdentifierInfo *id,
+//                                       clang::QualType type) {
+//   return clang::ParmVarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+//                                     clang::SourceLocation(), id, type, nullptr,
+//                                     clang::SC_None, nullptr);
+// }
 
 // clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
 //                                         clang::DeclContext *decl_ctx,

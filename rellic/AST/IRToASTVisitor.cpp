@@ -367,8 +367,7 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   auto func = arg.getParent();
   auto fdecl = clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func));
   // Create a declaration
-  parm = CreateParmVarDecl(ast_ctx, fdecl, CreateIdentifier(ast_ctx, name),
-                           GetQualType(arg.getType()));
+  parm = ast.CreateParamDecl(fdecl, GetQualType(arg.getType()), name);
 }
 
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {

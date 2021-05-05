@@ -69,11 +69,13 @@ The next step is to clone the Rellic repository.
 git clone https://github.com/trailofbits/rellic.git
 ```
 
-Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be downloaded and placed in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details).
+Finally, we build and package Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be downloaded and placed in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details). This script also creates installable deb, rpm, and tgz packages.
 
 ```shell
 cd rellic
 ./scripts/build.sh --llvm-version 11
+# to install the deb package, then do:
+sudo dpkg -i rellic-build/*.deb
 ```
 
 To try out Rellic you can do the following, given a LLVM bitcode file of your choice.

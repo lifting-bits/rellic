@@ -28,7 +28,7 @@ LLVM_VERSION=llvm-11
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
-CXX_COMMON_VERSION="v0.1.3"
+INSTALL_ONLY="no"
 
 # There are pre-build versions of various libraries for specific
 # Ubuntu releases.
@@ -103,7 +103,7 @@ function GetArchVersion
 function DownloadVcpkgLibraries
 {
   local GITHUB_LIBS="${LIBRARY_VERSION}.tar.xz"
-  local URL="https://github.com/trailofbits/cxx-common/releases/download/${CXX_COMMON_VERSION}/${GITHUB_LIBS}"
+  local URL="https://github.com/trailofbits/cxx-common/releases/latest/download/${GITHUB_LIBS}"
 
   mkdir -p "${DOWNLOAD_DIR}"
   pushd "${DOWNLOAD_DIR}" || return 1
@@ -263,6 +263,20 @@ function Build
   return $?
 }
 
+#Install only
+function Install
+{
+  (
+    set -x
+
+    cmake --build . \
+      --target install
+
+  ) || return $?
+
+  return $?
+}
+
 # Create the packages
 function Package
 {
@@ -334,6 +348,7 @@ function Help
   echo "  --build-dir        Change the default (${BUILD_DIR}) build directory."
   echo "  --debug            Build with Debug symbols."
   echo "  --extra-cmake-args Extra CMake arguments to build with."
+  echo "  --install          Just install Rellic, do not package it."
   echo "  -h --help          Print help."
 }
 
@@ -390,6 +405,12 @@ function main
         echo "[+] Enabling a debug build of rellic"
       ;;
 
+      # Only install, do not pakage
+      --install)
+        INSTALL_ONLY="yes"
+        echo "[+] Installing rellic. No packaging will be done."
+      ;;
+
       --extra-cmake-args)
         BUILD_FLAGS="${BUILD_FLAGS} ${2}"
         echo "[+] Will supply additional arguments to cmake: ${BUILD_FLAGS}"
@@ -409,9 +430,20 @@ function main
   mkdir -p "${BUILD_DIR}"
   cd "${BUILD_DIR}" || exit 1
 
-  if ! (DownloadLibraries && Configure && Build && Package); then
+  if ! (DownloadLibraries && Configure && Build); then
     echo "[x] Build aborted."
     exit 1
+  fi
+
+  if [[ "${INSTALL_ONLY}" = "yes" ]]
+  then
+    if ! Install; then
+      echo "[x] Installation Failed"
+    fi
+  else
+    if ! Package; then
+      echo "[x] Packaging Failed"
+    fi
   fi
 
   return $?

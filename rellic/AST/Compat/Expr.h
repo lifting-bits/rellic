@@ -17,14 +17,14 @@ namespace rellic {
 //                                           clang::Expr *expr,
 //                                           clang::QualType res_type);
 
-clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
-                                            clang::BinaryOperatorKind opc,
-                                            clang::Expr *lhs, clang::Expr *rhs,
-                                            clang::QualType res_type);
+// clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
+//                                             clang::BinaryOperatorKind opc,
+//                                             clang::Expr *lhs, clang::Expr *rhs,
+//                                             clang::QualType res_type);
 
-clang::Expr *CreateCallExpr(clang::ASTContext &ctx, clang::Expr *func,
-                            std::vector<clang::Expr *> &args,
-                            clang::QualType res_type);
+// clang::Expr *CreateCallExpr(clang::ASTContext &ctx, clang::Expr *func,
+//                             std::vector<clang::Expr *> &args,
+//                             clang::QualType res_type);
 
 clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                               clang::ValueDecl *member, clang::QualType type,

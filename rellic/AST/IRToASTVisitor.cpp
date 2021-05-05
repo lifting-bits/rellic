@@ -437,8 +437,6 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     return;
   }
 
-  auto type = GetQualType(inst.getType());
-
   std::vector<clang::Expr *> args;
   for (auto &arg : inst.arg_operands()) {
     auto expr = GetOperandExpr(arg);
@@ -448,24 +446,15 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     args.push_back(cast);
   }
 
-  auto callee = inst.getCalledOperand();
+  auto callee{inst.getCalledOperand()};
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
-    auto decl = GetOrCreateDecl(func)->getAsFunction();
-    auto ptr = ast_ctx.getPointerType(decl->getType());
-    auto ref{ast.CreateDeclRef(decl)};
-    auto cast = CreateImplicitCastExpr(ast_ctx, ptr,
-                                       clang::CK_FunctionToPointerDecay, ref);
-    callexpr = CreateCallExpr(ast_ctx, cast, args, type);
+    auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
+    callexpr = ast.CreateCall(fdecl, args);
   } else if (auto iasm = llvm::dyn_cast<llvm::InlineAsm>(callee)) {
-    auto decl = GetOrCreateIntrinsic(iasm)->getAsFunction();
-    auto ptr = ast_ctx.getPointerType(decl->getType());
-    auto ref{ast.CreateDeclRef(decl)};
-    auto cast = CreateImplicitCastExpr(ast_ctx, ptr,
-                                       clang::CK_FunctionToPointerDecay, ref);
-    callexpr = CreateCallExpr(ast_ctx, cast, args, type);
+    auto fdecl{GetOrCreateIntrinsic(iasm)->getAsFunction()};
+    callexpr = ast.CreateCall(fdecl, args);
   } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
-    auto ptr = GetOperandExpr(callee);
-    callexpr = CreateCallExpr(ast_ctx, ptr, args, type);
+    callexpr = ast.CreateCall(GetOperandExpr(callee), args);
   } else {
     LOG(FATAL) << "Callee is not a function";
   }

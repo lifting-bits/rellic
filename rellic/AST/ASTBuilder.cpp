@@ -121,12 +121,8 @@ clang::FunctionDecl *ASTBuilder::CreateFunctionDecl(
 }
 
 clang::ParmVarDecl *ASTBuilder::CreateParamDecl(clang::DeclContext *decl_ctx,
-                                                  clang::QualType type,
-                                                  clang::IdentifierInfo *id) {
-  // return clang::ParmVarDecl::Create(
-  //     ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id,
-  //     type, ctx.getTrivialTypeSourceInfo(type), clang::SC_None,
-  //     /*DefArg=*/nullptr);
+                                                clang::QualType type,
+                                                clang::IdentifierInfo *id) {
   return sema.CheckParameter(
       decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id, type,
       ctx.getTrivialTypeSourceInfo(type), clang::SC_None);
@@ -199,11 +195,20 @@ clang::BinaryOperator *ASTBuilder::CreateBinaryOp(clang::BinaryOperatorKind opc,
 
 clang::ArraySubscriptExpr *ASTBuilder::CreateArraySub(clang::Expr *base,
                                                       clang::Expr *idx) {
-  CHECK(base && idx) << "Should not be null in CreateBinaryOp.";
+  CHECK(base && idx) << "Should not be null in CreateArraySub.";
   auto er{sema.CreateBuiltinArraySubscriptExpr(base, clang::SourceLocation(),
                                                idx, clang::SourceLocation())};
   CHECK(er.isUsable());
   return er.getAs<clang::ArraySubscriptExpr>();
+}
+
+clang::CallExpr *ASTBuilder::CreateCall(clang::Expr *func,
+                                        std::vector<clang::Expr *> &args) {
+  CHECK(func) << "Should not be null in CreateCall.";
+  auto er{sema.BuildCallExpr(/*Scope=*/nullptr, func, clang::SourceLocation(),
+                             args, clang::SourceLocation())};
+  CHECK(er.isUsable());
+  return er.getAs<clang::CallExpr>();
 }
 
 }  // namespace rellic

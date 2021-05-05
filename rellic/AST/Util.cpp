@@ -109,14 +109,14 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 //   return op;
 // }
 
-clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
-                                        std::string name) {
-  std::string str = "";
-  for (auto chr : name) {
-    str.push_back(std::isalnum(chr) ? chr : '_');
-  }
-  return &ctx.Idents.get(str);
-}
+// clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
+//                                         std::string name) {
+//   std::string str = "";
+//   for (auto chr : name) {
+//     str.push_back(std::isalnum(chr) ? chr : '_');
+//   }
+//   return &ctx.Idents.get(str);
+// }
 
 // clang::DeclRefExpr *CreateDeclRefExpr(clang::ASTContext &ctx,
 //                                       clang::ValueDecl *val) {

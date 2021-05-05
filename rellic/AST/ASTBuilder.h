@@ -76,12 +76,11 @@ class ASTBuilder {
   }
   // Function parameter declaration
   clang::ParmVarDecl *CreateParamDecl(clang::DeclContext *decl_ctx,
-                                        clang::QualType type,
-                                        clang::IdentifierInfo *id);
+                                      clang::QualType type,
+                                      clang::IdentifierInfo *id);
 
   clang::ParmVarDecl *CreateParamDecl(clang::DeclContext *decl_ctx,
-                                        clang::QualType type,
-                                        std::string name) {
+                                      clang::QualType type, std::string name) {
     return CreateParamDecl(decl_ctx, type, CreateIdentifier(name));
   }
   // Structure declaration
@@ -210,9 +209,17 @@ class ASTBuilder {
   clang::BinaryOperator *CreateAssign(clang::Expr *lhs, clang::Expr *rhs) {
     return CreateBinaryOp(clang::BO_Assign, lhs, rhs);
   }
-
+  // Array access
   clang::ArraySubscriptExpr *CreateArraySub(clang::Expr *base,
                                             clang::Expr *idx);
+  // Calls
+  clang::CallExpr *CreateCall(clang::Expr *func,
+                              std::vector<clang::Expr *> &args);
+
+  clang::CallExpr *CreateCall(clang::FunctionDecl *func,
+                              std::vector<clang::Expr *> &args) {
+    return CreateCall(CreateDeclRef(func), args);
+  }
 };
 
 }  // namespace rellic

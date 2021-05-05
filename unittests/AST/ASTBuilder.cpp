@@ -1011,9 +1011,36 @@ TEST_SUITE("ASTBuilder::CreateArraySub") {
       GIVEN("reference to a and a 1U literal") {
         auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
         auto lit{ast.CreateIntLit(llvm::APInt(32U, 1U))};
+        REQUIRE(lit != nullptr);
         THEN("return a[1U]") {
           auto array_sub{ast.CreateArraySub(ref_a, lit)};
           CHECK(array_sub != nullptr);
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateCall") {
+  SCENARIO("Create call operations") {
+    GIVEN("Function declaration void f(int a, int b);") {
+      auto unit{GetASTUnit("void f(int a, int b);")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto func{GetDeclRef<clang::FunctionDecl>(ast, tudecl, "f")};
+      GIVEN("integer literals 4U and 1U") {
+        auto lit_4{ast.CreateIntLit(llvm::APInt(32U, 4U))};
+        auto lit_1{ast.CreateIntLit(llvm::APInt(32U, 1U))};
+        REQUIRE(lit_4 != nullptr);
+        REQUIRE(lit_1 != nullptr);
+        THEN("return f(4U, 1U)") {
+          std::vector<clang::Expr *> args{lit_4, lit_1};
+          auto call{ast.CreateCall(func, args)};
+          CHECK(call != nullptr);
+          CHECK(call->getCallee()->IgnoreImpCasts() == func);
+          CHECK(call->getArg(0)->IgnoreImpCasts() == lit_4);
+          CHECK(call->getArg(1)->IgnoreImpCasts() == lit_1);
         }
       }
     }

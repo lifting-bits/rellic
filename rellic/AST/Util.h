@@ -41,8 +41,8 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 // clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
 //                          clang::Expr *op);
 
-clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
-                                        std::string name);
+// clang::IdentifierInfo *CreateIdentifier(clang::ASTContext &ctx,
+//                                         std::string name);
 
 clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                             clang::Stmt *body);

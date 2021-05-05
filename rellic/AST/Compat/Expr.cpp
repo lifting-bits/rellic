@@ -31,37 +31,37 @@ namespace rellic {
 // #endif
 // }
 
-clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
-                                            clang::BinaryOperatorKind opc,
-                                            clang::Expr *lhs, clang::Expr *rhs,
-                                            clang::QualType res_type) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
-  return clang::BinaryOperator::Create(
-      ast_ctx, lhs, rhs, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
-      clang::SourceLocation(), clang::FPOptionsOverride());
-#elif LLVM_VERSION_NUMBER >= LLVM_VERSION(5, 0)
-  return new (ast_ctx) clang::BinaryOperator(
-      lhs, rhs, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
-      clang::SourceLocation(), clang::FPOptions());
-#else
-  return new (ast_ctx)
-      clang::BinaryOperator(lhs, rhs, opc, res_type, clang::VK_RValue,
-                            clang::OK_Ordinary, clang::SourceLocation(),
-                            /*fpContractable=*/false);
-#endif
-}
+// clang::BinaryOperator *CreateBinaryOperator(clang::ASTContext &ast_ctx,
+//                                             clang::BinaryOperatorKind opc,
+//                                             clang::Expr *lhs, clang::Expr *rhs,
+//                                             clang::QualType res_type) {
+// #if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
+//   return clang::BinaryOperator::Create(
+//       ast_ctx, lhs, rhs, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
+//       clang::SourceLocation(), clang::FPOptionsOverride());
+// #elif LLVM_VERSION_NUMBER >= LLVM_VERSION(5, 0)
+//   return new (ast_ctx) clang::BinaryOperator(
+//       lhs, rhs, opc, res_type, clang::VK_RValue, clang::OK_Ordinary,
+//       clang::SourceLocation(), clang::FPOptions());
+// #else
+//   return new (ast_ctx)
+//       clang::BinaryOperator(lhs, rhs, opc, res_type, clang::VK_RValue,
+//                             clang::OK_Ordinary, clang::SourceLocation(),
+//                             /*fpContractable=*/false);
+// #endif
+// }
 
-clang::Expr *CreateCallExpr(clang::ASTContext &ctx, clang::Expr *func,
-                            std::vector<clang::Expr *> &args,
-                            clang::QualType res_type) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
-  return clang::CallExpr::Create(ctx, func, args, res_type, clang::VK_RValue,
-                                 clang::SourceLocation());
-#else
-  return new (ctx) clang::CallExpr(ctx, func, args, res_type, clang::VK_RValue,
-                                   clang::SourceLocation());
-#endif
-}
+// clang::Expr *CreateCallExpr(clang::ASTContext &ctx, clang::Expr *func,
+//                             std::vector<clang::Expr *> &args,
+//                             clang::QualType res_type) {
+// #if LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
+//   return clang::CallExpr::Create(ctx, func, args, res_type, clang::VK_RValue,
+//                                  clang::SourceLocation());
+// #else
+//   return new (ctx) clang::CallExpr(ctx, func, args, res_type, clang::VK_RValue,
+//                                    clang::SourceLocation());
+// #endif
+// }
 
 clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
                               clang::ValueDecl *member, clang::QualType type,

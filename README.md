@@ -73,7 +73,7 @@ Finally, we build and package Rellic. This script will create another directory,
 
 ```shell
 cd rellic
-./scripts/build-and-package.sh --llvm-version 11
+./scripts/build.sh --llvm-version 11
 # to install the deb package, then do:
 sudo dpkg -i rellic-build/*.deb
 ```

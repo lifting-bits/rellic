@@ -33,9 +33,9 @@ ENV PATH="${LIBRARIES}/llvm/bin/:${LIBRARIES}/cmake/bin:${PATH}"
 
 WORKDIR /rellic
 COPY ./ ./
-# The reason we use the package script
+# The reason we don't use --install
 # is so that container has the same exact code as the packages
-RUN ./scripts/build-and-package.sh \
+RUN ./scripts/build.sh \
   --llvm-version ${LLVM_VERSION} \
   --prefix /opt/trailofbits \
   --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"

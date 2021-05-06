@@ -1046,3 +1046,26 @@ TEST_SUITE("ASTBuilder::CreateCall") {
     }
   }
 }
+
+TEST_SUITE("ASTBuilder::CreateFieldAcc") {
+  SCENARIO("Create structure field access operations") {
+    GIVEN("Structure declaration struct pair{int a; int b;}; struct pair p;") {
+      auto unit{GetASTUnit("struct pair{int a; int b;}; struct pair p;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto ref{GetDeclRef<clang::VarDecl>(ast, tudecl, "p")};
+      auto sdecl{GetDecl<clang::RecordDecl>(tudecl, "pair")};
+      THEN("return p.a") {
+        auto field_a{GetDecl<clang::FieldDecl>(sdecl, "a")};
+        auto member{ast.CreateDot(ref, field_a)};
+        CHECK(member != nullptr);
+      }
+      THEN("return (&p)->b") {
+        auto field_b{GetDecl<clang::FieldDecl>(sdecl, "b")};
+        auto member{ast.CreateArrow(ast.CreateAddrOf(ref), field_b)};
+        CHECK(member != nullptr);
+      }
+    }
+  }
+}

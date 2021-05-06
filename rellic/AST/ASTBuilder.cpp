@@ -211,4 +211,19 @@ clang::CallExpr *ASTBuilder::CreateCall(clang::Expr *func,
   return er.getAs<clang::CallExpr>();
 }
 
+clang::MemberExpr *ASTBuilder::CreateFieldAcc(clang::Expr *base,
+                                              clang::FieldDecl *field,
+                                              bool is_arrow) {
+  CHECK(base && field) << "Should not be null in CreateFieldAcc.";
+  CHECK(!is_arrow || base->getType()->isPointerType())
+      << "Base operand in arrow operator must be a pointer!";
+  clang::CXXScopeSpec ss;
+  auto dap{clang::DeclAccessPair::make(field, field->getAccess())};
+  auto er{sema.BuildFieldReferenceExpr(base, is_arrow, clang::SourceLocation(),
+                                       ss, field, dap,
+                                       clang::DeclarationNameInfo())};
+  CHECK(er.isUsable());
+  return er.getAs<clang::MemberExpr>();
+}
+
 }  // namespace rellic

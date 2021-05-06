@@ -1059,9 +1059,10 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
         CHECK(base_type) << "Operand is not a clang::PointerType";
         c_op = ast.CreateArraySub(lhs, rhs);
       } else if (name == "Member") {
-        auto mem = GetCValDecl(z_op.arg(1).decl());
-        c_op = CreateMemberExpr(*ast_ctx, lhs, mem, mem->getType(),
-                                /*is_arrow=*/false);
+        auto mem{GetCValDecl(z_op.arg(1).decl())};
+        auto field{clang::dyn_cast<clang::FieldDecl>(mem)};
+        CHECK(field != nullptr) << "Operand is not a clang::FieldDecl";
+        c_op = ast.CreateDot(lhs, field);
       } else if (name == "IntToPtr" || name == "BitCast") {
         c_op = ast.CreateCStyleCast(GetTypeFromOpaquePtrLiteral(), rhs);
       } else {

@@ -164,14 +164,16 @@ class MemberExprAddrOfRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    auto &ctx{unit.getASTContext()};
-    auto arrow = clang::cast<clang::MemberExpr>(stmt);
+    ASTBuilder ast(unit);
+    auto arrow{clang::cast<clang::MemberExpr>(stmt)};
     CHECK(arrow == match)
         << "Substituted MemberExpr is not the matched MemberExpr!";
-    auto base = arrow->getBase()->IgnoreParenCasts();
-    auto addr_of = clang::cast<clang::UnaryOperator>(base);
-    return CreateMemberExpr(ctx, addr_of->getSubExpr(), arrow->getMemberDecl(),
-                            arrow->getType());
+    auto base{arrow->getBase()->IgnoreParenCasts()};
+    auto addr_of{clang::cast<clang::UnaryOperator>(base)};
+    auto field{clang::dyn_cast<clang::FieldDecl>(arrow->getMemberDecl())};
+    CHECK(field != nullptr)
+        << "Substituted MemberExpr is not a structure field access!";
+    return ast.CreateDot(addr_of->getSubExpr(), field);
   }
 };
 

@@ -220,6 +220,17 @@ class ASTBuilder {
                               std::vector<clang::Expr *> &args) {
     return CreateCall(CreateDeclRef(func), args);
   }
+  // Structure field access
+  clang::MemberExpr *CreateFieldAcc(clang::Expr *base, clang::FieldDecl *field,
+                                    bool is_arrow);
+
+  clang::MemberExpr *CreateDot(clang::Expr *base, clang::FieldDecl *field) {
+    return CreateFieldAcc(base, field, /*is_arrow=*/false);
+  }
+
+  clang::MemberExpr *CreateArrow(clang::Expr *base, clang::FieldDecl *field) {
+    return CreateFieldAcc(base, field, /*is_arrow=*/true);
+  }
 };
 
 }  // namespace rellic

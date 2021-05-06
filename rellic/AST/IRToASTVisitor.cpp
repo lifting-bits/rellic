@@ -486,8 +486,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     auto field_it = record->field_begin();
     std::advance(field_it, mem_idx->getLimitedValue());
     CHECK(field_it != record->field_end()) << "GEP index is out of bounds";
-    base = CreateMemberExpr(ast_ctx, base, *field_it, field_it->getType(),
-                            /*is_arrow=*/false);
+    base = ast.CreateDot(base, *field_it);
   };
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
@@ -552,8 +551,7 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
     std::advance(field_it, ev_idx);
     CHECK(field_it != record->field_end())
         << "ExtractValue index is out of bounds";
-    base = CreateMemberExpr(ast_ctx, base, *field_it, field_it->getType(),
-                            /*is_arrow=*/false);
+    base = ast.CreateFieldAcc(base, *field_it, /*is_arrow=*/false);
   };
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {

@@ -107,9 +107,9 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
 // clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
 //                                       clang::Expr *idx, clang::QualType type);
 
-clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
-                              clang::ValueDecl *member, clang::QualType type,
-                              bool is_arrow = false);
+// clang::Expr *CreateMemberExpr(clang::ASTContext &ctx, clang::Expr *base,
+//                               clang::ValueDecl *member, clang::QualType type,
+//                               bool is_arrow = false);
 
 // clang::Expr *CreateNullPointerExpr(clang::ASTContext &ctx);
 

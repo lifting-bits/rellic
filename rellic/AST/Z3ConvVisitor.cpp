@@ -408,12 +408,11 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
       z_cast = z3_ctx->function("PtrDecay", s_arr, s_ptr)(z_sub);
     } break;
 
-    case clang::CastKind::CK_IntegralCast:
-      break;
-
     case clang::CastKind::CK_NoOp:
     case clang::CastKind::CK_NullToPointer:
     case clang::CastKind::CK_LValueToRValue:
+    // case clang::CastKind::CK_ArrayToPointerDecay:
+    case clang::CastKind::CK_IntegralCast:
       break;
 
     case clang::CastKind::CK_BitCast: {
@@ -869,7 +868,6 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       << "Z3 expression is not a unary operator!";
   // Get operand
   auto c_sub = GetCExpr(z_op.arg(0));
-  auto t_sub = c_sub->getType();
   // Get z3 function declaration
   auto z_func = z_op.decl();
   // Create C unary operator
@@ -923,16 +921,11 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         c_op = ast.CreateDeref(c_sub);
       } else if (z_func_name == "Paren") {
         c_op = ast.CreateParen(c_sub);
-      } else if (z_func_name == "PtrDecay") {
-        CHECK(t_sub->isArrayType()) << "PtrDecay operand type is not an array";
-        auto t_op = ast_ctx->getArrayDecayedType(t_sub);
-        c_op = CreateImplicitCastExpr(
-            *ast_ctx, t_op, clang::CastKind::CK_ArrayToPointerDecay, c_sub);
       } else if (z_func_name == "PtrToInt") {
-        auto s_size = GetZ3SortSize(z_op);
-        auto t_op = ast_ctx->getIntTypeForBitwidth(s_size, /*sign=*/0);
+        auto s_size{GetZ3SortSize(z_op)};
+        auto t_op{ast_ctx->getIntTypeForBitwidth(s_size, /*sign=*/0)};
         c_op = ast.CreateCStyleCast(t_op, c_sub);
-      } else if (z_func_name == "BoolToBV") {
+      } else if (z_func_name == "BoolToBV" || z_func_name == "PtrDecay") {
         c_op = c_sub;
       } else {
         LOG(FATAL) << "Unknown Z3 uninterpreted unary function: "
@@ -1055,8 +1048,6 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       auto name{z_func.name().str()};
       // Resolve opcode
       if (name == "ArraySub") {
-        auto base_type = lhs->getType()->getAs<clang::PointerType>();
-        CHECK(base_type) << "Operand is not a clang::PointerType";
         c_op = ast.CreateArraySub(lhs, rhs);
       } else if (name == "Member") {
         auto mem{GetCValDecl(z_op.arg(1).decl())};

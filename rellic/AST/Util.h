@@ -120,9 +120,9 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
 
 // clang::Stmt *CreateDeclStmt(clang::ASTContext &ctx, clang::Decl *decl);
 
-clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
-                                    clang::QualType type, clang::CastKind cast,
-                                    clang::Expr *op);
+// clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
+//                                     clang::QualType type, clang::CastKind cast,
+//                                     clang::Expr *op);
 
 clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
                                            clang::Expr *cond, clang::Expr *lhs,

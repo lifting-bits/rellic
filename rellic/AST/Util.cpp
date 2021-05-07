@@ -275,12 +275,12 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
 //                       clang::SourceLocation());
 // }
 
-clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
-                                    clang::QualType type, clang::CastKind cast,
-                                    clang::Expr *op) {
-  return clang::ImplicitCastExpr::Create(ctx, type, cast, op, nullptr,
-                                         clang::VK_RValue);
-}
+// clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
+//                                     clang::QualType type, clang::CastKind cast,
+//                                     clang::Expr *op) {
+//   return clang::ImplicitCastExpr::Create(ctx, type, cast, op, nullptr,
+//                                          clang::VK_RValue);
+// }
 
 clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
                                            clang::Expr *cond, clang::Expr *lhs,

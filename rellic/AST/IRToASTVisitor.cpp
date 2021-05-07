@@ -439,11 +439,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
 
   std::vector<clang::Expr *> args;
   for (auto &arg : inst.arg_operands()) {
-    auto expr = GetOperandExpr(arg);
-    auto type = expr->getType();
-    auto cast =
-        CreateImplicitCastExpr(ast_ctx, type, clang::CK_LValueToRValue, expr);
-    args.push_back(cast);
+    args.push_back(GetOperandExpr(arg));
   }
 
   auto callee{inst.getCalledOperand()};
@@ -467,27 +463,8 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     return;
   }
 
-  auto indexed_type = inst.getPointerOperandType();
-  auto base = GetOperandExpr(inst.getPointerOperand());
-
-  auto IndexPtr = [&](llvm::Value &gep_idx) {
-    auto base_type = base->getType();
-    CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
-    auto idx = GetOperandExpr(&gep_idx);
-    base = ast.CreateArraySub(base, idx);
-  };
-
-  auto IndexStruct = [&](llvm::Value &gep_idx) {
-    auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(&gep_idx);
-    CHECK(mem_idx) << "Non-constant GEP index while indexing a structure";
-    auto tdecl = type_decls[indexed_type];
-    CHECK(tdecl) << "Structure declaration doesn't exist";
-    auto record = clang::cast<clang::RecordDecl>(tdecl);
-    auto field_it = record->field_begin();
-    std::advance(field_it, mem_idx->getLimitedValue());
-    CHECK(field_it != record->field_end()) << "GEP index is out of bounds";
-    base = ast.CreateDot(base, *field_it);
-  };
+  auto indexed_type{inst.getPointerOperandType()};
+  auto base{GetOperandExpr(inst.getPointerOperand())};
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {
@@ -495,22 +472,27 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
       case llvm::Type::PointerTyID: {
         CHECK(idx == *inst.idx_begin())
             << "Indexing an llvm::PointerType is only valid at first index";
-        IndexPtr(*idx);
+        base = ast.CreateArraySub(base, GetOperandExpr(idx));
         indexed_type =
             llvm::cast<llvm::PointerType>(indexed_type)->getElementType();
       } break;
       // Arrays
       case llvm::Type::ArrayTyID: {
-        base = CreateImplicitCastExpr(
-            ast_ctx, ast_ctx.getArrayDecayedType(base->getType()),
-            clang::CK_ArrayToPointerDecay, base);
-        IndexPtr(*idx);
+        base = ast.CreateArraySub(base, GetOperandExpr(idx));
         indexed_type =
             llvm::cast<llvm::ArrayType>(indexed_type)->getElementType();
       } break;
       // Structures
       case llvm::Type::StructTyID: {
-        IndexStruct(*idx);
+        auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(idx);
+        CHECK(mem_idx) << "Non-constant GEP index while indexing a structure";
+        auto tdecl = type_decls[indexed_type];
+        CHECK(tdecl) << "Structure declaration doesn't exist";
+        auto record = clang::cast<clang::RecordDecl>(tdecl);
+        auto field_it = record->field_begin();
+        std::advance(field_it, mem_idx->getLimitedValue());
+        CHECK(field_it != record->field_end()) << "GEP index is out of bounds";
+        base = ast.CreateDot(base, *field_it);
         indexed_type =
             llvm::cast<llvm::StructType>(indexed_type)->getTypeAtIndex(idx);
       } break;
@@ -533,41 +515,28 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
     return;
   }
 
-  auto base = GetOperandExpr(inst.getAggregateOperand());
-  auto indexed_type = inst.getAggregateOperand()->getType();
-
-  auto IndexPtr = [&](unsigned ev_idx) {
-    auto base_type = base->getType();
-    CHECK(base_type->isPointerType()) << "Operand is not a clang::PointerType";
-    auto idx{ast.CreateIntLit(llvm::APInt(sizeof(unsigned) * 8U, ev_idx))};
-    base = ast.CreateArraySub(base, idx);
-  };
-
-  auto IndexStruct = [&](unsigned ev_idx) {
-    auto tdecl = type_decls[indexed_type];
-    CHECK(tdecl) << "Structure declaration doesn't exist";
-    auto record = clang::cast<clang::RecordDecl>(tdecl);
-    auto field_it = record->field_begin();
-    std::advance(field_it, ev_idx);
-    CHECK(field_it != record->field_end())
-        << "ExtractValue index is out of bounds";
-    base = ast.CreateFieldAcc(base, *field_it, /*is_arrow=*/false);
-  };
+  auto base{GetOperandExpr(inst.getAggregateOperand())};
+  auto indexed_type{inst.getAggregateOperand()->getType()};
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {
       // Arrays
       case llvm::Type::ArrayTyID: {
-        base = CreateImplicitCastExpr(
-            ast_ctx, ast_ctx.getArrayDecayedType(base->getType()),
-            clang::CK_ArrayToPointerDecay, base);
-        IndexPtr(idx);
+        base = ast.CreateArraySub(
+            base, ast.CreateIntLit(llvm::APInt(sizeof(unsigned) * 8U, idx)));
         indexed_type =
             llvm::cast<llvm::ArrayType>(indexed_type)->getElementType();
       } break;
       // Structures
       case llvm::Type::StructTyID: {
-        IndexStruct(idx);
+        auto tdecl = type_decls[indexed_type];
+        CHECK(tdecl) << "Structure declaration doesn't exist";
+        auto record = clang::cast<clang::RecordDecl>(tdecl);
+        auto field_it = record->field_begin();
+        std::advance(field_it, idx);
+        CHECK(field_it != record->field_end())
+            << "ExtractValue index is out of bounds";
+        base = ast.CreateDot(base, *field_it);
         indexed_type =
             llvm::cast<llvm::StructType>(indexed_type)->getTypeAtIndex(idx);
       } break;

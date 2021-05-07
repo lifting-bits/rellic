@@ -24,6 +24,9 @@ jobs:
         llvm: ["11"]
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: true
+
     - name: Run against ${{ matrix.llvm }}
       run: |
         tests/lifting-tools-ci/run-do-droplet.py \ 

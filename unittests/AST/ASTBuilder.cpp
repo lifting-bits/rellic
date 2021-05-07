@@ -1093,3 +1093,26 @@ TEST_SUITE("ASTBuilder::CreateFieldAcc") {
     }
   }
 }
+
+TEST_SUITE("ASTBuilder::CreateInitList") {
+  SCENARIO("Create initializer list expression") {
+    GIVEN("Global variables int a; short b; char c;") {
+      auto unit{GetASTUnit("int a; short b; char c;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      GIVEN("references to a, b and c") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        auto ref_b{GetDeclRef<clang::VarDecl>(ast, tudecl, "b")};
+        auto ref_c{GetDeclRef<clang::VarDecl>(ast, tudecl, "c")};
+        THEN("return {a, b, c}") {
+          std::vector<clang::Expr *> exprs{ref_a, ref_b, ref_c};
+          auto init_list{ast.CreateInitList(exprs)};
+          REQUIRE(init_list != nullptr);
+          CHECK(init_list->isSemanticForm());
+          CHECK(init_list->end() - init_list->begin() == 3U);
+        }
+      }
+    }
+  }
+}

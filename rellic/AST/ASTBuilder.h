@@ -235,6 +235,9 @@ class ASTBuilder {
   clang::MemberExpr *CreateArrow(clang::Expr *base, clang::FieldDecl *field) {
     return CreateFieldAcc(base, field, /*is_arrow=*/true);
   }
+
+  // Initializer list
+  clang::InitListExpr *CreateInitList(std::vector<clang::Expr *> &exprs);
 };
 
 }  // namespace rellic

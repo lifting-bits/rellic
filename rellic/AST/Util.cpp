@@ -238,14 +238,14 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx) {
 //       /*Pascal=*/false, type, clang::SourceLocation());
 // }
 
-clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
-                                std::vector<clang::Expr *> &exprs,
-                                clang::QualType type) {
-  auto init = new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
-                                            clang::SourceLocation());
-  init->setType(type);
-  return init;
-}
+// clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
+//                                 std::vector<clang::Expr *> &exprs,
+//                                 clang::QualType type) {
+//   auto init = new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
+//                                             clang::SourceLocation());
+//   init->setType(type);
+//   return init;
+// }
 
 // clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
 //                                       clang::Expr *idx, clang::QualType type) {

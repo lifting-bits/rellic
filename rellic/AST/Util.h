@@ -100,9 +100,9 @@ clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx);
 // clang::Expr *CreateStringLiteral(clang::ASTContext &ctx, std::string val,
 //                                  clang::QualType);
 
-clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
-                                std::vector<clang::Expr *> &exprs,
-                                clang::QualType type);
+// clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
+//                                 std::vector<clang::Expr *> &exprs,
+//                                 clang::QualType type);
 
 // clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
 //                                       clang::Expr *idx, clang::QualType type);

@@ -235,4 +235,12 @@ clang::MemberExpr *ASTBuilder::CreateFieldAcc(clang::Expr *base,
   return er.getAs<clang::MemberExpr>();
 }
 
+clang::InitListExpr *ASTBuilder::CreateInitList(
+    std::vector<clang::Expr *> &exprs) {
+  auto er{sema.ActOnInitList(clang::SourceLocation(), exprs,
+                             clang::SourceLocation())};
+  CHECK(er.isUsable());
+  return er.getAs<clang::InitListExpr>();
+}
+
 }  // namespace rellic

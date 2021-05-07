@@ -129,14 +129,14 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   auto l_type{constant->getType()};
   auto c_type{GetQualType(l_type)};
 
-  auto CreateInitListLiteral{[this, &constant, &c_type] {
+  auto CreateInitListLiteral{[this, &constant] {
     std::vector<clang::Expr *> init_exprs;
     if (!constant->isZeroValue()) {
       for (auto i = 0U; auto elm = constant->getAggregateElement(i); ++i) {
         init_exprs.push_back(GetOperandExpr(elm));
       }
     }
-    return CreateInitListExpr(ast_ctx, init_exprs, c_type);
+    return ast.CreateInitList(init_exprs);
   }};
 
   switch (l_type->getTypeID()) {

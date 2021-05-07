@@ -209,6 +209,10 @@ class ASTBuilder {
   clang::BinaryOperator *CreateAssign(clang::Expr *lhs, clang::Expr *rhs) {
     return CreateBinaryOp(clang::BO_Assign, lhs, rhs);
   }
+  // Ternary conditional operator
+  clang::ConditionalOperator *CreateConditional(clang::Expr *cond,
+                                                clang::Expr *lhs,
+                                                clang::Expr *rhs);
   // Array access
   clang::ArraySubscriptExpr *CreateArraySub(clang::Expr *base,
                                             clang::Expr *idx);

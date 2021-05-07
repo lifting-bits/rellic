@@ -124,9 +124,9 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
 //                                     clang::QualType type, clang::CastKind cast,
 //                                     clang::Expr *op);
 
-clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
-                                           clang::Expr *cond, clang::Expr *lhs,
-                                           clang::Expr *rhs,
-                                           clang::QualType type);
+// clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
+//                                            clang::Expr *cond, clang::Expr *lhs,
+//                                            clang::Expr *rhs,
+//                                            clang::QualType type);
 
 }  // namespace rellic

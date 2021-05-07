@@ -1001,8 +1001,32 @@ TEST_SUITE("ASTBuilder::CreateBinaryOp") {
   }
 }
 
+TEST_SUITE("ASTBuilder::CreateConditional") {
+  SCENARIO("Create ternary conditional operation") {
+    GIVEN("Global variables int a,b,c;") {
+      auto unit{GetASTUnit("int a,b,c;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      GIVEN("references to a, b and c") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        auto ref_b{GetDeclRef<clang::VarDecl>(ast, tudecl, "b")};
+        auto ref_c{GetDeclRef<clang::VarDecl>(ast, tudecl, "c")};
+        THEN("return a ? b : c") {
+          auto ite{ast.CreateConditional(ref_a, ref_b, ref_c)};
+          REQUIRE(ite != nullptr);
+          CHECK(ite->getType() == ctx.IntTy);
+          CHECK(ite->getCond()->IgnoreImpCasts() == ref_a);
+          CHECK(ite->getLHS()->IgnoreImpCasts() == ref_b);
+          CHECK(ite->getRHS()->IgnoreImpCasts() == ref_c);
+        }
+      }
+    }
+  }
+}
+
 TEST_SUITE("ASTBuilder::CreateArraySub") {
-  SCENARIO("Create array subscript operations") {
+  SCENARIO("Create array subscript operation") {
     GIVEN("Global variable const char a[] = \"Hello\";") {
       auto unit{GetASTUnit("const char a[] = \"Hello\";")};
       auto &ctx{unit->getASTContext()};
@@ -1022,7 +1046,7 @@ TEST_SUITE("ASTBuilder::CreateArraySub") {
 }
 
 TEST_SUITE("ASTBuilder::CreateCall") {
-  SCENARIO("Create call operations") {
+  SCENARIO("Create call operation") {
     GIVEN("Function declaration void f(int a, int b);") {
       auto unit{GetASTUnit("void f(int a, int b);")};
       auto &ctx{unit->getASTContext()};

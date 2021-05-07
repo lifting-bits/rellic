@@ -1074,26 +1074,20 @@ void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
   DLOG(INFO) << "VisitTernaryApp: " << z_op;
   CHECK(z_op.is_app() && z_op.decl().arity() == 3)
       << "Z3 expression is not a ternary operator!";
-  // Get Z3 function declaration
-  auto z_func{z_op.decl()};
   // Create C binary operator
-  clang::Expr *c_op{nullptr};
+  auto z_func{z_op.decl()};
   switch (z_func.decl_kind()) {
     case Z3_OP_ITE: {
       auto c_cond{GetCExpr(z_op.arg(0))};
       auto c_then{GetCExpr(z_op.arg(1))};
       auto c_else{GetCExpr(z_op.arg(2))};
-      c_op = CreateConditionalOperatorExpr(*ast_ctx, c_cond, c_then, c_else,
-                                           c_then->getType());
-      c_op = ast.CreateParen(c_op);
+      InsertCExpr(z_op, ast.CreateConditional(c_cond, c_then, c_else));
     } break;
     // Unknowns
     default:
       LOG(FATAL) << "Unknown Z3 ternary operator: " << z_func.name().str();
       break;
   }
-  // Save
-  InsertCExpr(z_op, c_op);
 }
 
 }  // namespace rellic

@@ -193,6 +193,15 @@ clang::BinaryOperator *ASTBuilder::CreateBinaryOp(clang::BinaryOperatorKind opc,
   return er.getAs<clang::BinaryOperator>();
 }
 
+clang::ConditionalOperator *ASTBuilder::CreateConditional(clang::Expr *cond,
+                                                          clang::Expr *lhs,
+                                                          clang::Expr *rhs) {
+  auto er{sema.ActOnConditionalOp(clang::SourceLocation(),
+                                  clang::SourceLocation(), cond, lhs, rhs)};
+  CHECK(er.isUsable());
+  return er.getAs<clang::ConditionalOperator>();
+}
+
 clang::ArraySubscriptExpr *ASTBuilder::CreateArraySub(clang::Expr *base,
                                                       clang::Expr *idx) {
   CHECK(base && idx) << "Should not be null in CreateArraySub.";

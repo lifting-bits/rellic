@@ -282,13 +282,13 @@ clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
 //                                          clang::VK_RValue);
 // }
 
-clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
-                                           clang::Expr *cond, clang::Expr *lhs,
-                                           clang::Expr *rhs,
-                                           clang::QualType type) {
-  return new (ctx) clang::ConditionalOperator(
-      cond, clang::SourceLocation(), lhs, clang::SourceLocation(), rhs, type,
-      clang::VK_RValue, clang::OK_Ordinary);
-}
+// clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
+//                                            clang::Expr *cond, clang::Expr *lhs,
+//                                            clang::Expr *rhs,
+//                                            clang::QualType type) {
+//   return new (ctx) clang::ConditionalOperator(
+//       cond, clang::SourceLocation(), lhs, clang::SourceLocation(), rhs, type,
+//       clang::VK_RValue, clang::OK_Ordinary);
+// }
 
 }  // namespace rellic

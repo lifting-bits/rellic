@@ -815,12 +815,11 @@ void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
     return;
   }
 
-  auto cond = GetOperandExpr(inst.getCondition());
-  auto tval = GetOperandExpr(inst.getTrueValue());
-  auto fval = GetOperandExpr(inst.getFalseValue());
-  auto type = GetQualType(inst.getType());
+  auto cond{GetOperandExpr(inst.getCondition())};
+  auto tval{GetOperandExpr(inst.getTrueValue())};
+  auto fval{GetOperandExpr(inst.getFalseValue())};
 
-  select = CreateConditionalOperatorExpr(ast_ctx, cond, tval, fval, type);
+  select = ast.CreateConditional(cond, tval, fval);
 }
 
 void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {

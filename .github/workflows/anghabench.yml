@@ -29,10 +29,7 @@ jobs:
 
     - name: Run against ${{ matrix.llvm }}
       run: |
-        tests/lifting-tools-ci/cloud/run-do-droplet.py \ 
-          --name "Rellic CI Run from GHA" \
-          --script tests/ci-scripts/run-on-anghabench.sh \
-          --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${GITHUB_REF##*/},LLVM_VERSION=${{ matrix.llvm }}
+        tests/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run from GHA" --script tests/ci-scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${GITHUB_REF##*/},LLVM_VERSION=${{ matrix.llvm }}
       env:
         SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
         DO_TOKEN: ${{ secrets.DO_TOKEN }}

@@ -596,7 +596,7 @@ TEST_SUITE("ASTBuilder::CreateFieldDecl") {
 
 TEST_SUITE("ASTBuilder::CreateDeclStmt") {
   SCENARIO("Create a clang::DeclStmt to a function local clang::VarDecl") {
-    GIVEN("a funtion with a local variable declaration") {
+    GIVEN("Funtion with a local variable declaration") {
       auto unit{GetASTUnit("void f(){}")};
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
@@ -1002,7 +1002,7 @@ TEST_SUITE("ASTBuilder::CreateBinaryOp") {
 }
 
 TEST_SUITE("ASTBuilder::CreateConditional") {
-  SCENARIO("Create ternary conditional operation") {
+  SCENARIO("Create a ternary conditional operation") {
     GIVEN("Global variables int a,b,c;") {
       auto unit{GetASTUnit("int a,b,c;")};
       auto &ctx{unit->getASTContext()};
@@ -1026,7 +1026,7 @@ TEST_SUITE("ASTBuilder::CreateConditional") {
 }
 
 TEST_SUITE("ASTBuilder::CreateArraySub") {
-  SCENARIO("Create array subscript operation") {
+  SCENARIO("Create an array subscript operation") {
     GIVEN("Global variable const char a[] = \"Hello\";") {
       auto unit{GetASTUnit("const char a[] = \"Hello\";")};
       auto &ctx{unit->getASTContext()};
@@ -1046,7 +1046,7 @@ TEST_SUITE("ASTBuilder::CreateArraySub") {
 }
 
 TEST_SUITE("ASTBuilder::CreateCall") {
-  SCENARIO("Create call operation") {
+  SCENARIO("Create a call operation") {
     GIVEN("Function declaration void f(int a, int b);") {
       auto unit{GetASTUnit("void f(int a, int b);")};
       auto &ctx{unit->getASTContext()};
@@ -1072,7 +1072,7 @@ TEST_SUITE("ASTBuilder::CreateCall") {
 }
 
 TEST_SUITE("ASTBuilder::CreateFieldAcc") {
-  SCENARIO("Create structure field access operations") {
+  SCENARIO("Create a structure field access operations") {
     GIVEN("Structure declaration struct pair{int a; int b;}; struct pair p;") {
       auto unit{GetASTUnit("struct pair{int a; int b;}; struct pair p;")};
       auto &ctx{unit->getASTContext()};
@@ -1095,7 +1095,7 @@ TEST_SUITE("ASTBuilder::CreateFieldAcc") {
 }
 
 TEST_SUITE("ASTBuilder::CreateInitList") {
-  SCENARIO("Create initializer list expression") {
+  SCENARIO("Create a initializer list expression") {
     GIVEN("Global variables int a; short b; char c;") {
       auto unit{GetASTUnit("int a; short b; char c;")};
       auto &ctx{unit->getASTContext()};
@@ -1112,6 +1112,19 @@ TEST_SUITE("ASTBuilder::CreateInitList") {
           CHECK(init_list->isSemanticForm());
           CHECK(init_list->end() - init_list->begin() == 3U);
         }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateBreak") {
+  SCENARIO("Create a break statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit()};
+      rellic::ASTBuilder ast(*unit);
+      THEN("return break") {
+        auto init_list{ast.CreateBreak()};
+        REQUIRE(init_list != nullptr);
       }
     }
   }

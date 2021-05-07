@@ -243,4 +243,8 @@ clang::InitListExpr *ASTBuilder::CreateInitList(
   return er.getAs<clang::InitListExpr>();
 }
 
+clang::BreakStmt *ASTBuilder::CreateBreak() {
+  return new (ctx) clang::BreakStmt(clang::SourceLocation());
+}
+
 }  // namespace rellic

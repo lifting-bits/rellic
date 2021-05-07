@@ -135,9 +135,9 @@ clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
                     clang::SourceLocation(), clang::SourceLocation());
 }
 
-clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx) {
-  return new (ctx) clang::BreakStmt(clang::SourceLocation());
-}
+// clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx) {
+//   return new (ctx) clang::BreakStmt(clang::SourceLocation());
+// }
 
 // clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
 //   return new (ctx)

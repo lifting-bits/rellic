@@ -31,10 +31,20 @@ jobs:
       shell: bash
       run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       id: extract_branch
-    - name: Run against ${{ matrix.llvm }}
+    - name: Run against ${{ matrix.llvm }} (Pull Request)
       run: |
-        tests/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run from GHA" --script tests/ci-scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
+        tests/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run on PR" --script tests/ci-scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
+      env:
+        SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
+        DO_TOKEN: ${{ secrets.DO_TOKEN }}
+        BRANCH: ${{ github.head_ref }}
+      if: github.event_name == 'pull_request'
+    - name: Run against ${{ matrix.llvm }} (Push/Cron)
+      run: |
+        tests/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run" --script tests/ci-scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
       env:
         SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
         DO_TOKEN: ${{ secrets.DO_TOKEN }}
         BRANCH: ${{ steps.extract_branch.outputs.branch }}
+      if: github.event_name != 'pull_request'
+ 

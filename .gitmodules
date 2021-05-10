@@ -1,0 +1,4 @@
+[submodule "tests/lifting-tool-ci"]
+	path = libraries/lifting-tools-ci
+	url = git@github.com:lifting-bits/lifting-tools-ci.git
+	branch = master

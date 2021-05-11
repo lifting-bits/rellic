@@ -33,6 +33,8 @@ ENV PATH="${LIBRARIES}/llvm/bin/:${LIBRARIES}/cmake/bin:${PATH}"
 
 WORKDIR /rellic
 COPY ./ ./
+# The reason we don't use --install
+# is so that container has the same exact code as the packages
 RUN ./scripts/build.sh \
   --llvm-version ${LLVM_VERSION} \
   --prefix /opt/trailofbits \

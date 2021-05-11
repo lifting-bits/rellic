@@ -34,6 +34,7 @@ char ReachBasedRefine::ID = 0;
 ReachBasedRefine::ReachBasedRefine(clang::ASTUnit &unit,
                                    rellic::IRToASTVisitor &ast_gen)
     : ModulePass(ReachBasedRefine::ID),
+      ast(unit),
       ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
@@ -100,14 +101,14 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
     auto cond = stmt->getCond();
     auto then = stmt->getThen();
     if (stmt == elifs.back()) {
-      sub = CreateIfStmt(*ast_ctx, cond, then);
+      sub = ast.CreateIf(cond, then);
       substitutions[stmt] = sub;
     } else if (stmt == elifs.front()) {
       std::vector<clang::Stmt *> thens({then});
-      sub->setElse(CreateCompoundStmt(*ast_ctx, thens));
+      sub->setElse(ast.CreateCompound(thens));
       substitutions[stmt] = nullptr;
     } else {
-      auto elif = CreateIfStmt(*ast_ctx, cond, then);
+      auto elif = ast.CreateIf(cond, then);
       sub->setElse(elif);
       sub = elif;
       substitutions[stmt] = nullptr;
@@ -128,7 +129,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
+    substitutions[compound] = ast.CreateCompound(new_body);
   }
   return true;
 }

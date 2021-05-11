@@ -20,6 +20,7 @@ char NestedScopeCombiner::ID = 0;
 NestedScopeCombiner::NestedScopeCombiner(clang::ASTUnit &unit,
                                          rellic::IRToASTVisitor &ast_gen)
     : ModulePass(NestedScopeCombiner::ID),
+      ast(unit),
       ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen) {}
 
@@ -49,7 +50,7 @@ bool NestedScopeCombiner::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
 
   if (has_compound) {
-    substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
+    substitutions[compound] = ast.CreateCompound(new_body);
   }
 
   return true;

@@ -36,6 +36,7 @@ char CondBasedRefine::ID = 0;
 CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit,
                                  rellic::IRToASTVisitor &ast_gen)
     : ModulePass(CondBasedRefine::ID),
+      ast(unit),
       ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
@@ -101,8 +102,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
       substitutions[stmt] = nullptr;
     }
     // Create our new if-then
-    auto sub = CreateIfStmt(*ast_ctx, lhs->getCond(),
-                            CreateCompoundStmt(*ast_ctx, thens));
+    auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompound(thens));
     // Create an else branch if possible
     if (!elses.empty()) {
       // Erase else statements from the AST and `worklist`
@@ -111,7 +111,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
         substitutions[stmt] = nullptr;
       }
       // Add the else branch
-      sub->setElse(CreateCompoundStmt(*ast_ctx, elses));
+      sub->setElse(ast.CreateCompound(elses));
     }
     // Replace `lhs` with the new `sub`
     substitutions[lhs] = sub;
@@ -131,7 +131,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
+    substitutions[compound] = ast.CreateCompound(new_body);
   }
   return true;
 }

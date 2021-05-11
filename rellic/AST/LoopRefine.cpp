@@ -46,7 +46,6 @@ class WhileRule : public InferenceRule {
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     ASTBuilder ast(unit);
-    auto &ctx{unit.getASTContext()};
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
     CHECK(loop && loop == match)
@@ -57,8 +56,7 @@ class WhileRule : public InferenceRule {
     std::vector<clang::Stmt *> new_body(comp->body_begin() + 1,
                                         comp->body_end());
 
-    return CreateWhileStmt(ctx, ast.CreateLNot(cond),
-                           CreateCompoundStmt(ctx, new_body));
+    return ast.CreateWhile(ast.CreateLNot(cond), ast.CreateCompound(new_body));
   }
 };
 
@@ -82,7 +80,6 @@ class DoWhileRule : public InferenceRule {
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     ASTBuilder ast(unit);
-    auto &ctx{unit.getASTContext()};
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
     CHECK(loop && loop == match)
@@ -93,8 +90,7 @@ class DoWhileRule : public InferenceRule {
     std::vector<clang::Stmt *> new_body(comp->body_begin(),
                                         comp->body_end() - 1);
 
-    return CreateDoStmt(ctx, ast.CreateLNot(cond),
-                        CreateCompoundStmt(ctx, new_body));
+    return ast.CreateDo(ast.CreateLNot(cond), ast.CreateCompound(new_body));
   }
 };
 
@@ -126,7 +122,6 @@ class NestedDoWhileRule : public InferenceRule {
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     ASTBuilder ast(unit);
-    auto &ctx{unit.getASTContext()};
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
     CHECK(loop && loop == match)
@@ -138,11 +133,10 @@ class NestedDoWhileRule : public InferenceRule {
                                        comp->body_end() - 1);
 
     auto do_cond = ast.CreateLNot(cond->getCond());
-    auto do_stmt = CreateDoStmt(ctx, do_cond, CreateCompoundStmt(ctx, do_body));
+    auto do_stmt = ast.CreateDo(do_cond, ast.CreateCompound(do_body));
 
     std::vector<clang::Stmt *> while_body({do_stmt, cond->getThen()});
-    return CreateWhileStmt(ctx, loop->getCond(),
-                           CreateCompoundStmt(ctx, while_body));
+    return ast.CreateWhile(loop->getCond(), ast.CreateCompound(while_body));
   }
 };
 
@@ -170,7 +164,7 @@ class LoopToSeq : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    auto &ctx{unit.getASTContext()};
+    ASTBuilder ast(unit);
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
     CHECK(loop && loop == match)
@@ -194,7 +188,7 @@ class LoopToSeq : public InferenceRule {
             new_branch_body.push_back(stmt);
           }
         }
-        branch = CreateCompoundStmt(ctx, new_branch_body);
+        branch = ast.CreateCompound(new_branch_body);
       }
       ifstmt->setThen(branches[0]);
       ifstmt->setElse(branches[1]);
@@ -202,7 +196,7 @@ class LoopToSeq : public InferenceRule {
       new_body.pop_back();
     }
 
-    return CreateCompoundStmt(ctx, new_body);
+    return ast.CreateCompound(new_body);
   }
 };
 
@@ -223,7 +217,7 @@ class CondToSeqRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    auto &ctx{unit.getASTContext()};
+    ASTBuilder ast(unit);
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
     CHECK(loop && loop == match)
@@ -231,8 +225,7 @@ class CondToSeqRule : public InferenceRule {
 
     auto body = clang::cast<clang::CompoundStmt>(loop->getBody());
     auto ifstmt = clang::cast<clang::IfStmt>(body->body_front());
-    auto inner_loop =
-        CreateWhileStmt(ctx, ifstmt->getCond(), ifstmt->getThen());
+    auto inner_loop = ast.CreateWhile(ifstmt->getCond(), ifstmt->getThen());
     std::vector<clang::Stmt *> new_body({inner_loop});
     if (auto comp = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getElse())) {
       new_body.insert(new_body.end(), comp->body_begin(), comp->body_end());
@@ -240,8 +233,7 @@ class CondToSeqRule : public InferenceRule {
       new_body.push_back(ifstmt->getElse());
     }
 
-    return CreateWhileStmt(ctx, loop->getCond(),
-                           CreateCompoundStmt(ctx, new_body));
+    return ast.CreateWhile(loop->getCond(), ast.CreateCompound(new_body));
   }
 };
 
@@ -261,7 +253,6 @@ class CondToSeqNegRule : public InferenceRule {
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     ASTBuilder ast(unit);
-    auto &ctx{unit.getASTContext()};
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
     CHECK(loop && loop == match)
@@ -270,7 +261,7 @@ class CondToSeqNegRule : public InferenceRule {
     auto body = clang::cast<clang::CompoundStmt>(loop->getBody());
     auto ifstmt = clang::cast<clang::IfStmt>(body->body_front());
     auto cond = ast.CreateLNot(ifstmt->getCond());
-    auto inner_loop = CreateWhileStmt(ctx, cond, ifstmt->getElse());
+    auto inner_loop = ast.CreateWhile(cond, ifstmt->getElse());
     std::vector<clang::Stmt *> new_body({inner_loop});
     if (auto comp = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
       new_body.insert(new_body.end(), comp->body_begin(), comp->body_end());
@@ -278,8 +269,7 @@ class CondToSeqNegRule : public InferenceRule {
       new_body.push_back(ifstmt->getThen());
     }
 
-    return CreateWhileStmt(ctx, loop->getCond(),
-                           CreateCompoundStmt(ctx, new_body));
+    return ast.CreateWhile(loop->getCond(), ast.CreateCompound(new_body));
   }
 };
 

@@ -20,6 +20,7 @@ namespace rellic {
 class CondBasedRefine : public llvm::ModulePass,
                         public TransformVisitor<CondBasedRefine> {
  private:
+  ASTBuilder ast;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
   std::unique_ptr<z3::context> z3_ctx;

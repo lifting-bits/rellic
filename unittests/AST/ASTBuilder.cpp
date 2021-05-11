@@ -1117,14 +1117,100 @@ TEST_SUITE("ASTBuilder::CreateInitList") {
   }
 }
 
+TEST_SUITE("ASTBuilder::CreateCompound") {
+  SCENARIO("Create a compound statement") {
+    GIVEN("Global variables int a; short b; char c;") {
+      auto unit{GetASTUnit("int a; short b; char c;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      GIVEN("references to a, b and c") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "a")};
+        auto ref_b{GetDeclRef<clang::VarDecl>(ast, tudecl, "b")};
+        auto ref_c{GetDeclRef<clang::VarDecl>(ast, tudecl, "c")};
+        THEN("return {a+b; b*c; c/a;}") {
+          std::vector<clang::Stmt *> stmts;
+          stmts.push_back(ast.CreateAdd(ref_a, ref_b));
+          stmts.push_back(ast.CreateMul(ref_b, ref_c));
+          stmts.push_back(ast.CreateDiv(ref_c, ref_a));
+          auto compound{ast.CreateCompound(stmts)};
+          REQUIRE(compound != nullptr);
+          CHECK(compound->size() == stmts.size());
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateIf") {
+  SCENARIO("Create an if statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit()};
+      rellic::ASTBuilder ast(*unit);
+      GIVEN("Empty compound statement and 1U literal") {
+        std::vector<clang::Stmt *> stmts;
+        auto body{ast.CreateCompound(stmts)};
+        auto cond{ast.CreateTrue()};
+        THEN("return if(1U){};") {
+          auto if_stmt{ast.CreateIf(cond, body)};
+          REQUIRE(if_stmt != nullptr);
+          CHECK(if_stmt->getCond() == cond);
+          CHECK(if_stmt->getThen() == body);
+          CHECK(if_stmt->getElse() == nullptr);
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateWhile") {
+  SCENARIO("Create a while statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit()};
+      rellic::ASTBuilder ast(*unit);
+      GIVEN("Empty compound statement and 1U literal") {
+        std::vector<clang::Stmt *> stmts;
+        auto body{ast.CreateCompound(stmts)};
+        auto cond{ast.CreateTrue()};
+        THEN("return while(1U){};") {
+          auto while_stmt{ast.CreateWhile(cond, body)};
+          REQUIRE(while_stmt != nullptr);
+          CHECK(while_stmt->getCond() == cond);
+          CHECK(while_stmt->getBody() == body);
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateDo") {
+  SCENARIO("Create a do statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit()};
+      rellic::ASTBuilder ast(*unit);
+      GIVEN("Empty compound statement and 1U literal") {
+        std::vector<clang::Stmt *> stmts;
+        auto body{ast.CreateCompound(stmts)};
+        auto cond{ast.CreateTrue()};
+        THEN("return do{}while(1U);") {
+          auto do_stmt{ast.CreateDo(cond, body)};
+          REQUIRE(do_stmt != nullptr);
+          CHECK(do_stmt->getCond() == cond);
+          CHECK(do_stmt->getBody() == body);
+        }
+      }
+    }
+  }
+}
+
 TEST_SUITE("ASTBuilder::CreateBreak") {
   SCENARIO("Create a break statement") {
     GIVEN("Empty translation unit") {
       auto unit{GetASTUnit()};
       rellic::ASTBuilder ast(*unit);
-      THEN("return break") {
-        auto init_list{ast.CreateBreak()};
-        REQUIRE(init_list != nullptr);
+      THEN("return break;") {
+        auto brk_stmt{ast.CreateBreak()};
+        REQUIRE(brk_stmt != nullptr);
       }
     }
   }

@@ -20,6 +20,7 @@ namespace rellic {
 class NestedScopeCombiner : public llvm::ModulePass,
                             public TransformVisitor<NestedScopeCombiner> {
  private:
+  ASTBuilder ast;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
 

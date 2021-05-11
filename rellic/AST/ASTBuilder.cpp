@@ -243,6 +243,59 @@ clang::InitListExpr *ASTBuilder::CreateInitList(
   return er.getAs<clang::InitListExpr>();
 }
 
+clang::CompoundStmt *ASTBuilder::CreateCompound(
+    std::vector<clang::Stmt *> &stmts) {
+  // sema.ActOnStartOfCompoundStmt(/*isStmtExpr=*/false);
+  // auto sr{sema.ActOnCompoundStmt(clang::SourceLocation(),
+  //                                clang::SourceLocation(), stmts,
+  //                                /*isStmtExpr=*/false)};
+  // sema.ActOnFinishOfCompoundStmt();
+  // CHECK(sr.isUsable());
+  // return sr.getAs<clang::CompoundStmt>();
+  return CreateCompoundStmt(ctx, stmts);
+}
+
+clang::IfStmt *ASTBuilder::CreateIf(clang::Expr *cond, clang::Stmt *then_val,
+                                    clang::Stmt *else_val) {
+  CHECK(cond && then_val) << "Should not be null in CreateIf.";
+  auto cr{sema.ActOnCondition(/*Scope=*/nullptr, clang::SourceLocation(), cond,
+                              clang::Sema::ConditionKind::Boolean)};
+  CHECK(!cr.isInvalid());
+  auto if_stmt{CreateIfStmt(ctx, cr.get().second, then_val)};
+  if_stmt->setElse(else_val);
+  return if_stmt;
+}
+
+clang::WhileStmt *ASTBuilder::CreateWhile(clang::Expr *cond,
+                                          clang::Stmt *body) {
+  // auto sr{sema.ActOnWhileStmt(clang::SourceLocation(),
+  // clang::SourceLocation(),
+  //                             cond, clang::SourceLocation(), body)};
+  // CHECK(sr.isUsable());
+  // return sr.getAs<clang::WhileStmt>();
+  CHECK(cond != nullptr) << "Should not be null in CreateWhile.";
+  auto cer{sema.CheckBooleanCondition(clang::SourceLocation(), cond)};
+  CHECK(!cer.isInvalid());
+  return CreateWhileStmt(ctx, cer.get(), body);
+}
+
+clang::DoStmt *ASTBuilder::CreateDo(clang::Expr *cond, clang::Stmt *body) {
+  // auto sr{sema.ActOnDoStmt(clang::SourceLocation(), body,
+  //                          clang::SourceLocation(), clang::SourceLocation(),
+  //                          cond, clang::SourceLocation())};
+  // CHECK(sr.isUsable());
+  // return sr.getAs<clang::DoStmt>();
+  CHECK(cond != nullptr) << "Should not be null in CreateDo.";
+  auto cer{sema.CheckBooleanCondition(clang::SourceLocation(), cond)};
+  CHECK(!cer.isInvalid());
+  cer = sema.ActOnFinishFullExpr(cer.get(), clang::SourceLocation(),
+                                 /*DiscardedValue=*/false);
+  CHECK(!cer.isInvalid());
+  return new (ctx)
+      clang::DoStmt(body, cond, clang::SourceLocation(),
+                    clang::SourceLocation(), clang::SourceLocation());
+}
+
 clang::BreakStmt *ASTBuilder::CreateBreak() {
   return new (ctx) clang::BreakStmt(clang::SourceLocation());
 }

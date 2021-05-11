@@ -128,12 +128,12 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 //       val->getLocation(), val->getType(), clang::VK_LValue);
 // }
 
-clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *body) {
-  return new (ctx)
-      clang::DoStmt(body, cond, clang::SourceLocation(),
-                    clang::SourceLocation(), clang::SourceLocation());
-}
+// clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
+//                             clang::Stmt *body) {
+//   return new (ctx)
+//       clang::DoStmt(body, cond, clang::SourceLocation(),
+//                     clang::SourceLocation(), clang::SourceLocation());
+// }
 
 // clang::BreakStmt *CreateBreakStmt(clang::ASTContext &ctx) {
 //   return new (ctx) clang::BreakStmt(clang::SourceLocation());

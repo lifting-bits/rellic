@@ -20,6 +20,7 @@ char DeadStmtElim::ID = 0;
 DeadStmtElim::DeadStmtElim(clang::ASTUnit &unit,
                            rellic::IRToASTVisitor &ast_gen)
     : ModulePass(DeadStmtElim::ID),
+      ast(unit),
       ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen) {}
 
@@ -54,7 +55,7 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
   // Create the a new compound
   if (changed || new_body.size() < compound->size()) {
-    substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
+    substitutions[compound] = ast.CreateCompound(new_body);
   }
   return true;
 }

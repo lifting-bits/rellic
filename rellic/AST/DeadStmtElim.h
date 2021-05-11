@@ -20,6 +20,7 @@ namespace rellic {
 class DeadStmtElim : public llvm::ModulePass,
                      public TransformVisitor<DeadStmtElim> {
  private:
+  ASTBuilder ast;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
 

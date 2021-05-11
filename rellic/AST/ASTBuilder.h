@@ -237,6 +237,15 @@ class ASTBuilder {
   }
   // Initializer list
   clang::InitListExpr *CreateInitList(std::vector<clang::Expr *> &exprs);
+  // Compound statement
+  clang::CompoundStmt *CreateCompound(std::vector<clang::Stmt *> &stmts);
+  // If statement
+  clang::IfStmt *CreateIf(clang::Expr *cond, clang::Stmt *then_val,
+                          clang::Stmt *else_val = nullptr);
+  // While loop
+  clang::WhileStmt *CreateWhile(clang::Expr *cond, clang::Stmt *body);
+  // Do-while loop
+  clang::DoStmt *CreateDo(clang::Expr *cond, clang::Stmt *body);
   // Break
   clang::BreakStmt *CreateBreak();
 };

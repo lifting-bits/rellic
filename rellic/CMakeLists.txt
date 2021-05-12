@@ -1,6 +1,5 @@
 add_library(${PROJECT_NAME} STATIC
   AST/Compat/ASTContext.cpp
-  AST/Compat/Expr.cpp
   AST/Compat/Mangle.cpp
   AST/Compat/Stmt.cpp
   

@@ -9,7 +9,7 @@
 #include <clang/Tooling/Tooling.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <rellic/Version/Version.h>
+#include <llvm/Support/Host.h>
 
 #include <fstream>
 #include <iostream>
@@ -17,6 +17,7 @@
 
 #include "rellic/AST/CXXToCDecl.h"
 #include "rellic/AST/Util.h"
+#include "rellic/Version/Version.h"
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR

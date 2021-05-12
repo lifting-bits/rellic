@@ -8,13 +8,13 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
+#include <clang/Basic/TargetInfo.h>
 #include <clang/Sema/Sema.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/AST/Compat/Stmt.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 

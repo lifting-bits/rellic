@@ -15,7 +15,6 @@
 
 #include "rellic/AST/Compat/Mangle.h"
 #include "rellic/AST/Compat/Type.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -98,9 +97,9 @@ bool CXXToCDeclVisitor::VisitFunctionDecl(clang::FunctionDecl *cxx_func) {
   // Declare parameters
   std::vector<clang::ParmVarDecl *> param_decls;
   for (auto cxx_param : cxx_func->parameters()) {
-    param_decls.push_back(
-        ast.CreateParamDecl(func_decl, GetAsCType(cxx_param->getType()),
-                              cxx_param->getNameAsString()));
+    param_decls.push_back(ast.CreateParamDecl(func_decl,
+                                              GetAsCType(cxx_param->getType()),
+                                              cxx_param->getNameAsString()));
   }
   // Set C function parameters
   func_decl->setParams(param_decls);

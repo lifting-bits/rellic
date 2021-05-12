@@ -12,7 +12,6 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/InferenceRule.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 

@@ -16,7 +16,7 @@
 #include <streambuf>
 
 #include "rellic/AST/CXXToCDecl.h"
-#include "rellic/AST/Util.h"
+// #include "rellic/AST/Util.h"
 #include "rellic/Version/Version.h"
 
 #ifndef LLVM_VERSION_STRING

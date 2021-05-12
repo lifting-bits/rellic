@@ -11,8 +11,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Util.h"
-
 namespace rellic {
 
 char NestedScopeCombiner::ID = 0;

@@ -1211,6 +1211,28 @@ TEST_SUITE("ASTBuilder::CreateBreak") {
       THEN("return break;") {
         auto brk_stmt{ast.CreateBreak()};
         REQUIRE(brk_stmt != nullptr);
+        CHECK(clang::isa<clang::BreakStmt>(brk_stmt));
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateReturn") {
+  SCENARIO("Create a return statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit("")};
+      rellic::ASTBuilder ast(*unit);
+      THEN("return a return;") {
+        auto ret_stmt{ast.CreateReturn()};
+        REQUIRE(ret_stmt != nullptr);
+        CHECK(clang::isa<clang::ReturnStmt>(ret_stmt));
+      }
+      THEN("return a return 1U;") {
+        auto lit{ast.CreateTrue()};
+        auto ret_stmt{ast.CreateReturn(lit)};
+        REQUIRE(ret_stmt != nullptr);
+        CHECK(clang::isa<clang::ReturnStmt>(ret_stmt));
+        CHECK(ret_stmt->getRetValue() == lit);
       }
     }
   }

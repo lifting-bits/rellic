@@ -15,9 +15,6 @@
 
 #include <unordered_map>
 
-#include "rellic/AST/Compat/Expr.h"
-#include "rellic/AST/Compat/Stmt.h"
-
 namespace rellic {
 
 using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;

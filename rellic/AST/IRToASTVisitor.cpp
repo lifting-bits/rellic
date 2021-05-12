@@ -608,9 +608,9 @@ void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
   }
 
   if (auto retval = inst.getReturnValue()) {
-    retstmt = CreateReturnStmt(ast_ctx, GetOperandExpr(retval));
+    retstmt = ast.CreateReturn(GetOperandExpr(retval));
   } else {
-    retstmt = CreateReturnStmt(ast_ctx, nullptr);
+    retstmt = ast.CreateReturn();
   }
 }
 

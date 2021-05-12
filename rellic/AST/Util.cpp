@@ -10,11 +10,9 @@
 
 #include "rellic/AST/Util.h"
 
+#include <clang/AST/Stmt.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-#include "rellic/AST/Compat/Expr.h"
-#include "rellic/AST/Compat/Stmt.h"
 
 namespace rellic {
 
@@ -124,8 +122,8 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 
 //   DLOG(INFO) << "Creating DeclRefExpr for " << val->getNameAsString();
 //   return clang::DeclRefExpr::Create(
-//       ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val, false,
-//       val->getLocation(), val->getType(), clang::VK_LValue);
+//       ctx, clang::NestedNameSpecifierLoc(), clang::SourceLocation(), val,
+//       false, val->getLocation(), val->getType(), clang::VK_LValue);
 // }
 
 // clang::DoStmt *CreateDoStmt(clang::ASTContext &ctx, clang::Expr *cond,
@@ -139,9 +137,11 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 //   return new (ctx) clang::BreakStmt(clang::SourceLocation());
 // }
 
-// clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr) {
+// clang::ParenExpr *CreateParenExpr(clang::ASTContext &ctx, clang::Expr *expr)
+// {
 //   return new (ctx)
-//       clang::ParenExpr(clang::SourceLocation(), clang::SourceLocation(), expr);
+//       clang::ParenExpr(clang::SourceLocation(), clang::SourceLocation(),
+//       expr);
 // }
 
 // clang::Expr *CreateNotExpr(clang::ASTContext &ctx, clang::Expr *op) {
@@ -162,7 +162,8 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 
 // clang::VarDecl *CreateVarDecl(clang::ASTContext &ctx,
 //                               clang::DeclContext *decl_ctx,
-//                               clang::IdentifierInfo *id, clang::QualType type) {
+//                               clang::IdentifierInfo *id, clang::QualType
+//                               type) {
 //   return clang::VarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
 //                                 clang::SourceLocation(), id, type, nullptr,
 //                                 clang::SC_None);
@@ -173,8 +174,8 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 //                                       clang::IdentifierInfo *id,
 //                                       clang::QualType type) {
 //   return clang::ParmVarDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
-//                                     clang::SourceLocation(), id, type, nullptr,
-//                                     clang::SC_None, nullptr);
+//                                     clang::SourceLocation(), id, type,
+//                                     nullptr, clang::SC_None, nullptr);
 // }
 
 // clang::FunctionDecl *CreateFunctionDecl(clang::ASTContext &ctx,
@@ -241,14 +242,17 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 // clang::Expr *CreateInitListExpr(clang::ASTContext &ctx,
 //                                 std::vector<clang::Expr *> &exprs,
 //                                 clang::QualType type) {
-//   auto init = new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(), exprs,
+//   auto init = new (ctx) clang::InitListExpr(ctx, clang::SourceLocation(),
+//   exprs,
 //                                             clang::SourceLocation());
 //   init->setType(type);
 //   return init;
 // }
 
-// clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr *base,
-//                                       clang::Expr *idx, clang::QualType type) {
+// clang::Expr *CreateArraySubscriptExpr(clang::ASTContext &ctx, clang::Expr
+// *base,
+//                                       clang::Expr *idx, clang::QualType type)
+//                                       {
 //   return new (ctx)
 //       clang::ArraySubscriptExpr(base, idx, type, clang::VK_LValue,
 //                                 clang::OK_Ordinary, clang::SourceLocation());
@@ -276,15 +280,15 @@ clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
 // }
 
 // clang::Expr *CreateImplicitCastExpr(clang::ASTContext &ctx,
-//                                     clang::QualType type, clang::CastKind cast,
-//                                     clang::Expr *op) {
+//                                     clang::QualType type, clang::CastKind
+//                                     cast, clang::Expr *op) {
 //   return clang::ImplicitCastExpr::Create(ctx, type, cast, op, nullptr,
 //                                          clang::VK_RValue);
 // }
 
 // clang::Expr *CreateConditionalOperatorExpr(clang::ASTContext &ctx,
-//                                            clang::Expr *cond, clang::Expr *lhs,
-//                                            clang::Expr *rhs,
+//                                            clang::Expr *cond, clang::Expr
+//                                            *lhs, clang::Expr *rhs,
 //                                            clang::QualType type) {
 //   return new (ctx) clang::ConditionalOperator(
 //       cond, clang::SourceLocation(), lhs, clang::SourceLocation(), rhs, type,

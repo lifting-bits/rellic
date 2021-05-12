@@ -248,6 +248,8 @@ class ASTBuilder {
   clang::DoStmt *CreateDo(clang::Expr *cond, clang::Stmt *body);
   // Break
   clang::BreakStmt *CreateBreak();
+  // Return
+  clang::ReturnStmt *CreateReturn(clang::Expr *retval = nullptr);
 };
 
 }  // namespace rellic

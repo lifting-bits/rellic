@@ -13,6 +13,7 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -298,6 +299,13 @@ clang::DoStmt *ASTBuilder::CreateDo(clang::Expr *cond, clang::Stmt *body) {
 
 clang::BreakStmt *ASTBuilder::CreateBreak() {
   return new (ctx) clang::BreakStmt(clang::SourceLocation());
+}
+
+clang::ReturnStmt *ASTBuilder::CreateReturn(clang::Expr *retval) {
+  // auto sr{sema.BuildReturnStmt(clang::SourceLocation(), retval)};
+  // CHECK(sr.isUsable());
+  // return sr.getAs<clang::ReturnStmt>();
+  return CreateReturnStmt(ctx, retval);
 }
 
 }  // namespace rellic

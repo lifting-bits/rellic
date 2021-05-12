@@ -898,8 +898,8 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         c_op = ast.CreateParen(ast.CreateAnd(shr, mask_val));
       } else {
         c_op = ast.CreateCStyleCast(
-            GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
-                                       /*sign=*/0),
+            ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
+                                           /*sign=*/0),
             c_sub);
       }
 
@@ -907,8 +907,8 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
 
     case Z3_OP_SIGN_EXT:
       c_op = ast.CreateCStyleCast(
-          GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
-                                     /*sign=*/1),
+          ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
+                                         /*sign=*/1),
           ast.CreateParen(c_sub));
       break;
 
@@ -950,8 +950,8 @@ clang::Expr *Z3ConvVisitor::HandleZ3Concat(z3::expr z_op) {
     //  * `t` is the smallest integer type that can fit the result
     //        of `(concat l r)`
     auto rhs{GetCExpr(z_op.arg(i))};
-    auto res_ty{GetLeastIntTypeForBitWidth(*ast_ctx, GetZ3SortSize(z_op),
-                                           /*sign=*/0)};
+    auto res_ty{ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
+                                               /*sign=*/0)};
     if (!IsSignExt(z_op)) {
       auto cast{ast.CreateCStyleCast(res_ty, lhs)};
       auto shl_val{

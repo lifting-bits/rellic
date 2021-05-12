@@ -52,7 +52,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     case llvm::Type::IntegerTyID: {
       auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = GetLeastIntTypeForBitWidth(ast_ctx, size, /*sign=*/0);
+      result = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/0);
     } break;
 
     case llvm::Type::FunctionTyID: {

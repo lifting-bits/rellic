@@ -21,6 +21,22 @@ namespace rellic {
 ASTBuilder::ASTBuilder(clang::ASTUnit &unit)
     : unit(unit), ctx(unit.getASTContext()), sema(unit.getSema()) {}
 
+clang::QualType ASTBuilder::GetLeastIntTypeForBitWidth(unsigned size,
+                                                       unsigned sign) {
+  auto result{ctx.getIntTypeForBitwidth(size, sign)};
+  if (!result.isNull()) {
+    return result;
+  }
+  auto &ti{ctx.getTargetInfo()};
+  auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
+  CHECK(target_type != clang::TargetInfo::IntType::NoInt)
+      << "Failed to infer clang::TargetInfo::IntType for bitwidth: " << size;
+  result = ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
+  CHECK(!result.isNull()) << "Failed to infer clang::QualType for bitwidth: "
+                          << size;
+  return result;
+}
+
 clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   auto sign{val.isSigned()};
   auto value_size{val.getBitWidth()};
@@ -32,7 +48,7 @@ clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   } else if (value_size > ctx.getIntWidth(ctx.LongLongTy)) {
     type = sign ? ctx.LongLongTy : ctx.UnsignedLongLongTy;
   } else {
-    type = GetLeastIntTypeForBitWidth(ctx, value_size, sign);
+    type = GetLeastIntTypeForBitWidth(value_size, sign);
   }
   // Extend the literal value based on it's sign if we have a
   // mismatch between the bit width of the value and inferred type.
@@ -55,7 +71,7 @@ clang::Expr *ASTBuilder::CreateAdjustedIntLit(llvm::APSInt val) {
   if (value_size <= ctx.getIntWidth(ctx.ShortTy) ||
       value_size > ctx.getIntWidth(ctx.LongLongTy)) {
     return CreateCStyleCast(
-        GetLeastIntTypeForBitWidth(ctx, value_size, val.isSigned()), lit);
+        GetLeastIntTypeForBitWidth(value_size, val.isSigned()), lit);
   } else {
     return lit;
   }

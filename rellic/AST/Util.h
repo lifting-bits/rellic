@@ -32,8 +32,8 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
   return result;
 }
 
-clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
-                                           unsigned size, unsigned sign);
+// clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
+//                                            unsigned size, unsigned sign);
 
 // clang::Expr *CastExpr(clang::ASTContext &ctx, clang::QualType dst,
 //                          clang::Expr *op);

@@ -46,21 +46,21 @@ bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map) {
   return change;
 }
 
-clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
-                                           unsigned size, unsigned sign) {
-  auto result{ctx.getIntTypeForBitwidth(size, sign)};
-  if (!result.isNull()) {
-    return result;
-  }
-  auto &ti{ctx.getTargetInfo()};
-  auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
-  CHECK(target_type != clang::TargetInfo::IntType::NoInt)
-      << "Failed to infer clang::TargetInfo::IntType for bitwidth: " << size;
-  result = ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
-  CHECK(!result.isNull()) << "Failed to infer clang::QualType for bitwidth: "
-                          << size;
-  return result;
-}
+// clang::QualType GetLeastIntTypeForBitWidth(clang::ASTContext &ctx,
+//                                            unsigned size, unsigned sign) {
+//   auto result{ctx.getIntTypeForBitwidth(size, sign)};
+//   if (!result.isNull()) {
+//     return result;
+//   }
+//   auto &ti{ctx.getTargetInfo()};
+//   auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
+//   CHECK(target_type != clang::TargetInfo::IntType::NoInt)
+//       << "Failed to infer clang::TargetInfo::IntType for bitwidth: " << size;
+//   result = ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
+//   CHECK(!result.isNull()) << "Failed to infer clang::QualType for bitwidth: "
+//                           << size;
+//   return result;
+// }
 
 // clang::Expr *CreateCStyleCastExpr(clang::ASTContext &ctx,
 //                                          clang::QualType type,

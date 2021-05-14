@@ -142,9 +142,8 @@ z3::expr Z3ConvVisitor::Z3BoolToBVCast(z3::expr expr) {
 
   CHECK(expr.is_bool());
 
-  auto src{z3_ctx->bool_sort()};
-  auto dst{z3_ctx->bv_sort(ast_ctx->getTypeSize(ast_ctx->IntTy))};
-  return z3_ctx->function("BoolToBV", src, dst)(expr);
+  auto size{ast_ctx->getTypeSize(ast_ctx->IntTy)};
+  return z3::ite(expr, z3_ctx->bv_val(1U, size), z3_ctx->bv_val(0U, size));
 }
 
 void Z3ConvVisitor::InsertCExpr(z3::expr z_expr, clang::Expr *c_expr) {
@@ -676,7 +675,6 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_Xor:
-
       InsertZ3Expr(c_op, lhs ^ rhs);
       break;
 
@@ -924,7 +922,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         auto s_size{GetZ3SortSize(z_op)};
         auto t_op{ast_ctx->getIntTypeForBitwidth(s_size, /*sign=*/0)};
         c_op = ast.CreateCStyleCast(t_op, c_sub);
-      } else if (z_func_name == "BoolToBV" || z_func_name == "PtrDecay") {
+      } else if (z_func_name == "PtrDecay") {
         c_op = c_sub;
       } else {
         LOG(FATAL) << "Unknown Z3 uninterpreted unary function: "

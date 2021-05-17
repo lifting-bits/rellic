@@ -1,10 +1,6 @@
 name: Run AnghaBench CI After Build
 
 on:
-  # Run this workflow every day at 3am
-  schedule:
-   - cron: "0 3 * * *"
-
   # Only run when normal CI steps complete
   # Otherwise we'd just fail to build this rellic branch
   workflow_run:
@@ -13,7 +9,7 @@ on:
 
 jobs:
   AnghaSmallRun:
-    if: github.event_name = 'schedule' || github.event.workflow_run.conclusion == 'success' 
+    if: github.event.workflow_run.conclusion == 'success' 
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -21,6 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
+        ref: ${{ github.event.workflow_run.head_branch }}
         submodules: true
     # https://stackoverflow.com/questions/58033366/how-to-get-current-branch-within-github-actions
     - name: Extract branch name

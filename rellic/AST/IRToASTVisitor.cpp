@@ -625,8 +625,8 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto rhs{GetOperandExpr(inst.getOperand(1))};
   // Sign-cast int operand
   auto IntSignCast = [this](clang::Expr *operand, bool sign) {
-    auto type = ast_ctx.getIntTypeForBitwidth(
-        ast_ctx.getTypeSize(operand->getType()), sign);
+    auto type{ast_ctx.getIntTypeForBitwidth(
+        ast_ctx.getTypeSize(operand->getType()), sign)};
     return ast.CreateCStyleCast(type, operand);
   };
   // Where the magic happens

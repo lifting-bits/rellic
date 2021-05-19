@@ -1,23 +1,16 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
+
+#include "rellic/AST/CondBasedRefine.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
@@ -40,13 +33,14 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char CondBasedRefine::ID = 0;
 
-CondBasedRefine::CondBasedRefine(clang::ASTContext &ctx,
+CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit,
                                  rellic::IRToASTVisitor &ast_gen)
     : ModulePass(CondBasedRefine::ID),
-      ast_ctx(&ctx),
+      ast(unit),
+      ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(ast_ctx, z3_ctx.get())),
+      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
 
 bool CondBasedRefine::Prove(z3::expr expr) {
@@ -108,8 +102,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
       substitutions[stmt] = nullptr;
     }
     // Create our new if-then
-    auto sub = CreateIfStmt(*ast_ctx, lhs->getCond(),
-                            CreateCompoundStmt(*ast_ctx, thens));
+    auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompound(thens));
     // Create an else branch if possible
     if (!elses.empty()) {
       // Erase else statements from the AST and `worklist`
@@ -118,7 +111,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
         substitutions[stmt] = nullptr;
       }
       // Add the else branch
-      sub->setElse(CreateCompoundStmt(*ast_ctx, elses));
+      sub->setElse(ast.CreateCompound(elses));
     }
     // Replace `lhs` with the new `sub`
     substitutions[lhs] = sub;
@@ -138,7 +131,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
+    substitutions[compound] = ast.CreateCompound(new_body);
   }
   return true;
 }
@@ -150,8 +143,8 @@ bool CondBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
                                             rellic::IRToASTVisitor &gen) {
-  return new CondBasedRefine(ctx, gen);
+  return new CondBasedRefine(unit, gen);
 }
 }  // namespace rellic

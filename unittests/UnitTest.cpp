@@ -6,12 +6,5 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#pragma once
-
-#include "rellic/BC/Version.h"
-
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(3, 5)
-# include <llvm/IR/Verifier.h>
-#else
-# include <llvm/Analysis/Verifier.h>
-#endif
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest/doctest.h>

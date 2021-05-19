@@ -1,27 +1,24 @@
 /*
- * Copyright (c) 2019 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
 #pragma once
 
+#include <clang/AST/RecursiveASTVisitor.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <clang/AST/RecursiveASTVisitor.h>
-
 #include <unordered_map>
+
+#include "rellic/AST/ASTBuilder.h"
+
+namespace clang {
+class ASTUnit;
+}
 
 namespace rellic {
 
@@ -30,12 +27,14 @@ class CXXToCDeclVisitor : public clang::RecursiveASTVisitor<CXXToCDeclVisitor> {
   clang::ASTContext &ast_ctx;
   clang::TranslationUnitDecl *c_tu;
 
+  ASTBuilder ast;
+
   std::unordered_map<clang::Decl *, clang::Decl *> c_decls;
 
   clang::QualType GetAsCType(clang::QualType type);
 
  public:
-  CXXToCDeclVisitor(clang::ASTContext &ctx);
+  CXXToCDeclVisitor(clang::ASTUnit &unit);
 
   bool shouldVisitTemplateInstantiations() { return true; }
 

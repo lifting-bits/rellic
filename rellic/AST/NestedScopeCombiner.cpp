@@ -1,33 +1,25 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
+
+#include "rellic/AST/NestedScopeCombiner.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-#include "rellic/AST/NestedScopeCombiner.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 
 char NestedScopeCombiner::ID = 0;
 
-NestedScopeCombiner::NestedScopeCombiner(clang::ASTContext &ctx,
+NestedScopeCombiner::NestedScopeCombiner(clang::ASTUnit &unit,
                                          rellic::IRToASTVisitor &ast_gen)
     : ModulePass(NestedScopeCombiner::ID),
-      ast_ctx(&ctx),
+      ast(unit),
+      ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen) {}
 
 bool NestedScopeCombiner::VisitIfStmt(clang::IfStmt *ifstmt) {
@@ -54,11 +46,11 @@ bool NestedScopeCombiner::VisitCompoundStmt(clang::CompoundStmt *compound) {
       new_body.push_back(stmt);
     }
   }
-  
+
   if (has_compound) {
-    substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
+    substitutions[compound] = ast.CreateCompound(new_body);
   }
-  
+
   return true;
 }
 
@@ -69,8 +61,8 @@ bool NestedScopeCombiner::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createNestedScopeCombinerPass(clang::ASTContext &ctx,
+llvm::ModulePass *createNestedScopeCombinerPass(clang::ASTUnit &unit,
                                                 rellic::IRToASTVisitor &gen) {
-  return new NestedScopeCombiner(ctx, gen);
+  return new NestedScopeCombiner(unit, gen);
 }
 }  // namespace rellic

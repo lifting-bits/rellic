@@ -1,24 +1,16 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
+
+#include "rellic/AST/NestedCondProp.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/NestedCondProp.h"
-#include "rellic/AST/Util.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
@@ -39,13 +31,14 @@ static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
 
 char NestedCondProp::ID = 0;
 
-NestedCondProp::NestedCondProp(clang::ASTContext &ctx,
+NestedCondProp::NestedCondProp(clang::ASTUnit &unit,
                                rellic::IRToASTVisitor &ast_gen)
     : ModulePass(NestedCondProp::ID),
-      ast_ctx(&ctx),
+      ast(unit),
+      ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(ast_ctx, z3_ctx.get())) {}
+      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
 
 bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
@@ -66,10 +59,10 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
     if (stmt_else) {
       if (auto comp = clang::dyn_cast<clang::CompoundStmt>(stmt_else)) {
         for (auto child : GetIfStmts(comp)) {
-          parent_conds[child] = CreateNotExpr(*ast_ctx, cond);
+          parent_conds[child] = ast.CreateLNot(cond);
         }
       } else if (auto elif = clang::dyn_cast<clang::IfStmt>(stmt_else)) {
-        parent_conds[elif] = CreateNotExpr(*ast_ctx, cond);
+        parent_conds[elif] = ast.CreateLNot(cond);
       } else {
         LOG(FATAL)
             << "Else branch must be a clang::CompoundStmt or clang::IfStmt!";
@@ -102,8 +95,8 @@ bool NestedCondProp::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createNestedCondPropPass(clang::ASTContext &ctx,
+llvm::ModulePass *createNestedCondPropPass(clang::ASTUnit &unit,
                                            rellic::IRToASTVisitor &gen) {
-  return new NestedCondProp(ctx, gen);
+  return new NestedCondProp(unit, gen);
 }
 }  // namespace rellic

@@ -1,23 +1,19 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
 #pragma once
 
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
+
+namespace clang {
+class ASTUnit;
+}
 
 namespace rellic {
 
@@ -37,11 +33,11 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
     return cond;
   }
 
-  virtual clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  virtual clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                                clang::Stmt *stmt) = 0;
 };
 
-clang::Stmt *ApplyFirstMatchingRule(clang::ASTContext &ctx, clang::Stmt *stmt,
+clang::Stmt *ApplyFirstMatchingRule(clang::ASTUnit &unit, clang::Stmt *stmt,
                                     std::vector<InferenceRule *> &rules);
 
 }  // namespace rellic

@@ -1,20 +1,13 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
 #include <clang/Basic/TargetInfo.h>
+#include <clang/Tooling/Tooling.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <llvm/IR/InstIterator.h>
@@ -86,20 +79,19 @@ static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
 
-  clang::CompilerInstance ins;
-  rellic::InitCompilerInstance(ins, module.getTargetTriple());
+  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target", module.getTargetTriple()};
+  auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
+  auto& ast_ctx{ast_unit->getASTContext()};
 
-  auto& ast_ctx{ins.getASTContext()};
-
-  rellic::IRToASTVisitor gen(ast_ctx);
+  rellic::IRToASTVisitor gen(*ast_unit);
 
   llvm::legacy::PassManager ast;
-  ast.add(rellic::createGenerateASTPass(ast_ctx, gen));
-  ast.add(rellic::createDeadStmtElimPass(ast_ctx, gen));
+  ast.add(rellic::createGenerateASTPass(*ast_unit, gen));
+  ast.add(rellic::createDeadStmtElimPass(*ast_unit, gen));
   ast.run(module);
 
   // Simplifier to use during condition-based refinement
-  auto cbr_simplifier{new rellic::Z3CondSimplify(ast_ctx, gen)};
+  auto cbr_simplifier{new rellic::Z3CondSimplify(*ast_unit, gen)};
   cbr_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(cbr_simplifier->GetZ3Context(), "aig") &
@@ -109,27 +101,27 @@ static bool GeneratePseudocode(llvm::Module& module,
   llvm::legacy::PassManager cbr;
   if (!FLAGS_disable_z3) {
     cbr.add(cbr_simplifier);
-    cbr.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+    cbr.add(rellic::createNestedCondPropPass(*ast_unit, gen));
   }
 
-  cbr.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
+  cbr.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
 
   if (!FLAGS_disable_z3) {
-    cbr.add(rellic::createCondBasedRefinePass(ast_ctx, gen));
-    cbr.add(rellic::createReachBasedRefinePass(ast_ctx, gen));
+    cbr.add(rellic::createCondBasedRefinePass(*ast_unit, gen));
+    cbr.add(rellic::createReachBasedRefinePass(*ast_unit, gen));
   }
 
   while (cbr.run(module))
     ;
 
   llvm::legacy::PassManager loop;
-  loop.add(rellic::createLoopRefinePass(ast_ctx, gen));
-  loop.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
+  loop.add(rellic::createLoopRefinePass(*ast_unit, gen));
+  loop.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
   while (loop.run(module))
     ;
 
   // Simplifier to use during final refinement
-  auto fin_simplifier{new rellic::Z3CondSimplify(ast_ctx, gen)};
+  auto fin_simplifier{new rellic::Z3CondSimplify(*ast_unit, gen)};
   fin_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
@@ -145,11 +137,11 @@ static bool GeneratePseudocode(llvm::Module& module,
   llvm::legacy::PassManager fin;
   if (!FLAGS_disable_z3) {
     fin.add(fin_simplifier);
-    fin.add(rellic::createNestedCondPropPass(ast_ctx, gen));
+    fin.add(rellic::createNestedCondPropPass(*ast_unit, gen));
   }
 
-  fin.add(rellic::createNestedScopeCombinerPass(ast_ctx, gen));
-  fin.add(rellic::createExprCombinePass(ast_ctx, gen));
+  fin.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
+  fin.add(rellic::createExprCombinePass(*ast_unit, gen));
   fin.run(module);
 
   ast_ctx.getTranslationUnitDecl()->print(output);

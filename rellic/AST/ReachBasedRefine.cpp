@@ -1,23 +1,15 @@
 /*
- * Copyright (c) 2020 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
+
+#include "rellic/AST/ReachBasedRefine.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-#include "rellic/AST/ReachBasedRefine.h"
 
 namespace rellic {
 
@@ -39,13 +31,14 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char ReachBasedRefine::ID = 0;
 
-ReachBasedRefine::ReachBasedRefine(clang::ASTContext &ctx,
+ReachBasedRefine::ReachBasedRefine(clang::ASTUnit &unit,
                                    rellic::IRToASTVisitor &ast_gen)
     : ModulePass(ReachBasedRefine::ID),
-      ast_ctx(&ctx),
+      ast(unit),
+      ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(ast_ctx, z3_ctx.get())),
+      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
 
 bool ReachBasedRefine::Prove(z3::expr expr) {
@@ -108,14 +101,14 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
     auto cond = stmt->getCond();
     auto then = stmt->getThen();
     if (stmt == elifs.back()) {
-      sub = CreateIfStmt(*ast_ctx, cond, then);
+      sub = ast.CreateIf(cond, then);
       substitutions[stmt] = sub;
     } else if (stmt == elifs.front()) {
       std::vector<clang::Stmt *> thens({then});
-      sub->setElse(CreateCompoundStmt(*ast_ctx, thens));
+      sub->setElse(ast.CreateCompound(thens));
       substitutions[stmt] = nullptr;
     } else {
-      auto elif = CreateIfStmt(*ast_ctx, cond, then);
+      auto elif = ast.CreateIf(cond, then);
       sub->setElse(elif);
       sub = elif;
       substitutions[stmt] = nullptr;
@@ -136,7 +129,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = CreateCompoundStmt(*ast_ctx, new_body);
+    substitutions[compound] = ast.CreateCompound(new_body);
   }
   return true;
 }
@@ -148,9 +141,9 @@ bool ReachBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createReachBasedRefinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createReachBasedRefinePass(clang::ASTUnit &unit,
                                              rellic::IRToASTVisitor &gen) {
-  return new ReachBasedRefine(ctx, gen);
+  return new ReachBasedRefine(unit, gen);
 }
 
 }  // namespace rellic

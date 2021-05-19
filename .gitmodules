@@ -1,4 +1,7 @@
-[submodule "tests/lifting-tool-ci"]
+[submodule "libraries/doctest/src"]
+	path = libraries/doctest/src
+	url = https://github.com/onqtam/doctest.git
+[submodule "libraries/lifting-tool-ci"]
 	path = libraries/lifting-tools-ci
-	url = git@github.com:lifting-bits/lifting-tools-ci.git
+	url = https://github.com/lifting-bits/lifting-tools-ci.git
 	branch = master

@@ -61,11 +61,6 @@ jobs:
           # Test with CMake provided test
           env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test
 
-          # Run tests manually (kinda ugly, so use CMake way)
-          CLANG_BIN="$(find ../../pre-built-llvm-${{ matrix.llvm }} -path "*/tools/llvm-${{ matrix.llvm }}/clang" -exec readlink -f {} \; )"
-          ../scripts/roundtrip.py "./tools/rellic-decomp-${{ matrix.llvm }}.0" ../tests/tools/decomp "${CLANG_BIN}"
-          ../scripts/roundtrip.py --translate-only "./tools/rellic-decomp-${{ matrix.llvm }}.0" ../tests/tools/decomp/failing-rebuild "${CLANG_BIN}"
-
       - name: Locate the packages
         id: package_names
         shell: bash
@@ -122,11 +117,6 @@ jobs:
         run: |
           # Test with CMake provided test
           env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test
-
-          # Run tests manually (kinda ugly, so use CMake way)
-          CLANG_BIN="$(find ../../pre-built-llvm-${{ matrix.llvm }} -path "*/tools/llvm-${{ matrix.llvm }}/clang" -exec python -c "import os; print(os.path.abspath('{}'))" \; )"
-          ../scripts/roundtrip.py "./tools/rellic-decomp-${{ matrix.llvm }}.0" ../tests/tools/decomp "${CLANG_BIN}"
-          ../scripts/roundtrip.py --translate-only "./tools/rellic-decomp-${{ matrix.llvm }}.0" ../tests/tools/decomp/failing-rebuild "${CLANG_BIN}"
 
       - name: Locate the packages
         id: package_names

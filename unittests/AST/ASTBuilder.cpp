@@ -61,7 +61,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       GIVEN("1 bit unsigned llvm::APInt") {
-        llvm::APInt api(1U, 0U, /*isSigned=*/false);
+        llvm::APInt api(1U, UINT64_C(0), /*isSigned=*/false);
         auto lit{ast.CreateIntLit(api)};
         THEN("return a unsigned int typed integer literal") {
           REQUIRE(lit != nullptr);
@@ -78,7 +78,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       GIVEN("8 bit unsigned llvm::APInt") {
-        llvm::APInt api(8U, 42U, /*isSigned=*/false);
+        llvm::APInt api(8U, UINT64_C(42), /*isSigned=*/false);
         THEN("return a unsigned int typed integer literal") {
           auto lit{ast.CreateIntLit(api)};
           REQUIRE(lit != nullptr);
@@ -107,7 +107,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       GIVEN("16 bits wide llvm::APInt") {
-        llvm::APInt api(16U, 42U, /*isSigned=*/false);
+        llvm::APInt api(16U, UINT64_C(42), /*isSigned=*/false);
         THEN("return a unsigned int typed integer literal") {
           auto lit{ast.CreateIntLit(api)};
           REQUIRE(lit != nullptr);
@@ -136,7 +136,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       GIVEN("32 bits wide llvm::APInt") {
-        llvm::APInt api(32U, 42U, /*isSigned=*/false);
+        llvm::APInt api(32U, UINT64_C(42), /*isSigned=*/false);
         auto lit{ast.CreateIntLit(api)};
         THEN("return a unsigned int typed integer literal") {
           REQUIRE(lit != nullptr);
@@ -153,7 +153,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       GIVEN("64 bits wide llvm::APInt") {
-        llvm::APInt api(64U, 42U, /*isSigned=*/false);
+        llvm::APInt api(64U, UINT64_C(42), /*isSigned=*/false);
         auto lit{ast.CreateIntLit(api)};
         THEN("return a unsigned long typed integer literal") {
           REQUIRE(lit != nullptr);
@@ -170,7 +170,7 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       auto &ctx{unit->getASTContext()};
       rellic::ASTBuilder ast(*unit);
       GIVEN("128 bits wide llvm::APInt") {
-        llvm::APInt api(128U, 42U, /*isSigned=*/false);
+        llvm::APInt api(128U, UINT64_C(42), /*isSigned=*/false);
         THEN("return a unsigned long long typed integer literal") {
           auto lit{ast.CreateIntLit(api)};
           REQUIRE(lit != nullptr);

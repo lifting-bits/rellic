@@ -205,19 +205,27 @@ enable_testing()
 
 add_subdirectory(unittests)
 
-find_package(Clang CONFIG REQUIRED)
-get_target_property(CLANG_PATH clang LOCATION)
+set(CLANG_EXE_PATH "" CACHE FILEPATH "Path to clang executable for tests")
+if(NOT CLANG_EXE_PATH)
+  # Try to search for clang with CMake
+  find_package(Clang CONFIG REQUIRED)
+  if(TARGET clang)
+    get_target_property(CLANG_EXE_PATH clang LOCATION)
+  else()
+    message(FATAL_ERROR "Cannot find clang executable path. Please specify CLANG_EXE_PATH during configuration")
+  endif()
+endif()
 
-message(STATUS "Clang path for tests: \"${CLANG_PATH}\"")
+message(STATUS "Clang path for tests: \"${CLANG_EXE_PATH}\"")
 
 # Tests that survive a complete roundtrip
 add_test(NAME test_roundtrip_rebuild
-  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"
+  COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_EXE_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # Tests that may not roundtrip yet, but should emit C
 add_test(NAME test_roundtrip_translate_only
-  COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}"
+  COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_EXE_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

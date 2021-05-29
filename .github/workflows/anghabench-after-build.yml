@@ -1,0 +1,34 @@
+name: Run AnghaBench CI After Build
+
+on:
+  # Only run when normal CI steps complete
+  # Otherwise we'd just fail to build this rellic branch
+  workflow_run:
+    workflows: ["VCPKG Continuous Integration"]
+    types: [completed]
+
+jobs:
+  AnghaSmallRun:
+    if: github.event.workflow_run.conclusion == 'success' 
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        llvm: ["11"]
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.workflow_run.head_branch }}
+        submodules: true
+    # https://stackoverflow.com/questions/58033366/how-to-get-current-branch-within-github-actions
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+    - name: Run against ${{ matrix.llvm }}
+      run: |
+        libraries/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run Post Build" --script scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
+      env:
+        SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
+        DO_TOKEN: ${{ secrets.DO_TOKEN }}
+        BRANCH: ${{ steps.extract_branch.outputs.branch }}
+ 

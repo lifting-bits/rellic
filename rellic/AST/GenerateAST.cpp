@@ -1,17 +1,9 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
 #include "rellic/AST/GenerateAST.h"
@@ -27,6 +19,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/Util.h"
 #include "rellic/BC/Util.h"
 
@@ -145,7 +138,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
             ast_gen->GetOrCreateStmt(br->getCondition()));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
-          result = CreateNotExpr(*ast_ctx, result);
+          result = ast.CreateLNot(result);
         }
       }
     } break;
@@ -177,20 +170,29 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   }
   // Gather reaching conditions from predecessors of the block
   for (auto pred : llvm::predecessors(block)) {
-    auto pred_cond = reaching_conds[pred];
-    auto edge_cond = CreateEdgeCond(pred, block);
-    // Construct reaching condition from `pred` to `block` as
-    // `reach_cond[pred] && edge_cond(pred, block)`
+    auto pred_cond{reaching_conds[pred]};
+    auto edge_cond{CreateEdgeCond(pred, block)};
     if (pred_cond || edge_cond) {
-      auto conj_cond = CreateAndExpr(*ast_ctx, pred_cond, edge_cond);
+      // Construct reaching condition from `pred` to `block` as
+      // `reach_cond[pred] && edge_cond(pred, block)` or one of
+      // the two if the other one is missing.
+      clang::Expr *conj_cond{nullptr};
+      if (!pred_cond) {
+        conj_cond = edge_cond;
+      } else if (!edge_cond) {
+        conj_cond = pred_cond;
+      } else {
+        conj_cond = ast.CreateLAnd(pred_cond, edge_cond);
+      }
       // Append `conj_cond` to reaching conditions of other
-      // predecessors via an `||`
-      cond = CreateOrExpr(*ast_ctx, cond, conj_cond);
+      // predecessors via an `||`. Use `conj_cond` if there
+      // is no `cond` yet.
+      cond = cond ? ast.CreateLOr(cond, conj_cond) : conj_cond;
     }
   }
   // Create `if(1)` in case we still don't have a reaching condition
   if (!cond) {
-    cond = CreateTrueExpr(*ast_ctx);
+    cond = ast.CreateTrue();
   }
   // Done
   return cond;
@@ -206,16 +208,15 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
     // Create an auxiliary variable `val` that holds the value of `inst`
     if (llvm::isa<llvm::CallInst>(inst) && inst.mayHaveSideEffects() &&
         !inst.getType()->isVoidTy()) {
-      auto fdecl = clang::cast<clang::FunctionDecl>(
-          ast_gen->GetOrCreateDecl(inst.getFunction()));
-      auto num = GetNumDecls<clang::VarDecl>(fdecl);
-      auto id = CreateIdentifier(*ast_ctx, "val" + std::to_string(num));
-      auto expr = clang::cast<clang::Expr>(stmt);
-      auto var = CreateVarDecl(*ast_ctx, fdecl, id, expr->getType());
+      auto fdecl{clang::cast<clang::FunctionDecl>(
+          ast_gen->GetOrCreateDecl(inst.getFunction()))};
+      auto expr{clang::cast<clang::Expr>(stmt)};
+      auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+      auto var{ast.CreateVarDecl(fdecl, expr->getType(), name)};
       fdecl->addDecl(var);
       var->setInit(expr);
-      stmt = CreateDeclStmt(*ast_ctx, var);
-      ast_gen->SetStmt(&inst, CreateDeclRefExpr(*ast_ctx, var));
+      stmt = ast.CreateDeclStmt(var);
+      ast_gen->SetStmt(&inst, ast.CreateDeclRef(var));
     }
 
     result.push_back(stmt);
@@ -242,11 +243,10 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     } else {
       // Create a compound, wrapping the block
       auto block_body = CreateBasicBlockStmts(block);
-      compound = CreateCompoundStmt(*ast_ctx, block_body);
+      compound = ast.CreateCompound(block_body);
     }
     // Gate the compound behind a reaching condition
-    block_stmts[block] =
-        CreateIfStmt(*ast_ctx, GetOrCreateReachingCond(block), compound);
+    block_stmts[block] = ast.CreateIf(GetOrCreateReachingCond(block), compound);
     // Store the compound
     result.push_back(block_stmts[block]);
   }
@@ -297,7 +297,7 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
 clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
   DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is acyclic";
   auto region_body = CreateRegionStmts(region);
-  return CreateCompoundStmt(*ast_ctx, region_body);
+  return ast.CreateCompound(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
@@ -310,7 +310,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   // a recognized natural loop. Cyclic regions may only be fragments
   // of a larger loop structure.
   if (!loop) {
-    return CreateCompoundStmt(*ast_ctx, region_body);
+    return ast.CreateCompound(region_body);
   }
   // Refine loop members and successors without invalidating LoopInfo
   BBSet members, successors;
@@ -341,25 +341,24 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto from = edge.first;
     auto to = edge.second;
     // Create edge condition
-    auto cond = CreateAndExpr(*ast_ctx, GetOrCreateReachingCond(from),
-                              CreateEdgeCond(from, to));
+    auto cond =
+        ast.CreateLAnd(GetOrCreateReachingCond(from), CreateEdgeCond(from, to));
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
-    StmtVec break_stmt({CreateBreakStmt(*ast_ctx)});
-    auto exit_stmt =
-        CreateIfStmt(*ast_ctx, cond, CreateCompoundStmt(*ast_ctx, break_stmt));
+    StmtVec break_stmt({ast.CreateBreak()});
+    auto exit_stmt = ast.CreateIf(cond, ast.CreateCompound(break_stmt));
     // Insert it after the exiting block statement
     loop_body.insert(std::next(it), exit_stmt);
   }
   // Create the loop statement
-  auto loop_stmt = CreateWhileStmt(*ast_ctx, CreateTrueExpr(*ast_ctx),
-                                   CreateCompoundStmt(*ast_ctx, loop_body));
+  auto loop_stmt =
+      ast.CreateWhile(ast.CreateTrue(), ast.CreateCompound(loop_body));
   // Insert it at the beginning of the region body
   region_body.insert(region_body.begin(), loop_stmt);
   // Structure the rest of the loop body as a acyclic region
-  return CreateCompoundStmt(*ast_ctx, region_body);
+  return ast.CreateCompound(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
@@ -386,8 +385,11 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 char GenerateAST::ID = 0;
 
-GenerateAST::GenerateAST(clang::ASTContext &ctx, rellic::IRToASTVisitor &gen)
-    : ModulePass(GenerateAST::ID), ast_ctx(&ctx), ast_gen(&gen) {}
+GenerateAST::GenerateAST(clang::ASTUnit &unit, rellic::IRToASTVisitor &gen)
+    : ModulePass(GenerateAST::ID),
+      ast_ctx(&unit.getASTContext()),
+      ast_gen(&gen),
+      ast(unit) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
   usage.addRequired<llvm::DominatorTreeWrapperPass>();
@@ -435,8 +437,8 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
         clang::cast<clang::FunctionDecl>(ast_gen->GetOrCreateDecl(&func));
     // Create a redeclaration of `fdecl` that will serve as a definition
     auto tudecl = ast_ctx->getTranslationUnitDecl();
-    auto fdefn = CreateFunctionDecl(*ast_ctx, tudecl, fdecl->getIdentifier(),
-                                    fdecl->getType());
+    auto fdefn = ast.CreateFunctionDecl(tudecl, fdecl->getType(),
+                                        fdecl->getIdentifier());
     fdefn->setPreviousDecl(fdecl);
     tudecl->addDecl(fdefn);
     // Set parameters to the same as the previous declaration
@@ -448,9 +450,9 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
   return true;
 }
 
-llvm::ModulePass *createGenerateASTPass(clang::ASTContext &ctx,
+llvm::ModulePass *createGenerateASTPass(clang::ASTUnit &unit,
                                         rellic::IRToASTVisitor &gen) {
-  return new GenerateAST(ctx, gen);
+  return new GenerateAST(unit, gen);
 }
 
 }  // namespace rellic

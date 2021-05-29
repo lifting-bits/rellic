@@ -1,28 +1,20 @@
 /*
- * Copyright (c) 2019 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
 #include "rellic/AST/CXXToCDecl.h"
 
 #include <clang/AST/Mangle.h>
+#include <clang/Frontend/ASTUnit.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/Mangle.h"
 #include "rellic/AST/Compat/Type.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -52,8 +44,10 @@ static std::string GetMangledName(clang::NamedDecl *decl) {
 
 }  // namespace
 
-CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTContext &ctx)
-    : ast_ctx(ctx), c_tu(ctx.getTranslationUnitDecl()) {}
+CXXToCDeclVisitor::CXXToCDeclVisitor(clang::ASTUnit &unit)
+    : ast_ctx(unit.getASTContext()),
+      c_tu(ast_ctx.getTranslationUnitDecl()),
+      ast(unit) {}
 
 clang::QualType CXXToCDeclVisitor::GetAsCType(clang::QualType type) {
   const clang::Type *result;
@@ -98,15 +92,14 @@ bool CXXToCDeclVisitor::VisitFunctionDecl(clang::FunctionDecl *cxx_func) {
   auto func_type = ast_ctx.getFunctionType(ret_type, param_types,
                                            cxx_proto->getExtProtoInfo());
   // Declare the C function
-  auto func_id = CreateIdentifier(ast_ctx, GetMangledName(cxx_func));
-  auto func_decl = CreateFunctionDecl(ast_ctx, c_tu, func_id, func_type);
+  auto func_decl =
+      ast.CreateFunctionDecl(c_tu, func_type, GetMangledName(cxx_func));
   // Declare parameters
   std::vector<clang::ParmVarDecl *> param_decls;
   for (auto cxx_param : cxx_func->parameters()) {
-    auto param_id = CreateIdentifier(ast_ctx, cxx_param->getNameAsString());
-    auto param_type = GetAsCType(cxx_param->getType());
-    param_decls.push_back(
-        CreateParmVarDecl(ast_ctx, func_decl, param_id, param_type));
+    param_decls.push_back(ast.CreateParamDecl(func_decl,
+                                              GetAsCType(cxx_param->getType()),
+                                              cxx_param->getNameAsString()));
   }
   // Set C function parameters
   func_decl->setParams(param_decls);
@@ -147,10 +140,9 @@ bool CXXToCDeclVisitor::VisitCXXMethodDecl(clang::CXXMethodDecl *method) {
       old_proto->getReturnType(), param_types, old_proto->getExtProtoInfo());
   // Declare the C function
   auto func_decl =
-      CreateFunctionDecl(ast_ctx, c_tu, old_func->getIdentifier(), func_type);
+      ast.CreateFunctionDecl(c_tu, func_type, old_func->getIdentifier());
   // Declare parameters
-  auto this_id = CreateIdentifier(ast_ctx, "this");
-  auto this_decl = CreateParmVarDecl(ast_ctx, func_decl, this_id, this_type);
+  auto this_decl = ast.CreateParamDecl(func_decl, this_type, "this");
   std::vector<clang::ParmVarDecl *> param_decls({this_decl});
   param_decls.insert(param_decls.end(), old_func->param_begin(),
                      old_func->param_end());
@@ -179,10 +171,9 @@ bool CXXToCDeclVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *cls) {
   if (cls->isPolymorphic()) {
   }
   // Create the C struct definition
-  auto id = CreateIdentifier(ast_ctx, GetMangledName(cls));
-  auto decl = CreateStructDecl(ast_ctx, c_tu, id);
+  auto decl = ast.CreateStructDecl(c_tu, GetMangledName(cls));
   // Complete the C struct definition
-  clang::cast<clang::RecordDecl>(decl)->completeDefinition();
+  decl->completeDefinition();
   // Save the result
   c_decls[cls] = decl;
   // Add the C struct to the C translation unit
@@ -199,9 +190,8 @@ bool CXXToCDeclVisitor::VisitFieldDecl(clang::FieldDecl *field) {
   CHECK(iter != c_decls.end()) << "Field " << name << " does not have a parent";
   auto parent = clang::cast<clang::RecordDecl>(iter->second);
   // Create the field
-  auto id = CreateIdentifier(ast_ctx, field->getName().str());
   auto type = GetAsCType(field->getType());
-  auto decl = CreateFieldDecl(ast_ctx, parent, id, type);
+  auto decl = ast.CreateFieldDecl(parent, type, field->getName().str());
   // Save the result
   c_decls[field] = decl;
   // Add the field to it's parent struct

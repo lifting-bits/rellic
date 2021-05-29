@@ -1,25 +1,17 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
+
+#include "rellic/AST/ExprCombine.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/InferenceRule.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -45,7 +37,7 @@ class ArraySubscriptAddrOfRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto sub = clang::cast<clang::ArraySubscriptExpr>(stmt);
     CHECK(sub == match) << "Substituted ArraySubscriptExpr is not the matched "
@@ -69,7 +61,7 @@ class AddrOfArraySubscriptRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("addr_of");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto addr_of = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(addr_of == match)
@@ -92,7 +84,7 @@ class DerefAddrOfRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("deref");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
@@ -119,16 +111,16 @@ class NegComparisonRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
+    ASTBuilder ast(unit);
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
     auto subexpr = op->getSubExpr()->IgnoreParenCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
-    return CreateBinaryOperator(ctx, opc, binop->getLHS(), binop->getRHS(),
-                                binop->getType());
+    return ast.CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
   }
 };
 
@@ -144,7 +136,7 @@ class ParenDeclRefExprStripRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::ParenExpr>("paren");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto paren = clang::cast<clang::ParenExpr>(stmt);
     CHECK(paren == match)
@@ -169,15 +161,18 @@ class MemberExprAddrOfRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTContext &ctx,
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    auto arrow = clang::cast<clang::MemberExpr>(stmt);
+    ASTBuilder ast(unit);
+    auto arrow{clang::cast<clang::MemberExpr>(stmt)};
     CHECK(arrow == match)
         << "Substituted MemberExpr is not the matched MemberExpr!";
-    auto base = arrow->getBase()->IgnoreParenCasts();
-    auto addr_of = clang::cast<clang::UnaryOperator>(base);
-    return CreateMemberExpr(ctx, addr_of->getSubExpr(), arrow->getMemberDecl(),
-                            arrow->getType());
+    auto base{arrow->getBase()->IgnoreParenCasts()};
+    auto addr_of{clang::cast<clang::UnaryOperator>(base)};
+    auto field{clang::dyn_cast<clang::FieldDecl>(arrow->getMemberDecl())};
+    CHECK(field != nullptr)
+        << "Substituted MemberExpr is not a structure field access!";
+    return ast.CreateDot(addr_of->getSubExpr(), field);
   }
 };
 
@@ -185,14 +180,13 @@ class MemberExprAddrOfRule : public InferenceRule {
 
 char ExprCombine::ID = 0;
 
-ExprCombine::ExprCombine(clang::ASTContext &ctx,
-                         rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(ExprCombine::ID), ast_ctx(&ctx), ast_gen(&ast_gen) {}
+ExprCombine::ExprCombine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
+    : ModulePass(ExprCombine::ID), unit(u), ast_gen(&ast_gen) {}
 
 bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
   // DLOG(INFO) << "VisitParenExpr";
   std::vector<InferenceRule *> rules({new ParenDeclRefExprStripRule});
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, paren, rules);
+  auto sub = ApplyFirstMatchingRule(unit, paren, rules);
   if (sub != paren) {
     substitutions[paren] = sub;
   }
@@ -205,7 +199,7 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
 bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
   std::vector<InferenceRule *> rules({new ArraySubscriptAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, expr, rules);
+  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -223,7 +217,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.push_back(new DerefAddrOfRule);
   rules.push_back(new AddrOfArraySubscriptRule);
 
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, op, rules);
+  auto sub = ApplyFirstMatchingRule(unit, op, rules);
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -238,7 +232,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
 bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
   std::vector<InferenceRule *> rules({new MemberExprAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(*ast_ctx, expr, rules);
+  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -251,13 +245,12 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
 bool ExprCombine::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Rule-based statement simplification";
   Initialize();
-
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
+  TraverseDecl(unit.getASTContext().getTranslationUnitDecl());
   return changed;
 }
 
-llvm::ModulePass *createExprCombinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createExprCombinePass(clang::ASTUnit &unit,
                                         rellic::IRToASTVisitor &gen) {
-  return new ExprCombine(ctx, gen);
+  return new ExprCombine(unit, gen);
 }
 }  // namespace rellic

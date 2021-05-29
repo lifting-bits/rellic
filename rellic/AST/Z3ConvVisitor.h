@@ -1,17 +1,9 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
 #pragma once
@@ -21,11 +13,15 @@
 
 #include <unordered_map>
 
+#include "rellic/AST/ASTBuilder.h"
+
 namespace rellic {
 
 class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
  private:
   clang::ASTContext *ast_ctx;
+  ASTBuilder ast;
+
   z3::context *z3_ctx;
 
   // Expression maps
@@ -58,16 +54,21 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
 
   void VisitZ3Expr(z3::expr z3_expr);
 
+  template <typename T>
+  bool HandleCastExpr(T *c_cast);
+  clang::Expr *HandleZ3Concat(z3::expr z_op);
+
  public:
   z3::func_decl GetOrCreateZ3Decl(clang::ValueDecl *c_decl);
   z3::expr GetOrCreateZ3Expr(clang::Expr *c_expr);
 
   clang::Expr *GetOrCreateCExpr(z3::expr z3_expr);
 
-  Z3ConvVisitor(clang::ASTContext *c_ctx, z3::context *z3_ctx);
+  Z3ConvVisitor(clang::ASTUnit &unit, z3::context *z3_ctx);
   bool shouldTraversePostOrder() { return true; }
 
   z3::expr Z3BoolCast(z3::expr expr);
+  z3::expr Z3BoolToBVCast(z3::expr expr);
 
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
   bool VisitImplicitCastExpr(clang::ImplicitCastExpr *cast);
@@ -79,8 +80,9 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   bool VisitBinaryOperator(clang::BinaryOperator *c_op);
   bool VisitConditionalOperator(clang::ConditionalOperator *c_op);
   bool VisitDeclRefExpr(clang::DeclRefExpr *c_ref);
-  bool VisitCharacterLiteral(clang::CharacterLiteral *c_lit);
-  bool VisitIntegerLiteral(clang::IntegerLiteral *c_lit);
+  bool VisitCharacterLiteral(clang::CharacterLiteral *lit);
+  bool VisitIntegerLiteral(clang::IntegerLiteral *lit);
+  bool VisitFloatingLiteral(clang::FloatingLiteral *lit);
 
   bool VisitVarDecl(clang::VarDecl *var);
   bool VisitFieldDecl(clang::FieldDecl *field);

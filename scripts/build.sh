@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
-# Copyright (c) 2019 Trail of Bits, Inc.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Copyright (c) 2021-present, Trail of Bits, Inc.
+# All rights reserved.
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# This source code is licensed in accordance with the terms specified in
+# the LICENSE file found in the root directory of this source tree.
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 # General directory structure:
 #   /path/to/home/rellic
@@ -28,7 +22,7 @@ LLVM_VERSION=llvm-11
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
-CXX_COMMON_VERSION="v0.1.1"
+INSTALL_ONLY="no"
 
 # There are pre-build versions of various libraries for specific
 # Ubuntu releases.
@@ -68,7 +62,7 @@ function GetUbuntuOSVersion
     ;;
     *)
       echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported. Only focal (20.04) and bionic (18.04) are pre-compiled."
-      echo "[x] Please see https://github.com/trailofbits/cxx-common to build dependencies from source."
+      echo "[x] Please see https://github.com/lifting-bits/cxx-common to build dependencies from source."
       return 1
     ;;
   esac
@@ -103,7 +97,7 @@ function GetArchVersion
 function DownloadVcpkgLibraries
 {
   local GITHUB_LIBS="${LIBRARY_VERSION}.tar.xz"
-  local URL="https://github.com/trailofbits/cxx-common/releases/download/${CXX_COMMON_VERSION}/${GITHUB_LIBS}"
+  local URL="https://github.com/lifting-bits/cxx-common/releases/latest/download/${GITHUB_LIBS}"
 
   mkdir -p "${DOWNLOAD_DIR}"
   pushd "${DOWNLOAD_DIR}" || return 1
@@ -180,17 +174,15 @@ function DownloadLibraries
     #BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_OSX_SYSROOT=${sdk_root}"
     # Min version supported
     OS_VERSION="macos-10.15"
-    XCODE_VERSION="12.1.0"
+    # Hard-coded to match pre-built binaries in CI
+    XCODE_VERSION="12.4"
     if [[ "$(sw_vers -productVersion)" == "10.15"* ]]; then
       echo "Found MacOS Catalina"
       OS_VERSION="macos-10.15"
-      # Hard-coded to match pre-built binaries in CI
-      XCODE_VERSION="12.1.0"
     elif [[ "$(sw_vers -productVersion)" == "11."* ]]; then
       echo "Found MacOS Big Sur"
-      OS_VERSION="macos-11.0"
-      # Hard-coded to match pre-built binaries in CI
-      XCODE_VERSION="12.2.0"
+      # Uses 10.15 binaries
+      OS_VERSION="macos-10.15"
     else
       echo "WARNING: ****Likely unsupported MacOS Version****"
       echo "WARNING: ****Using ${OS_VERSION}****"
@@ -260,6 +252,20 @@ function Build
   (
     set -x
     cmake --build . -- -j"${NPROC}"
+  ) || return $?
+
+  return $?
+}
+
+#Install only
+function Install
+{
+  (
+    set -x
+
+    cmake --build . \
+      --target install
+
   ) || return $?
 
   return $?
@@ -336,6 +342,7 @@ function Help
   echo "  --build-dir        Change the default (${BUILD_DIR}) build directory."
   echo "  --debug            Build with Debug symbols."
   echo "  --extra-cmake-args Extra CMake arguments to build with."
+  echo "  --install          Just install Rellic, do not package it."
   echo "  -h --help          Print help."
 }
 
@@ -392,6 +399,12 @@ function main
         echo "[+] Enabling a debug build of rellic"
       ;;
 
+      # Only install, do not pakage
+      --install)
+        INSTALL_ONLY="yes"
+        echo "[+] Installing rellic. No packaging will be done."
+      ;;
+
       --extra-cmake-args)
         BUILD_FLAGS="${BUILD_FLAGS} ${2}"
         echo "[+] Will supply additional arguments to cmake: ${BUILD_FLAGS}"
@@ -411,9 +424,20 @@ function main
   mkdir -p "${BUILD_DIR}"
   cd "${BUILD_DIR}" || exit 1
 
-  if ! (DownloadLibraries && Configure && Build && Package); then
+  if ! (DownloadLibraries && Configure && Build); then
     echo "[x] Build aborted."
     exit 1
+  fi
+
+  if [[ "${INSTALL_ONLY}" = "yes" ]]
+  then
+    if ! Install; then
+      echo "[x] Installation Failed"
+    fi
+  else
+    if ! Package; then
+      echo "[x] Packaging Failed"
+    fi
   fi
 
   return $?

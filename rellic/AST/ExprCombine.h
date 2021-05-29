@@ -1,17 +1,9 @@
 /*
- * Copyright (c) 2018 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
 #pragma once
@@ -21,20 +13,19 @@
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 
 class ExprCombine : public llvm::ModulePass,
                     public TransformVisitor<ExprCombine> {
  private:
-  clang::ASTContext *ast_ctx;
+  clang::ASTUnit &unit;
   rellic::IRToASTVisitor *ast_gen;
 
  public:
   static char ID;
 
-  ExprCombine(clang::ASTContext &ctx, rellic::IRToASTVisitor &ast_gen);
+  ExprCombine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitUnaryOperator(clang::UnaryOperator *op);
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
@@ -44,7 +35,7 @@ class ExprCombine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createExprCombinePass(clang::ASTContext &ctx,
+llvm::ModulePass *createExprCombinePass(clang::ASTUnit &unit,
                                         rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 

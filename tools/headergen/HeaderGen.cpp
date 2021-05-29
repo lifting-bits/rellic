@@ -1,32 +1,23 @@
 /*
- * Copyright (c) 2019 Trail of Bits, Inc.
+ * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * All rights reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This source code is licensed in accordance with the terms specified in
+ * the LICENSE file found in the root directory of this source tree.
  */
 
+#include <clang/Tooling/Tooling.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/Support/Host.h>
 
 #include <fstream>
 #include <iostream>
 #include <streambuf>
 
-#include <clang/Tooling/Tooling.h>
-
 #include "rellic/AST/CXXToCDecl.h"
-#include "rellic/AST/Util.h"
-
-#include <rellic/Version/Version.h>
+// #include "rellic/AST/Util.h"
+#include "rellic/Version/Version.h"
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR
@@ -54,21 +45,23 @@ static void SetVersion(void) {
   std::stringstream version;
 
   auto vs = rellic::Version::GetVersionString();
-  if(0 == vs.size()) {
-      vs = "unknown";
+  if (0 == vs.size()) {
+    vs = "unknown";
   }
   version << vs << "\n";
-  if(!rellic::Version::HasVersionData()) {
+  if (!rellic::Version::HasVersionData()) {
     version << "No extended version information found!\n";
   } else {
     version << "Commit Hash: " << rellic::Version::GetCommitHash() << "\n";
     version << "Commit Date: " << rellic::Version::GetCommitDate() << "\n";
-    version << "Last commit by: " << rellic::Version::GetAuthorName() << " [" << rellic::Version::GetAuthorEmail() << "]\n";
-    version << "Commit Subject: [" << rellic::Version::GetCommitSubject() << "]\n";
+    version << "Last commit by: " << rellic::Version::GetAuthorName() << " ["
+            << rellic::Version::GetAuthorEmail() << "]\n";
+    version << "Commit Subject: [" << rellic::Version::GetCommitSubject()
+            << "]\n";
     version << "\n";
-    if(rellic::Version::HasUncommittedChanges()) {
+    if (rellic::Version::HasUncommittedChanges()) {
       version << "Uncommitted changes were present during build.\n";
-    } else  {
+    } else {
       version << "All changes were committed prior to building.\n";
     }
   }
@@ -118,12 +111,12 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
   // Run our visitor on the CXX AST
-  clang::CompilerInstance c_ins;
-  rellic::InitCompilerInstance(c_ins);
-  auto& c_ast_ctx = c_ins.getASTContext();
-  rellic::CXXToCDeclVisitor visitor(c_ast_ctx);
+  std::vector<std::string> args{"-target", llvm::sys::getDefaultTargetTriple()};
+  auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
+  auto& c_ast_ctx = ast_unit->getASTContext();
+  rellic::CXXToCDeclVisitor visitor(*ast_unit);
   // cxx_ast_unit->getASTContext().getTranslationUnitDecl()->dump();
-  visitor.TraverseDecl(cxx_ast_unit->getASTContext().getTranslationUnitDecl());
+  visitor.TraverseDecl(c_ast_ctx.getTranslationUnitDecl());
   // Print output
   c_ast_ctx.getTranslationUnitDecl()->print(output);
 

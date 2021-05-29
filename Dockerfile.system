@@ -1,0 +1,19 @@
+FROM ubuntu:20.04
+
+# Build shared libraries or not
+ARG SHARED=NO
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -qy g++ cmake ninja-build libgflags-dev libgoogle-glog-dev libz3-dev zlib1g-dev git llvm-9-dev clang-9 libclang-9-dev
+
+WORKDIR /rellic
+ADD . .
+RUN cmake -S . -B build \
+        -G Ninja -DBUILD_SHARED_LIBS=$SHARED \
+        -DLLVM_DIR=/usr/lib/llvm-8/cmake \
+        -DClang_DIR=/usr/lib/llvm-8/lib/cmake/clang
+
+RUN cmake --build build
+
+RUN cd build && env CTEST_OUTPUT_ON_FAILURE=1 ctest -V

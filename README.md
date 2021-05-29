@@ -1,8 +1,8 @@
 # Rellic
 
-Rellic is an implementation of the [pattern-independent structuring](https://github.com/trailofbits/rellic/blob/master/docs/NoMoreGotos.pdf) algorithm to produce a goto-free C output from LLVM bitcode.
+Rellic is an implementation of the [pattern-independent structuring](https://github.com/lifting-bits/rellic/blob/master/docs/NoMoreGotos.pdf) algorithm to produce a goto-free C output from LLVM bitcode.
 
-The design philosophy behind the project is to provide a relatively small and easily hackable codebase with great interoperability with other LLVM and [Remill](https://github.com/trailofbits/remill) projects.
+The design philosophy behind the project is to provide a relatively small and easily hackable codebase with great interoperability with other LLVM and [Remill](https://github.com/lifting-bits/remill) projects.
 
 ## Build Status
 
@@ -20,7 +20,7 @@ Rellic is supported on Linux platforms and has been tested on Ubuntu 16.04 and 1
 
 ## Dependencies
 
-Most of Rellic's dependencies can be provided by the [cxx-common](https://github.com/trailofbits/cxx-common) repository. Trail of Bits hosts downloadable, pre-built versions of cxx-common, which makes it substantially easier to get up and running with Rellic. Nonetheless, the following table represents most of Rellic's dependencies.
+Most of Rellic's dependencies can be provided by the [cxx-common](https://github.com/lifting-bits/cxx-common) repository. Trail of Bits hosts downloadable, pre-built versions of cxx-common, which makes it substantially easier to get up and running with Rellic. Nonetheless, the following table represents most of Rellic's dependencies.
 
 | Name | Version | 
 | ---- | ------- |
@@ -34,7 +34,7 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 
 ## Pre-made Docker Images
 
-Pre-built Docker images are available on [Docker Hub](https://hub.docker.com/repository/docker/trailofbits/rellic) and the Github Package Registry.
+Pre-built Docker images are available on [Docker Hub](https://hub.docker.com/repository/docker/lifting-bits/rellic) and the Github Package Registry.
 
 ## Getting and Building the Code
 
@@ -66,14 +66,16 @@ If the distribution you're on doesn't include a recent release of CMake (3.14 or
 The next step is to clone the Rellic repository.
 
 ```shell
-git clone https://github.com/trailofbits/rellic.git
+git clone https://github.com/lifting-bits/rellic.git
 ```
 
-Finally, we build Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be downloaded and placed in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details).
+Finally, we build and package Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be downloaded and placed in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details). This script also creates installable deb, rpm, and tgz packages.
 
 ```shell
 cd rellic
 ./scripts/build.sh --llvm-version 11
+# to install the deb package, then do:
+sudo dpkg -i rellic-build/*.deb
 ```
 
 To try out Rellic you can do the following, given a LLVM bitcode file of your choice.

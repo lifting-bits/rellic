@@ -12,7 +12,7 @@ FROM ${BUILD_BASE} as base
 
 # Build-time dependencies go here
 # See here for full list of those dependencies
-# https://github.com/trailofbits/cxx-common/blob/master/docker/Dockerfile.ubuntu.vcpkg
+# https://github.com/lifting-bits/cxx-common/blob/master/docker/Dockerfile.ubuntu.vcpkg
 FROM trailofbits/cxx-common-vcpkg-builder-ubuntu:${UBUNTU_VERSION} as deps
 ARG UBUNTU_VERSION
 ARG ARCH
@@ -30,6 +30,8 @@ ARG LLVM_VERSION
 
 WORKDIR /rellic
 COPY ./ ./
+# The reason we don't use --install
+# is so that container has the same exact code as the packages
 RUN ./scripts/build.sh \
   --llvm-version ${LLVM_VERSION} \
   --prefix /opt/trailofbits \

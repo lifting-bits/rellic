@@ -221,10 +221,8 @@ z3::sort Z3ConvVisitor::GetZ3Sort(clang::QualType type) {
 clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
   DLOG(INFO) << "Creating literal clang::Expr for " << z_expr;
 
-  auto sort = z_expr.get_sort();
-
-  clang::Expr *result = nullptr;
-
+  auto sort{z_expr.get_sort()};
+  clang::Expr *result{nullptr};
   switch (sort.sort_kind()) {
     case Z3_BOOL_SORT: {
       auto val{z_expr.bool_value() == Z3_L_TRUE ? 1U : 0U};
@@ -350,7 +348,7 @@ bool Z3ConvVisitor::VisitFunctionDecl(clang::FunctionDecl *c_func) {
   }
 
   z3::sort_vector z_domains(*z_ctx);
-  z_domains.push_back(z_ctx->int_sort());
+  z_domains.push_back(z_ctx->bv_sort(/*sz=*/64U));
   for (auto c_param : c_func->parameters()) {
     z_domains.push_back(GetZ3Sort(c_param->getType()));
   }
@@ -518,7 +516,7 @@ bool Z3ConvVisitor::VisitCallExpr(clang::CallExpr *call) {
   // Get call id
   llvm::FoldingSetNodeID c_call_id;
   call->Profile(c_call_id, *c_ctx, /*Canonical=*/true);
-  auto z_call_id{z_ctx->int_val(c_call_id.ComputeHash())};
+  auto z_call_id{z_ctx->bv_val(c_call_id.ComputeHash(), /*sz=*/64U)};
   // Get arguments
   z3::expr_vector z_args(*z_ctx);
   z_args.push_back(z_call_id);
@@ -826,16 +824,25 @@ bool Z3ConvVisitor::VisitFloatingLiteral(clang::FloatingLiteral *lit) {
 
 void Z3ConvVisitor::VisitZ3Expr(z3::expr z_expr) {
   if (z_expr.is_app()) {
-    for (auto i = 0U; i < z_expr.num_args(); ++i) {
+    for (auto i{0U}; i < z_expr.num_args(); ++i) {
       GetOrCreateCExpr(z_expr.arg(i));
     }
     // TODO(msurovic): Rework this into a visitor based on
     // z_expr.decl().decl_kind()
-    if (z_expr.decl().decl_kind() == Z3_OP_CONCAT) {
+    auto z_decl{z_expr.decl()};
+    // Handle bitvector concats
+    if (z_decl.decl_kind() == Z3_OP_CONCAT) {
       InsertCExpr(z_expr, HandleZ3Concat(z_expr));
       return;
     }
-    switch (z_expr.decl().arity()) {
+    // Handle calls to user functions
+    if (z_expr.num_args() > 0 && z_decl.decl_kind() == Z3_OP_UNINTERPRETED &&
+        c_decl_map.count(Z3_get_func_decl_id(*z_ctx, z_decl))) {
+      InsertCExpr(z_expr, HandleZ3Call(z_expr));
+      return;
+    }
+    // Handle the rest
+    switch (z_decl.arity()) {
       case 0:
         VisitConstant(z_expr);
         break;
@@ -904,6 +911,41 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
       break;
   }
   InsertCExpr(z_const, c_expr);
+}
+
+clang::Expr *Z3ConvVisitor::HandleZ3Concat(z3::expr z_op) {
+  auto lhs{GetCExpr(z_op.arg(0U))};
+  for (auto i{1U}; i < z_op.num_args(); ++i) {
+    // Given a `(concat l r)` we generate `((t)l << w) | r` where
+    //  * `w` is the bitwidth of `r`
+    //
+    //  * `t` is the smallest integer type that can fit the result
+    //        of `(concat l r)`
+    auto rhs{GetCExpr(z_op.arg(i))};
+    auto res_ty{ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
+                                               /*sign=*/0U)};
+    if (!IsSignExt(z_op)) {
+      auto cast{ast.CreateCStyleCast(res_ty, lhs)};
+      auto shl_val{
+          ast.CreateIntLit(llvm::APInt(32U, GetZ3SortSize(z_op.arg(1U))))};
+      auto shl{ast.CreateShl(cast, shl_val)};
+      auto bor{ast.CreateOr(shl, rhs)};
+      lhs = ast.CreateParen(bor);
+    } else {
+      lhs = ast.CreateCStyleCast(res_ty, rhs);
+    }
+  }
+  return lhs;
+}
+
+clang::Expr *Z3ConvVisitor::HandleZ3Call(z3::expr z_op) {
+  std::vector<clang::Expr *> c_args;
+  for (auto i{1U}; i < z_op.num_args(); ++i) {
+    c_args.push_back(GetOrCreateCExpr(z_op.arg(i)));
+  }
+  auto c_func{GetCValDecl(z_op.decl())->getAsFunction()};
+  CHECK(c_func != nullptr);
+  return ast.CreateCall(c_func, c_args);
 }
 
 void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
@@ -983,31 +1025,6 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
   }
   // Save
   InsertCExpr(z_op, c_op);
-}
-
-clang::Expr *Z3ConvVisitor::HandleZ3Concat(z3::expr z_op) {
-  auto lhs{GetCExpr(z_op.arg(0U))};
-  for (auto i{1U}; i < z_op.num_args(); ++i) {
-    // Given a `(concat l r)` we generate `((t)l << w) | r` where
-    //  * `w` is the bitwidth of `r`
-    //
-    //  * `t` is the smallest integer type that can fit the result
-    //        of `(concat l r)`
-    auto rhs{GetCExpr(z_op.arg(i))};
-    auto res_ty{ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
-                                               /*sign=*/0)};
-    if (!IsSignExt(z_op)) {
-      auto cast{ast.CreateCStyleCast(res_ty, lhs)};
-      auto shl_val{
-          ast.CreateIntLit(llvm::APInt(32U, GetZ3SortSize(z_op.arg(1U))))};
-      auto shl{ast.CreateShl(cast, shl_val)};
-      auto bor{ast.CreateOr(shl, rhs)};
-      lhs = ast.CreateParen(bor);
-    } else {
-      lhs = ast.CreateCStyleCast(res_ty, rhs);
-    }
-  }
-  return lhs;
 }
 
 void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {

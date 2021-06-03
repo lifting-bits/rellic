@@ -18,15 +18,14 @@ TEST_SUITE("Z3ConvVisitor::VisitFunctionDecl") {
       rellic::Z3ConvVisitor conv(*c_unit, &z_ctx);
       auto c_tudecl{c_unit->getASTContext().getTranslationUnitDecl()};
       auto c_fdecl{GetDecl<clang::FunctionDecl>(c_tudecl, "f")};
-      THEN("return an uninterpreted function `bv32 f(bv32, bv8)`") {
+      THEN("return an uninterpreted function `f(bv32 bv8 bv32)`") {
         auto z_fdecl{conv.GetOrCreateZ3Decl(c_fdecl)};
         CHECK(z_fdecl.decl_kind() == Z3_OP_UNINTERPRETED);
         CHECK(z_fdecl.name().str() == c_fdecl->getNameAsString());
-        CHECK(z_fdecl.arity() == c_fdecl->getNumParams() + 1);
+        CHECK(z_fdecl.arity() == c_fdecl->getNumParams());
         CHECK(z_fdecl.range().bv_size() == 32U);
-        CHECK(z_fdecl.domain(0U).is_int());
-        CHECK(z_fdecl.domain(1U).bv_size() == 32U);
-        CHECK(z_fdecl.domain(2U).bv_size() == 8U);
+        CHECK(z_fdecl.domain(0U).bv_size() == 32U);
+        CHECK(z_fdecl.domain(1U).bv_size() == 8U);
       }
     }
   }
@@ -44,16 +43,43 @@ TEST_SUITE("Z3ConvVisitor::VisitCallExpr") {
       auto c_fdecl{GetDecl<clang::FunctionDecl>(c_tudecl, "f2")};
       auto c_func_body{clang::cast<clang::CompoundStmt>(c_fdecl->getBody())};
       auto c_call{clang::cast<clang::CallExpr>(*c_func_body->body_begin())};
-      THEN("return an uninterpreted function application `f1(id 0 1)`") {
+      THEN("return an uninterpreted function application `(Call id f1 0 1)`") {
         auto z_call{conv.GetOrCreateZ3Expr(c_call)};
-        CHECK(z_call.decl().name().str() == "f1");
+        CHECK(z_call.decl().name().str() == "Call");
         llvm::FoldingSetNodeID id;
         c_call->Profile(id, c_unit->getASTContext(), /*Canonical=*/true);
         CHECK(z_call.arg(0U).simplify().get_numeral_uint64() ==
               id.ComputeHash());
-        CHECK(z_call.arg(1U).simplify().get_numeral_uint64() == 0U);
-        CHECK(z_call.arg(2U).simplify().get_numeral_uint64() == 1U);
+        auto z_callee{conv.GetOrCreateZ3Expr(c_call->getCallee())};
+        CHECK(z3::eq(z_call.arg(1U), z_callee));
+        CHECK(z_call.arg(2U).simplify().get_numeral_uint64() == 0U);
+        CHECK(z_call.arg(3U).simplify().get_numeral_uint64() == 1U);
       }
     }
   }
 }
+
+// TEST_SUITE("Z3ConvVisitor::HandleZ3Call") {
+//   SCENARIO("Create a clang::CallExpr for a `(Call 1 f 2 3)` z3::expr") {
+//     GIVEN("Uninterpreted z3 function `f(bv32 bv32 bv32)`") {
+//       auto c_unit{GetASTUnit("")};
+//       z3::context z_ctx;
+//       rellic::Z3ConvVisitor conv(*c_unit, &z_ctx);
+//       auto z_sort{z_ctx.bv_sort(32U)};
+//       auto z_func_decl{z_ctx.function("f", z_sort, z_sort, z_sort)};
+//       auto z_func{z3::as_array(z_func_decl)};
+//       auto z_call{z_ctx.function("Call", z_sort, z_func.get_sort(), z_sort,
+//                                  z_sort, z_func.get_sort().array_range())};
+//       GIVEN("Application `(Call 1 f 2 3)`") {
+//         auto z_bv_1{z_ctx.bv_val(1U, 32U)};
+//         auto z_bv_2{z_ctx.bv_val(2U, 32U)};
+//         auto z_bv_3{z_ctx.bv_val(3U, 32U)};
+//         auto z_app{z_call(z_bv_1, z_func, z_bv_2, z_bv_3)};
+//         THEN("return a `f(2U, 3U)` clang::CallExpr") {
+//           auto c_call{conv.GetOrCreateCExpr(z_app)};
+//           CHECK(c_call != nullptr);
+//         }
+//       }
+//     }
+//   }
+// }

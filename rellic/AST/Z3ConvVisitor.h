@@ -53,6 +53,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
                                bool sign);
 
   void VisitZ3Expr(z3::expr z_expr);
+  void VisitZ3Decl(z3::func_decl z_decl);
 
   template <typename T>
   bool HandleCastExpr(T *c_cast);
@@ -64,6 +65,7 @@ class Z3ConvVisitor : public clang::RecursiveASTVisitor<Z3ConvVisitor> {
   z3::expr GetOrCreateZ3Expr(clang::Expr *c_expr);
 
   clang::Expr *GetOrCreateCExpr(z3::expr z_expr);
+  clang::ValueDecl *GetOrCreateCValDecl(z3::func_decl z_decl);
 
   Z3ConvVisitor(clang::ASTUnit &unit, z3::context *z_ctx);
   bool shouldTraversePostOrder() { return true; }

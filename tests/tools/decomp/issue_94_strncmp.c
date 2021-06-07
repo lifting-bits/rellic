@@ -4,7 +4,6 @@
 int main() {
   char str1[20];
   char str2[20];
-  int result;
 
   // Assigning the value to the string str1
   strcpy(str1, "hello");
@@ -14,9 +13,10 @@ int main() {
 
   // This will compare the first 3 characters
   if (strncmp(str1, str2, 3) > 0) {
-    printf("ASCII value of first unmatched character of str1 is greater than "
-           "str2");
-  } else if (result < 0) {
+    printf(
+        "ASCII value of first unmatched character of str1 is greater than "
+        "str2");
+  } else if (strncmp(str1, str2, 3) < 0) {
     printf(
         "ASCII value of first unmatched character of str1 is less than str2");
   } else {

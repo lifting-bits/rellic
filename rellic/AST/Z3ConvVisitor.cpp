@@ -30,7 +30,7 @@ static unsigned GetZ3SortSize(z3::sort sort) {
       break;
 
     case Z3_FLOATING_POINT_SORT: {
-      auto &ctx = sort.ctx();
+      auto &ctx{sort.ctx()};
       return Z3_fpa_get_sbits(ctx, sort) + Z3_fpa_get_ebits(ctx, sort);
     } break;
 
@@ -398,7 +398,7 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
   auto src_ty_size{c_ctx->getTypeSize(c_src_ty)};
   auto dst_ty_size{c_ctx->getTypeSize(c_dst_ty)};
   // Z3 exprs
-  auto z_sub{GetOrCreateZ3Expr(c_sub)};
+  auto z_sub{GetZ3Expr(c_sub)};
   auto z_cast{z_sub};
   // Z3 sorts
   auto z_src_sort{z_sub.get_sort()};
@@ -474,11 +474,11 @@ bool Z3ConvVisitor::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub) {
     return true;
   }
   // Get base
-  auto z_base{GetOrCreateZ3Expr(sub->getBase())};
+  auto z_base{GetZ3Expr(sub->getBase())};
   auto base_sort{z_base.get_sort()};
   CHECK(base_sort.is_bv()) << "Invalid Z3 sort for base expression";
   // Get index
-  auto z_idx{GetOrCreateZ3Expr(sub->getIdx())};
+  auto z_idx{GetZ3Expr(sub->getIdx())};
   auto idx_sort{z_idx.get_sort()};
   CHECK(idx_sort.is_bv()) << "Invalid Z3 sort for index expression";
   // Get result
@@ -498,7 +498,7 @@ bool Z3ConvVisitor::VisitMemberExpr(clang::MemberExpr *expr) {
   }
 
   auto z_mem{GetOrCreateZ3Decl(expr->getMemberDecl())()};
-  auto z_base{GetOrCreateZ3Expr(expr->getBase())};
+  auto z_base{GetZ3Expr(expr->getBase())};
   auto z_mem_expr{z_ctx->function("Member", z_base.get_sort(), z_mem.get_sort(),
                                   z_mem.get_sort())};
 
@@ -518,11 +518,11 @@ bool Z3ConvVisitor::VisitCallExpr(clang::CallExpr *c_call) {
   c_call->Profile(c_call_id, *c_ctx, /*Canonical=*/true);
   z_args.push_back(z_ctx->bv_val(c_call_id.ComputeHash(), /*sz=*/64U));
   // Get callee
-  auto z_callee{GetOrCreateZ3Expr(c_call->getCallee())};
+  auto z_callee{GetZ3Expr(c_call->getCallee())};
   z_args.push_back(z_callee);
   // Get call arguments
   for (auto c_arg : c_call->arguments()) {
-    z_args.push_back(GetOrCreateZ3Expr(c_arg));
+    z_args.push_back(GetZ3Expr(c_arg));
   }
   // Build the z3 call
   z3::sort_vector z_domain(*z_ctx);
@@ -544,7 +544,7 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
     return true;
   }
 
-  auto z_sub{GetOrCreateZ3Expr(parens->getSubExpr())};
+  auto z_sub{GetZ3Expr(parens->getSubExpr())};
 
   switch (z_sub.decl().decl_kind()) {
     // Parens may affect semantics of C expressions
@@ -571,7 +571,7 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
     return true;
   }
   // Get operand
-  auto operand = GetOrCreateZ3Expr(c_op->getSubExpr());
+  auto operand{GetZ3Expr(c_op->getSubExpr())};
   // Conditionally cast operands to a bitvector
   auto CondBoolToBVCast{[this, &operand]() {
     if (operand.is_bool()) {
@@ -620,8 +620,8 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
     return true;
   }
   // Get operands
-  auto lhs{GetOrCreateZ3Expr(c_op->getLHS())};
-  auto rhs{GetOrCreateZ3Expr(c_op->getRHS())};
+  auto lhs{GetZ3Expr(c_op->getLHS())};
+  auto rhs{GetZ3Expr(c_op->getRHS())};
   // Conditionally cast operands match size to the wider one
   auto CondSizeCast{[this, &lhs, &rhs] {
     auto lhs_size{GetZ3SortSize(lhs)};
@@ -731,6 +731,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_Shl:
+      CondSizeCast();
       InsertZ3Expr(c_op, z3::shl(lhs, rhs));
       break;
 
@@ -748,9 +749,9 @@ bool Z3ConvVisitor::VisitConditionalOperator(clang::ConditionalOperator *c_op) {
     return true;
   }
 
-  auto z_cond{GetOrCreateZ3Expr(c_op->getCond())};
-  auto z_then{GetOrCreateZ3Expr(c_op->getTrueExpr())};
-  auto z_else{GetOrCreateZ3Expr(c_op->getFalseExpr())};
+  auto z_cond{GetZ3Expr(c_op->getCond())};
+  auto z_then{GetZ3Expr(c_op->getTrueExpr())};
+  auto z_else{GetZ3Expr(c_op->getFalseExpr())};
   InsertZ3Expr(c_op, z3::ite(z_cond, z_then, z_else));
 
   return true;
@@ -1156,7 +1157,7 @@ void Z3ConvVisitor::VisitZ3Decl(z3::func_decl z_decl) {
   // switch (z_decl.decl_kind()) {
   //   case Z3_OP_UNINTERPRETED:
   //     if (!z_decl.is_const()) {
-        
+
   //     } else {
   //       LOG(FATAL) << "Unimplemented Z3 declaration!";
   //     }

@@ -940,10 +940,10 @@ clang::Expr *Z3ConvVisitor::HandleZ3Concat(z3::expr z_op) {
 }
 
 clang::Expr *Z3ConvVisitor::HandleZ3Call(z3::expr z_op) {
-  auto c_callee{GetOrCreateCExpr(z_op.arg(1U))};
+  auto c_callee{GetCExpr(z_op.arg(1U))};
   std::vector<clang::Expr *> c_args;
   for (auto i{2U}; i < z_op.num_args(); ++i) {
-    c_args.push_back(GetOrCreateCExpr(z_op.arg(i)));
+    c_args.push_back(GetCExpr(z_op.arg(i)));
   }
   return ast.CreateCall(c_callee, c_args);
 }

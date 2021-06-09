@@ -954,7 +954,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
   CHECK(z_op.is_app() && z_op.decl().arity() == 1)
       << "Z3 expression is not a unary operator!";
   // Get operand
-  auto c_sub{GetCExpr(z_op.arg(0))};
+  auto c_sub{GetCExpr(z_op.arg(0U))};
   // Get z3 function declaration
   auto z_decl{z_op.decl()};
   // Create C unary operator
@@ -1080,9 +1080,16 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       c_op = ast.CreateAdd(lhs, rhs);
       break;
 
-    case Z3_OP_BASHR:
+    case Z3_OP_BLSHR:
       c_op = ast.CreateShr(lhs, rhs);
       break;
+
+    case Z3_OP_BASHR: {
+      auto size{c_ctx->getTypeSize(lhs->getType())};
+      auto type{ast.GetLeastIntTypeForBitWidth(size, /*sign=*/1U)};
+      auto cast{ast.CreateCStyleCast(type, lhs)};
+      c_op = ast.CreateShr(cast, rhs);
+    } break;
 
     case Z3_OP_BOR:
       c_op = ast.CreateOr(lhs, rhs);
@@ -1140,9 +1147,9 @@ void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
   auto z_decl{z_op.decl()};
   switch (z_decl.decl_kind()) {
     case Z3_OP_ITE: {
-      auto c_cond{GetCExpr(z_op.arg(0))};
-      auto c_then{GetCExpr(z_op.arg(1))};
-      auto c_else{GetCExpr(z_op.arg(2))};
+      auto c_cond{GetCExpr(z_op.arg(0U))};
+      auto c_then{GetCExpr(z_op.arg(1U))};
+      auto c_else{GetCExpr(z_op.arg(2U))};
       InsertCExpr(z_op, ast.CreateConditional(c_cond, c_then, c_else));
     } break;
     // Unknowns

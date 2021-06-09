@@ -1,6 +1,12 @@
-int a = 0xFF;
+unsigned a = 0xFF;
+unsigned b = 7;
 
 int main(void) {
-    a = (unsigned int)a >> 7;
-    return a ^ 1;
+  if (((int)a >> b) ^ 1) {
+    return 0;
+  } else if ((a >> b) ^ 1) {
+    return 1;
+  } else {
+    return 2;
+  }
 }

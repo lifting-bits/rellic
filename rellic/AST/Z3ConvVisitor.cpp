@@ -1091,6 +1091,10 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       c_op = ast.CreateShr(cast, rhs);
     } break;
 
+    case Z3_OP_BSHL:
+      c_op = ast.CreateShl(lhs, rhs);
+      break;
+
     case Z3_OP_BOR:
       c_op = ast.CreateOr(lhs, rhs);
       break;

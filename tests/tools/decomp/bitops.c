@@ -6,7 +6,9 @@ int main(void) {
     return 0;
   } else if ((a >> b) ^ 1) {
     return 1;
-  } else {
+  } else if ((a << b) ^ 1) {
     return 2;
+  } else {
+    return 3;
   }
 }

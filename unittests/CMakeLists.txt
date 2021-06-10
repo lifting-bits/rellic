@@ -6,6 +6,8 @@ set(RELLIC_UNITTEST ${PROJECT_NAME}-unittest-${RELLIC_LLVM_VERSION})
 
 add_executable(${RELLIC_UNITTEST}
   AST/ASTBuilder.cpp
+  AST/Util.cpp
+  AST/Z3ConvVisitor.cpp
   UnitTest.cpp
 )
 

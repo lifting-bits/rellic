@@ -529,7 +529,8 @@ bool Z3ConvVisitor::VisitCallExpr(clang::CallExpr *c_call) {
   for (auto z_arg : z_args) {
     z_domain.push_back(z_arg.get_sort());
   }
-  auto z_range{z_callee.get_sort().array_range()};
+  auto z_range{z_callee.is_array() ? z_callee.get_sort().array_range()
+                                   : z_callee.get_sort()};
   auto z_call{z_ctx->function("Call", z_domain, z_range)};
   // Insert the call
   InsertZ3Expr(c_call, z_call(z_args));
@@ -1010,7 +1011,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         c_op = ast.CreateParen(c_sub);
       } else if (z_func_name == "PtrToInt") {
         auto s_size{GetZ3SortSize(z_op)};
-        auto t_op{c_ctx->getIntTypeForBitwidth(s_size, /*sign=*/0)};
+        auto t_op{ast.GetLeastIntTypeForBitWidth(s_size, /*sign=*/0U)};
         c_op = ast.CreateCStyleCast(t_op, c_sub);
       } else if (z_func_name == "PtrDecay") {
         c_op = c_sub;

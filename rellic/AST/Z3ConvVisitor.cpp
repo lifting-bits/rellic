@@ -993,6 +993,13 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
 
     } break;
 
+    case Z3_OP_ZERO_EXT:
+      c_op = ast.CreateCStyleCast(
+          ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
+                                         /*sign=*/0),
+          ast.CreateParen(c_sub));
+      break;
+
     case Z3_OP_SIGN_EXT:
       c_op = ast.CreateCStyleCast(
           ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
@@ -1094,6 +1101,10 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
 
     case Z3_OP_BSHL:
       c_op = ast.CreateShl(lhs, rhs);
+      break;
+
+    case Z3_OP_BAND:
+      c_op = ast.CreateAnd(lhs, rhs);
       break;
 
     case Z3_OP_BOR:

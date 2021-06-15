@@ -501,8 +501,6 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         LOG(FATAL) << "Indexing an unknown pointer type";
         break;
     }
-    // Add parens to preserve expression semantics
-    base = ast.CreateParen(base);
   }
 
   ref = ast.CreateAddrOf(base);

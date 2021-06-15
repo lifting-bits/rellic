@@ -176,6 +176,28 @@ class MemberExprAddrOfRule : public InferenceRule {
   }
 };
 
+// Matches `a = (type)expr`, where `a` is of `type` and subs it for `a = expr`
+class AssignCastedExprRule : public InferenceRule {
+ public:
+  AssignCastedExprRule()
+      : InferenceRule(binaryOperator(
+            stmt().bind("assign"), hasOperatorName("="),
+            has(ignoringParenImpCasts(cStyleCastExpr(stmt().bind("cast")))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::BinaryOperator>("assign");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto assign{clang::cast<clang::BinaryOperator>(stmt)};
+    CHECK(assign == match)
+        << "Substituted BinaryOperator is not the matched BinaryOperator!";
+    assign->dump();
+    return nullptr;
+  }
+};
+
 }  // namespace
 
 char ExprCombine::ID = 0;
@@ -183,47 +205,46 @@ char ExprCombine::ID = 0;
 ExprCombine::ExprCombine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
     : ModulePass(ExprCombine::ID), unit(u), ast_gen(&ast_gen) {}
 
-bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
-  // DLOG(INFO) << "VisitParenExpr";
-  std::vector<InferenceRule *> rules({new ParenDeclRefExprStripRule});
-  auto sub = ApplyFirstMatchingRule(unit, paren, rules);
-  if (sub != paren) {
-    substitutions[paren] = sub;
+bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
+  DLOG(INFO) << "VisitUnaryOperator: "
+             << op->getOpcodeStr(op->getOpcode()).str();
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new NegComparisonRule);
+  rules.emplace_back(new DerefAddrOfRule);
+  rules.emplace_back(new AddrOfArraySubscriptRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  if (sub != op) {
+    substitutions[op] = sub;
   }
 
-  delete rules.back();
+  return true;
+}
+
+bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
+  DLOG(INFO) << "VisitBinaryOperator: " << op->getOpcodeStr().str();
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new AssignCastedExprRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  if (sub != op) {
+    // substitutions[expr] = sub;
+  }
 
   return true;
 }
 
 bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
-  std::vector<InferenceRule *> rules({new ArraySubscriptAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new ArraySubscriptAddrOfRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
-  }
-
-  delete rules.back();
-
-  return true;
-}
-
-bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
-  // DLOG(INFO) << "VisitUnaryOperator";
-  std::vector<InferenceRule *> rules;
-
-  rules.push_back(new NegComparisonRule);
-  rules.push_back(new DerefAddrOfRule);
-  rules.push_back(new AddrOfArraySubscriptRule);
-
-  auto sub = ApplyFirstMatchingRule(unit, op, rules);
-  if (sub != op) {
-    substitutions[op] = sub;
-  }
-
-  for (auto rule : rules) {
-    delete rule;
   }
 
   return true;
@@ -231,13 +252,28 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
 
 bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
-  std::vector<InferenceRule *> rules({new MemberExprAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new MemberExprAddrOfRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
 
-  delete rules.back();
+  return true;
+}
+
+bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
+  // DLOG(INFO) << "VisitParenExpr";
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new ParenDeclRefExprStripRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
+  if (sub != expr) {
+    substitutions[expr] = sub;
+  }
 
   return true;
 }

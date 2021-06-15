@@ -101,8 +101,8 @@ do
         --input-dir "$(pwd)/bitcode/${arch}" \
         --output-dir "$(pwd)/results/${arch}" \
         --run-name "rellic-live-ci-${arch}" \
+        --test-options "${SRC_DIR}/ci/angha_1k_test_settings.json" \
         --dump-stats
-#        --test-options "${SRC_DIR}/ci/angha_1k_test_settings.json" \
 
     if ! check_test "$(pwd)/results/${arch}/stats.json"
     then

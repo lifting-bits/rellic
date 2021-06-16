@@ -127,3 +127,19 @@ and
 # Set the user to current user to ensure correct permissions
 -u $(id -u):$(id -g) \
 ```
+## Testing
+
+We use several integration and unit tests to test rellic.
+
+*Roundtrip tests* will take C code, build it to LLVM IR, and then translate that IR back to C. The test then sees if the resuling C can be built and if the translated code does (roughly) the same thing as the original. To run these, use:
+
+```sh
+cd rellic-build #or your rellic build directory
+CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
+```
+
+*AnghaBench 1000* is a sample of 1000 files (x 4 architectures, so a total of 4000 tests) from the full million programs that come with AnghaBench. This test only checks whether the bitcode for these programs translates to C, not the prettiness or functionality of the resulting translation. This test is only supported on Linux. To run this test, use:
+
+```sh
+scripts/test-angha-1k.sh --rellic-cmd <path_to_rellic_exe>
+```

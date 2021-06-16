@@ -79,7 +79,8 @@ static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
 
-  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target", module.getTargetTriple()};
+  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
+                                module.getTargetTriple()};
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
   auto& ast_ctx{ast_unit->getASTContext()};
 
@@ -125,12 +126,10 @@ static bool GeneratePseudocode(llvm::Module& module,
   fin_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
+      // Solve equations
+      z3::tactic(fin_simplifier->GetZ3Context(), "solve-eqs") &
       // Propagate bounds over bit-vectors
       z3::tactic(fin_simplifier->GetZ3Context(), "propagate-bv-bounds") &
-      // Eliminate conjunctions using De Morgan laws
-      z3::tactic(fin_simplifier->GetZ3Context(), "elim-and") &
-      // Tseitin transformation
-      z3::tactic(fin_simplifier->GetZ3Context(), "tseitin-cnf") &
       // Contextual simplification
       z3::tactic(fin_simplifier->GetZ3Context(), "ctx-simplify"));
 

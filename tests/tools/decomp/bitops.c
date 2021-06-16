@@ -1,6 +1,16 @@
-int a = 0xFF;
+unsigned a = 0xFF;
+unsigned b = 7;
 
 int main(void) {
-    a = (unsigned int)a >> 7;
-    return a ^ 1;
+  int retval = 0;
+  if (((int)a >> b) & 1) {
+    retval += 1;
+  }
+  if ((a >> b) ^ 1) {
+    retval += 2;
+  }
+  if ((a << b) || 1) {
+    retval += 3;
+  }
+  return retval;
 }

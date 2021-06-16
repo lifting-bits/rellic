@@ -8,14 +8,17 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
-#include <clang/Tooling/Tooling.h>
-#include <doctest/doctest.h>
+#include "Util.h"
 
 namespace {
-static std::unique_ptr<clang::ASTUnit> GetASTUnit(const char *code = "") {
-  auto unit{clang::tooling::buildASTFromCode(code, "out.c")};
-  REQUIRE(unit != nullptr);
-  return unit;
+
+template <typename T>
+static clang::DeclRefExpr *GetDeclRef(rellic::ASTBuilder &ast,
+                                      clang::DeclContext *decl_ctx,
+                                      const std::string &name) {
+  auto ref{ast.CreateDeclRef(GetDecl<T>(decl_ctx, name))};
+  REQUIRE(ref != nullptr);
+  return ref;
 }
 
 static void IsNullPtrExprCheck(clang::ASTContext &ctx, clang::Expr *expr) {
@@ -30,24 +33,6 @@ static void IsNullPtrExprCheck(clang::ASTContext &ctx, clang::Expr *expr) {
         clang::Expr::NPCK_ZeroLiteral);
 }
 
-template <typename T>
-static T *GetDecl(clang::DeclContext *decl_ctx, const std::string &name) {
-  auto &ctx{decl_ctx->getParentASTContext()};
-  auto lookup_result{decl_ctx->noload_lookup(&ctx.Idents.get(name))};
-  REQUIRE(lookup_result.end() - lookup_result.begin() == 1);
-  auto decl{clang::dyn_cast<T>(lookup_result.front())};
-  REQUIRE(decl != nullptr);
-  return decl;
-}
-
-template <typename T>
-static clang::DeclRefExpr *GetDeclRef(rellic::ASTBuilder &ast,
-                                      clang::DeclContext *decl_ctx,
-                                      const std::string &name) {
-  auto ref{ast.CreateDeclRef(GetDecl<T>(decl_ctx, name))};
-  REQUIRE(ref != nullptr);
-  return ref;
-}
 }  // namespace
 
 // TODO(surovic): Add test cases for signed llvm::APInt and group

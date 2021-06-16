@@ -151,6 +151,11 @@ function GetOSVersion
       return 0;
     ;;
 
+    *debian*)
+      OS_VERSION=ubuntu-20.04
+      return 0;
+    ;;
+
     *)
       echo "[x] ${ID} is not yet a supported distribution."
       return 1

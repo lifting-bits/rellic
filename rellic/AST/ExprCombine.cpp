@@ -8,6 +8,7 @@
 
 #include "rellic/AST/ExprCombine.h"
 
+#include <clang/Sema/Sema.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -66,7 +67,7 @@ class AddrOfArraySubscriptRule : public InferenceRule {
     auto addr_of = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(addr_of == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = addr_of->getSubExpr()->IgnoreParenCasts();
+    auto subexpr = addr_of->getSubExpr()->IgnoreParenImpCasts();
     auto sub = clang::cast<clang::ArraySubscriptExpr>(subexpr);
     return sub->getBase();
   }
@@ -89,7 +90,7 @@ class DerefAddrOfRule : public InferenceRule {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = deref->getSubExpr()->IgnoreParenCasts();
+    auto subexpr = deref->getSubExpr()->IgnoreParenImpCasts();
     auto addr_of = clang::cast<clang::UnaryOperator>(subexpr);
     return addr_of->getSubExpr();
   }
@@ -117,7 +118,7 @@ class NegComparisonRule : public InferenceRule {
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = op->getSubExpr()->IgnoreParenCasts();
+    auto subexpr = op->getSubExpr()->IgnoreParenImpCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
     return ast.CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
@@ -155,7 +156,7 @@ class MemberExprAddrOfRule : public InferenceRule {
                                               hasOperatorName("&"))))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
-    auto arrow = result.Nodes.getNodeAs<clang::MemberExpr>("arrow");
+    auto arrow{result.Nodes.getNodeAs<clang::MemberExpr>("arrow")};
     if (result.Nodes.getNodeAs<clang::Expr>("base") == arrow->getBase()) {
       match = arrow;
     }
@@ -167,7 +168,7 @@ class MemberExprAddrOfRule : public InferenceRule {
     auto arrow{clang::cast<clang::MemberExpr>(stmt)};
     CHECK(arrow == match)
         << "Substituted MemberExpr is not the matched MemberExpr!";
-    auto base{arrow->getBase()->IgnoreParenCasts()};
+    auto base{arrow->getBase()->IgnoreParenImpCasts()};
     auto addr_of{clang::cast<clang::UnaryOperator>(base)};
     auto field{clang::dyn_cast<clang::FieldDecl>(arrow->getMemberDecl())};
     CHECK(field != nullptr)
@@ -185,16 +186,30 @@ class AssignCastedExprRule : public InferenceRule {
             has(ignoringParenImpCasts(cStyleCastExpr(stmt().bind("cast")))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
-    match = result.Nodes.getNodeAs<clang::BinaryOperator>("assign");
+    auto assign{result.Nodes.getNodeAs<clang::BinaryOperator>("assign")};
+    auto cast{result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast")};
+    if (assign->getType() == cast->getType()) {
+      match = assign;
+    };
   }
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
+    ASTBuilder ast(unit);
     auto assign{clang::cast<clang::BinaryOperator>(stmt)};
     CHECK(assign == match)
         << "Substituted BinaryOperator is not the matched BinaryOperator!";
-    assign->dump();
-    return nullptr;
+    auto lhs{assign->getLHS()};
+    auto rhs{clang::cast<clang::CStyleCastExpr>(
+        assign->getRHS()->IgnoreParenImpCasts())};
+    if (unit.getSema().CheckAssignmentConstraints(
+            clang::SourceLocation(), lhs->getType(),
+            rhs->getSubExpr()->getType()) ==
+        clang::Sema::AssignConvertType::Compatible) {
+      return ast.CreateAssign(lhs, rhs->getSubExpr());
+    } else {
+      return assign;
+    }
   }
 };
 
@@ -230,7 +245,7 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
 
   auto sub{ApplyFirstMatchingRule(unit, op, rules)};
   if (sub != op) {
-    // substitutions[expr] = sub;
+    substitutions[op] = sub;
   }
 
   return true;

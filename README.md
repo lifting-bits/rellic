@@ -141,5 +141,5 @@ CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
 *AnghaBench 1000* is a sample of 1000 files (x 4 architectures, so a total of 4000 tests) from the full million programs that come with AnghaBench. This test only checks whether the bitcode for these programs translates to C, not the prettiness or functionality of the resulting translation. To run this test, use:
 
 ```sh
-scripts/test-angha-1k.sh
+scripts/test-angha-1k.sh --rellic-cmd <path_to_rellic_exe>
 ```

@@ -6,10 +6,7 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
-# Fix behavior of CMAKE_CXX_STANDARD when targeting macOS.
-if (POLICY CMP0025)
-  cmake_policy(SET CMP0025 NEW)
-endif ()
+cmake_minimum_required(VERSION 3.14)
 
 if (DEFINED VCPKG_ROOT)
   message(WARNING "Building with VCPKG")
@@ -19,19 +16,11 @@ else()
   set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 endif()
 
-project(rellic)
-cmake_minimum_required(VERSION 3.2)
+project(rellic C CXX ASM)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/settings.cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
-
-FindAndSelectClangCompiler()
-
-enable_language(C CXX ASM)
-
-set(RELLIC_SOURCE_DIR "${PROJECT_SOURCE_DIR}")
 
 # warnings and compiler settings
 if(NOT DEFINED WIN32)
@@ -56,7 +45,7 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR})
 # LLVM/Clang
 
 # LLVM first for checking version
-find_package(LLVM REQUIRED CONFIG HINTS ${FINDPACKAGE_LLVM_HINTS})
+find_package(LLVM REQUIRED)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
@@ -69,7 +58,7 @@ if (LLVM_MAJOR_VERSION LESS 9)
 endif()
 
 # Clang
-find_package(Clang CONFIG REQUIRED)
+find_package(Clang REQUIRED HINTS "${LLVM_DIR}/../clang")
 message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
 set(REQUIRED_CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
 set(FOUND_CLANG_STATIC FALSE)
@@ -132,12 +121,15 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES ${LLVM_INCLUDE_DIRS})
 
 # z3
 set(min_z3_version "4.7.1")
-find_package(Z3 CONFIG ${min_z3_version} QUIET)
-if (NOT Z3_FOUND)
-  find_package(Z3 ${min_z3_version} REQUIRED)
+find_package(Z3 ${min_z3_version} REQUIRED)
+if (TARGET Z3)
   list(APPEND PROJECT_LIBRARIES Z3)
-else()
+  set(_Z3_lib Z3)
+elseif(TARGET z3::libz3)
   list(APPEND PROJECT_LIBRARIES z3::libz3)
+  set(_Z3_lib z3::libz3)
+else()
+  message(FATAL_ERROR "Unknown z3 target found")
 endif()
 
 # Potentially fixup bad LLVM z3 linkage
@@ -145,25 +137,23 @@ get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
 list(FIND LLVMSupport_LIBS "Z3" _index)
 if (${_index} GREATER -1)
   list(REMOVE_ITEM LLVMSupport_LIBS Z3)
-  list(APPEND LLVMSupport_LIBS z3::libz3)
+  list(APPEND LLVMSupport_LIBS ${_Z3_lib})
   set_target_properties(LLVMSupport PROPERTIES
     INTERFACE_LINK_LIBRARIES "${LLVMSupport_LIBS}")
 endif()
 
 # google log module
-find_package(glog CONFIG QUIET)
-if (NOT glog_FOUND)
-  find_package(glog REQUIRED)
+find_package(glog REQUIRED)
+if (TARGET glog)
   list(APPEND PROJECT_LIBRARIES glog)
-else()
+elseif(TARGET glog::glog)
   list(APPEND PROJECT_LIBRARIES glog::glog)
+else()
+  message(FATAL_ERROR "Unknown glog target found")
 endif()
 
 # gflags
-find_package(gflags CONFIG QUIET)
-if (NOT gflags_FOUND)
-  find_package(gflags REQUIRED)
-endif()
+find_package(gflags REQUIRED)
 list(APPEND PROJECT_LIBRARIES gflags)
 
 set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")

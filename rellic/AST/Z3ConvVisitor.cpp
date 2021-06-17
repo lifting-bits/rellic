@@ -988,7 +988,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         c_op = ast.CreateCStyleCast(
             ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
                                            /*sign=*/0),
-            c_sub);
+            ast.CreateParen(c_sub));
       }
 
     } break;

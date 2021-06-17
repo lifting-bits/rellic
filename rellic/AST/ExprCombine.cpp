@@ -195,7 +195,6 @@ class AssignCastedExprRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    ASTBuilder ast(unit);
     auto assign{clang::cast<clang::BinaryOperator>(stmt)};
     CHECK(assign == match)
         << "Substituted BinaryOperator is not the matched BinaryOperator!";
@@ -206,9 +205,38 @@ class AssignCastedExprRule : public InferenceRule {
             clang::SourceLocation(), lhs->getType(),
             rhs->getSubExpr()->getType()) ==
         clang::Sema::AssignConvertType::Compatible) {
-      return ast.CreateAssign(lhs, rhs->getSubExpr());
+      return ASTBuilder(unit).CreateAssign(lhs, rhs->getSubExpr());
     } else {
       return assign;
+    }
+  }
+};
+
+class UnsignedToSignedCStyleCastRule : public InferenceRule {
+ public:
+  UnsignedToSignedCStyleCastRule()
+      : InferenceRule(cStyleCastExpr(
+            stmt().bind("cast"), hasType(isSignedInteger()),
+            has(ignoringParenImpCasts(cStyleCastExpr(
+                stmt().bind("subcast"), hasType(isUnsignedInteger())))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
+    CHECK(cast == match)
+        << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
+    auto subcast{clang::cast<clang::CStyleCastExpr>(
+        cast->getSubExpr()->IgnoreParenImpCasts())};
+    if (unit.getASTContext().getCorrespondingUnsignedType(cast->getType()) ==
+        subcast->getType()) {
+      return ASTBuilder(unit).CreateCStyleCast(cast->getType(),
+                                               subcast->getSubExpr());
+    } else {
+      return cast;
     }
   }
 };
@@ -220,9 +248,41 @@ char ExprCombine::ID = 0;
 ExprCombine::ExprCombine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
     : ModulePass(ExprCombine::ID), unit(u), ast_gen(&ast_gen) {}
 
+bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
+  clang::Expr::EvalResult result;
+  if (cast->EvaluateAsRValue(result, unit.getASTContext())) {
+    if (result.HasSideEffects || result.HasUndefinedBehavior) {
+      return true;
+    }
+
+    switch (result.Val.getKind()) {
+      case clang::APValue::ValueKind::Int:
+        substitutions[cast] =
+            ASTBuilder(unit).CreateIntLit(result.Val.getInt());
+        break;
+
+      default:
+        break;
+    }
+
+    return true;
+  }
+
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new UnsignedToSignedCStyleCastRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, cast, rules)};
+  if (sub != cast) {
+    substitutions[cast] = sub;
+  }
+
+  return true;
+}
+
 bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
-  DLOG(INFO) << "VisitUnaryOperator: "
-             << op->getOpcodeStr(op->getOpcode()).str();
+  // DLOG(INFO) << "VisitUnaryOperator: "
+  //            << op->getOpcodeStr(op->getOpcode()).str();
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new NegComparisonRule);
@@ -238,7 +298,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
 }
 
 bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
-  DLOG(INFO) << "VisitBinaryOperator: " << op->getOpcodeStr().str();
+  // DLOG(INFO) << "VisitBinaryOperator: " << op->getOpcodeStr().str();
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new AssignCastedExprRule);

@@ -1022,12 +1022,12 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
         auto shr{ast.CreateShr(c_sub, shr_val)};
         auto mask_val{ast.CreateIntLit(
             llvm::APInt::getAllOnesValue(GetZ3SortSize(z_op)))};
-        c_op = ast.CreateParen(ast.CreateAnd(shr, mask_val));
+        c_op = ast.CreateAnd(shr, mask_val);
       } else {
         c_op = ast.CreateCStyleCast(
             ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
                                            /*sign=*/0),
-            ast.CreateParen(c_sub));
+            c_sub);
       }
 
     } break;
@@ -1036,22 +1036,22 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       c_op = ast.CreateCStyleCast(
           ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
                                          /*sign=*/0),
-          ast.CreateParen(c_sub));
+          c_sub);
       break;
 
     case Z3_OP_SIGN_EXT:
       c_op = ast.CreateCStyleCast(
           ast.GetLeastIntTypeForBitWidth(GetZ3SortSize(z_op),
                                          /*sign=*/1),
-          ast.CreateParen(c_sub));
+          c_sub);
       break;
 
     default:
-      LOG(FATAL) << "Unknown Z3 unary operator: " << z_decl.name().str();
+      LOG(FATAL) << "Unknown Z3 unary operator: " << z_decl.name();
       break;
   }
   // Save
-  InsertCExpr(z_op, c_op);
+  InsertCExpr(z_op, ast.CreateParen(c_op));
 }
 
 void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
@@ -1142,7 +1142,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
 
     // Unknowns
     default:
-      LOG(FATAL) << "Unknown Z3 binary operator: " << z_decl.name().str();
+      LOG(FATAL) << "Unknown Z3 binary operator: " << z_decl.name();
       break;
   }
   // Save

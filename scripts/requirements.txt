@@ -1,0 +1,3 @@
+# test-angha-1k.sh python requirements
+tqdm
+requests

@@ -114,14 +114,14 @@ class NegComparisonRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    ASTBuilder ast(unit);
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
     auto subexpr = op->getSubExpr()->IgnoreParenImpCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
-    return ast.CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
+    return ASTBuilder(unit).CreateBinaryOp(opc, binop->getLHS(),
+                                           binop->getRHS());
   }
 };
 
@@ -164,7 +164,6 @@ class MemberExprAddrOfRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    ASTBuilder ast(unit);
     auto arrow{clang::cast<clang::MemberExpr>(stmt)};
     CHECK(arrow == match)
         << "Substituted MemberExpr is not the matched MemberExpr!";
@@ -173,7 +172,7 @@ class MemberExprAddrOfRule : public InferenceRule {
     auto field{clang::dyn_cast<clang::FieldDecl>(arrow->getMemberDecl())};
     CHECK(field != nullptr)
         << "Substituted MemberExpr is not a structure field access!";
-    return ast.CreateDot(addr_of->getSubExpr(), field);
+    return ASTBuilder(unit).CreateDot(addr_of->getSubExpr(), field);
   }
 };
 
@@ -217,8 +216,8 @@ class UnsignedToSignedCStyleCastRule : public InferenceRule {
   UnsignedToSignedCStyleCastRule()
       : InferenceRule(cStyleCastExpr(
             stmt().bind("cast"), hasType(isSignedInteger()),
-            has(ignoringParenImpCasts(cStyleCastExpr(
-                stmt().bind("subcast"), hasType(isUnsignedInteger())))))) {}
+            has(ignoringParenImpCasts(
+                cStyleCastExpr(hasType(isUnsignedInteger())))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
     match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
@@ -238,6 +237,49 @@ class UnsignedToSignedCStyleCastRule : public InferenceRule {
     } else {
       return cast;
     }
+  }
+};
+
+class BinOpParenStripRule : public InferenceRule {
+ public:
+  BinOpParenStripRule()
+      : InferenceRule(binaryOperator(
+            stmt().bind("binop"),
+            has(ignoringImpCasts(parenExpr(has(ignoringImpCasts(anyOf(
+                unaryOperator(), binaryOperator(), cStyleCastExpr())))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto binop{clang::cast<clang::BinaryOperator>(stmt)};
+    CHECK(binop == match)
+        << "Substituted BinaryOperator is not the matched BinaryOperator!";
+    ASTBuilder ast(unit);
+    auto lhs{binop->getLHS()->IgnoreImpCasts()};
+    auto rhs{binop->getRHS()->IgnoreImpCasts()};
+
+    auto StripParenIfHigherPrecedence{
+        [binop](clang::Expr *op) -> clang::Expr * {
+          auto subexpr{op->IgnoreParenImpCasts()};
+          if (auto subbinop = clang::dyn_cast<clang::BinaryOperator>(subexpr)) {
+            if (binop->getOpcode() > subbinop->getOpcode()) {
+              return subexpr;
+            }
+          }
+          if (clang::isa<clang::UnaryOperator>(subexpr) ||
+              clang::isa<clang::CStyleCastExpr>(subexpr)) {
+            return subexpr;
+          }
+          return op;
+        }};
+
+    lhs = StripParenIfHigherPrecedence(lhs);
+    rhs = StripParenIfHigherPrecedence(rhs);
+
+    return ast.CreateBinaryOp(binop->getOpcode(), lhs, rhs);
   }
 };
 
@@ -302,6 +344,7 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new AssignCastedExprRule);
+  rules.emplace_back(new BinOpParenStripRule);
 
   auto sub{ApplyFirstMatchingRule(unit, op, rules)};
   if (sub != op) {

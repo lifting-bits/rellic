@@ -545,21 +545,7 @@ bool Z3ConvVisitor::VisitParenExpr(clang::ParenExpr *parens) {
     return true;
   }
 
-  auto z_sub{GetZ3Expr(parens->getSubExpr())};
-
-  switch (z_sub.decl().decl_kind()) {
-    // Parens may affect semantics of C expressions
-    case Z3_OP_UNINTERPRETED: {
-      auto sort{z_sub.get_sort()};
-      auto z_paren{z_ctx->function("Paren", sort, sort)};
-      InsertZ3Expr(parens, z_paren(z_sub));
-    } break;
-    // Default to ignoring the parens, Z3 should know how
-    // to interpret them.
-    default:
-      InsertZ3Expr(parens, z_sub);
-      break;
-  }
+  InsertZ3Expr(parens, GetZ3Expr(parens->getSubExpr()));
 
   return true;
 }
@@ -959,8 +945,6 @@ clang::Expr *Z3ConvVisitor::HandleZ3Uninterpreted(z3::expr z_op) {
     c_op = ast.CreateAddrOf(lhs());
   } else if (z_func_name == "Deref") {
     c_op = ast.CreateDeref(lhs());
-  } else if (z_func_name == "Paren") {
-    c_op = ast.CreateParen(lhs());
   } else if (z_func_name == "PtrToInt") {
     auto s_size{GetZ3SortSize(z_op)};
     auto t_op{ast.GetLeastIntTypeForBitWidth(s_size, /*sign=*/0U)};
@@ -968,7 +952,7 @@ clang::Expr *Z3ConvVisitor::HandleZ3Uninterpreted(z3::expr z_op) {
   } else if (z_func_name == "PtrDecay") {
     c_op = lhs();
   } else if (z_func_name == "ArraySub") {
-    c_op = ast.CreateArraySub(lhs(), rhs());
+    c_op = ast.CreateArraySub(ast.CreateParen(lhs()), rhs());
   } else if (z_func_name == "Member") {
     auto mem{GetOrCreateCValDecl(z_op.arg(1U).decl())};
     auto field{clang::dyn_cast<clang::FieldDecl>(mem)};

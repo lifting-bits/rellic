@@ -40,8 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          fetch-depth: 0
-          submodules: true
+          fetch-depth: 0 submodules: true
       - name: Install utility tools
         shell: bash
         run: |
@@ -69,6 +68,21 @@ jobs:
           echo ::set-output name=DEB_PACKAGE_PATH::rellic-build/$(ls *.deb)
           echo ::set-output name=RPM_PACKAGE_PATH::rellic-build/$(ls *.rpm)
           echo ::set-output name=TGZ_PACKAGE_PATH::rellic-build/$(ls *.tar.gz)
+
+      - name: Install the DEB package
+        run: |
+          dpkg -i ${{ steps.package_names.outputs.DEB_PACKAGE_PATH }}
+
+      - name: Test the DEB package
+        run: |
+          rellic-decomp-${{ matrix.llvm }}.0 --help
+
+      - name: Run Integration Tests (AnghaBench 1K)
+        shell: bash
+        run: |
+          python3 -m pip install -r libraries/lifting-tools-ci/requirements.txt
+          scripts/test-angha-1k.sh \
+            --rellic-cmd "rellic-decomp-${{ matrix.llvm }}.0"
 
       - name: Store the DEB package
         uses: actions/upload-artifact@v1

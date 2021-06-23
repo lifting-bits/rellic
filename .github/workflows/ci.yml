@@ -50,7 +50,7 @@ jobs:
         run: |
           # TODO some of these should probably live in the Docker build image
           apt-get update
-          apt-get install -y pixz xz-utils make rpm
+          apt-get install -y pixz xz-utils make rpm python3.8
 
       - name: Build with build script
         shell: bash

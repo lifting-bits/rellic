@@ -27,7 +27,9 @@ class ExprCombine : public llvm::ModulePass,
 
   ExprCombine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
+  bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   bool VisitUnaryOperator(clang::UnaryOperator *op);
+  bool VisitBinaryOperator(clang::BinaryOperator *op);
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
   bool VisitMemberExpr(clang::MemberExpr *expr);
   bool VisitParenExpr(clang::ParenExpr *paren);

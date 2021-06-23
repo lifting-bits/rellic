@@ -10,7 +10,6 @@
 
 #include <llvm/IR/Module.h>
 #include <llvm/Pass.h>
-
 #include <z3++.h>
 
 #include "rellic/AST/IRToASTVisitor.h"
@@ -37,7 +36,7 @@ class Z3CondSimplify : public llvm::ModulePass,
   Z3CondSimplify(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   z3::context &GetZ3Context() { return *z3_ctx; }
-  
+
   void SetZ3Simplifier(z3::tactic tactic) { z3_simplifier = tactic; };
 
   bool VisitIfStmt(clang::IfStmt *stmt);

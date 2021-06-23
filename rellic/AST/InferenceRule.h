@@ -37,7 +37,8 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
                                                clang::Stmt *stmt) = 0;
 };
 
-clang::Stmt *ApplyFirstMatchingRule(clang::ASTUnit &unit, clang::Stmt *stmt,
-                                    std::vector<InferenceRule *> &rules);
+clang::Stmt *ApplyFirstMatchingRule(
+    clang::ASTUnit &unit, clang::Stmt *stmt,
+    std::vector<std::unique_ptr<InferenceRule>> &rules);
 
 }  // namespace rellic

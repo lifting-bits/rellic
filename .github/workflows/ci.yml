@@ -42,15 +42,13 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
       - name: Install utility tools
         shell: bash
         run: |
           # TODO some of these should probably live in the Docker build image
           apt-get update
           apt-get install -y pixz xz-utils make rpm python3.8
+          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 100
 
       - name: Build with build script
         shell: bash

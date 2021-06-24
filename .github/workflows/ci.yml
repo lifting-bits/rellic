@@ -25,9 +25,9 @@ jobs:
           - { name: 'ubuntu', tag: '18.04' }
           - { name: 'ubuntu', tag: '20.04' }
         llvm: [
-          '9',
           '10',
           '11'
+          '12'
           ]
 
     runs-on: ubuntu-20.04
@@ -96,7 +96,7 @@ jobs:
           'macos-10.15'
           ]
         llvm: [
-          '11'
+          '12'
           ]
 
     runs-on: ${{ matrix.os }}
@@ -220,7 +220,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["11"]
+        llvm: ["12"]
         ubuntu: ["18.04"]
     steps:
     - uses: actions/checkout@v2

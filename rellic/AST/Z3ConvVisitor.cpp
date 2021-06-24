@@ -641,12 +641,12 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
   switch (c_op->getOpcode()) {
     case clang::BO_LAnd:
       CondBoolCast();
-      InsertZ3Expr(c_op, lhs && rhs);
+      InsertZ3Expr(c_op, lhs.is_bv() && rhs.is_bv() ? lhs & rhs : lhs && rhs);
       break;
 
     case clang::BO_LOr:
       CondBoolCast();
-      InsertZ3Expr(c_op, lhs || rhs);
+      InsertZ3Expr(c_op, lhs.is_bv() && rhs.is_bv() ? lhs | rhs : lhs || rhs);
       break;
 
     case clang::BO_EQ: {
@@ -1072,6 +1072,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       break;
 
     case Z3_OP_SLEQ:
+    case Z3_OP_FPA_LE:
       c_op = ast.CreateLE(lhs, rhs);
       break;
 

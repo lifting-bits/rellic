@@ -126,8 +126,8 @@ static bool GeneratePseudocode(llvm::Module& module,
   fin_simplifier->SetZ3Simplifier(
       // Simplify boolean structure with AIGs
       z3::tactic(fin_simplifier->GetZ3Context(), "aig") &
-      // Solve equations
-      z3::tactic(fin_simplifier->GetZ3Context(), "solve-eqs") &
+      // Cheap simplification
+      z3::tactic(fin_simplifier->GetZ3Context(), "simplify") &
       // Propagate bounds over bit-vectors
       z3::tactic(fin_simplifier->GetZ3Context(), "propagate-bv-bounds") &
       // Contextual simplification
@@ -141,7 +141,8 @@ static bool GeneratePseudocode(llvm::Module& module,
 
   fin.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
   fin.add(rellic::createExprCombinePass(*ast_unit, gen));
-  fin.run(module);
+  while (fin.run(module))
+    ;
 
   ast_ctx.getTranslationUnitDecl()->print(output);
   // ast_ctx.getTranslationUnitDecl()->dump(output);

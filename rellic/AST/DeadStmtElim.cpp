@@ -5,7 +5,7 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#include "rellic/BC/Version.h"
+#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/DeadStmtElim.h"
 
 #include <gflags/gflags.h>
@@ -24,16 +24,17 @@ DeadStmtElim::DeadStmtElim(clang::ASTUnit &unit,
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
-  llvm::APSInt val;
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(12, 0)
-  // llvm 12 interface changed. quick fix, need to verify
-  bool is_const = ifstmt->getCond()->isIntegerConstantExpr(*ast_ctx);
-#else
-  bool is_const = ifstmt->getCond()->isIntegerConstantExpr(val, *ast_ctx);
-#endif
+  bool expr_bool_value = false;
+  auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, *ast_ctx);
+
+  bool is_const = if_const_expr.hasValue();
+  if(is_const) {
+    expr_bool_value = if_const_expr->getBoolValue();
+  }
+
   auto compound = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen());
   bool is_empty = compound ? compound->body_empty() : false;
-  if ((is_const && !val.getBoolValue()) || is_empty) {
+  if ((is_const && !expr_bool_value) || is_empty) {
     substitutions[ifstmt] = nullptr;
   }
   return true;

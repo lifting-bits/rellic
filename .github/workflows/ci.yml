@@ -79,7 +79,8 @@ jobs:
         run: |
           rellic-decomp-${{ matrix.llvm }}.0 --version
 
-      - name: Run Integration Tests (AnghaBench 1K)
+      - name: Run Integration Tests (AnghaBench 1K, LLVM 11)
+        if: ${{ matrix.llvm == '11' }}
         shell: bash
         run: |
           python3 -m pip install -r libraries/lifting-tools-ci/requirements.txt

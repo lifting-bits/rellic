@@ -12,18 +12,19 @@
 
 namespace rellic {
 
-clang::Stmt *ApplyFirstMatchingRule(clang::ASTUnit &unit, clang::Stmt *stmt,
-                                    std::vector<InferenceRule *> &rules) {
+clang::Stmt *ApplyFirstMatchingRule(
+    clang::ASTUnit &unit, clang::Stmt *stmt,
+    std::vector<std::unique_ptr<InferenceRule>> &rules) {
   clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
   clang::ast_matchers::MatchFinder finder(opts);
 
-  for (auto rule : rules) {
-    finder.addMatcher(rule->GetCondition(), rule);
+  for (auto &rule : rules) {
+    finder.addMatcher(rule->GetCondition(), rule.get());
   }
 
   finder.match(*stmt, unit.getASTContext());
 
-  for (auto rule : rules) {
+  for (auto &rule : rules) {
     if (*rule) {
       return rule->GetOrCreateSubstitution(unit, stmt);
     }

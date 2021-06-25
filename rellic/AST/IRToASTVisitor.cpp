@@ -230,7 +230,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a result of an expression
   if (llvm::isa<llvm::Instruction>(val)) {
-    return ast.CreateParen(CreateExpr());
+    return CreateExpr();
   }
 
   ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
@@ -501,8 +501,6 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         LOG(FATAL) << "Indexing an unknown pointer type";
         break;
     }
-    // Add parens to preserve expression semantics
-    base = ast.CreateParen(base);
   }
 
   ref = ast.CreateAddrOf(base);
@@ -545,8 +543,6 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
         LOG(FATAL) << "Indexing an unknown aggregate type";
         break;
     }
-    // Add parens to preserve expression semantics
-    base = ast.CreateParen(base);
   }
 
   ref = base;
@@ -696,6 +692,8 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       LOG(FATAL) << "Unknown BinaryOperator: " << inst.getOpcodeName();
       break;
   }
+
+  binop = ast.CreateParen(clang::cast<clang::Expr>(binop));
 }
 
 void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {

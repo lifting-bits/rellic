@@ -8,6 +8,7 @@
 
 #include "rellic/AST/ExprCombine.h"
 
+#include <clang/Sema/Sema.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -66,7 +67,7 @@ class AddrOfArraySubscriptRule : public InferenceRule {
     auto addr_of = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(addr_of == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = addr_of->getSubExpr()->IgnoreParenCasts();
+    auto subexpr = addr_of->getSubExpr()->IgnoreParenImpCasts();
     auto sub = clang::cast<clang::ArraySubscriptExpr>(subexpr);
     return sub->getBase();
   }
@@ -89,7 +90,7 @@ class DerefAddrOfRule : public InferenceRule {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = deref->getSubExpr()->IgnoreParenCasts();
+    auto subexpr = deref->getSubExpr()->IgnoreParenImpCasts();
     auto addr_of = clang::cast<clang::UnaryOperator>(subexpr);
     return addr_of->getSubExpr();
   }
@@ -113,14 +114,14 @@ class NegComparisonRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    ASTBuilder ast(unit);
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
-    auto subexpr = op->getSubExpr()->IgnoreParenCasts();
+    auto subexpr = op->getSubExpr()->IgnoreParenImpCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
-    return ast.CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
+    return ASTBuilder(unit).CreateBinaryOp(opc, binop->getLHS(),
+                                           binop->getRHS());
   }
 };
 
@@ -155,7 +156,7 @@ class MemberExprAddrOfRule : public InferenceRule {
                                               hasOperatorName("&"))))))) {}
 
   void run(const MatchFinder::MatchResult &result) {
-    auto arrow = result.Nodes.getNodeAs<clang::MemberExpr>("arrow");
+    auto arrow{result.Nodes.getNodeAs<clang::MemberExpr>("arrow")};
     if (result.Nodes.getNodeAs<clang::Expr>("base") == arrow->getBase()) {
       match = arrow;
     }
@@ -163,16 +164,122 @@ class MemberExprAddrOfRule : public InferenceRule {
 
   clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
-    ASTBuilder ast(unit);
     auto arrow{clang::cast<clang::MemberExpr>(stmt)};
     CHECK(arrow == match)
         << "Substituted MemberExpr is not the matched MemberExpr!";
-    auto base{arrow->getBase()->IgnoreParenCasts()};
+    auto base{arrow->getBase()->IgnoreParenImpCasts()};
     auto addr_of{clang::cast<clang::UnaryOperator>(base)};
     auto field{clang::dyn_cast<clang::FieldDecl>(arrow->getMemberDecl())};
     CHECK(field != nullptr)
         << "Substituted MemberExpr is not a structure field access!";
-    return ast.CreateDot(addr_of->getSubExpr(), field);
+    return ASTBuilder(unit).CreateDot(addr_of->getSubExpr(), field);
+  }
+};
+
+// Matches `a = (type)expr`, where `a` is of `type` and subs it for `a = expr`
+class AssignCastedExprRule : public InferenceRule {
+ public:
+  AssignCastedExprRule()
+      : InferenceRule(binaryOperator(
+            stmt().bind("assign"), hasOperatorName("="),
+            has(ignoringParenImpCasts(cStyleCastExpr(stmt().bind("cast")))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    auto assign{result.Nodes.getNodeAs<clang::BinaryOperator>("assign")};
+    auto cast{result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast")};
+    if (assign->getType() == cast->getType()) {
+      match = assign;
+    };
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto assign{clang::cast<clang::BinaryOperator>(stmt)};
+    CHECK(assign == match)
+        << "Substituted BinaryOperator is not the matched BinaryOperator!";
+    auto lhs{assign->getLHS()};
+    auto rhs{clang::cast<clang::CStyleCastExpr>(
+        assign->getRHS()->IgnoreParenImpCasts())};
+    if (unit.getSema().CheckAssignmentConstraints(
+            clang::SourceLocation(), lhs->getType(),
+            rhs->getSubExpr()->getType()) ==
+        clang::Sema::AssignConvertType::Compatible) {
+      return ASTBuilder(unit).CreateAssign(lhs, rhs->getSubExpr());
+    } else {
+      return assign;
+    }
+  }
+};
+
+class UnsignedToSignedCStyleCastRule : public InferenceRule {
+ public:
+  UnsignedToSignedCStyleCastRule()
+      : InferenceRule(cStyleCastExpr(
+            stmt().bind("cast"), hasType(isSignedInteger()),
+            has(ignoringParenImpCasts(
+                cStyleCastExpr(hasType(isUnsignedInteger())))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
+    CHECK(cast == match)
+        << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
+    auto subcast{clang::cast<clang::CStyleCastExpr>(
+        cast->getSubExpr()->IgnoreParenImpCasts())};
+    if (unit.getASTContext().getCorrespondingUnsignedType(cast->getType()) ==
+        subcast->getType()) {
+      return ASTBuilder(unit).CreateCStyleCast(cast->getType(),
+                                               subcast->getSubExpr());
+    } else {
+      return cast;
+    }
+  }
+};
+
+class BinOpParenStripRule : public InferenceRule {
+ public:
+  BinOpParenStripRule()
+      : InferenceRule(binaryOperator(
+            stmt().bind("binop"),
+            has(ignoringImpCasts(parenExpr(has(ignoringImpCasts(anyOf(
+                unaryOperator(), binaryOperator(), cStyleCastExpr())))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto binop{clang::cast<clang::BinaryOperator>(stmt)};
+    CHECK(binop == match)
+        << "Substituted BinaryOperator is not the matched BinaryOperator!";
+    ASTBuilder ast(unit);
+    auto lhs{binop->getLHS()->IgnoreImpCasts()};
+    auto rhs{binop->getRHS()->IgnoreImpCasts()};
+
+    auto StripParenIfHigherPrecedence{
+        [binop](clang::Expr *op) -> clang::Expr * {
+          auto subexpr{op->IgnoreParenImpCasts()};
+          if (auto subbinop = clang::dyn_cast<clang::BinaryOperator>(subexpr)) {
+            if (binop->getOpcode() > subbinop->getOpcode()) {
+              return subexpr;
+            }
+          }
+          if (clang::isa<clang::UnaryOperator>(subexpr) ||
+              clang::isa<clang::CStyleCastExpr>(subexpr)) {
+            return subexpr;
+          }
+          return op;
+        }};
+
+    lhs = StripParenIfHigherPrecedence(lhs);
+    rhs = StripParenIfHigherPrecedence(rhs);
+
+    return ast.CreateBinaryOp(binop->getOpcode(), lhs, rhs);
   }
 };
 
@@ -183,47 +290,79 @@ char ExprCombine::ID = 0;
 ExprCombine::ExprCombine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
     : ModulePass(ExprCombine::ID), unit(u), ast_gen(&ast_gen) {}
 
-bool ExprCombine::VisitParenExpr(clang::ParenExpr *paren) {
-  // DLOG(INFO) << "VisitParenExpr";
-  std::vector<InferenceRule *> rules({new ParenDeclRefExprStripRule});
-  auto sub = ApplyFirstMatchingRule(unit, paren, rules);
-  if (sub != paren) {
-    substitutions[paren] = sub;
+bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
+  clang::Expr::EvalResult result;
+  if (cast->EvaluateAsRValue(result, unit.getASTContext())) {
+    if (result.HasSideEffects || result.HasUndefinedBehavior) {
+      return true;
+    }
+
+    switch (result.Val.getKind()) {
+      case clang::APValue::ValueKind::Int:
+        substitutions[cast] =
+            ASTBuilder(unit).CreateIntLit(result.Val.getInt());
+        break;
+
+      default:
+        break;
+    }
+
+    return true;
   }
 
-  delete rules.back();
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new UnsignedToSignedCStyleCastRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, cast, rules)};
+  if (sub != cast) {
+    substitutions[cast] = sub;
+  }
+
+  return true;
+}
+
+bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
+  // DLOG(INFO) << "VisitUnaryOperator: "
+  //            << op->getOpcodeStr(op->getOpcode()).str();
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new NegComparisonRule);
+  rules.emplace_back(new DerefAddrOfRule);
+  rules.emplace_back(new AddrOfArraySubscriptRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  if (sub != op) {
+    substitutions[op] = sub;
+  }
+
+  return true;
+}
+
+bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
+  // DLOG(INFO) << "VisitBinaryOperator: " << op->getOpcodeStr().str();
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new AssignCastedExprRule);
+  rules.emplace_back(new BinOpParenStripRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  if (sub != op) {
+    substitutions[op] = sub;
+  }
 
   return true;
 }
 
 bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
-  std::vector<InferenceRule *> rules({new ArraySubscriptAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new ArraySubscriptAddrOfRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
-  }
-
-  delete rules.back();
-
-  return true;
-}
-
-bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
-  // DLOG(INFO) << "VisitUnaryOperator";
-  std::vector<InferenceRule *> rules;
-
-  rules.push_back(new NegComparisonRule);
-  rules.push_back(new DerefAddrOfRule);
-  rules.push_back(new AddrOfArraySubscriptRule);
-
-  auto sub = ApplyFirstMatchingRule(unit, op, rules);
-  if (sub != op) {
-    substitutions[op] = sub;
-  }
-
-  for (auto rule : rules) {
-    delete rule;
   }
 
   return true;
@@ -231,13 +370,28 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
 
 bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
-  std::vector<InferenceRule *> rules({new MemberExprAddrOfRule});
-  auto sub = ApplyFirstMatchingRule(unit, expr, rules);
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new MemberExprAddrOfRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
 
-  delete rules.back();
+  return true;
+}
+
+bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
+  // DLOG(INFO) << "VisitParenExpr";
+  std::vector<std::unique_ptr<InferenceRule>> rules;
+
+  rules.emplace_back(new ParenDeclRefExprStripRule);
+
+  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
+  if (sub != expr) {
+    substitutions[expr] = sub;
+  }
 
   return true;
 }

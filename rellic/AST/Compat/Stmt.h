@@ -9,6 +9,8 @@
 #pragma once
 
 #include <clang/AST/Stmt.h>
+#include <llvm/ADT/APInt.h>
+#include <llvm/ADT/APSInt.h>
 
 namespace rellic {
 
@@ -22,5 +24,8 @@ clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
                                         std::vector<clang::Stmt *> &stmts);
 
 clang::ReturnStmt *CreateReturnStmt(clang::ASTContext &ctx, clang::Expr *expr);
+
+clang::Optional<llvm::APSInt> GetIntegerConstantExprFromIf(clang::IfStmt *ifstmt, const clang::ASTContext &ctx);
+
 
 }  // namespace rellic

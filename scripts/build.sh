@@ -41,7 +41,7 @@ function GetUbuntuOSVersion
       OS_VERSION=ubuntu-20.04
       return 0
     ;;
-    eoam)
+    eoan)
       echo "[!] Ubuntu 19.10 is not supported; using libraries for Ubuntu 18.04 instead"
       OS_VERSION=ubuntu-18.04
       return 0

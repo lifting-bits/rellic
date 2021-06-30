@@ -6,6 +6,7 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/NestedScopeCombiner.h"
 
 #include <gflags/gflags.h>
@@ -26,9 +27,9 @@ bool NestedScopeCombiner::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
-  llvm::APSInt val;
-  bool is_const = ifstmt->getCond()->isIntegerConstantExpr(val, *ast_ctx);
-  if (is_const && val.getBoolValue()) {
+  auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, *ast_ctx);
+  bool is_const = if_const_expr.hasValue();
+  if (is_const && if_const_expr->getBoolValue()) {
     substitutions[ifstmt] = ifstmt->getThen();
   }
   return true;

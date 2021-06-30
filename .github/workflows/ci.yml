@@ -25,9 +25,9 @@ jobs:
           - { name: 'ubuntu', tag: '18.04' }
           - { name: 'ubuntu', tag: '20.04' }
         llvm: [
-          '9',
           '10',
-          '11'
+          '11',
+          '12'
           ]
 
     runs-on: ubuntu-20.04
@@ -47,7 +47,8 @@ jobs:
         run: |
           # TODO some of these should probably live in the Docker build image
           apt-get update
-          apt-get install -y pixz xz-utils make rpm
+          apt-get install -y pixz xz-utils make rpm python3.8
+          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 100
 
       - name: Build with build script
         shell: bash
@@ -69,6 +70,22 @@ jobs:
           echo ::set-output name=DEB_PACKAGE_PATH::rellic-build/$(ls *.deb)
           echo ::set-output name=RPM_PACKAGE_PATH::rellic-build/$(ls *.rpm)
           echo ::set-output name=TGZ_PACKAGE_PATH::rellic-build/$(ls *.tar.gz)
+
+      - name: Install the DEB package
+        run: |
+          dpkg -i ${{ steps.package_names.outputs.DEB_PACKAGE_PATH }}
+
+      - name: Test the DEB package
+        run: |
+          rellic-decomp-${{ matrix.llvm }}.0 --version
+
+      - name: Run Integration Tests (AnghaBench 1K, LLVM 11)
+        if: ${{ matrix.llvm == '11' }}
+        shell: bash
+        run: |
+          python3 -m pip install -r libraries/lifting-tools-ci/requirements.txt
+          scripts/test-angha-1k.sh \
+            --rellic-cmd "rellic-decomp-${{ matrix.llvm }}.0"
 
       - name: Store the DEB package
         uses: actions/upload-artifact@v1
@@ -96,7 +113,7 @@ jobs:
           'macos-10.15'
           ]
         llvm: [
-          '11'
+          '12'
           ]
 
     runs-on: ${{ matrix.os }}
@@ -220,7 +237,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["11"]
+        llvm: ["12"]
         ubuntu: ["18.04"]
     steps:
     - uses: actions/checkout@v2

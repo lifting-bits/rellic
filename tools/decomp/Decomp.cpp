@@ -133,15 +133,19 @@ static bool GeneratePseudocode(llvm::Module& module,
       // Contextual simplification
       z3::tactic(fin_simplifier->GetZ3Context(), "ctx-simplify"));
 
-  llvm::legacy::PassManager fin;
+  llvm::legacy::PassManager scope_folder;
   if (!FLAGS_disable_z3) {
-    fin.add(fin_simplifier);
-    fin.add(rellic::createNestedCondPropPass(*ast_unit, gen));
+    scope_folder.add(fin_simplifier);
+    scope_folder.add(rellic::createNestedCondPropPass(*ast_unit, gen));
   }
 
-  fin.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
-  fin.add(rellic::createExprCombinePass(*ast_unit, gen));
-  while (fin.run(module))
+  scope_folder.add(rellic::createNestedScopeCombinerPass(*ast_unit, gen));
+  while (scope_folder.run(module))
+    ;
+
+  llvm::legacy::PassManager expr_combine;
+  expr_combine.add(rellic::createExprCombinePass(*ast_unit, gen));
+  while (expr_combine.run(module))
     ;
 
   ast_ctx.getTranslationUnitDecl()->print(output);

@@ -242,53 +242,6 @@ class UnsignedToSignedCStyleCastRule : public InferenceRule {
   }
 };
 
-class BinOpParenStripRule : public InferenceRule {
- public:
-  BinOpParenStripRule()
-      : InferenceRule(binaryOperator(
-            stmt().bind("binop"),
-            has(ignoringImpCasts(parenExpr(has(ignoringImpCasts(anyOf(
-                unaryOperator(), binaryOperator(), cStyleCastExpr())))))))) {}
-
-  void run(const MatchFinder::MatchResult &result) {
-    match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
-  }
-
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
-    auto binop{clang::cast<clang::BinaryOperator>(stmt)};
-    CHECK(binop == match)
-        << "Substituted BinaryOperator is not the matched BinaryOperator!";
-    ASTBuilder ast(unit);
-    auto lhs{binop->getLHS()->IgnoreImpCasts()};
-    auto rhs{binop->getRHS()->IgnoreImpCasts()};
-
-    bool changed{false};
-
-    auto StripParenIfHigherPrecedence{
-        [binop, &changed](clang::Expr *op) -> clang::Expr * {
-          auto subexpr{op->IgnoreParenImpCasts()};
-          if (auto subbinop = clang::dyn_cast<clang::BinaryOperator>(subexpr)) {
-            if (binop->getOpcode() > subbinop->getOpcode()) {
-              changed = true;
-              return subexpr;
-            }
-          }
-          if (clang::isa<clang::UnaryOperator>(subexpr) ||
-              clang::isa<clang::CStyleCastExpr>(subexpr)) {
-            changed = true;
-            return subexpr;
-          }
-          return op;
-        }};
-
-    lhs = StripParenIfHigherPrecedence(lhs);
-    rhs = StripParenIfHigherPrecedence(rhs);
-
-    return changed ? ast.CreateBinaryOp(binop->getOpcode(), lhs, rhs) : stmt;
-  }
-};
-
 }  // namespace
 
 char ExprCombine::ID = 0;
@@ -350,7 +303,6 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new AssignCastedExprRule);
-  rules.emplace_back(new BinOpParenStripRule);
 
   auto sub{ApplyFirstMatchingRule(unit, op, rules)};
   if (sub != op) {

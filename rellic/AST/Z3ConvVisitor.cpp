@@ -908,8 +908,7 @@ clang::Expr *Z3ConvVisitor::HandleZ3Concat(z3::expr z_op) {
       auto shl_val{
           ast.CreateIntLit(llvm::APInt(32U, GetZ3SortSize(z_op.arg(1U))))};
       auto shl{ast.CreateShl(cast, shl_val)};
-      auto bor{ast.CreateOr(shl, rhs)};
-      lhs = ast.CreateParen(bor);
+      lhs = ast.CreateOr(shl, rhs);
     } else {
       lhs = ast.CreateCStyleCast(res_ty, rhs);
     }
@@ -952,7 +951,7 @@ clang::Expr *Z3ConvVisitor::HandleZ3Uninterpreted(z3::expr z_op) {
   } else if (z_func_name == "PtrDecay") {
     c_op = lhs();
   } else if (z_func_name == "ArraySub") {
-    c_op = ast.CreateArraySub(ast.CreateParen(lhs()), rhs());
+    c_op = ast.CreateArraySub(lhs(), rhs());
   } else if (z_func_name == "Member") {
     auto mem{GetOrCreateCValDecl(z_op.arg(1U).decl())};
     auto field{clang::dyn_cast<clang::FieldDecl>(mem)};
@@ -985,11 +984,11 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
   clang::Expr *c_op{nullptr};
   switch (z_decl.decl_kind()) {
     case Z3_OP_NOT:
-      c_op = ast.CreateLNot(ast.CreateParen(c_sub));
+      c_op = ast.CreateLNot(c_sub);
       break;
 
     case Z3_OP_BNOT:
-      c_op = ast.CreateNot(ast.CreateParen(c_sub));
+      c_op = ast.CreateNot(c_sub);
       break;
     // Given a `(extract hi lo o)` we generate `(o >> lo & m)` where:
     //
@@ -1035,7 +1034,7 @@ void Z3ConvVisitor::VisitUnaryApp(z3::expr z_op) {
       break;
   }
   // Save
-  InsertCExpr(z_op, ast.CreateParen(c_op));
+  InsertCExpr(z_op, c_op);
 }
 
 void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
@@ -1131,7 +1130,7 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       break;
   }
   // Save
-  InsertCExpr(z_op, ast.CreateParen(c_op));
+  InsertCExpr(z_op, c_op);
 }
 
 void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
@@ -1145,8 +1144,7 @@ void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
       auto c_cond{GetCExpr(z_op.arg(0U))};
       auto c_then{GetCExpr(z_op.arg(1U))};
       auto c_else{GetCExpr(z_op.arg(2U))};
-      auto c_tern{ast.CreateConditional(c_cond, c_then, c_else)};
-      InsertCExpr(z_op, ast.CreateParen(c_tern));
+      InsertCExpr(z_op, ast.CreateConditional(c_cond, c_then, c_else));
     } break;
     // Unknowns
     default:

@@ -18,14 +18,22 @@
 
 namespace rellic {
 
+enum CExprPrecedence : unsigned {
+  Value = 0U,
+  SpecialOp,
+  UnaryOp,
+  BinaryOp = UnaryOp + clang::UO_LNot + 1U,
+  CondOp = BinaryOp + clang::BO_Comma + 1U
+};
+
 namespace {
 
 static unsigned GetOperatorPrecedence(clang::UnaryOperatorKind opc) {
-  return 2U + opc;
+  return CExprPrecedence::UnaryOp + opc;
 }
 
 static unsigned GetOperatorPrecedence(clang::BinaryOperatorKind opc) {
-  return 2U + clang::UO_LNot + opc;
+  return CExprPrecedence::BinaryOp + opc;
 }
 
 static unsigned GetOperatorPrecedence(clang::Expr *op) {
@@ -33,36 +41,18 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
     return GetOperatorPrecedence(cast->getSubExpr());
   }
 
-  if (clang::isa<clang::IntegerLiteral>(op)) {
-    return 0U;
+  if (clang::isa<clang::DeclRefExpr>(op) ||
+      clang::isa<clang::IntegerLiteral>(op) ||
+      clang::isa<clang::FloatingLiteral>(op) ||
+      clang::isa<clang::ParenExpr>(op)) {
+    return CExprPrecedence::Value;
   }
 
-  if (clang::isa<clang::FloatingLiteral>(op)) {
-    return 0U;
-  }
-
-  if (clang::isa<clang::DeclRefExpr>(op)) {
-    return 0U;
-  }
-
-  if (clang::isa<clang::ParenExpr>(op)) {
-    return 0U;
-  }
-
-  if (clang::isa<clang::ArraySubscriptExpr>(op)) {
-    return 1U;
-  }
-
-  if (clang::isa<clang::MemberExpr>(op)) {
-    return 1U;
-  }
-
-  if (clang::isa<clang::CallExpr>(op)) {
-    return 1U;
-  }
-
-  if (clang::isa<clang::CStyleCastExpr>(op)) {
-    return 1U;
+  if (clang::isa<clang::ArraySubscriptExpr>(op) ||
+      clang::isa<clang::MemberExpr>(op) ||
+      clang::isa<clang::CStyleCastExpr>(op) ||
+      clang::isa<clang::CallExpr>(op)) {
+    return CExprPrecedence::SpecialOp;
   }
 
   if (auto uo = clang::dyn_cast<clang::UnaryOperator>(op)) {
@@ -74,10 +64,8 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
   }
 
   if (clang::isa<clang::ConditionalOperator>(op)) {
-    return 3U + clang::UO_LNot + clang::BO_Comma;
+    return CExprPrecedence::CondOp;
   }
-
-  // op->dump();
 
   LOG(FATAL) << "Unknown clang::Expr";
 
@@ -299,7 +287,7 @@ clang::ConditionalOperator *ASTBuilder::CreateConditional(clang::Expr *cond,
 clang::ArraySubscriptExpr *ASTBuilder::CreateArraySub(clang::Expr *base,
                                                       clang::Expr *idx) {
   CHECK(base && idx) << "Should not be null in CreateArraySub.";
-  if (1U < GetOperatorPrecedence(base)) {
+  if (CExprPrecedence::SpecialOp < GetOperatorPrecedence(base)) {
     base = CreateParen(base);
   }
   auto er{sema.CreateBuiltinArraySubscriptExpr(base, clang::SourceLocation(),

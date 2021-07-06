@@ -222,7 +222,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   // Operand is an l-value (variable, function, ...)
   if (llvm::isa<llvm::GlobalValue>(val) || llvm::isa<llvm::AllocaInst>(val)) {
     // Add a `&` operator
-    return ast.CreateParen(ast.CreateAddrOf(CreateRef()));
+    return ast.CreateAddrOf(CreateRef());
   }
   // Operand is a function argument or local variable
   if (llvm::isa<llvm::Argument>(val)) {
@@ -692,8 +692,6 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       LOG(FATAL) << "Unknown BinaryOperator: " << inst.getOpcodeName();
       break;
   }
-
-  binop = ast.CreateParen(clang::cast<clang::Expr>(binop));
 }
 
 void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {

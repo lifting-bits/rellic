@@ -6,8 +6,6 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#define GOOGLE_STRIP_LOG 1
-
 #include "rellic/AST/Util.h"
 
 #include <clang/AST/Stmt.h>

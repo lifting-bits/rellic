@@ -18,6 +18,62 @@
 
 namespace rellic {
 
+enum CExprPrecedence : unsigned {
+  Value = 0U,
+  SpecialOp,
+  UnaryOp,
+  BinaryOp = UnaryOp + clang::UO_LNot + 1U,
+  CondOp = BinaryOp + clang::BO_Comma + 1U
+};
+
+namespace {
+
+static unsigned GetOperatorPrecedence(clang::UnaryOperatorKind opc) {
+  return CExprPrecedence::UnaryOp + opc;
+}
+
+static unsigned GetOperatorPrecedence(clang::BinaryOperatorKind opc) {
+  return CExprPrecedence::BinaryOp + opc;
+}
+
+static unsigned GetOperatorPrecedence(clang::Expr *op) {
+  if (auto cast = clang::dyn_cast<clang::ImplicitCastExpr>(op)) {
+    return GetOperatorPrecedence(cast->getSubExpr());
+  }
+
+  if (clang::isa<clang::DeclRefExpr>(op) ||
+      clang::isa<clang::IntegerLiteral>(op) ||
+      clang::isa<clang::FloatingLiteral>(op) ||
+      clang::isa<clang::ParenExpr>(op)) {
+    return CExprPrecedence::Value;
+  }
+
+  if (clang::isa<clang::ArraySubscriptExpr>(op) ||
+      clang::isa<clang::MemberExpr>(op) ||
+      clang::isa<clang::CStyleCastExpr>(op) ||
+      clang::isa<clang::CallExpr>(op)) {
+    return CExprPrecedence::SpecialOp;
+  }
+
+  if (auto uo = clang::dyn_cast<clang::UnaryOperator>(op)) {
+    return GetOperatorPrecedence(uo->getOpcode());
+  }
+
+  if (auto bo = clang::dyn_cast<clang::BinaryOperator>(op)) {
+    return GetOperatorPrecedence(bo->getOpcode());
+  }
+
+  if (clang::isa<clang::ConditionalOperator>(op)) {
+    return CExprPrecedence::CondOp;
+  }
+
+  LOG(FATAL) << "Unknown clang::Expr";
+
+  return 0U;
+}
+
+}  // namespace
+
 ASTBuilder::ASTBuilder(clang::ASTUnit &unit)
     : unit(unit), ctx(unit.getASTContext()), sema(unit.getSema()) {}
 
@@ -196,6 +252,9 @@ clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
 clang::UnaryOperator *ASTBuilder::CreateUnaryOp(clang::UnaryOperatorKind opc,
                                                 clang::Expr *expr) {
   CHECK(expr) << "Should not be null in CreateUnaryOp.";
+  if (GetOperatorPrecedence(opc) < GetOperatorPrecedence(expr)) {
+    expr = CreateParen(expr);
+  }
   auto er{sema.CreateBuiltinUnaryOp(clang::SourceLocation(), opc, expr)};
   CHECK(er.isUsable());
   return er.getAs<clang::UnaryOperator>();
@@ -205,6 +264,12 @@ clang::BinaryOperator *ASTBuilder::CreateBinaryOp(clang::BinaryOperatorKind opc,
                                                   clang::Expr *lhs,
                                                   clang::Expr *rhs) {
   CHECK(lhs && rhs) << "Should not be null in CreateBinaryOp.";
+  if (GetOperatorPrecedence(opc) < GetOperatorPrecedence(lhs)) {
+    lhs = CreateParen(lhs);
+  }
+  if (GetOperatorPrecedence(opc) < GetOperatorPrecedence(rhs)) {
+    rhs = CreateParen(rhs);
+  }
   auto er{sema.CreateBuiltinBinOp(clang::SourceLocation(), opc, lhs, rhs)};
   CHECK(er.isUsable());
   return er.getAs<clang::BinaryOperator>();
@@ -222,6 +287,9 @@ clang::ConditionalOperator *ASTBuilder::CreateConditional(clang::Expr *cond,
 clang::ArraySubscriptExpr *ASTBuilder::CreateArraySub(clang::Expr *base,
                                                       clang::Expr *idx) {
   CHECK(base && idx) << "Should not be null in CreateArraySub.";
+  if (CExprPrecedence::SpecialOp < GetOperatorPrecedence(base)) {
+    base = CreateParen(base);
+  }
   auto er{sema.CreateBuiltinArraySubscriptExpr(base, clang::SourceLocation(),
                                                idx, clang::SourceLocation())};
   CHECK(er.isUsable());

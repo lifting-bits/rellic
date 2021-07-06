@@ -21,11 +21,10 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
  protected:
   clang::ast_matchers::StatementMatcher cond;
   const clang::Stmt *match;
-  clang::Stmt *substitution;
 
  public:
   InferenceRule(clang::ast_matchers::StatementMatcher matcher)
-      : cond(matcher), match(nullptr), substitution(nullptr) {}
+      : cond(matcher), match(nullptr) {}
 
   operator bool() { return match; }
 

@@ -229,7 +229,16 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
     return CreateRef();
   }
   // Operand is a result of an expression
-  if (llvm::isa<llvm::Instruction>(val)) {
+  if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
+    // Handle calls to functions with a return value and side-effects
+    if (llvm::isa<llvm::CallInst>(inst) && inst->mayHaveSideEffects() &&
+        !inst->getType()->isVoidTy()) {
+      auto declstmt{clang::cast<clang::DeclStmt>(GetOrCreateStmt(val))};
+      CHECK(declstmt->isSingleDecl()) << "Unexpected multiple declarations";
+      auto valdecl{clang::cast<clang::ValueDecl>(declstmt->getSingleDecl())};
+      return ast.CreateDeclRef(valdecl);
+    }
+    // Everything else
     return CreateExpr();
   }
 
@@ -295,7 +304,7 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
     return stmt;
   }
 
-  LOG(FATAL) << "Unsupported value type";
+  LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
 
   return stmt;
 }
@@ -319,7 +328,7 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
   } else if (auto inst = llvm::dyn_cast<llvm::AllocaInst>(val)) {
     visitAllocaInst(*inst);
   } else {
-    LOG(FATAL) << "Unsupported value type";
+    LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
   }
 
   return decl;
@@ -432,8 +441,8 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
 
 void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   DLOG(INFO) << "visitCallInst: " << LLVMThingToString(&inst);
-  auto &callexpr = stmts[&inst];
-  if (callexpr) {
+  auto &callstmt = stmts[&inst];
+  if (callstmt) {
     return;
   }
 
@@ -442,6 +451,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
+  clang::Expr *callexpr{nullptr};
   auto callee{inst.getCalledOperand()};
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
     auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
@@ -453,6 +463,17 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     callexpr = ast.CreateCall(GetOperandExpr(callee), args);
   } else {
     LOG(FATAL) << "Callee is not a function";
+  }
+
+  if (inst.mayHaveSideEffects() && !inst.getType()->isVoidTy()) {
+    auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
+    auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+    auto var{ast.CreateVarDecl(fdecl, callexpr->getType(), name)};
+    fdecl->addDecl(var);
+    var->setInit(callexpr);
+    callstmt = ast.CreateDeclStmt(var);
+  } else {
+    callstmt = callexpr;
   }
 }
 

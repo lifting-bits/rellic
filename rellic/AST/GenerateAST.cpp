@@ -205,19 +205,6 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
     if (!stmt) {
       continue;
     }
-    // Create an auxiliary variable `val` that holds the value of `inst`
-    if (llvm::isa<llvm::CallInst>(inst) && inst.mayHaveSideEffects() &&
-        !inst.getType()->isVoidTy()) {
-      auto fdecl{clang::cast<clang::FunctionDecl>(
-          ast_gen->GetOrCreateDecl(inst.getFunction()))};
-      auto expr{clang::cast<clang::Expr>(stmt)};
-      auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-      auto var{ast.CreateVarDecl(fdecl, expr->getType(), name)};
-      fdecl->addDecl(var);
-      var->setInit(expr);
-      stmt = ast.CreateDeclStmt(var);
-      ast_gen->SetStmt(&inst, ast.CreateDeclRef(var));
-    }
 
     result.push_back(stmt);
   }

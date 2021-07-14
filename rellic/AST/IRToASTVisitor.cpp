@@ -150,11 +150,23 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     } break;
     // Integers
     case llvm::Type::IntegerTyID: {
-      auto val{llvm::cast<llvm::ConstantInt>(constant)->getValue()};
-      if (val.getBitWidth() == 1U) {
-        result = ast.CreateIntLit(val);
+      if (llvm::isa<llvm::ConstantInt>(constant)) {
+        auto ci = llvm::cast<llvm::ConstantInt>(constant);
+        auto val{ci->getValue()};
+        if (val.getBitWidth() == 1U) {
+          result = ast.CreateIntLit(val);
+        } else {
+          result = ast.CreateAdjustedIntLit(val);
+        }
+      } else if (llvm::isa<llvm::UndefValue>(constant)) {
+        //NOTE(artem):
+        // This gives the following result:
+        // warning: indirection of non-volatile null pointer will be deleted, not trap [-Wnull-dereference]
+        // note: consider using __builtin_trap() or qualifying pointer with 'volatile'
+        // We may want to consider making a CreteTrap() instead?
+        result = ast.CreateUndef(c_type);
       } else {
-        result = ast.CreateAdjustedIntLit(val);
+        LOG(FATAL) << "Unsupported integer constant";
       }
     } break;
 

@@ -2,7 +2,8 @@
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 SRC_DIR=$( cd "$( dirname "${DIR}" )" && pwd )
 
-RELLIC_DECOMPILE="rellic-decomp-11.0"
+LLVM_VERSION=11
+RELLIC_DECOMPILE="rellic-decomp-${LLVM_VERSION}.0"
 function Help
 {
   echo "Run Rellic on AnghaBech-1K"
@@ -99,16 +100,25 @@ do
     ${SRC_DIR}/libraries/lifting-tools-ci/tool_run_scripts/rellic.py \
         --rellic "${RELLIC_DECOMPILE}" \
         --input-dir "$(pwd)/bitcode/${arch}" \
-        --output-dir "$(pwd)/results/${arch}" \
+        --output-dir "$(pwd)/decompile/${arch}" \
         --run-name "rellic-live-ci-${arch}" \
         --test-options "${SRC_DIR}/ci/angha_1k_test_settings.json" \
         --dump-stats
 
-    if ! check_test "$(pwd)/results/${arch}/stats.json"
+    if ! check_test "$(pwd)/decompile/${arch}/stats.json"
     then
         echo "[!] Failed decompilation for ${arch}"
         FAILED="yes"
     fi
+
+    # This is currently informational only
+    mkdir -p "$(pwd)/recompile/${arch}"
+    ${SRC_DIR}/libraries/lifting-tools-ci/tool_run_scripts/recompile.py \
+        --clang "clang-${LLVM_VERSION}" \
+        --input-dir "$(pwd)/decompile/${arch}" \
+        --output-dir "$(pwd)/recompile/${arch}" \
+        --run-name "recompile-live-ci-${arch}" \
+        --dump-stats
 done
 
 if [[ "${FAILED}" = "no" ]]

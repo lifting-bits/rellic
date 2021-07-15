@@ -12,7 +12,7 @@ echo "Saving output to $(pwd)/build.log"
 
 {
     apt-get update
-    apt-get install -yqq curl git python3 python3-pip xz-utils cmake ninja-build clang-11
+    apt-get install -yqq curl git python3 python3-pip xz-utils cmake ninja-build clang-${LLVM_VERSION}
     python3 -m pip install requests
 } &>> build.log
 
@@ -52,7 +52,7 @@ echo "Saving output to $(pwd)/build.log"
     RUN_SIZE=1k
     fi
 
-    datasets/fetch_anghabench.sh --bitcode --run-size ${RUN_SIZE}
+    datasets/fetch_anghabench.sh --clang ${LLVM_VERSION} --bitcode --run-size ${RUN_SIZE}
 
     for i in *.tar.xz
     do
@@ -64,7 +64,15 @@ echo "Saving output to $(pwd)/build.log"
         --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [rellic: ${RELLIC_BRANCH}]" \
         --rellic rellic-decomp-${LLVM_VERSION}.0 \
         --input-dir $(pwd)/bitcode \
-        --output-dir $(pwd)/output \
+        --output-dir $(pwd)/decompiled \
+        --slack-notify
+
+    # Try to recompile our decompiled code
+    tool_run_scripts/recompile.py \
+        --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [recompile]" \
+        --clang clang-${LLVM_VERSION} \
+        --input-dir $(pwd)/decompiled \
+        --output-dir $(pwd)/recompiled \
         --slack-notify
 
     # exit hook called here

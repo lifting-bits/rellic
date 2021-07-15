@@ -171,7 +171,7 @@ clang::Expr *ASTBuilder::CreateUndefInteger(clang::QualType type) {
 clang::Expr *ASTBuilder::CreateUndefPointer(clang::QualType type) {
   auto null{CreateNull()};
   auto cast{CreateCStyleCast(ctx.getPointerType(type), null)};
-  return CreateDeref(cast);
+  return cast;
 };
 
 clang::IdentifierInfo *ASTBuilder::CreateIdentifier(std::string name) {

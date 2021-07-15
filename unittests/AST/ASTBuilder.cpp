@@ -267,7 +267,25 @@ TEST_SUITE("ASTBuilder::CreateNull") {
   }
 }
 
-TEST_SUITE("ASTBuilder::CreateUndef") {
+TEST_SUITE("ASTBuilder::CreateUndefInteger") {
+  SCENARIO("Create clang::Expr to stand in for an undefined integer") {
+    GIVEN("Empty clang::ASTContext") {
+      auto unit{GetASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      GIVEN("an unsigned integer type") {
+        auto type{ctx.UnsignedIntTy};
+        THEN("return a value that satisfied LLVM's undef semantics (aka anything)") {
+          auto expr{ast.CreateUndefInteger(type)};
+          REQUIRE(expr != nullptr);
+          CHECK(expr->getType() == ctx.UnsignedIntTy);
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateUndefPointer") {
   SCENARIO("Create clang::Expr whose value is undefined") {
     GIVEN("Empty clang::ASTContext") {
       auto unit{GetASTUnit()};
@@ -276,7 +294,7 @@ TEST_SUITE("ASTBuilder::CreateUndef") {
       GIVEN("an arbitrary type t") {
         auto type{ctx.DoubleTy};
         THEN("return a null pointer dereference of type t") {
-          auto expr{ast.CreateUndef(type)};
+          auto expr{ast.CreateUndefPointer(type)};
           REQUIRE(expr != nullptr);
           CHECK(expr->getType() == ctx.DoubleTy);
           auto deref{clang::dyn_cast<clang::UnaryOperator>(expr)};

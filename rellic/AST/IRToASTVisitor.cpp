@@ -159,12 +159,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
           result = ast.CreateAdjustedIntLit(val);
         }
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
-        //NOTE(artem):
-        // This gives the following result:
-        // warning: indirection of non-volatile null pointer will be deleted, not trap [-Wnull-dereference]
-        // note: consider using __builtin_trap() or qualifying pointer with 'volatile'
-        // We may want to consider making a CreteTrap() instead?
-        result = ast.CreateUndef(c_type);
+        result = ast.CreateUndefInteger(c_type);
       } else {
         LOG(FATAL) << "Unsupported integer constant";
       }
@@ -174,7 +169,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
         result = ast.CreateNull();
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
-        result = ast.CreateUndef(c_type);
+        result = ast.CreateUndefPointer(c_type);
       } else {
         LOG(FATAL) << "Unsupported pointer constant";
       }

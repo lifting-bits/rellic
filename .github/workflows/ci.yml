@@ -80,7 +80,7 @@ jobs:
           rellic-decomp-${{ matrix.llvm }}.0 --version
 
       - name: Run Integration Tests (AnghaBench 1K, LLVM 11)
-        if: ${{ matrix.llvm == '11' }}
+        if: ${{ matrix.llvm == '11' and matrix.ubuntu == '20.04' }}
         shell: bash
         run: |
           apt-get install -y clang-${{ matrix.llvm }}

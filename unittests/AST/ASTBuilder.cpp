@@ -288,7 +288,8 @@ TEST_SUITE("ASTBuilder::CreateUndef") {
         THEN("return an undef pointer (we use null pointers) of type t") {
           auto expr{ast.CreateUndefPointer(type)};
           REQUIRE(expr != nullptr);
-          CHECK(expr->getType() == ctx.DoubleTy);
+          auto double_ptr_ty{ctx.getPointerType(ctx.DoubleTy)};
+          CHECK(expr->getType() == double_ptr_ty);
           IsNullPtrExprCheck(ctx, expr->IgnoreCasts());
         }
       }

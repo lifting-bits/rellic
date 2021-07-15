@@ -275,7 +275,9 @@ TEST_SUITE("ASTBuilder::CreateUndef") {
       rellic::ASTBuilder ast(*unit);
       GIVEN("an unsigned integer type") {
         auto type{ctx.UnsignedIntTy};
-        THEN("return a value that satisfied LLVM's undef semantics (aka anything)") {
+        THEN(
+            "return a value that satisfied LLVM's undef semantics (aka "
+            "anything)") {
           auto expr{ast.CreateUndefInteger(type)};
           REQUIRE(expr != nullptr);
           CHECK(expr->getType() == ctx.UnsignedIntTy);
@@ -288,6 +290,7 @@ TEST_SUITE("ASTBuilder::CreateUndef") {
           REQUIRE(expr != nullptr);
           CHECK(expr->getType() == ctx.DoubleTy);
           IsNullPtrExprCheck(ctx, expr->IgnoreCasts());
+        }
       }
     }
   }

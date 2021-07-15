@@ -806,6 +806,14 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
       type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1);
     } break;
 
+    case llvm::CastInst::AddrSpaceCast:
+    //NOTE(artem): ignore addrspace casts for now, but eventually we want to
+    // handle them as __thread or some other context-relative handler
+    // which will *highly* depend on the target architecture
+    DLOG(WARNING) << __FUNCTION__ << ": Ignoring an AddrSpaceCast because it is not yet implemented.";
+    // The fallthrough is intentional here
+    [[clang::fallthrough]];
+
     case llvm::CastInst::ZExt:
     case llvm::CastInst::BitCast:
     case llvm::CastInst::PtrToInt:

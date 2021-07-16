@@ -150,11 +150,18 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     } break;
     // Integers
     case llvm::Type::IntegerTyID: {
-      auto val{llvm::cast<llvm::ConstantInt>(constant)->getValue()};
-      if (val.getBitWidth() == 1U) {
-        result = ast.CreateIntLit(val);
+      if (llvm::isa<llvm::ConstantInt>(constant)) {
+        auto ci = llvm::cast<llvm::ConstantInt>(constant);
+        auto val{ci->getValue()};
+        if (val.getBitWidth() == 1U) {
+          result = ast.CreateIntLit(val);
+        } else {
+          result = ast.CreateAdjustedIntLit(val);
+        }
+      } else if (llvm::isa<llvm::UndefValue>(constant)) {
+        result = ast.CreateUndefInteger(c_type);
       } else {
-        result = ast.CreateAdjustedIntLit(val);
+        LOG(FATAL) << "Unsupported integer constant";
       }
     } break;
 
@@ -162,7 +169,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       if (llvm::isa<llvm::ConstantPointerNull>(constant)) {
         result = ast.CreateNull();
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
-        result = ast.CreateUndef(c_type);
+        result = ast.CreateUndefPointer(c_type);
       } else {
         LOG(FATAL) << "Unsupported pointer constant";
       }

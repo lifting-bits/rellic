@@ -162,10 +162,16 @@ clang::Expr *ASTBuilder::CreateNull() {
   return CreateCStyleCast(ctx.VoidPtrTy, lit);
 };
 
-clang::Expr *ASTBuilder::CreateUndef(clang::QualType type) {
+clang::Expr *ASTBuilder::CreateUndefInteger(clang::QualType type) {
+  auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
+  auto lit{CreateIntLit(val)};
+  return lit;
+};
+
+clang::Expr *ASTBuilder::CreateUndefPointer(clang::QualType type) {
   auto null{CreateNull()};
   auto cast{CreateCStyleCast(ctx.getPointerType(type), null)};
-  return CreateDeref(cast);
+  return cast;
 };
 
 clang::IdentifierInfo *ASTBuilder::CreateIdentifier(std::string name) {

@@ -44,7 +44,8 @@ echo "Saving output to $(pwd)/build.log"
         python3 -m pip install -r requirements.txt
     fi
 
-    mkdir -p $(pwd)/output
+    mkdir -p $(pwd)/decompiled
+    mkdir -p $(pwd)/recompiled
 
     # default to 1k
     if [[ "${RUN_SIZE,,}" = "__run_size__" ]]

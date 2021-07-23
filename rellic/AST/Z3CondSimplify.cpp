@@ -20,9 +20,9 @@ Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit,
     : ModulePass(Z3CondSimplify::ID),
       ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen),
-      z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
-      z3_simplifier(*z3_ctx, "simplify") {}
+      z_ctx(new z3::context()),
+      z_gen(new rellic::Z3ConvVisitor(unit, z_ctx.get())),
+      simplifier(*z_ctx, "simplify") {}
 
 clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
   auto z3_expr{z3_gen->GetOrCreateZ3Expr(c_expr)};

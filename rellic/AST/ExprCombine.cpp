@@ -199,20 +199,24 @@ class AssignCastedExprRule : public InferenceRule {
     auto assign{clang::cast<clang::BinaryOperator>(stmt)};
     CHECK(assign == match)
         << "Substituted BinaryOperator is not the matched BinaryOperator!";
+
     auto lhs{assign->getLHS()};
+
     auto rhs{clang::cast<clang::CStyleCastExpr>(
         assign->getRHS()->IgnoreParenImpCasts())};
+
     if (unit.getSema().CheckAssignmentConstraints(
             clang::SourceLocation(), lhs->getType(),
             rhs->getSubExpr()->getType()) ==
         clang::Sema::AssignConvertType::Compatible) {
       return ASTBuilder(unit).CreateAssign(lhs, rhs->getSubExpr());
-    } else {
-      return assign;
     }
+
+    return assign;
   }
 };
 
+// Matches `(int)(unsigned int)expr` and subs it for `(int)expr`
 class UnsignedToSignedCStyleCastRule : public InferenceRule {
  public:
   UnsignedToSignedCStyleCastRule()
@@ -230,15 +234,57 @@ class UnsignedToSignedCStyleCastRule : public InferenceRule {
     auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
     CHECK(cast == match)
         << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
+
     auto subcast{clang::cast<clang::CStyleCastExpr>(
         cast->getSubExpr()->IgnoreParenImpCasts())};
+
     if (unit.getASTContext().getCorrespondingUnsignedType(cast->getType()) ==
         subcast->getType()) {
       return ASTBuilder(unit).CreateCStyleCast(cast->getType(),
                                                subcast->getSubExpr());
-    } else {
-      return cast;
     }
+
+    return cast;
+  }
+};
+
+// Matches `(int)(long)(char)expr` and subs it for `(int)(char)expr`
+class TripleCStyleCastElimRule : public InferenceRule {
+ public:
+  TripleCStyleCastElimRule()
+      : InferenceRule(cStyleCastExpr(
+            stmt().bind("cast"), hasType(isInteger()),
+            has(ignoringParenImpCasts(cStyleCastExpr(
+                hasType(isInteger()), has(ignoringImpCasts(cStyleCastExpr(
+                                          hasType(isInteger()))))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
+    CHECK(cast == match)
+        << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
+
+    auto &ctx{unit.getASTContext()};
+
+    auto subcast{clang::cast<clang::CStyleCastExpr>(
+        cast->getSubExpr()->IgnoreParenImpCasts())};
+
+    auto subsubcast{clang::cast<clang::CStyleCastExpr>(
+        subcast->getSubExpr()->IgnoreParenImpCasts())};
+
+    if (ctx.getTypeSize(cast->getType()) ==
+            ctx.getTypeSize(subsubcast->getType()) &&
+        ctx.getTypeSize(cast->getType()) <=
+            ctx.getTypeSize(subcast->getType())) {
+      LOG(FATAL) << "SATAN";
+      return ASTBuilder(unit).CreateCStyleCast(cast->getType(), subsubcast);
+    }
+
+    return cast;
   }
 };
 
@@ -272,6 +318,7 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new UnsignedToSignedCStyleCastRule);
+  rules.emplace_back(new TripleCStyleCastElimRule);
 
   auto sub{ApplyFirstMatchingRule(unit, cast, rules)};
   if (sub != cast) {

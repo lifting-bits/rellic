@@ -178,6 +178,37 @@ class MemberExprAddrOfRule : public InferenceRule {
   }
 };
 
+// Matches `expr[0U].field` and subs it for `expr->field`
+class MemberExprArraySubRule : public InferenceRule {
+ public:
+  MemberExprArraySubRule()
+      : InferenceRule(memberExpr(
+            stmt().bind("dot"), unless(isArrow()),
+            has(expr(stmt().bind("base"),
+                     ignoringParenImpCasts(
+                         arraySubscriptExpr(hasIndex(zero_int_lit))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    auto dot{result.Nodes.getNodeAs<clang::MemberExpr>("dot")};
+    if (result.Nodes.getNodeAs<clang::Expr>("base") == dot->getBase()) {
+      match = dot;
+    }
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto dot{clang::cast<clang::MemberExpr>(stmt)};
+    CHECK(dot == match)
+        << "Substituted MemberExpr is not the matched MemberExpr!";
+    auto base{dot->getBase()->IgnoreParenImpCasts()};
+    auto sub{clang::cast<clang::ArraySubscriptExpr>(base)};
+    auto field{clang::dyn_cast<clang::FieldDecl>(dot->getMemberDecl())};
+    CHECK(field != nullptr)
+        << "Substituted MemberExpr is not a structure field access!";
+    return ASTBuilder(unit).CreateArrow(sub->getBase(), field);
+  }
+};
+
 // Matches `a = (type)expr`, where `a` is of `type` and subs it for `a = expr`
 class AssignCastedExprRule : public InferenceRule {
  public:
@@ -331,6 +362,7 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new MemberExprAddrOfRule);
+  rules.emplace_back(new MemberExprArraySubRule);
 
   auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
   if (sub != expr) {

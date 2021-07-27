@@ -280,7 +280,6 @@ class TripleCStyleCastElimRule : public InferenceRule {
             ctx.getTypeSize(subsubcast->getType()) &&
         ctx.getTypeSize(cast->getType()) <=
             ctx.getTypeSize(subcast->getType())) {
-      LOG(FATAL) << "SATAN";
       return ASTBuilder(unit).CreateCStyleCast(cast->getType(), subsubcast);
     }
 

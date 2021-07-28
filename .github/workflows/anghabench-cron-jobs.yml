@@ -25,6 +25,8 @@ jobs:
         libraries/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI 1K Run" --script scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
       env:
         SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         DO_TOKEN: ${{ secrets.DO_TOKEN }}
         BRANCH: ${{ steps.extract_branch.outputs.branch }}
     #- name: Big Run (1M) against LLM ${{ matrix.llvm }}

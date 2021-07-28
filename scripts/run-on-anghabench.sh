@@ -12,7 +12,7 @@ echo "Saving output to $(pwd)/build.log"
 
 {
     apt-get update
-    apt-get install -yqq curl git python3 python3-pip xz-utils cmake ninja-build clang-${LLVM_VERSION}
+    apt-get install -yqq s3cmd pixz curl git python3 python3-pip xz-utils cmake ninja-build clang-${LLVM_VERSION}
     python3 -m pip install requests
 } &>> build.log
 
@@ -75,6 +75,36 @@ echo "Saving output to $(pwd)/build.log"
         --input-dir $(pwd)/decompiled \
         --output-dir $(pwd)/recompiled \
         --slack-notify
+
+    # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY passed in from original invocation environment
+    if [[ "${AWS_ACCESS_KEY_ID,,}" != "" ]]
+    then
+      datenow=$(date +'%F-%H-%M')
+      url_base="https://tob-amp-ci-results.nyc3.digitaloceanspaces.com"
+      tar -Ipixz -cf rellic-ci-${datenow}.tar.xz decompiled
+      tar -Ipixz -cf recompile-ci-${datenow}.tar.xz recompiled
+
+      s3cmd -c /dev/null \
+        '--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
+        --acl-public \
+        put \
+        rellic-ci-${datenow}.tar.xz \
+        s3://tob-amp-ci-results/rellic/
+
+      tool_run_scripts/slack.py \
+        --msg "Uploaded rellic decompilation results to ${url_base}/rellic/rellic-ci-${datenow}.tar.xz"
+          
+
+      s3cmd -c /dev/null \
+        '--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
+        --acl-public \
+        put \
+        recompile-ci-${datenow}.tar.xz \
+        s3://tob-amp-ci-results/recompile/
+
+      tool_run_scripts/slack.py \
+        --msg "Uploaded recompilation results to ${url_base}/recompile/recompile-ci-${datenow}.tar.xz"
+    fi
 
     # exit hook called here
 } &>> build.log

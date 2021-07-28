@@ -23,10 +23,10 @@ class Z3CondSimplify : public llvm::ModulePass,
  private:
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor *ast_gen;
-  std::unique_ptr<z3::context> z3_ctx;
-  std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
+  std::unique_ptr<z3::context> z_ctx;
+  std::unique_ptr<rellic::Z3ConvVisitor> z_gen;
 
-  z3::tactic z3_simplifier;
+  z3::tactic simplifier;
 
   clang::Expr *SimplifyCExpr(clang::Expr *c_expr);
 
@@ -35,9 +35,9 @@ class Z3CondSimplify : public llvm::ModulePass,
 
   Z3CondSimplify(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
-  z3::context &GetZ3Context() { return *z3_ctx; }
+  z3::context &GetZ3Context() { return *z_ctx; }
 
-  void SetZ3Simplifier(z3::tactic tactic) { z3_simplifier = tactic; };
+  void SetZ3Simplifier(z3::tactic tactic) { simplifier = tactic; };
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *loop);

@@ -1138,19 +1138,30 @@ void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
   CHECK(z_op.is_app() && z_op.decl().arity() == 3)
       << "Z3 expression is not a ternary operator!";
   // Create C binary operator
+  clang::Expr *c_op{nullptr};
   auto z_decl{z_op.decl()};
   switch (z_decl.decl_kind()) {
     case Z3_OP_ITE: {
-      auto c_cond{GetCExpr(z_op.arg(0U))};
-      auto c_then{GetCExpr(z_op.arg(1U))};
-      auto c_else{GetCExpr(z_op.arg(2U))};
-      InsertCExpr(z_op, ast.CreateConditional(c_cond, c_then, c_else));
+      auto z_cond{z_op.arg(0U)};
+      auto z_then{z_op.arg(1U)};
+      auto z_else{z_op.arg(2U)};
+      uint64_t then_val{0U};
+      uint64_t else_val{1U};
+      if (z_then.is_numeral_u64(then_val) && z_else.is_numeral_u64(else_val) &&
+          then_val == 1U && else_val == 0U) {
+        c_op = GetCExpr(z_cond);
+      } else {
+        c_op = ast.CreateConditional(GetCExpr(z_cond), GetCExpr(z_then),
+                                     GetCExpr(z_else));
+      }
     } break;
     // Unknowns
     default:
       LOG(FATAL) << "Unknown Z3 ternary operator: " << z_decl.name();
       break;
   }
+  // Save
+  InsertCExpr(z_op, c_op);
 }
 
 void Z3ConvVisitor::VisitZ3Decl(z3::func_decl z_decl) {

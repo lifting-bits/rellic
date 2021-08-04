@@ -6,8 +6,6 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#define GOOGLE_STRIP_LOG 1
-
 #include "rellic/AST/ExprCombine.h"
 
 #include <clang/Sema/Sema.h>
@@ -359,8 +357,8 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
 }
 
 bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
-  DLOG(INFO) << "VisitUnaryOperator: "
-             << op->getOpcodeStr(op->getOpcode()).str();
+  // DLOG(INFO) << "VisitUnaryOperator: "
+  //            << op->getOpcodeStr(op->getOpcode()).str();
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new NegComparisonRule);
@@ -376,7 +374,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
 }
 
 bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
-  DLOG(INFO) << "VisitBinaryOperator: " << op->getOpcodeStr().str();
+  // DLOG(INFO) << "VisitBinaryOperator: " << op->getOpcodeStr().str();
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new AssignCastedExprRule);
@@ -390,7 +388,7 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
 }
 
 bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
-  DLOG(INFO) << "VisitArraySubscriptExpr";
+  // DLOG(INFO) << "VisitArraySubscriptExpr";
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new ArraySubscriptAddrOfRule);
@@ -404,7 +402,7 @@ bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 }
 
 bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
-  DLOG(INFO) << "VisitMemberExpr";
+  // DLOG(INFO) << "VisitMemberExpr";
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new MemberExprAddrOfRule);
@@ -419,7 +417,7 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
 }
 
 bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
-  DLOG(INFO) << "VisitParenExpr";
+  // DLOG(INFO) << "VisitParenExpr";
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new ParenDeclRefExprStripRule);

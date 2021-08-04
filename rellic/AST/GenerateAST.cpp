@@ -201,14 +201,10 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
   for (auto &inst : *block) {
-    auto stmt = ast_gen->GetOrCreateStmt(&inst);
-    if (!stmt) {
-      continue;
+    if (auto stmt = ast_gen->GetOrCreateStmt(&inst)) {
+      result.push_back(stmt);
     }
-
-    result.push_back(stmt);
   }
-
   return result;
 }
 
@@ -430,8 +426,20 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
     tudecl->addDecl(fdefn);
     // Set parameters to the same as the previous declaration
     fdefn->setParams(fdecl->parameters());
-    // Set body to the compound of the top-level region
-    fdefn->setBody(region_stmts[regions->getTopLevelRegion()]);
+    // Create body of the function
+    StmtVec fbody;
+    // Add declarations of local variables
+    for (auto decl : fdecl->decls()) {
+      if (clang::isa<clang::VarDecl>(decl)) {
+        fbody.push_back(ast.CreateDeclStmt(decl));
+      }
+    }
+    // Add statements of the top-level region compound
+    for (auto stmt : region_stmts[regions->getTopLevelRegion()]->body()) {
+      fbody.push_back(stmt);
+    }
+    // Set body to a new compound
+    fdefn->setBody(ast.CreateCompound(fbody));
   }
 
   return true;

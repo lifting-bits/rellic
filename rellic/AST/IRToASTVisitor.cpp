@@ -240,10 +240,8 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
     // Handle calls to functions with a return value and side-effects
     if (llvm::isa<llvm::CallInst>(inst) && inst->mayHaveSideEffects() &&
         !inst->getType()->isVoidTy()) {
-      auto declstmt{clang::cast<clang::DeclStmt>(GetOrCreateStmt(val))};
-      CHECK(declstmt->isSingleDecl()) << "Unexpected multiple declarations";
-      auto valdecl{clang::cast<clang::ValueDecl>(declstmt->getSingleDecl())};
-      return ast.CreateDeclRef(valdecl);
+      auto assign{clang::cast<clang::BinaryOperator>(GetOrCreateStmt(val))};
+      return assign->getLHS();
     }
     // Everything else
     return CreateExpr();
@@ -477,8 +475,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
     auto var{ast.CreateVarDecl(fdecl, callexpr->getType(), name)};
     fdecl->addDecl(var);
-    var->setInit(callexpr);
-    callstmt = ast.CreateDeclStmt(var);
+    callstmt = ast.CreateAssign(ast.CreateDeclRef(var), callexpr);
   } else {
     callstmt = callexpr;
   }
@@ -578,8 +575,8 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
   DLOG(INFO) << "visitAllocaInst: " << LLVMThingToString(&inst);
-  auto &declstmt = stmts[&inst];
-  if (declstmt) {
+  auto &declref = stmts[&inst];
+  if (declref) {
     return;
   }
 
@@ -597,7 +594,7 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     fdecl->addDecl(var);
   }
 
-  declstmt = ast.CreateDeclStmt(var);
+  declref = ast.CreateDeclRef(var);
 }
 
 void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {

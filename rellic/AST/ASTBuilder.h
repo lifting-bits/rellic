@@ -220,7 +220,7 @@ class ASTBuilder {
   clang::ArraySubscriptExpr *CreateArraySub(clang::Expr *base,
                                             clang::Expr *idx);
   // Calls
-  clang::CallExpr *CreateCall(clang::Expr *func,
+  clang::CallExpr *CreateCall(clang::Expr *callee,
                               std::vector<clang::Expr *> &args);
 
   clang::CallExpr *CreateCall(clang::FunctionDecl *func,

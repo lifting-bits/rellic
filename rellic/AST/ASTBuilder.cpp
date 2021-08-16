@@ -48,11 +48,14 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
     return CExprPrecedence::Value;
   }
 
-  if (clang::isa<clang::ArraySubscriptExpr>(op) ||
-      clang::isa<clang::MemberExpr>(op) ||
-      clang::isa<clang::CStyleCastExpr>(op) ||
+  if (clang::isa<clang::MemberExpr>(op) ||
+      clang::isa<clang::ArraySubscriptExpr>(op) ||
       clang::isa<clang::CallExpr>(op)) {
     return CExprPrecedence::SpecialOp;
+  }
+
+  if (clang::isa<clang::CStyleCastExpr>(op)) {
+    return CExprPrecedence::UnaryOp;
   }
 
   if (auto uo = clang::dyn_cast<clang::UnaryOperator>(op)) {
@@ -302,10 +305,13 @@ clang::ArraySubscriptExpr *ASTBuilder::CreateArraySub(clang::Expr *base,
   return er.getAs<clang::ArraySubscriptExpr>();
 }
 
-clang::CallExpr *ASTBuilder::CreateCall(clang::Expr *func,
+clang::CallExpr *ASTBuilder::CreateCall(clang::Expr *callee,
                                         std::vector<clang::Expr *> &args) {
-  CHECK(func) << "Should not be null in CreateCall.";
-  auto er{sema.BuildCallExpr(/*Scope=*/nullptr, func, clang::SourceLocation(),
+  CHECK(callee) << "Should not be null in CreateCall.";
+  if (CExprPrecedence::SpecialOp < GetOperatorPrecedence(callee)) {
+    callee = CreateParen(callee);
+  }
+  auto er{sema.BuildCallExpr(/*Scope=*/nullptr, callee, clang::SourceLocation(),
                              args, clang::SourceLocation())};
   CHECK(er.isUsable());
   return er.getAs<clang::CallExpr>();

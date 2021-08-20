@@ -84,7 +84,7 @@ jobs:
         shell: bash
         run: |
           apt-get install -y clang-${{ matrix.llvm }}
-          python3 -m pip install -r libraries/lifting-tools-ci/requirements.txt
+          python3 -m pip install -r external/lifting-tools-ci/requirements.txt
           scripts/test-angha-1k.sh \
             --rellic-cmd "rellic-decomp-${{ matrix.llvm }}.0"
 

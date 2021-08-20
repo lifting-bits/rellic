@@ -26,7 +26,7 @@ jobs:
       id: extract_branch
     - name: Run against ${{ matrix.llvm }}
       run: |
-        libraries/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run Post Build" --script scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
+        external/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run Post Build" --script scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
       env:
         SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
         DO_TOKEN: ${{ secrets.DO_TOKEN }}

@@ -24,14 +24,14 @@ function check_test
 
     # count number of failures
     fail_msg=$(\
-		PYTHONPATH=${SRC_DIR}/libraries/lifting-tools-ci/tool_run_scripts \
+		PYTHONPATH=${SRC_DIR}/external/lifting-tools-ci/tool_run_scripts \
 		python3 -c "import stats,sys; s=stats.Stats(); s.load_json(sys.stdin); print(s.get_fail_count())" \
         < ${input_json})
 
     if [[ "${fail_msg}" != "0" ]]
     then
         echo "[!] There were [${fail_msg}] failures on ${arch}:"
-		PYTHONPATH=${SRC_DIR}/libraries/lifting-tools-ci/tool_run_scripts \
+		PYTHONPATH=${SRC_DIR}/external/lifting-tools-ci/tool_run_scripts \
         python3 -c "import stats,sys; s=stats.Stats(); s.load_json(sys.stdin); s.print_fails()" \
 			< ${input_json}
         return 1
@@ -86,7 +86,7 @@ mkdir -p rellic-angha-test-1k
 pushd rellic-angha-test-1k
 
 # fetch the test set: 1K bitcode (per arch)
-${SRC_DIR}/libraries/lifting-tools-ci/datasets/fetch_anghabench.sh --run-size 1k --bitcode
+${SRC_DIR}/external/lifting-tools-ci/datasets/fetch_anghabench.sh --run-size 1k --bitcode
 # extract it
 for tarfile in *.tar.xz
 do
@@ -97,7 +97,7 @@ FAILED="no"
 for arch in $(ls -1 bitcode/)
 do
     echo "[+] Testing architecture ${arch}"
-    ${SRC_DIR}/libraries/lifting-tools-ci/tool_run_scripts/rellic.py \
+    ${SRC_DIR}/external/lifting-tools-ci/tool_run_scripts/rellic.py \
         --rellic "${RELLIC_DECOMPILE}" \
         --input-dir "$(pwd)/bitcode/${arch}" \
         --output-dir "$(pwd)/decompile/${arch}" \
@@ -113,7 +113,7 @@ do
 
     # This is currently informational only
     mkdir -p "$(pwd)/recompile/${arch}"
-    ${SRC_DIR}/libraries/lifting-tools-ci/tool_run_scripts/recompile.py \
+    ${SRC_DIR}/external/lifting-tools-ci/tool_run_scripts/recompile.py \
         --clang "clang-${LLVM_VERSION}" \
         --input-dir "$(pwd)/decompile/${arch}" \
         --output-dir "$(pwd)/recompile/${arch}" \

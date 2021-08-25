@@ -20,6 +20,7 @@
 #include <memory>
 #include <system_error>
 
+#include "rellic/AST/ASTPrinter.h"
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/ExprCombine.h"
@@ -147,7 +148,9 @@ static bool GeneratePseudocode(llvm::Module& module,
   while (expr_combine.run(module))
     ;
 
-  ast_ctx.getTranslationUnitDecl()->print(output);
+  rellic::ASTPrinter(output, *ast_unit)
+      .TraverseDecl(ast_ctx.getTranslationUnitDecl());
+      
   // ast_ctx.getTranslationUnitDecl()->dump(output);
 
   return true;

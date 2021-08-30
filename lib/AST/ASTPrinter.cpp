@@ -47,8 +47,8 @@ bool ASTPrinter::VisitTranslationUnitDecl(clang::TranslationUnitDecl *tudecl) {
 }
 
 bool ASTPrinter::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
-  auto &decl_str{decl_strs[fdecl]};
-  if (!decl_str.empty()) {
+  auto &result{decl_strs[fdecl]};
+  if (!result.empty()) {
     return true;
   }
   std::stringstream ss;
@@ -79,19 +79,39 @@ bool ASTPrinter::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
     ss << print(fdecl->getBody());
   }
 
-  decl_str = ss.str();
+  result = ss.str();
 
   return true;
 }
 
 bool ASTPrinter::VisitDecl(clang::Decl *decl) {
-  auto &decl_str{decl_strs[decl]};
-  if (!decl_str.empty()) {
+  auto &result{decl_strs[decl]};
+  if (!result.empty()) {
     return true;
   }
-  
-  decl_str = print(decl);
-  
+
+  result = print(decl);
+
+  return true;
+}
+
+bool ASTPrinter::VisitIntegerLiteral(clang::IntegerLiteral *ilit) {
+  auto &result{stmt_strs[ilit]};
+  if (!result.empty()) {
+    return true;
+  }
+
+  auto val{ilit->getValue()};
+
+  llvm::SmallString<128U> ss;
+  if (val.getBitWidth() < 8U) {
+    val.toStringUnsigned(ss);
+  } else {
+    val.toStringUnsigned(ss, /*Radix=*/16U);
+  }
+
+  result = ss.c_str();
+
   return true;
 }
 

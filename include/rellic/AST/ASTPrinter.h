@@ -22,6 +22,7 @@ class ASTPrinter : public clang::RecursiveASTVisitor<ASTPrinter> {
   llvm::raw_ostream &os;
   clang::ASTUnit &unit;
   std::unordered_map<clang::Decl *, std::string> decl_strs;
+  std::unordered_map<clang::Stmt *, std::string> stmt_strs;
 
   std::string print(clang::Decl *decl);
   std::string print(clang::Stmt *stmt);
@@ -46,6 +47,12 @@ class ASTPrinter : public clang::RecursiveASTVisitor<ASTPrinter> {
   bool VisitFunctionDecl(clang::FunctionDecl *fdecl);
 
   bool VisitDecl(clang::Decl *decl);
+
+  bool WalkUpFromIntegerLiteral(clang::IntegerLiteral *ilit) {
+    return VisitIntegerLiteral(ilit);
+  }
+
+  bool VisitIntegerLiteral(clang::IntegerLiteral *ilit);
 };
 
 }  // namespace rellic

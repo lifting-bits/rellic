@@ -96,6 +96,29 @@ clang::QualType ASTBuilder::GetLeastIntTypeForBitWidth(unsigned size,
   return result;
 }
 
+clang::QualType ASTBuilder::GetLeastRealTypeForBitWidth(unsigned size) {
+  auto result{GetRealTypeForBitwidth(ctx, size)};
+  if (!result.isNull()) {
+    return result;
+  }
+
+  if (size <= ctx.getTypeSize(ctx.FloatTy)) {
+    return ctx.FloatTy;
+  }
+
+  if (size <= ctx.getTypeSize(ctx.DoubleTy)) {
+    return ctx.DoubleTy;
+  }
+
+  if (size <= ctx.getTypeSize(ctx.LongDoubleTy)) {
+    return ctx.LongDoubleTy;
+  }
+
+  LOG(FATAL) << "Failed to infer real clang::QualType for bitwidth: " << size;
+
+  return clang::QualType();
+}
+
 clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   auto sign{val.isSigned()};
   auto value_size{val.getBitWidth()};
@@ -152,7 +175,7 @@ clang::StringLiteral *ASTBuilder::CreateStrLit(std::string val) {
 
 clang::FloatingLiteral *ASTBuilder::CreateFPLit(llvm::APFloat val) {
   auto size{llvm::APFloat::getSizeInBits(val.getSemantics())};
-  auto type{GetRealTypeForBitwidth(ctx, size)};
+  auto type{GetLeastRealTypeForBitWidth(size)};
   CHECK(!type.isNull()) << "Unable to infer type for given value.";
   return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
                                         clang::SourceLocation());

@@ -55,7 +55,7 @@ class WhileRule : public InferenceRule {
     std::vector<clang::Stmt *> new_body(comp->body_begin() + 1,
                                         comp->body_end());
     ASTBuilder ast(unit);
-    return ast.CreateWhile(ast.CreateLNot(cond), ast.CreateCompound(new_body));
+    return ast.CreateWhile(ast.CreateLNot(cond), ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -88,7 +88,7 @@ class DoWhileRule : public InferenceRule {
     std::vector<clang::Stmt *> new_body(comp->body_begin(),
                                         comp->body_end() - 1);
     ASTBuilder ast(unit);
-    return ast.CreateDo(ast.CreateLNot(cond), ast.CreateCompound(new_body));
+    return ast.CreateDo(ast.CreateLNot(cond), ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -131,10 +131,10 @@ class NestedDoWhileRule : public InferenceRule {
 
     ASTBuilder ast(unit);
     auto do_cond{ast.CreateLNot(cond->getCond())};
-    auto do_stmt{ast.CreateDo(do_cond, ast.CreateCompound(do_body))};
+    auto do_stmt{ast.CreateDo(do_cond, ast.CreateCompoundStmt(do_body))};
 
     std::vector<clang::Stmt *> while_body({do_stmt, cond->getThen()});
-    return ast.CreateWhile(loop->getCond(), ast.CreateCompound(while_body));
+    return ast.CreateWhile(loop->getCond(), ast.CreateCompoundStmt(while_body));
   }
 };
 
@@ -186,7 +186,7 @@ class LoopToSeq : public InferenceRule {
             new_branch_body.push_back(stmt);
           }
         }
-        branch = ast.CreateCompound(new_branch_body);
+        branch = ast.CreateCompoundStmt(new_branch_body);
       }
       ifstmt->setThen(branches[0]);
       ifstmt->setElse(branches[1]);
@@ -194,7 +194,7 @@ class LoopToSeq : public InferenceRule {
       new_body.pop_back();
     }
 
-    return ast.CreateCompound(new_body);
+    return ast.CreateCompoundStmt(new_body);
   }
 };
 
@@ -230,7 +230,7 @@ class CondToSeqRule : public InferenceRule {
     } else {
       new_body.push_back(ifstmt->getElse());
     }
-    return ast.CreateWhile(loop->getCond(), ast.CreateCompound(new_body));
+    return ast.CreateWhile(loop->getCond(), ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -266,7 +266,7 @@ class CondToSeqNegRule : public InferenceRule {
       new_body.push_back(ifstmt->getThen());
     }
 
-    return ast.CreateWhile(loop->getCond(), ast.CreateCompound(new_body));
+    return ast.CreateWhile(loop->getCond(), ast.CreateCompoundStmt(new_body));
   }
 };
 

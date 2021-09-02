@@ -49,7 +49,7 @@ bool NestedScopeCombiner::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
 
   if (has_compound) {
-    substitutions[compound] = ast.CreateCompound(new_body);
+    substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
 
   return true;

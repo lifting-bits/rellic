@@ -105,7 +105,7 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
       substitutions[stmt] = sub;
     } else if (stmt == elifs.front()) {
       std::vector<clang::Stmt *> thens({then});
-      sub->setElse(ast.CreateCompound(thens));
+      sub->setElse(ast.CreateCompoundStmt(thens));
       substitutions[stmt] = nullptr;
     } else {
       auto elif = ast.CreateIf(cond, then);
@@ -129,7 +129,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = ast.CreateCompound(new_body);
+    substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
   return true;
 }

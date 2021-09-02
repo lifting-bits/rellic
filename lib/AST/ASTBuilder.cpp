@@ -44,6 +44,8 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
   if (clang::isa<clang::DeclRefExpr>(op) ||
       clang::isa<clang::IntegerLiteral>(op) ||
       clang::isa<clang::FloatingLiteral>(op) ||
+      clang::isa<clang::InitListExpr>(op) ||
+      clang::isa<clang::CompoundLiteralExpr>(op) ||
       clang::isa<clang::ParenExpr>(op)) {
     return CExprPrecedence::Value;
   }
@@ -363,7 +365,7 @@ clang::InitListExpr *ASTBuilder::CreateInitList(
   return er.getAs<clang::InitListExpr>();
 }
 
-clang::CompoundStmt *ASTBuilder::CreateCompound(
+clang::CompoundStmt *ASTBuilder::CreateCompoundStmt(
     std::vector<clang::Stmt *> &stmts) {
   // sema.ActOnStartOfCompoundStmt(/*isStmtExpr=*/false);
   // auto sr{sema.ActOnCompoundStmt(clang::SourceLocation(),
@@ -372,7 +374,16 @@ clang::CompoundStmt *ASTBuilder::CreateCompound(
   // sema.ActOnFinishOfCompoundStmt();
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::CompoundStmt>();
-  return CreateCompoundStmt(ctx, stmts);
+  return rellic::CreateCompoundStmt(ctx, stmts);
+}
+
+clang::CompoundLiteralExpr *ASTBuilder::CreateCompoundLit(clang::QualType type,
+                                                          clang::Expr *expr) {
+  auto er{sema.BuildCompoundLiteralExpr(clang::SourceLocation(),
+                                        ctx.getTrivialTypeSourceInfo(type),
+                                        clang::SourceLocation(), expr)};
+  CHECK(er.isUsable());
+  return er.getAs<clang::CompoundLiteralExpr>();
 }
 
 clang::IfStmt *ASTBuilder::CreateIf(clang::Expr *cond, clang::Stmt *then_val,

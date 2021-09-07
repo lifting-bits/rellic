@@ -16,6 +16,7 @@
 #include <iterator>
 
 #include "rellic/AST/Util.h"
+#include "rellic/BC/Compat/DerivedTypes.h"
 #include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
@@ -115,7 +116,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       if (type->isVectorTy()) {
         auto vtype{llvm::cast<llvm::VectorType>(type)};
         auto etype{GetQualType(vtype->getElementType())};
-        auto ecnt{vtype->getNumElements()};
+        auto ecnt{GetNumElements(vtype)};
         auto vkind{clang::VectorType::GenericVector};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
       } else {

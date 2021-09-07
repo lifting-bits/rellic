@@ -17,7 +17,6 @@
 
 #include "rellic/AST/Util.h"
 #include "rellic/BC/Compat/IntrinsicInst.h"
-#include "rellic/BC/Compat/Type.h"
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
 
@@ -108,25 +107,21 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       result = ast_ctx.getRecordType(sdecl);
     } break;
 
-    case llvm::Type::FixedVectorTyID: {
-      auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
-      auto etype{GetQualType(vtype->getElementType())};
-      auto ecnt{vtype->getNumElements()};
-      auto vkind{clang::VectorType::GenericVector};
-      result = ast_ctx.getVectorType(etype, ecnt, vkind);
-    } break;
-
-      // case llvm::Type::ScalableVectorTyID:
-      //   result = ast_ctx.getScalableVectorType();
-      //   break;
-
     case llvm::Type::MetadataTyID:
       result = ast_ctx.VoidPtrTy;
       break;
 
-    default:
-      LOG(FATAL) << "Unknown LLVM Type: " << LLVMThingToString(type);
-      break;
+    default: {
+      if (type->isVectorTy()) {
+        auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
+        auto etype{GetQualType(vtype->getElementType())};
+        auto ecnt{vtype->getNumElements()};
+        auto vkind{clang::VectorType::GenericVector};
+        result = ast_ctx.getVectorType(etype, ecnt, vkind);
+      } else {
+        LOG(FATAL) << "Unknown LLVM Type: " << LLVMThingToString(type);
+      }
+    } break;
   }
 
   CHECK(!result.isNull()) << "Unknown LLVM Type";

@@ -195,18 +195,20 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
         result = CreateInitListLiteral();
       }
     } break;
-    // Vectors
-    case llvm::Type::FixedVectorTyID:
-      result = ast.CreateCompoundLit(c_type, CreateInitListLiteral());
-      break;
     // Structures
     case llvm::Type::StructTyID:
       result = CreateInitListLiteral();
       break;
 
-    default:
-      LOG(FATAL) << "Unknown LLVM constant type: " << LLVMThingToString(l_type);
-      break;
+    default: {
+      // Vectors
+      if (l_type->isVectorTy()) {
+        result = ast.CreateCompoundLit(c_type, CreateInitListLiteral());
+      } else {
+        LOG(FATAL) << "Unknown LLVM constant type: "
+                   << LLVMThingToString(l_type);
+      }
+    } break;
   }
 
   return result;
@@ -518,7 +520,7 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
       } break;
       // Vectors
       case llvm::Type::FixedVectorTyID: {
-        auto l_vec_ty{llvm::cast<llvm::FixedVectorType>(indexed_type)};
+        auto l_vec_ty{llvm::cast<llvm::VectorType>(indexed_type)};
         auto l_elm_ty{l_vec_ty->getElementType()};
         auto c_elm_ty{GetQualType(l_elm_ty)};
         base = ast.CreateCStyleCast(ast_ctx.getPointerType(c_elm_ty),

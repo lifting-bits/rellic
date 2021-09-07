@@ -113,7 +113,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
 
     default: {
       if (type->isVectorTy()) {
-        auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
+        auto vtype{llvm::cast<llvm::VectorType>(type)};
         auto etype{GetQualType(vtype->getElementType())};
         auto ecnt{vtype->getNumElements()};
         auto vkind{clang::VectorType::GenericVector};
@@ -518,16 +518,6 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         indexed_type =
             llvm::cast<llvm::ArrayType>(indexed_type)->getElementType();
       } break;
-      // Vectors
-      case llvm::Type::FixedVectorTyID: {
-        auto l_vec_ty{llvm::cast<llvm::VectorType>(indexed_type)};
-        auto l_elm_ty{l_vec_ty->getElementType()};
-        auto c_elm_ty{GetQualType(l_elm_ty)};
-        base = ast.CreateCStyleCast(ast_ctx.getPointerType(c_elm_ty),
-                                    ast.CreateAddrOf(base));
-        base = ast.CreateArraySub(base, GetOperandExpr(idx));
-        indexed_type = l_elm_ty;
-      } break;
       // Structures
       case llvm::Type::StructTyID: {
         auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(idx);
@@ -542,11 +532,22 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         indexed_type =
             llvm::cast<llvm::StructType>(indexed_type)->getTypeAtIndex(idx);
       } break;
-      // Unknown
-      default:
-        LOG(FATAL) << "Indexing an unknown type: "
-                   << LLVMThingToString(indexed_type);
-        break;
+
+      default: {
+        // Vectors
+        if (indexed_type->isVectorTy()) {
+          auto l_vec_ty{llvm::cast<llvm::VectorType>(indexed_type)};
+          auto l_elm_ty{l_vec_ty->getElementType()};
+          auto c_elm_ty{GetQualType(l_elm_ty)};
+          base = ast.CreateCStyleCast(ast_ctx.getPointerType(c_elm_ty),
+                                      ast.CreateAddrOf(base));
+          base = ast.CreateArraySub(base, GetOperandExpr(idx));
+          indexed_type = l_elm_ty;
+        } else {
+          LOG(FATAL) << "Indexing an unknown type: "
+                     << LLVMThingToString(indexed_type);
+        }
+      } break;
     }
   }
 

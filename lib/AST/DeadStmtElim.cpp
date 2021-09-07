@@ -59,7 +59,7 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
   // Create the a new compound
   if (changed || new_body.size() < compound->size()) {
-    substitutions[compound] = ast.CreateCompound(new_body);
+    substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
   return true;
 }

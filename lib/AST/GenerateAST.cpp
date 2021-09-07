@@ -226,7 +226,7 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     } else {
       // Create a compound, wrapping the block
       auto block_body = CreateBasicBlockStmts(block);
-      compound = ast.CreateCompound(block_body);
+      compound = ast.CreateCompoundStmt(block_body);
     }
     // Gate the compound behind a reaching condition
     block_stmts[block] = ast.CreateIf(GetOrCreateReachingCond(block), compound);
@@ -280,7 +280,7 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
 clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
   DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is acyclic";
   auto region_body = CreateRegionStmts(region);
-  return ast.CreateCompound(region_body);
+  return ast.CreateCompoundStmt(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
@@ -293,7 +293,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   // a recognized natural loop. Cyclic regions may only be fragments
   // of a larger loop structure.
   if (!loop) {
-    return ast.CreateCompound(region_body);
+    return ast.CreateCompoundStmt(region_body);
   }
   // Refine loop members and successors without invalidating LoopInfo
   BBSet members, successors;
@@ -331,17 +331,17 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
     StmtVec break_stmt({ast.CreateBreak()});
-    auto exit_stmt = ast.CreateIf(cond, ast.CreateCompound(break_stmt));
+    auto exit_stmt = ast.CreateIf(cond, ast.CreateCompoundStmt(break_stmt));
     // Insert it after the exiting block statement
     loop_body.insert(std::next(it), exit_stmt);
   }
   // Create the loop statement
   auto loop_stmt =
-      ast.CreateWhile(ast.CreateTrue(), ast.CreateCompound(loop_body));
+      ast.CreateWhile(ast.CreateTrue(), ast.CreateCompoundStmt(loop_body));
   // Insert it at the beginning of the region body
   region_body.insert(region_body.begin(), loop_stmt);
   // Structure the rest of the loop body as a acyclic region
-  return ast.CreateCompound(region_body);
+  return ast.CreateCompoundStmt(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
@@ -439,7 +439,7 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
       fbody.push_back(stmt);
     }
     // Set body to a new compound
-    fdefn->setBody(ast.CreateCompound(fbody));
+    fdefn->setBody(ast.CreateCompoundStmt(fbody));
   }
 
   return true;

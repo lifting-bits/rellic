@@ -1110,7 +1110,28 @@ TEST_SUITE("ASTBuilder::CreateInitList") {
   }
 }
 
-TEST_SUITE("ASTBuilder::CreateCompound") {
+TEST_SUITE("ASTBuilder::CreateCompoundLit") {
+  SCENARIO("Create a compound literal expression") {
+    GIVEN("An empty initializer list expression") {
+      auto unit{GetASTUnit("")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      std::vector<clang::Expr *> exprs;
+      auto init_list{ast.CreateInitList(exprs)};
+      GIVEN("int[] type") {
+        auto type{ctx.getIncompleteArrayType(
+            ctx.IntTy, clang::ArrayType::ArraySizeModifier(), 0)};
+        THEN("return (int[]){}") {
+          auto comp_lit{ast.CreateCompoundLit(type, init_list)};
+          REQUIRE(comp_lit != nullptr);
+          CHECK(comp_lit->getTypeSourceInfo()->getType() == type);
+        }
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateCompoundStmt") {
   SCENARIO("Create a compound statement") {
     GIVEN("Global variables int a; short b; char c;") {
       auto unit{GetASTUnit("int a; short b; char c;")};
@@ -1126,7 +1147,7 @@ TEST_SUITE("ASTBuilder::CreateCompound") {
           stmts.push_back(ast.CreateAdd(ref_a, ref_b));
           stmts.push_back(ast.CreateMul(ref_b, ref_c));
           stmts.push_back(ast.CreateDiv(ref_c, ref_a));
-          auto compound{ast.CreateCompound(stmts)};
+          auto compound{ast.CreateCompoundStmt(stmts)};
           REQUIRE(compound != nullptr);
           CHECK(compound->size() == stmts.size());
         }
@@ -1142,7 +1163,7 @@ TEST_SUITE("ASTBuilder::CreateIf") {
       rellic::ASTBuilder ast(*unit);
       GIVEN("Empty compound statement and 1U literal") {
         std::vector<clang::Stmt *> stmts;
-        auto body{ast.CreateCompound(stmts)};
+        auto body{ast.CreateCompoundStmt(stmts)};
         auto cond{ast.CreateTrue()};
         THEN("return if(1U){};") {
           auto if_stmt{ast.CreateIf(cond, body)};
@@ -1163,7 +1184,7 @@ TEST_SUITE("ASTBuilder::CreateWhile") {
       rellic::ASTBuilder ast(*unit);
       GIVEN("Empty compound statement and 1U literal") {
         std::vector<clang::Stmt *> stmts;
-        auto body{ast.CreateCompound(stmts)};
+        auto body{ast.CreateCompoundStmt(stmts)};
         auto cond{ast.CreateTrue()};
         THEN("return while(1U){};") {
           auto while_stmt{ast.CreateWhile(cond, body)};
@@ -1183,7 +1204,7 @@ TEST_SUITE("ASTBuilder::CreateDo") {
       rellic::ASTBuilder ast(*unit);
       GIVEN("Empty compound statement and 1U literal") {
         std::vector<clang::Stmt *> stmts;
-        auto body{ast.CreateCompound(stmts)};
+        auto body{ast.CreateCompoundStmt(stmts)};
         auto cond{ast.CreateTrue()};
         THEN("return do{}while(1U);") {
           auto do_stmt{ast.CreateDo(cond, body)};

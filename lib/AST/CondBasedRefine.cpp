@@ -102,7 +102,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
       substitutions[stmt] = nullptr;
     }
     // Create our new if-then
-    auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompound(thens));
+    auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompoundStmt(thens));
     // Create an else branch if possible
     if (!elses.empty()) {
       // Erase else statements from the AST and `worklist`
@@ -111,7 +111,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
         substitutions[stmt] = nullptr;
       }
       // Add the else branch
-      sub->setElse(ast.CreateCompound(elses));
+      sub->setElse(ast.CreateCompoundStmt(elses));
     }
     // Replace `lhs` with the new `sub`
     substitutions[lhs] = sub;
@@ -131,7 +131,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = ast.CreateCompound(new_body);
+    substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
   return true;
 }

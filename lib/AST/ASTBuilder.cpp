@@ -276,6 +276,10 @@ clang::ParenExpr *ASTBuilder::CreateParen(clang::Expr *expr) {
 
 clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
                                                     clang::Expr *expr) {
+  CHECK(expr) << "Should not be null in CreateCStyleCast.";
+  if (CExprPrecedence::UnaryOp < GetOperatorPrecedence(expr)) {
+    expr = CreateParen(expr);
+  }
   auto er{sema.BuildCStyleCastExpr(clang::SourceLocation(),
                                    ctx.getTrivialTypeSourceInfo(type),
                                    clang::SourceLocation(), expr)};

@@ -405,7 +405,6 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
   auto z_dst_sort{z_ctx->bv_sort(dst_ty_size)};
   switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_IntegralCast:
-    case clang::CastKind::CK_NullToPointer:
       z_cast = CreateZ3BitwiseCast(z_sub, src_ty_size, dst_ty_size,
                                    c_src_ty->isSignedIntegerType());
       break;
@@ -414,6 +413,7 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
       z_cast = z_ctx->function("PtrToInt", z_src_sort, z_dst_sort)(z_sub);
       break;
 
+    case clang::CastKind::CK_NullToPointer:
     case clang::CastKind::CK_IntegralToPointer: {
       auto c_dst_ty_ptr{reinterpret_cast<uint64_t>(c_dst_ty.getAsOpaquePtr())};
       auto z_dst_ty_ptr{z_ctx->bv_val(c_dst_ty_ptr, 8 * sizeof(void *))};

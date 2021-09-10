@@ -165,8 +165,11 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
         auto val_bitwidth{val.getBitWidth()};
         auto ull_bitwidth{ast_ctx.getIntWidth(ast_ctx.LongLongTy)};
         if (val_bitwidth == 1U) {
+          // Booleans
           result = ast.CreateIntLit(val);
         } else if (val_bitwidth > ull_bitwidth) {
+          // Values wider than `long long` will be represented as:
+          // div(val, ULONG_MAX) * ULONG_MAX + rem(val, ULONG_MAX)
           auto umax{llvm::APInt::getMaxValue(ull_bitwidth)};
           auto udiv{val.udiv(umax.zext(val_bitwidth))};
           auto urem{val.urem(umax.zext(val_bitwidth))};

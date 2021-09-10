@@ -162,8 +162,17 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       if (llvm::isa<llvm::ConstantInt>(constant)) {
         auto ci{llvm::cast<llvm::ConstantInt>(constant)};
         auto val{ci->getValue()};
-        if (val.getBitWidth() == 1U) {
+        auto val_bitwidth{val.getBitWidth()};
+        auto ull_bitwidth{ast_ctx.getIntWidth(ast_ctx.LongLongTy)};
+        if (val_bitwidth == 1U) {
           result = ast.CreateIntLit(val);
+        } else if (val_bitwidth > ull_bitwidth) {
+          auto umax{llvm::APInt::getMaxValue(ull_bitwidth)};
+          auto udiv{val.udiv(umax.zext(val_bitwidth))};
+          auto urem{val.urem(umax.zext(val_bitwidth))};
+          result = ast.CreateIntLit(umax);
+          result = ast.CreateMul(ast.CreateIntLit(udiv), result);
+          result = ast.CreateAdd(result, ast.CreateIntLit(urem));
         } else {
           result = ast.CreateAdjustedIntLit(val);
         }
@@ -829,9 +838,14 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
       type = ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
     } break;
 
+    case llvm::CastInst::ZExt: {
+      auto bitwidth{ast_ctx.getTypeSize(type)};
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/0U);
+    } break;
+
     case llvm::CastInst::SExt: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1);
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1U);
     } break;
 
     case llvm::CastInst::AddrSpaceCast:
@@ -844,7 +858,6 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
       // The fallthrough is intentional here
       [[clang::fallthrough]];
 
-    case llvm::CastInst::ZExt:
     case llvm::CastInst::BitCast:
     case llvm::CastInst::PtrToInt:
     case llvm::CastInst::IntToPtr:
@@ -875,6 +888,16 @@ void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
   auto fval{GetOperandExpr(inst.getFalseValue())};
 
   select = ast.CreateConditional(cond, tval, fval);
+}
+
+void IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
+  DLOG(INFO) << "visitFreezeInst: " << LLVMThingToString(&inst);
+  auto &freeze{stmts[&inst]};
+  if (freeze) {
+    return;
+  }
+
+  freeze = GetOperandExpr(inst.getOperand(0U));
 }
 
 void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {

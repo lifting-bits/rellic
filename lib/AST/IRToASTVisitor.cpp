@@ -160,12 +160,23 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     // Integers
     case llvm::Type::IntegerTyID: {
       if (llvm::isa<llvm::ConstantInt>(constant)) {
-        auto ci{llvm::cast<llvm::ConstantInt>(constant)};
-        auto val{ci->getValue()};
-        if (val.getBitWidth() == 1U) {
+        auto val{llvm::cast<llvm::ConstantInt>(constant)->getValue()};
+        auto val_bitwidth{val.getBitWidth()};
+        auto ull_bitwidth{ast_ctx.getIntWidth(ast_ctx.LongLongTy)};
+        if (val_bitwidth == 1U) {
+          // Booleans
           result = ast.CreateIntLit(val);
-        } else {
+        } else if (val.getActiveBits() <= ull_bitwidth) {
           result = ast.CreateAdjustedIntLit(val);
+        } else {
+          // Values wider than `long long` will be represented as:
+          // (uint128_t)hi_64 << 64U | lo_64
+          auto lo{ast.CreateIntLit(val.extractBits(64U, 0U))};
+          auto hi{ast.CreateIntLit(val.extractBits(val_bitwidth - 64U, 64U))};
+          auto shl_val{ast.CreateIntLit(llvm::APInt(32U, 64U))};
+          result = ast.CreateCStyleCast(ast_ctx.UnsignedInt128Ty, hi);
+          result = ast.CreateShl(result, shl_val);
+          result = ast.CreateOr(result, lo);
         }
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
         result = ast.CreateUndefInteger(c_type);
@@ -829,9 +840,14 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
       type = ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
     } break;
 
+    case llvm::CastInst::ZExt: {
+      auto bitwidth{ast_ctx.getTypeSize(type)};
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/0U);
+    } break;
+
     case llvm::CastInst::SExt: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1);
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1U);
     } break;
 
     case llvm::CastInst::AddrSpaceCast:
@@ -844,7 +860,6 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
       // The fallthrough is intentional here
       [[clang::fallthrough]];
 
-    case llvm::CastInst::ZExt:
     case llvm::CastInst::BitCast:
     case llvm::CastInst::PtrToInt:
     case llvm::CastInst::IntToPtr:
@@ -875,6 +890,16 @@ void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
   auto fval{GetOperandExpr(inst.getFalseValue())};
 
   select = ast.CreateConditional(cond, tval, fval);
+}
+
+void IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
+  DLOG(INFO) << "visitFreezeInst: " << LLVMThingToString(&inst);
+  auto &freeze{stmts[&inst]};
+  if (freeze) {
+    return;
+  }
+
+  freeze = GetOperandExpr(inst.getOperand(0U));
 }
 
 void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {

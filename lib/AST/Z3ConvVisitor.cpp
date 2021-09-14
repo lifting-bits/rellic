@@ -14,6 +14,7 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -405,7 +406,6 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
   auto z_dst_sort{z_ctx->bv_sort(dst_ty_size)};
   switch (c_cast->getCastKind()) {
     case clang::CastKind::CK_IntegralCast:
-    case clang::CastKind::CK_NullToPointer:
       z_cast = CreateZ3BitwiseCast(z_sub, src_ty_size, dst_ty_size,
                                    c_src_ty->isSignedIntegerType());
       break;
@@ -414,6 +414,7 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
       z_cast = z_ctx->function("PtrToInt", z_src_sort, z_dst_sort)(z_sub);
       break;
 
+    case clang::CastKind::CK_NullToPointer:
     case clang::CastKind::CK_IntegralToPointer: {
       auto c_dst_ty_ptr{reinterpret_cast<uint64_t>(c_dst_ty.getAsOpaquePtr())};
       auto z_dst_ty_ptr{z_ctx->bv_val(c_dst_ty_ptr, 8 * sizeof(void *))};
@@ -514,9 +515,7 @@ bool Z3ConvVisitor::VisitCallExpr(clang::CallExpr *c_call) {
   }
   z3::expr_vector z_args(*z_ctx);
   // Get call id
-  llvm::FoldingSetNodeID c_call_id;
-  c_call->Profile(c_call_id, *c_ctx, /*Canonical=*/true);
-  z_args.push_back(z_ctx->bv_val(c_call_id.ComputeHash(), /*sz=*/64U));
+  z_args.push_back(z_ctx->bv_val(GetHash(*c_ctx, c_call), /*sz=*/64U));
   // Get callee
   auto z_callee{GetZ3Expr(c_call->getCallee())};
   z_args.push_back(z_callee);

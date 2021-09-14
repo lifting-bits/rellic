@@ -325,16 +325,19 @@ ExprCombine::ExprCombine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   clang::Expr::EvalResult result;
-  if (cast->EvaluateAsRValue(result, unit.getASTContext())) {
+  auto &ctx{unit.getASTContext()};
+  if (cast->EvaluateAsRValue(result, ctx)) {
     if (result.HasSideEffects || result.HasUndefinedBehavior) {
       return true;
     }
 
     switch (result.Val.getKind()) {
-      case clang::APValue::ValueKind::Int:
-        substitutions[cast] =
-            ASTBuilder(unit).CreateIntLit(result.Val.getInt());
-        break;
+      case clang::APValue::ValueKind::Int: {
+        auto sub{ASTBuilder(unit).CreateAdjustedIntLit(result.Val.getInt())};
+        if (GetHash(ctx, cast) != GetHash(ctx, sub)) {
+          substitutions[cast] = sub;
+        }
+      } break;
 
       default:
         break;

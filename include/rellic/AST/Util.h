@@ -18,6 +18,8 @@ using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
 
 bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map);
 
+unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt);
+
 template <typename T>
 size_t GetNumDecls(clang::DeclContext *decl_ctx) {
   size_t result = 0;

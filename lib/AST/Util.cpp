@@ -26,4 +26,10 @@ bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map) {
   return change;
 }
 
+unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
+  llvm::FoldingSetNodeID id;
+  stmt->Profile(id, ctx, /*Canonical=*/true);
+  return id.ComputeHash();
+}
+
 }  // namespace rellic

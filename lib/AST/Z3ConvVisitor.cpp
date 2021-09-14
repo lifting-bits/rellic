@@ -14,6 +14,7 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -514,9 +515,7 @@ bool Z3ConvVisitor::VisitCallExpr(clang::CallExpr *c_call) {
   }
   z3::expr_vector z_args(*z_ctx);
   // Get call id
-  llvm::FoldingSetNodeID c_call_id;
-  c_call->Profile(c_call_id, *c_ctx, /*Canonical=*/true);
-  z_args.push_back(z_ctx->bv_val(c_call_id.ComputeHash(), /*sz=*/64U));
+  z_args.push_back(z_ctx->bv_val(GetHash(*c_ctx, c_call), /*sz=*/64U));
   // Get callee
   auto z_callee{GetZ3Expr(c_call->getCallee())};
   z_args.push_back(z_callee);

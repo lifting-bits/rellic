@@ -95,8 +95,8 @@ bool NestedCondProp::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createNestedCondPropPass(clang::ASTUnit &unit,
-                                           rellic::IRToASTVisitor &gen) {
+NestedCondProp *createNestedCondPropPass(clang::ASTUnit &unit,
+                                         rellic::IRToASTVisitor &gen) {
   return new NestedCondProp(unit, gen);
 }
 }  // namespace rellic

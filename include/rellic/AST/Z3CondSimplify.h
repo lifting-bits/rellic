@@ -46,8 +46,8 @@ class Z3CondSimplify : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createZ3CondSimplifyPass(clang::ASTUnit &unit,
-                                           rellic::IRToASTVisitor &gen);
+Z3CondSimplify *createZ3CondSimplifyPass(clang::ASTUnit &unit,
+                                         rellic::IRToASTVisitor &gen);
 }  // namespace rellic
 
 namespace llvm {

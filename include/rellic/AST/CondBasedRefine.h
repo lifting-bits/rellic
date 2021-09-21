@@ -46,8 +46,8 @@ class CondBasedRefine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
-                                            rellic::IRToASTVisitor &ast_gen);
+CondBasedRefine *createCondBasedRefinePass(clang::ASTUnit &unit,
+                                           rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {

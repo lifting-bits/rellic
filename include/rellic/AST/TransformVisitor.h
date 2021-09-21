@@ -14,11 +14,10 @@
 
 namespace rellic {
 
+using StmtSubMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
+
 template <typename Derived>
 class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
- public:
-  using StmtSubMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
-
  protected:
   StmtSubMap substitutions;
   bool changed;

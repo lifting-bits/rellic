@@ -32,8 +32,8 @@ class LoopRefine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createLoopRefinePass(clang::ASTUnit &unit,
-                                       rellic::IRToASTVisitor &ast_gen);
+LoopRefine *createLoopRefinePass(clang::ASTUnit &unit,
+                                 rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {

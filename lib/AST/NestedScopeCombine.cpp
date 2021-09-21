@@ -6,24 +6,24 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#include "rellic/AST/Compat/Stmt.h"
-#include "rellic/AST/NestedScopeCombiner.h"
-
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Compat/Stmt.h"
+#include "rellic/AST/NestedScopeCombine.h"
+
 namespace rellic {
 
-char NestedScopeCombiner::ID = 0;
+char NestedScopeCombine::ID = 0;
 
-NestedScopeCombiner::NestedScopeCombiner(clang::ASTUnit &unit,
-                                         rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(NestedScopeCombiner::ID),
+NestedScopeCombine::NestedScopeCombine(clang::ASTUnit &unit,
+                                       rellic::IRToASTVisitor &ast_gen)
+    : ModulePass(NestedScopeCombine::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       ast_gen(&ast_gen) {}
 
-bool NestedScopeCombiner::VisitIfStmt(clang::IfStmt *ifstmt) {
+bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
@@ -35,7 +35,7 @@ bool NestedScopeCombiner::VisitIfStmt(clang::IfStmt *ifstmt) {
   return true;
 }
 
-bool NestedScopeCombiner::VisitCompoundStmt(clang::CompoundStmt *compound) {
+bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   bool has_compound = false;
   std::vector<clang::Stmt *> new_body;
@@ -55,15 +55,15 @@ bool NestedScopeCombiner::VisitCompoundStmt(clang::CompoundStmt *compound) {
   return true;
 }
 
-bool NestedScopeCombiner::runOnModule(llvm::Module &module) {
+bool NestedScopeCombine::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Combining nested scopes";
   Initialize();
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }
 
-llvm::ModulePass *createNestedScopeCombinerPass(clang::ASTUnit &unit,
-                                                rellic::IRToASTVisitor &gen) {
-  return new NestedScopeCombiner(unit, gen);
+NestedScopeCombine *createNestedScopeCombinePass(clang::ASTUnit &unit,
+                                                  rellic::IRToASTVisitor &gen) {
+  return new NestedScopeCombine(unit, gen);
 }
 }  // namespace rellic

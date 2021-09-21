@@ -72,8 +72,8 @@ bool DeadStmtElim::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createDeadStmtElimPass(clang::ASTUnit &unit,
-                                         rellic::IRToASTVisitor &gen) {
+rellic::DeadStmtElim *createDeadStmtElimPass(clang::ASTUnit &unit,
+                                             rellic::IRToASTVisitor &gen) {
   return new DeadStmtElim(unit, gen);
 }
 }  // namespace rellic

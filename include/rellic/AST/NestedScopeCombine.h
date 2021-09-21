@@ -16,8 +16,8 @@
 
 namespace rellic {
 
-class NestedScopeCombiner : public llvm::ModulePass,
-                            public TransformVisitor<NestedScopeCombiner> {
+class NestedScopeCombine : public llvm::ModulePass,
+                           public TransformVisitor<NestedScopeCombine> {
  private:
   ASTBuilder ast;
   clang::ASTContext *ast_ctx;
@@ -26,7 +26,7 @@ class NestedScopeCombiner : public llvm::ModulePass,
  public:
   static char ID;
 
-  NestedScopeCombiner(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
+  NestedScopeCombine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
@@ -34,10 +34,10 @@ class NestedScopeCombiner : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createNestedScopeCombinerPass(
+NestedScopeCombine *createNestedScopeCombinePass(
     clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {
-void initializeNestedScopeCombinerPass(PassRegistry &);
+void initializeNestedScopeCombinePass(PassRegistry &);
 }

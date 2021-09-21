@@ -23,15 +23,15 @@
 
 namespace rellic {
 
+using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
+using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
+using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
   clang::ASTContext &ast_ctx;
 
   ASTBuilder ast;
-
-  using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
-  using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
-  using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
 
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;

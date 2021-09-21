@@ -37,8 +37,8 @@ class ExprCombine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createExprCombinePass(clang::ASTUnit &unit,
-                                        rellic::IRToASTVisitor &ast_gen);
+ExprCombine *createExprCombinePass(clang::ASTUnit &unit,
+                                   rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
 
 namespace llvm {

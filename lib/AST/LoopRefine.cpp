@@ -55,7 +55,8 @@ class WhileRule : public InferenceRule {
     std::vector<clang::Stmt *> new_body(comp->body_begin() + 1,
                                         comp->body_end());
     ASTBuilder ast(unit);
-    return ast.CreateWhile(ast.CreateLNot(cond), ast.CreateCompoundStmt(new_body));
+    return ast.CreateWhile(ast.CreateLNot(cond),
+                           ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -303,8 +304,8 @@ bool LoopRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createLoopRefinePass(clang::ASTUnit &unit,
-                                       rellic::IRToASTVisitor &gen) {
+LoopRefine *createLoopRefinePass(clang::ASTUnit &unit,
+                                 rellic::IRToASTVisitor &gen) {
   return new LoopRefine(unit, gen);
 }
 }  // namespace rellic

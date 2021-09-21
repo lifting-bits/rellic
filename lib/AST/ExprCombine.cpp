@@ -440,8 +440,8 @@ bool ExprCombine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createExprCombinePass(clang::ASTUnit &unit,
-                                        rellic::IRToASTVisitor &gen) {
+ExprCombine *createExprCombinePass(clang::ASTUnit &unit,
+                                   rellic::IRToASTVisitor &gen) {
   return new ExprCombine(unit, gen);
 }
 }  // namespace rellic

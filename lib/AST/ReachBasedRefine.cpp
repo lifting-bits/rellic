@@ -141,7 +141,7 @@ bool ReachBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createReachBasedRefinePass(clang::ASTUnit &unit,
+ReachBasedRefine *createReachBasedRefinePass(clang::ASTUnit &unit,
                                              rellic::IRToASTVisitor &gen) {
   return new ReachBasedRefine(unit, gen);
 }

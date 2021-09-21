@@ -141,8 +141,8 @@ bool CondBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
-                                            rellic::IRToASTVisitor &gen) {
+CondBasedRefine *createCondBasedRefinePass(clang::ASTUnit &unit,
+                                           rellic::IRToASTVisitor &gen) {
   return new CondBasedRefine(unit, gen);
 }
 }  // namespace rellic

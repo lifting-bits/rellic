@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/Util.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {

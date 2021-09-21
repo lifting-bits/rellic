@@ -5,11 +5,12 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/DeadStmtElim.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+
+#include "rellic/AST/Compat/Stmt.h"
 
 namespace rellic {
 
@@ -25,10 +26,10 @@ DeadStmtElim::DeadStmtElim(clang::ASTUnit &unit,
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   bool expr_bool_value = false;
-  auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, *ast_ctx);
+  auto if_const_expr = GetIntegerConstantExprFromIf(ifstmt, *ast_ctx);
 
   bool is_const = if_const_expr.hasValue();
-  if(is_const) {
+  if (is_const) {
     expr_bool_value = if_const_expr->getBoolValue();
   }
 

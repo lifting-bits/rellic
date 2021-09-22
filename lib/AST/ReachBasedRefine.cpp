@@ -31,12 +31,10 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char ReachBasedRefine::ID = 0;
 
-ReachBasedRefine::ReachBasedRefine(clang::ASTUnit &unit,
-                                   rellic::IRToASTVisitor &ast_gen)
+ReachBasedRefine::ReachBasedRefine(clang::ASTUnit &unit)
     : ModulePass(ReachBasedRefine::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
@@ -141,9 +139,8 @@ bool ReachBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-ReachBasedRefine *createReachBasedRefinePass(clang::ASTUnit &unit,
-                                             rellic::IRToASTVisitor &gen) {
-  return new ReachBasedRefine(unit, gen);
+ReachBasedRefine *createReachBasedRefinePass(clang::ASTUnit &unit) {
+  return new ReachBasedRefine(unit);
 }
 
 }  // namespace rellic

@@ -20,22 +20,16 @@ class LoopRefine : public llvm::ModulePass,
                    public TransformVisitor<LoopRefine> {
  private:
   clang::ASTUnit &unit;
-  rellic::IRToASTVisitor *ast_gen;
 
  public:
   static char ID;
 
-  LoopRefine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
+  LoopRefine(clang::ASTUnit &unit);
 
   bool VisitWhileStmt(clang::WhileStmt *loop);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-LoopRefine *createLoopRefinePass(clang::ASTUnit &unit,
-                                 rellic::IRToASTVisitor &ast_gen);
+LoopRefine *createLoopRefinePass(clang::ASTUnit &unit);
 }  // namespace rellic
-
-namespace llvm {
-void initializeLoopRefinePass(PassRegistry &);
-}

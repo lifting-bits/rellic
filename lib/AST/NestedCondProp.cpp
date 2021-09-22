@@ -31,12 +31,10 @@ static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
 
 char NestedCondProp::ID = 0;
 
-NestedCondProp::NestedCondProp(clang::ASTUnit &unit,
-                               rellic::IRToASTVisitor &ast_gen)
+NestedCondProp::NestedCondProp(clang::ASTUnit &unit)
     : ModulePass(NestedCondProp::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
 
@@ -95,8 +93,7 @@ bool NestedCondProp::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-NestedCondProp *createNestedCondPropPass(clang::ASTUnit &unit,
-                                         rellic::IRToASTVisitor &gen) {
-  return new NestedCondProp(unit, gen);
+NestedCondProp *createNestedCondPropPass(clang::ASTUnit &unit) {
+  return new NestedCondProp(unit);
 }
 }  // namespace rellic

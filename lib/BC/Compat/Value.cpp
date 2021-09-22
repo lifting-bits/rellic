@@ -7,6 +7,7 @@
  */
 
 #include "rellic/BC/Compat/Value.h"
+
 #include "rellic/BC/Version.h"
 
 namespace rellic {

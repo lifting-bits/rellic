@@ -20,12 +20,11 @@ class ExprCombine : public llvm::ModulePass,
                     public TransformVisitor<ExprCombine> {
  private:
   clang::ASTUnit &unit;
-  rellic::IRToASTVisitor *ast_gen;
 
  public:
   static char ID;
 
-  ExprCombine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
+  ExprCombine(clang::ASTUnit &unit);
 
   bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   bool VisitUnaryOperator(clang::UnaryOperator *op);
@@ -37,10 +36,5 @@ class ExprCombine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-ExprCombine *createExprCombinePass(clang::ASTUnit &unit,
-                                   rellic::IRToASTVisitor &ast_gen);
+ExprCombine *createExprCombinePass(clang::ASTUnit &unit);
 }  // namespace rellic
-
-namespace llvm {
-void initializeExprCombinePass(PassRegistry &);
-}

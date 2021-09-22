@@ -6,16 +6,16 @@
 namespace llvm {
 static inline bool isDbgInfoIntrinsic(Intrinsic::ID ID) {
   switch (ID) {
-  case Intrinsic::dbg_declare:
-  case Intrinsic::dbg_value:
-  case Intrinsic::dbg_addr:
-  case Intrinsic::dbg_label:
-    return true;
-  default:
-    return false;
+    case Intrinsic::dbg_declare:
+    case Intrinsic::dbg_value:
+    case Intrinsic::dbg_addr:
+    case Intrinsic::dbg_label:
+      return true;
+    default:
+      return false;
   }
 }
-} // namespace llvm
+}  // namespace llvm
 #endif
 
 namespace Intrinsic {

@@ -15,11 +15,9 @@ namespace rellic {
 
 char Z3CondSimplify::ID = 0;
 
-Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit,
-                               rellic::IRToASTVisitor &ast_gen)
+Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit)
     : ModulePass(Z3CondSimplify::ID),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen),
       z_ctx(new z3::context()),
       z_gen(new rellic::Z3ConvVisitor(unit, z_ctx.get())),
       simplifier(*z_ctx, "simplify") {}
@@ -57,8 +55,7 @@ bool Z3CondSimplify::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-Z3CondSimplify *createZ3CondSimplifyPass(clang::ASTUnit &unit,
-                                         rellic::IRToASTVisitor &gen) {
-  return new Z3CondSimplify(unit, gen);
+Z3CondSimplify *createZ3CondSimplifyPass(clang::ASTUnit &unit) {
+  return new Z3CondSimplify(unit);
 }
 }  // namespace rellic

@@ -6,22 +6,21 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include "rellic/AST/NestedScopeCombine.h"
+
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include "rellic/AST/Compat/Stmt.h"
-#include "rellic/AST/NestedScopeCombine.h"
 
 namespace rellic {
 
 char NestedScopeCombine::ID = 0;
 
-NestedScopeCombine::NestedScopeCombine(clang::ASTUnit &unit,
-                                       rellic::IRToASTVisitor &ast_gen)
+NestedScopeCombine::NestedScopeCombine(clang::ASTUnit &unit)
     : ModulePass(NestedScopeCombine::ID),
       ast(unit),
-      ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen) {}
+      ast_ctx(&unit.getASTContext()) {}
 
 bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
@@ -62,8 +61,7 @@ bool NestedScopeCombine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-NestedScopeCombine *createNestedScopeCombinePass(clang::ASTUnit &unit,
-                                                  rellic::IRToASTVisitor &gen) {
-  return new NestedScopeCombine(unit, gen);
+NestedScopeCombine *createNestedScopeCombinePass(clang::ASTUnit &unit) {
+  return new NestedScopeCombine(unit);
 }
 }  // namespace rellic

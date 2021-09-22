@@ -25,7 +25,7 @@ class NestedCondProp : public llvm::ModulePass,
  private:
   ASTBuilder ast;
   clang::ASTContext *ast_ctx;
-  rellic::IRToASTVisitor *ast_gen;
+
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
 
@@ -36,17 +36,12 @@ class NestedCondProp : public llvm::ModulePass,
 
   bool shouldTraversePostOrder() override { return false; }
 
-  NestedCondProp(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
+  NestedCondProp(clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-NestedCondProp *createNestedCondPropPass(clang::ASTUnit &unit,
-                                         rellic::IRToASTVisitor &ast_gen);
+NestedCondProp *createNestedCondPropPass(clang::ASTUnit &unit);
 }  // namespace rellic
-
-namespace llvm {
-void initializeNestedCondPropPass(PassRegistry &);
-}

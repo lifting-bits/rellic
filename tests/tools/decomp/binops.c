@@ -15,6 +15,4 @@ unsigned int target(unsigned int n) {
   return result;
 }
 
-int main(void) {
-  return target(0xdeadbeef);
-}
+int main(void) { return target(0xdeadbeef); }

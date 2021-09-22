@@ -275,8 +275,8 @@ class CondToSeqNegRule : public InferenceRule {
 
 char LoopRefine::ID = 0;
 
-LoopRefine::LoopRefine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(LoopRefine::ID), unit(u), ast_gen(&ast_gen) {}
+LoopRefine::LoopRefine(clang::ASTUnit &u)
+    : ModulePass(LoopRefine::ID), unit(u) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
@@ -304,8 +304,7 @@ bool LoopRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-LoopRefine *createLoopRefinePass(clang::ASTUnit &unit,
-                                 rellic::IRToASTVisitor &gen) {
-  return new LoopRefine(unit, gen);
+LoopRefine *createLoopRefinePass(clang::ASTUnit &unit) {
+  return new LoopRefine(unit);
 }
 }  // namespace rellic

@@ -14,6 +14,12 @@
 
 namespace rellic {
 
+// unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
+//   llvm::FoldingSetNodeID id;
+//   stmt->Profile(id, ctx, /*Canonical=*/true);
+//   return id.ComputeHash();
+// }
+
 unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
   llvm::FoldingSetNodeID id;
   stmt->Profile(id, ctx, /*Canonical=*/true);

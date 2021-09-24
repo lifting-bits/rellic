@@ -31,5 +31,4 @@ class LoopRefine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-LoopRefine *createLoopRefinePass(clang::ASTUnit &unit);
 }  // namespace rellic

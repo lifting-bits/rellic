@@ -46,5 +46,4 @@ class ReachBasedRefine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-ReachBasedRefine *createReachBasedRefinePass(clang::ASTUnit &unit);
 }  // namespace rellic

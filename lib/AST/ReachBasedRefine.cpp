@@ -139,8 +139,4 @@ bool ReachBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-ReachBasedRefine *createReachBasedRefinePass(clang::ASTUnit &unit) {
-  return new ReachBasedRefine(unit);
-}
-
 }  // namespace rellic

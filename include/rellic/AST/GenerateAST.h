@@ -59,5 +59,4 @@ class GenerateAST : public llvm::ModulePass {
   bool runOnModule(llvm::Module &module) override;
 };
 
-GenerateAST *createGenerateASTPass(clang::ASTUnit &unit);
 }  // namespace rellic

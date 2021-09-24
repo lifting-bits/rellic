@@ -45,5 +45,4 @@ class CondBasedRefine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-CondBasedRefine *createCondBasedRefinePass(clang::ASTUnit &unit);
 }  // namespace rellic

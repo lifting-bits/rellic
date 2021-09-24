@@ -33,5 +33,4 @@ class DeadStmtElim : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-rellic::DeadStmtElim *createDeadStmtElimPass(clang::ASTUnit &unit);
 }  // namespace rellic

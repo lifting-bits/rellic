@@ -61,7 +61,4 @@ bool NestedScopeCombine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-NestedScopeCombine *createNestedScopeCombinePass(clang::ASTUnit &unit) {
-  return new NestedScopeCombine(unit);
-}
 }  // namespace rellic

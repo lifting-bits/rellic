@@ -43,5 +43,4 @@ class NestedCondProp : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-NestedCondProp *createNestedCondPropPass(clang::ASTUnit &unit);
 }  // namespace rellic

@@ -33,5 +33,4 @@ class NestedScopeCombine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-NestedScopeCombine *createNestedScopeCombinePass(clang::ASTUnit &unit);
 }  // namespace rellic

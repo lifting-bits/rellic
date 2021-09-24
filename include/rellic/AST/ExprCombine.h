@@ -36,5 +36,4 @@ class ExprCombine : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-ExprCombine *createExprCombinePass(clang::ASTUnit &unit);
 }  // namespace rellic

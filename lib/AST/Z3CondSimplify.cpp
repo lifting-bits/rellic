@@ -55,7 +55,4 @@ bool Z3CondSimplify::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-Z3CondSimplify *createZ3CondSimplifyPass(clang::ASTUnit &unit) {
-  return new Z3CondSimplify(unit);
-}
 }  // namespace rellic

@@ -93,7 +93,4 @@ bool NestedCondProp::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-NestedCondProp *createNestedCondPropPass(clang::ASTUnit &unit) {
-  return new NestedCondProp(unit);
-}
 }  // namespace rellic

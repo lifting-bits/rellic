@@ -139,7 +139,4 @@ bool CondBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-CondBasedRefine *createCondBasedRefinePass(clang::ASTUnit &unit) {
-  return new CondBasedRefine(unit);
-}
 }  // namespace rellic

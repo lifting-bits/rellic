@@ -107,8 +107,8 @@ static bool GeneratePseudocode(llvm::Module& module,
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
   llvm::legacy::PassManager pm_ast;
-  rellic::GenerateAST* gr{rellic::createGenerateASTPass(*ast_unit)};
-  rellic::DeadStmtElim* dse{rellic::createDeadStmtElimPass(*ast_unit)};
+  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
+  rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
   pm_ast.add(gr);
   pm_ast.add(dse);
   pm_ast.run(module);
@@ -118,13 +118,11 @@ static bool GeneratePseudocode(llvm::Module& module,
   InitProvenanceMap(stmt_provenance, gr->GetIRToStmtMap());
   UpdateProvenanceMap(stmt_provenance, dse->GetStmtSubMap());
 
-  rellic::Z3CondSimplify* zcs{rellic::createZ3CondSimplifyPass(*ast_unit)};
-  rellic::NestedCondProp* ncp{rellic::createNestedCondPropPass(*ast_unit)};
-  rellic::NestedScopeCombine* nsc{
-      rellic::createNestedScopeCombinePass(*ast_unit)};
-
-  rellic::CondBasedRefine* cbr{rellic::createCondBasedRefinePass(*ast_unit)};
-  rellic::ReachBasedRefine* rbr{rellic::createReachBasedRefinePass(*ast_unit)};
+  rellic::Z3CondSimplify* zcs{new rellic::Z3CondSimplify(*ast_unit)};
+  rellic::NestedCondProp* ncp{new rellic::NestedCondProp(*ast_unit)};
+  rellic::NestedScopeCombine* nsc{new rellic::NestedScopeCombine(*ast_unit)};
+  rellic::CondBasedRefine* cbr{new rellic::CondBasedRefine(*ast_unit)};
+  rellic::ReachBasedRefine* rbr{new rellic::ReachBasedRefine(*ast_unit)};
 
   llvm::legacy::PassManager pm_cbr;
   if (!FLAGS_disable_z3) {
@@ -153,8 +151,8 @@ static bool GeneratePseudocode(llvm::Module& module,
     UpdateProvenanceMap(stmt_provenance, rbr->GetStmtSubMap());
   }
 
-  rellic::LoopRefine* lr{rellic::createLoopRefinePass(*ast_unit)};
-  nsc = rellic::createNestedScopeCombinePass(*ast_unit);
+  rellic::LoopRefine* lr{new rellic::LoopRefine(*ast_unit)};
+  nsc = new rellic::NestedScopeCombine(*ast_unit);
 
   llvm::legacy::PassManager pm_loop;
   pm_loop.add(lr);
@@ -167,8 +165,8 @@ static bool GeneratePseudocode(llvm::Module& module,
   llvm::legacy::PassManager pm_scope;
   if (!FLAGS_disable_z3) {
     // Simplifier to use during final refinement
-    zcs = rellic::createZ3CondSimplifyPass(*ast_unit);
-    ncp = rellic::createNestedCondPropPass(*ast_unit);
+    zcs = new rellic::Z3CondSimplify(*ast_unit);
+    ncp = new rellic::NestedCondProp(*ast_unit);
     zcs->SetZ3Simplifier(
         // Simplify boolean structure with AIGs
         z3::tactic(zcs->GetZ3Context(), "aig") &
@@ -182,7 +180,7 @@ static bool GeneratePseudocode(llvm::Module& module,
     pm_scope.add(ncp);
   }
 
-  nsc = rellic::createNestedScopeCombinePass(*ast_unit);
+  nsc = new rellic::NestedScopeCombine(*ast_unit);
 
   pm_scope.add(nsc);
   while (pm_scope.run(module)) {
@@ -192,7 +190,7 @@ static bool GeneratePseudocode(llvm::Module& module,
   }
 
   llvm::legacy::PassManager pm_expr;
-  rellic::ExprCombine* ec{rellic::createExprCombinePass(*ast_unit)};
+  rellic::ExprCombine* ec{new rellic::ExprCombine(*ast_unit)};
   pm_expr.add(ec);
   while (pm_expr.run(module)) {
     UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap());

@@ -444,8 +444,4 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
   return true;
 }
 
-GenerateAST *createGenerateASTPass(clang::ASTUnit &unit) {
-  return new GenerateAST(unit);
-}
-
 }  // namespace rellic

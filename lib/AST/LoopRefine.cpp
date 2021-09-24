@@ -304,7 +304,4 @@ bool LoopRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-LoopRefine *createLoopRefinePass(clang::ASTUnit &unit) {
-  return new LoopRefine(unit);
-}
 }  // namespace rellic

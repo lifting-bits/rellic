@@ -28,6 +28,7 @@ class ASTBuilder {
   ASTBuilder(clang::ASTUnit &unit);
   // Type helpers
   clang::QualType GetLeastIntTypeForBitWidth(unsigned size, unsigned sign);
+  clang::QualType GetLeastRealTypeForBitWidth(unsigned size);
   // Literals
   clang::IntegerLiteral *CreateIntLit(llvm::APSInt val);
 
@@ -240,8 +241,11 @@ class ASTBuilder {
   }
   // Initializer list
   clang::InitListExpr *CreateInitList(std::vector<clang::Expr *> &exprs);
+  // Compound literal
+  clang::CompoundLiteralExpr *CreateCompoundLit(clang::QualType type,
+                                                clang::Expr *expr);
   // Compound statement
-  clang::CompoundStmt *CreateCompound(std::vector<clang::Stmt *> &stmts);
+  clang::CompoundStmt *CreateCompoundStmt(std::vector<clang::Stmt *> &stmts);
   // If statement
   clang::IfStmt *CreateIf(clang::Expr *cond, clang::Stmt *then_val,
                           clang::Stmt *else_val = nullptr);

@@ -44,6 +44,8 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
   if (clang::isa<clang::DeclRefExpr>(op) ||
       clang::isa<clang::IntegerLiteral>(op) ||
       clang::isa<clang::FloatingLiteral>(op) ||
+      clang::isa<clang::InitListExpr>(op) ||
+      clang::isa<clang::CompoundLiteralExpr>(op) ||
       clang::isa<clang::ParenExpr>(op)) {
     return CExprPrecedence::Value;
   }
@@ -94,6 +96,29 @@ clang::QualType ASTBuilder::GetLeastIntTypeForBitWidth(unsigned size,
   CHECK(!result.isNull()) << "Failed to infer clang::QualType for bitwidth: "
                           << size;
   return result;
+}
+
+clang::QualType ASTBuilder::GetLeastRealTypeForBitWidth(unsigned size) {
+  auto result{GetRealTypeForBitwidth(ctx, size)};
+  if (!result.isNull()) {
+    return result;
+  }
+
+  if (size <= ctx.getTypeSize(ctx.FloatTy)) {
+    return ctx.FloatTy;
+  }
+
+  if (size <= ctx.getTypeSize(ctx.DoubleTy)) {
+    return ctx.DoubleTy;
+  }
+
+  if (size <= ctx.getTypeSize(ctx.LongDoubleTy)) {
+    return ctx.LongDoubleTy;
+  }
+
+  LOG(FATAL) << "Failed to infer real clang::QualType for bitwidth: " << size;
+
+  return clang::QualType();
 }
 
 clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
@@ -152,7 +177,7 @@ clang::StringLiteral *ASTBuilder::CreateStrLit(std::string val) {
 
 clang::FloatingLiteral *ASTBuilder::CreateFPLit(llvm::APFloat val) {
   auto size{llvm::APFloat::getSizeInBits(val.getSemantics())};
-  auto type{GetRealTypeForBitwidth(ctx, size)};
+  auto type{GetLeastRealTypeForBitWidth(size)};
   CHECK(!type.isNull()) << "Unable to infer type for given value.";
   return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
                                         clang::SourceLocation());
@@ -251,6 +276,10 @@ clang::ParenExpr *ASTBuilder::CreateParen(clang::Expr *expr) {
 
 clang::CStyleCastExpr *ASTBuilder::CreateCStyleCast(clang::QualType type,
                                                     clang::Expr *expr) {
+  CHECK(expr) << "Should not be null in CreateCStyleCast.";
+  if (CExprPrecedence::UnaryOp < GetOperatorPrecedence(expr)) {
+    expr = CreateParen(expr);
+  }
   auto er{sema.BuildCStyleCastExpr(clang::SourceLocation(),
                                    ctx.getTrivialTypeSourceInfo(type),
                                    clang::SourceLocation(), expr)};
@@ -340,7 +369,7 @@ clang::InitListExpr *ASTBuilder::CreateInitList(
   return er.getAs<clang::InitListExpr>();
 }
 
-clang::CompoundStmt *ASTBuilder::CreateCompound(
+clang::CompoundStmt *ASTBuilder::CreateCompoundStmt(
     std::vector<clang::Stmt *> &stmts) {
   // sema.ActOnStartOfCompoundStmt(/*isStmtExpr=*/false);
   // auto sr{sema.ActOnCompoundStmt(clang::SourceLocation(),
@@ -349,7 +378,16 @@ clang::CompoundStmt *ASTBuilder::CreateCompound(
   // sema.ActOnFinishOfCompoundStmt();
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::CompoundStmt>();
-  return CreateCompoundStmt(ctx, stmts);
+  return rellic::CreateCompoundStmt(ctx, stmts);
+}
+
+clang::CompoundLiteralExpr *ASTBuilder::CreateCompoundLit(clang::QualType type,
+                                                          clang::Expr *expr) {
+  auto er{sema.BuildCompoundLiteralExpr(clang::SourceLocation(),
+                                        ctx.getTrivialTypeSourceInfo(type),
+                                        clang::SourceLocation(), expr)};
+  CHECK(er.isUsable());
+  return er.getAs<clang::CompoundLiteralExpr>();
 }
 
 clang::IfStmt *ASTBuilder::CreateIf(clang::Expr *cond, clang::Stmt *then_val,

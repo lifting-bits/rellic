@@ -7,14 +7,14 @@
  */
 #pragma once
 
-#include <system_error>
-
 #include <llvm/Support/ErrorOr.h>
+
+#include <system_error>
 
 #include "rellic/BC/Version.h"
 
 #if LLVM_VERSION_NUMBER >= LLVM_VERSION(3, 9)
-# include <llvm/Support/Error.h>
+#include <llvm/Support/Error.h>
 #endif
 
 namespace rellic {
@@ -116,4 +116,3 @@ inline static T &GetReference(T &val) {
 }
 
 }  // namespace rellic
-

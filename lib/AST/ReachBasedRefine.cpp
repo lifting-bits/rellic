@@ -31,12 +31,10 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char ReachBasedRefine::ID = 0;
 
-ReachBasedRefine::ReachBasedRefine(clang::ASTUnit &unit,
-                                   rellic::IRToASTVisitor &ast_gen)
+ReachBasedRefine::ReachBasedRefine(clang::ASTUnit &unit)
     : ModulePass(ReachBasedRefine::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
@@ -105,7 +103,7 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
       substitutions[stmt] = sub;
     } else if (stmt == elifs.front()) {
       std::vector<clang::Stmt *> thens({then});
-      sub->setElse(ast.CreateCompound(thens));
+      sub->setElse(ast.CreateCompoundStmt(thens));
       substitutions[stmt] = nullptr;
     } else {
       auto elif = ast.CreateIf(cond, then);
@@ -129,7 +127,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = ast.CreateCompound(new_body);
+    substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
   return true;
 }
@@ -139,11 +137,6 @@ bool ReachBasedRefine::runOnModule(llvm::Module &module) {
   Initialize();
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
-}
-
-llvm::ModulePass *createReachBasedRefinePass(clang::ASTUnit &unit,
-                                             rellic::IRToASTVisitor &gen) {
-  return new ReachBasedRefine(unit, gen);
 }
 
 }  // namespace rellic

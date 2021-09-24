@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/Util.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {
@@ -135,7 +134,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
       if (br->isConditional()) {
         // Get the edge condition
         result = clang::cast<clang::Expr>(
-            ast_gen->GetOrCreateStmt(br->getCondition()));
+            ast_gen.GetOrCreateStmt(br->getCondition()));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
           result = ast.CreateLNot(result);
@@ -201,7 +200,7 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
   for (auto &inst : *block) {
-    if (auto stmt = ast_gen->GetOrCreateStmt(&inst)) {
+    if (auto stmt = ast_gen.GetOrCreateStmt(&inst)) {
       result.push_back(stmt);
     }
   }
@@ -226,7 +225,7 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     } else {
       // Create a compound, wrapping the block
       auto block_body = CreateBasicBlockStmts(block);
-      compound = ast.CreateCompound(block_body);
+      compound = ast.CreateCompoundStmt(block_body);
     }
     // Gate the compound behind a reaching condition
     block_stmts[block] = ast.CreateIf(GetOrCreateReachingCond(block), compound);
@@ -280,7 +279,7 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
 clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
   DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is acyclic";
   auto region_body = CreateRegionStmts(region);
-  return ast.CreateCompound(region_body);
+  return ast.CreateCompoundStmt(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
@@ -293,7 +292,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   // a recognized natural loop. Cyclic regions may only be fragments
   // of a larger loop structure.
   if (!loop) {
-    return ast.CreateCompound(region_body);
+    return ast.CreateCompoundStmt(region_body);
   }
   // Refine loop members and successors without invalidating LoopInfo
   BBSet members, successors;
@@ -331,17 +330,17 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
     StmtVec break_stmt({ast.CreateBreak()});
-    auto exit_stmt = ast.CreateIf(cond, ast.CreateCompound(break_stmt));
+    auto exit_stmt = ast.CreateIf(cond, ast.CreateCompoundStmt(break_stmt));
     // Insert it after the exiting block statement
     loop_body.insert(std::next(it), exit_stmt);
   }
   // Create the loop statement
   auto loop_stmt =
-      ast.CreateWhile(ast.CreateTrue(), ast.CreateCompound(loop_body));
+      ast.CreateWhile(ast.CreateTrue(), ast.CreateCompoundStmt(loop_body));
   // Insert it at the beginning of the region body
   region_body.insert(region_body.begin(), loop_stmt);
   // Structure the rest of the loop body as a acyclic region
-  return ast.CreateCompound(region_body);
+  return ast.CreateCompoundStmt(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
@@ -368,10 +367,10 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 char GenerateAST::ID = 0;
 
-GenerateAST::GenerateAST(clang::ASTUnit &unit, rellic::IRToASTVisitor &gen)
+GenerateAST::GenerateAST(clang::ASTUnit &unit)
     : ModulePass(GenerateAST::ID),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&gen),
+      ast_gen(unit),
       ast(unit) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
@@ -382,11 +381,11 @@ void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
 
 bool GenerateAST::runOnModule(llvm::Module &module) {
   for (auto &var : module.globals()) {
-    ast_gen->VisitGlobalVar(var);
+    ast_gen.VisitGlobalVar(var);
   }
 
   for (auto &func : module.functions()) {
-    ast_gen->VisitFunctionDecl(func);
+    ast_gen.VisitFunctionDecl(func);
   }
 
   for (auto &func : module.functions()) {
@@ -417,7 +416,7 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
     POWalkSubRegions(regions->getTopLevelRegion());
     // Get the function declaration AST node for `func`
     auto fdecl =
-        clang::cast<clang::FunctionDecl>(ast_gen->GetOrCreateDecl(&func));
+        clang::cast<clang::FunctionDecl>(ast_gen.GetOrCreateDecl(&func));
     // Create a redeclaration of `fdecl` that will serve as a definition
     auto tudecl = ast_ctx->getTranslationUnitDecl();
     auto fdefn = ast.CreateFunctionDecl(tudecl, fdecl->getType(),
@@ -439,15 +438,10 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
       fbody.push_back(stmt);
     }
     // Set body to a new compound
-    fdefn->setBody(ast.CreateCompound(fbody));
+    fdefn->setBody(ast.CreateCompoundStmt(fbody));
   }
 
   return true;
-}
-
-llvm::ModulePass *createGenerateASTPass(clang::ASTUnit &unit,
-                                        rellic::IRToASTVisitor &gen) {
-  return new GenerateAST(unit, gen);
 }
 
 }  // namespace rellic

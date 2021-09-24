@@ -22,7 +22,7 @@ class ReachBasedRefine : public llvm::ModulePass,
  private:
   ASTBuilder ast;
   clang::ASTContext *ast_ctx;
-  rellic::IRToASTVisitor *ast_gen;
+
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
 
@@ -39,17 +39,11 @@ class ReachBasedRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  ReachBasedRefine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
+  ReachBasedRefine(clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createReachBasedRefinePass(clang::ASTUnit &unit,
-                                             rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
-
-namespace llvm {
-void initializeReachBasedRefinePass(PassRegistry &);
-}

@@ -11,8 +11,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Util.h"
-
 namespace rellic {
 
 namespace {
@@ -33,12 +31,10 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char CondBasedRefine::ID = 0;
 
-CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit,
-                                 rellic::IRToASTVisitor &ast_gen)
+CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit)
     : ModulePass(CondBasedRefine::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
@@ -102,7 +98,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
       substitutions[stmt] = nullptr;
     }
     // Create our new if-then
-    auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompound(thens));
+    auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompoundStmt(thens));
     // Create an else branch if possible
     if (!elses.empty()) {
       // Erase else statements from the AST and `worklist`
@@ -111,7 +107,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
         substitutions[stmt] = nullptr;
       }
       // Add the else branch
-      sub->setElse(ast.CreateCompound(elses));
+      sub->setElse(ast.CreateCompoundStmt(elses));
     }
     // Replace `lhs` with the new `sub`
     substitutions[lhs] = sub;
@@ -131,7 +127,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_body.push_back(stmt);
       }
     }
-    substitutions[compound] = ast.CreateCompound(new_body);
+    substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
   return true;
 }
@@ -143,8 +139,4 @@ bool CondBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
-                                            rellic::IRToASTVisitor &gen) {
-  return new CondBasedRefine(unit, gen);
-}
 }  // namespace rellic

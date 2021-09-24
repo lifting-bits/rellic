@@ -22,7 +22,7 @@ class Z3CondSimplify : public llvm::ModulePass,
                        public TransformVisitor<Z3CondSimplify> {
  private:
   clang::ASTContext *ast_ctx;
-  rellic::IRToASTVisitor *ast_gen;
+
   std::unique_ptr<z3::context> z_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z_gen;
 
@@ -33,7 +33,7 @@ class Z3CondSimplify : public llvm::ModulePass,
  public:
   static char ID;
 
-  Z3CondSimplify(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
+  Z3CondSimplify(clang::ASTUnit &unit);
 
   z3::context &GetZ3Context() { return *z_ctx; }
 
@@ -46,10 +46,4 @@ class Z3CondSimplify : public llvm::ModulePass,
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createZ3CondSimplifyPass(clang::ASTUnit &unit,
-                                           rellic::IRToASTVisitor &gen);
 }  // namespace rellic
-
-namespace llvm {
-void initializeZ3CondSimplifyPass(PassRegistry &);
-}

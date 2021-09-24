@@ -9,6 +9,7 @@
 #pragma once
 
 #include <string>
+
 #include "rellic/BC/Compat/IntrinsicInst.h"
 
 namespace llvm {

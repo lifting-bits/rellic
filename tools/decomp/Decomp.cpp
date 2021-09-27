@@ -114,6 +114,8 @@ static bool GeneratePseudocode(llvm::Module& module,
   pm_ast.add(dse);
   pm_ast.run(module);
 
+  // TODO(surovic): Add llvm::Value* -> clang::Decl* map
+  // Especially for llvm::Argument* and llvm::Function*.
   StmtToIRMap stmt_provenance;
 
   InitProvenanceMap(stmt_provenance, gr->GetIRToStmtMap());
@@ -197,8 +199,9 @@ static bool GeneratePseudocode(llvm::Module& module,
     UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap());
   }
 
-  rellic::ASTPrinter(output, *ast_unit)
-      .TraverseDecl(ast_unit->getASTContext().getTranslationUnitDecl());
+  std::list<rellic::Token> tokens;
+  rellic::DeclTokenizer(tokens, *ast_unit)
+      .Visit(ast_unit->getASTContext().getTranslationUnitDecl());
 
   // ast_ctx.getTranslationUnitDecl()->dump(output);
 

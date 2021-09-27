@@ -8,51 +8,39 @@
 
 #pragma once
 
-#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/DeclBase.h>
+#include <clang/AST/DeclVisitor.h>
+#include <clang/AST/Stmt.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include <unordered_map>
-
 namespace rellic {
 
-class ASTPrinter : public clang::RecursiveASTVisitor<ASTPrinter> {
- private:
-  llvm::raw_ostream &os;
-  clang::ASTUnit &unit;
-  std::unordered_map<clang::Decl *, std::string> decl_strs;
-  std::unordered_map<clang::Stmt *, std::string> stmt_strs;
+struct Token {
+  union ASTNodeRef {
+    clang::Stmt *stmt;
+    clang::Type *type;
+    clang::Decl *decl;
+  } node;
 
-  std::string print(clang::Decl *decl);
-  std::string print(clang::Stmt *stmt);
-  std::string print(clang::QualType type);
+  std::string str;
+};
+
+class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
+ private:
+  std::list<Token> &out;
+  const clang::ASTUnit &unit;
+
+  void PrintGroup(clang::Decl **begin, unsigned num_decls);
+  void ProcessDeclGroup(llvm::SmallVectorImpl<clang::Decl *> &decls);
 
  public:
-  ASTPrinter(llvm::raw_ostream &os, clang::ASTUnit &unit)
-      : os(os), unit(unit) {}
+  DeclTokenizer(std::list<Token> &out, const clang::ASTUnit &unit)
+      : out(out), unit(unit) {}
 
-  bool shouldTraversePostOrder() { return true; }
-
-  bool WalkUpFromTranslationUnitDecl(clang::TranslationUnitDecl *tudecl) {
-    return VisitTranslationUnitDecl(tudecl);
-  }
-
-  bool VisitTranslationUnitDecl(clang::TranslationUnitDecl *tudecl);
-
-  bool WalkUpFromFunctionDecl(clang::FunctionDecl *fdecl) {
-    return VisitFunctionDecl(fdecl);
-  }
-
-  bool VisitFunctionDecl(clang::FunctionDecl *fdecl);
-
-  bool VisitDecl(clang::Decl *decl);
-
-  bool WalkUpFromIntegerLiteral(clang::IntegerLiteral *ilit) {
-    return VisitIntegerLiteral(ilit);
-  }
-
-  bool VisitIntegerLiteral(clang::IntegerLiteral *ilit);
+  void VisitDeclContext(clang::DeclContext *dctx);
+  void VisitTranslationUnitDecl(clang::TranslationUnitDecl *decl);
 };
 
 }  // namespace rellic

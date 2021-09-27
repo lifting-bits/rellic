@@ -43,10 +43,10 @@ Pre-built Docker images are available on [Docker Hub](https://hub.docker.com/rep
 First, update aptitude and get install the baseline dependencies.
 
 ```shell
-sudo apt-get update
-sudo apt-get upgrade
+sudo apt update
+sudo apt upgrade
 
-sudo apt-get install \
+sudo apt install \
      git \
      python3 \
      wget \
@@ -58,7 +58,8 @@ sudo apt-get install \
      build-essential \
      lsb-release \
      zlib1g-dev \
-     libomp-dev
+     libomp-dev \
+     doctest-dev
 ```
 
 If the distribution you're on doesn't include a recent release of CMake (3.14 or later), you'll need to install it. For Ubuntu, see here https://apt.kitware.com/.
@@ -131,7 +132,7 @@ and
 
 We use several integration and unit tests to test rellic.
 
-*Roundtrip tests* will take C code, build it to LLVM IR, and then translate that IR back to C. The test then sees if the resuling C can be built and if the translated code does (roughly) the same thing as the original. To run these, use:
+*Roundtrip tests* will take C code, build it to LLVM IR, and then translate that IR back to C. The test then sees if the resulting C can be built and if the translated code does (roughly) the same thing as the original. To run these, use:
 
 ```sh
 cd rellic-build #or your rellic build directory

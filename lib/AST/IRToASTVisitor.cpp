@@ -15,7 +15,6 @@
 
 #include <iterator>
 
-#include "rellic/AST/Util.h"
 #include "rellic/BC/Compat/DerivedTypes.h"
 #include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Compat/Value.h"
@@ -335,10 +334,6 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
   LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
 
   return stmt;
-}
-
-void IRToASTVisitor::SetStmt(llvm::Value *val, clang::Stmt *stmt) {
-  stmts[val] = stmt;
 }
 
 clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {

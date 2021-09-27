@@ -13,7 +13,7 @@ add_library(${PROJECT_NAME} STATIC
   AST/IRToASTVisitor.cpp
   AST/LoopRefine.cpp
   AST/NestedCondProp.cpp
-  AST/NestedScopeCombiner.cpp
+  AST/NestedScopeCombine.cpp
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp

@@ -55,7 +55,8 @@ class WhileRule : public InferenceRule {
     std::vector<clang::Stmt *> new_body(comp->body_begin() + 1,
                                         comp->body_end());
     ASTBuilder ast(unit);
-    return ast.CreateWhile(ast.CreateLNot(cond), ast.CreateCompoundStmt(new_body));
+    return ast.CreateWhile(ast.CreateLNot(cond),
+                           ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -274,8 +275,8 @@ class CondToSeqNegRule : public InferenceRule {
 
 char LoopRefine::ID = 0;
 
-LoopRefine::LoopRefine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(LoopRefine::ID), unit(u), ast_gen(&ast_gen) {}
+LoopRefine::LoopRefine(clang::ASTUnit &u)
+    : ModulePass(LoopRefine::ID), unit(u) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
@@ -303,8 +304,4 @@ bool LoopRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createLoopRefinePass(clang::ASTUnit &unit,
-                                       rellic::IRToASTVisitor &gen) {
-  return new LoopRefine(unit, gen);
-}
 }  // namespace rellic

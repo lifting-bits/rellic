@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <memory>
-
 #include <llvm/IRReader/IRReader.h>
+
+#include <memory>
 
 #include "rellic/BC/Version.h"
 
@@ -19,7 +19,7 @@
 namespace llvm {
 class Module;
 
-template <typename ...Args>
+template <typename... Args>
 inline static std::unique_ptr<Module> parseIRFile(Args&... args) {
   return std::unique_ptr<Module>(ParseIRFile(args...));
 }

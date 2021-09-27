@@ -320,8 +320,8 @@ class TripleCStyleCastElimRule : public InferenceRule {
 
 char ExprCombine::ID = 0;
 
-ExprCombine::ExprCombine(clang::ASTUnit &u, rellic::IRToASTVisitor &ast_gen)
-    : ModulePass(ExprCombine::ID), unit(u), ast_gen(&ast_gen) {}
+ExprCombine::ExprCombine(clang::ASTUnit &u)
+    : ModulePass(ExprCombine::ID), unit(u) {}
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   clang::Expr::EvalResult result;
@@ -440,8 +440,4 @@ bool ExprCombine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createExprCombinePass(clang::ASTUnit &unit,
-                                        rellic::IRToASTVisitor &gen) {
-  return new ExprCombine(unit, gen);
-}
 }  // namespace rellic

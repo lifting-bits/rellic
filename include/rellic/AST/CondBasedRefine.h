@@ -22,7 +22,6 @@ class CondBasedRefine : public llvm::ModulePass,
  private:
   ASTBuilder ast;
   clang::ASTContext *ast_ctx;
-  rellic::IRToASTVisitor *ast_gen;
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
 
@@ -39,17 +38,11 @@ class CondBasedRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  CondBasedRefine(clang::ASTUnit &unit, rellic::IRToASTVisitor &ast_gen);
+  CondBasedRefine(clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 
   bool runOnModule(llvm::Module &module) override;
 };
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
-                                            rellic::IRToASTVisitor &ast_gen);
 }  // namespace rellic
-
-namespace llvm {
-void initializeCondBasedRefinePass(PassRegistry &);
-}

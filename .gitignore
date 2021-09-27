@@ -12,6 +12,7 @@ Makefile
 CMakeLists.txt.user
 .vscode
 .idea
+.cache
 cmake-build-debug
 cmake-build-release
 compile_commands.json

@@ -10,15 +10,29 @@
 
 #include <clang/AST/RecursiveASTVisitor.h>
 
-#include "rellic/AST/Util.h"
+#include <unordered_map>
 
 namespace rellic {
+
+using StmtSubMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
 
 template <typename Derived>
 class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
  protected:
-  StmtMap substitutions;
+  StmtSubMap substitutions;
   bool changed;
+
+  bool ReplaceChildren(clang::Stmt *stmt, StmtSubMap &repl_map) {
+    auto change = false;
+    for (auto c_it = stmt->child_begin(); c_it != stmt->child_end(); ++c_it) {
+      auto s_it = repl_map.find(*c_it);
+      if (s_it != repl_map.end()) {
+        *c_it = s_it->second;
+        change = true;
+      }
+    }
+    return change;
+  }
 
  public:
   TransformVisitor() : changed(false) {}
@@ -29,6 +43,8 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
     changed = false;
     substitutions.clear();
   }
+
+  StmtSubMap &GetStmtSubMap() { return substitutions; }
 
   bool VisitFunctionDecl(clang::FunctionDecl *fdecl) {
     // DLOG(INFO) << "VisitFunctionDecl";

@@ -7,10 +7,10 @@
  */
 
 #include "rellic/AST/Compat/Stmt.h"
-#include "rellic/BC/Version.h"
-#include "llvm/ADT/APSInt.h"
-#include "clang/AST/Expr.h"
 
+#include "clang/AST/Expr.h"
+#include "llvm/ADT/APSInt.h"
+#include "rellic/BC/Version.h"
 
 namespace rellic {
 
@@ -65,15 +65,15 @@ clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
 #endif
 }
 
-clang::Optional<llvm::APSInt> GetIntegerConstantExprFromIf(clang::IfStmt *ifstmt, const clang::ASTContext &ctx)
-{
+clang::Optional<llvm::APSInt> GetIntegerConstantExprFromIf(
+    clang::IfStmt *ifstmt, const clang::ASTContext &ctx) {
 #if LLVM_VERSION_NUMBER >= LLVM_VERSION(12, 0)
   auto v = ifstmt->getCond()->getIntegerConstantExpr(ctx);
   return v;
 #else
   llvm::APSInt val;
   bool is_const = ifstmt->getCond()->isIntegerConstantExpr(val, ctx);
-  if(!is_const) {
+  if (!is_const) {
     return clang::None;
   } else {
     return clang::Optional<llvm::APSInt>{val};

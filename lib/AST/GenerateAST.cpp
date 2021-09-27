@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/Util.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {
@@ -135,7 +134,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
       if (br->isConditional()) {
         // Get the edge condition
         result = clang::cast<clang::Expr>(
-            ast_gen->GetOrCreateStmt(br->getCondition()));
+            ast_gen.GetOrCreateStmt(br->getCondition()));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
           result = ast.CreateLNot(result);
@@ -201,7 +200,7 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
   for (auto &inst : *block) {
-    if (auto stmt = ast_gen->GetOrCreateStmt(&inst)) {
+    if (auto stmt = ast_gen.GetOrCreateStmt(&inst)) {
       result.push_back(stmt);
     }
   }
@@ -368,10 +367,10 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 char GenerateAST::ID = 0;
 
-GenerateAST::GenerateAST(clang::ASTUnit &unit, rellic::IRToASTVisitor &gen)
+GenerateAST::GenerateAST(clang::ASTUnit &unit)
     : ModulePass(GenerateAST::ID),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&gen),
+      ast_gen(unit),
       ast(unit) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
@@ -382,11 +381,11 @@ void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
 
 bool GenerateAST::runOnModule(llvm::Module &module) {
   for (auto &var : module.globals()) {
-    ast_gen->VisitGlobalVar(var);
+    ast_gen.VisitGlobalVar(var);
   }
 
   for (auto &func : module.functions()) {
-    ast_gen->VisitFunctionDecl(func);
+    ast_gen.VisitFunctionDecl(func);
   }
 
   for (auto &func : module.functions()) {
@@ -417,7 +416,7 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
     POWalkSubRegions(regions->getTopLevelRegion());
     // Get the function declaration AST node for `func`
     auto fdecl =
-        clang::cast<clang::FunctionDecl>(ast_gen->GetOrCreateDecl(&func));
+        clang::cast<clang::FunctionDecl>(ast_gen.GetOrCreateDecl(&func));
     // Create a redeclaration of `fdecl` that will serve as a definition
     auto tudecl = ast_ctx->getTranslationUnitDecl();
     auto fdefn = ast.CreateFunctionDecl(tudecl, fdecl->getType(),
@@ -443,11 +442,6 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
   }
 
   return true;
-}
-
-llvm::ModulePass *createGenerateASTPass(clang::ASTUnit &unit,
-                                        rellic::IRToASTVisitor &gen) {
-  return new GenerateAST(unit, gen);
 }
 
 }  // namespace rellic

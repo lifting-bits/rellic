@@ -14,10 +14,6 @@
 
 namespace rellic {
 
-using StmtMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
-
-bool ReplaceChildren(clang::Stmt *stmt, StmtMap &repl_map);
-
 unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt);
 
 template <typename T>

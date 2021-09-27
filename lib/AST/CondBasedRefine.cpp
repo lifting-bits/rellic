@@ -11,8 +11,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Util.h"
-
 namespace rellic {
 
 namespace {
@@ -33,12 +31,10 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char CondBasedRefine::ID = 0;
 
-CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit,
-                                 rellic::IRToASTVisitor &ast_gen)
+CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit)
     : ModulePass(CondBasedRefine::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(&ast_gen),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
@@ -143,8 +139,4 @@ bool CondBasedRefine::runOnModule(llvm::Module &module) {
   return changed;
 }
 
-llvm::ModulePass *createCondBasedRefinePass(clang::ASTUnit &unit,
-                                            rellic::IRToASTVisitor &gen) {
-  return new CondBasedRefine(unit, gen);
-}
 }  // namespace rellic

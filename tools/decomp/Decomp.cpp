@@ -203,6 +203,10 @@ static bool GeneratePseudocode(llvm::Module& module,
   rellic::DeclTokenizer(tokens, *ast_unit)
       .Visit(ast_unit->getASTContext().getTranslationUnitDecl());
 
+  for (auto tok : tokens) {
+    output << tok.str;
+  }
+
   // ast_ctx.getTranslationUnitDecl()->dump(output);
 
   return true;

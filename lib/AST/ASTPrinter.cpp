@@ -20,10 +20,37 @@ namespace rellic {
 namespace {
 
 static clang::QualType GetBaseType(clang::QualType type) {
-  return clang::QualType();
+  // FIXME: This should be on the Type class!
+  auto base_type{type};
+  while (!base_type->isSpecifierType()) {
+    if (const auto pty = base_type->getAs<clang::PointerType>())
+      base_type = pty->getPointeeType();
+    else if (const auto bpy = base_type->getAs<clang::BlockPointerType>())
+      base_type = bpy->getPointeeType();
+    else if (const auto aty = clang::dyn_cast<clang::ArrayType>(base_type))
+      base_type = aty->getElementType();
+    else if (const auto fty = base_type->getAs<clang::FunctionType>())
+      base_type = fty->getReturnType();
+    else if (const auto vty = base_type->getAs<clang::VectorType>())
+      base_type = vty->getElementType();
+    else if (const auto pty = base_type->getAs<clang::ParenType>())
+      base_type = pty->desugar();
+    else
+      // This must be a syntax error.
+      break;
+  }
+  return base_type;
 }
 
 static clang::QualType GetDeclType(clang::Decl *decl) {
+  if (auto tdd = clang::dyn_cast<clang::TypedefNameDecl>(decl)) {
+    return tdd->getUnderlyingType();
+  }
+
+  if (auto vd = clang::dyn_cast<clang::ValueDecl>(decl)) {
+    return vd->getType();
+  }
+
   return clang::QualType();
 }
 
@@ -31,7 +58,6 @@ static clang::QualType GetDeclType(clang::Decl *decl) {
 
 void DeclTokenizer::PrintGroup(clang::Decl **begin, unsigned num_decls) {
   if (num_decls == 1) {
-    // (*Begin)->print(Out, Policy, Indentation);
     Visit(*begin);
     return;
   }
@@ -42,28 +68,21 @@ void DeclTokenizer::PrintGroup(clang::Decl **begin, unsigned num_decls) {
     ++begin;
   }
 
-  clang::PrintingPolicy SubPolicy(Policy);
-
   bool is_first{true};
   for (; begin != end; ++begin) {
     if (is_first) {
-      if (td) SubPolicy.IncludeTagDefinition = true;
-      SubPolicy.SuppressSpecifiers = false;
       is_first = false;
     } else {
-      if (!is_first) Out << ", ";
-      SubPolicy.IncludeTagDefinition = false;
-      SubPolicy.SuppressSpecifiers = true;
+      out.push_back({.node = {}, .str = ", "});
     }
-
-    (*begin)->print(Out, SubPolicy, Indentation);
+    Visit(*begin);
   }
 }
 
 void DeclTokenizer::ProcessDeclGroup(
     llvm::SmallVectorImpl<clang::Decl *> &decls) {
-  clang::Decl::printGroup(decls.data(), decls.size(), Out, Policy, Indentation);
-  out.back().str += ";";
+  PrintGroup(decls.data(), decls.size());
+  out.push_back({.node = {}, .str = ";"});
   decls.clear();
 }
 
@@ -114,8 +133,6 @@ void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx) {
 
     Visit(*dit);
 
-    auto dtok{out.back()};
-
     const char *terminator{nullptr};
     if (auto fdecl = clang::dyn_cast<clang::FunctionDecl>(*dit)) {
       if (fdecl->isThisDeclarationADefinition())
@@ -133,7 +150,124 @@ void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx) {
     }
 
     if (terminator) {
-      dtok.str += terminator;
+      out.push_back({.node = {}, .str = terminator});
+    }
+  }
+}
+
+void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
+  switch (fdecl->getStorageClass()) {
+    case clang::SC_None:
+      break;
+
+    case clang::SC_Extern:
+      out.push_back({.str = "extern "});
+      break;
+
+    case clang::SC_Static:
+      out.push_back({.str = "static "});
+      break;
+
+    case clang::SC_PrivateExtern:
+      out.push_back({.str = "__private_extern__ "});
+      break;
+
+    case clang::SC_Auto:
+    case clang::SC_Register:
+      LOG(FATAL) << "Invalid function specifier";
+  }
+
+  if (fdecl->isInlineSpecified()) {
+    out.push_back({.str = "inline "});
+  }
+
+  if (fdecl->isModulePrivate()) {
+    out.push_back({.str = "__module_private__ "});
+  }
+
+  std::string Proto{fdecl->getName().str()};
+  out.push_back({.node = {.decl = fdecl}, .str = fdecl->getName().str()});
+
+  clang::QualType Ty{fdecl->getType()};
+  while (const auto PT = clang::dyn_cast<clang::ParenType>(Ty)) {
+    Proto = '(' + Proto + ')';
+    Ty = PT->getInnerType();
+  }
+
+  if (const auto AFT = Ty->getAs<clang::FunctionType>()) {
+    const clang::FunctionProtoType *FT{nullptr};
+    if (fdecl->hasWrittenPrototype()) {
+      FT = clang::dyn_cast<clang::FunctionProtoType>(AFT);
+    }
+
+    Proto += "(";
+
+    if (FT) {
+      llvm::raw_string_ostream POut(Proto);
+      for (auto i{0U}, e = fdecl->getNumParams(); i != e; ++i) {
+        if (i) {
+          POut << ", ";
+        }
+        VisitParmVarDecl(fdecl->getParamDecl(i));
+      }
+
+      if (FT->isVariadic()) {
+        if (fdecl->getNumParams()) {
+          POut << ", ";
+        }
+        POut << "...";
+      }
+    } else if (fdecl->doesThisDeclarationHaveABody() &&
+               !fdecl->hasPrototype()) {
+      for (auto i{0U}, e = fdecl->getNumParams(); i != e; ++i) {
+        if (i) {
+          Proto += ", ";
+        }
+        Proto += fdecl->getParamDecl(i)->getNameAsString();
+      }
+    }
+
+    Proto += ")";
+
+    if (FT) {
+      if (FT->isConst()) {
+        Proto += " const";
+      }
+      if (FT->isVolatile()) {
+        Proto += " volatile";
+      }
+      if (FT->isRestrict()) {
+        Proto += " restrict";
+      }
+
+      switch (FT->getRefQualifier()) {
+        case clang::RQ_None:
+          break;
+        case clang::RQ_LValue:
+          Proto += " &";
+          break;
+        case clang::RQ_RValue:
+          Proto += " &&";
+          break;
+      }
+    }
+    Out << Proto;
+  } else {
+    Ty.print(Out, Policy, Proto);
+  }
+
+  if (fdecl->doesThisDeclarationHaveABody()) {
+    if (!fdecl->hasPrototype() && fdecl->getNumParams()) {
+      // This is a K&R function definition, so we need to print the
+      // parameters.
+      for (auto i{0U}, e = fdecl->getNumParams(); i != e; ++i) {
+        VisitParmVarDecl(fdecl->getParamDecl(i));
+        out.push_back({{}, ";"});
+      }
+    }
+
+    if (fdecl->getBody()) {
+      StmtTokenizer(out, unit).Visit(fdecl->getBody());
     }
   }
 }

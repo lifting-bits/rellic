@@ -8,9 +8,8 @@
 
 #pragma once
 
-#include <clang/AST/DeclBase.h>
 #include <clang/AST/DeclVisitor.h>
-#include <clang/AST/Stmt.h>
+#include <clang/AST/StmtVisitor.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -40,7 +39,18 @@ class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
       : out(out), unit(unit) {}
 
   void VisitDeclContext(clang::DeclContext *dctx);
+  void VisitFunctionDecl(clang::FunctionDecl *fdecl);
   void VisitTranslationUnitDecl(clang::TranslationUnitDecl *decl);
+};
+
+class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
+ private:
+  std::list<Token> &out;
+  const clang::ASTUnit &unit;
+
+ public:
+  StmtTokenizer(std::list<Token> &out, const clang::ASTUnit &unit)
+      : out(out), unit(unit) {}
 };
 
 }  // namespace rellic

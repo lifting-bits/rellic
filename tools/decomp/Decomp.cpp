@@ -204,6 +204,10 @@ static bool GeneratePseudocode(llvm::Module& module,
       .Visit(ast_unit->getASTContext().getTranslationUnitDecl());
 
   for (auto tok : tokens) {
+    auto it{stmt_provenance.find(tok.node.stmt)};
+    if (it != stmt_provenance.end()) {
+      output << "/* " << rellic::LLVMThingToString(it->second) << " */";
+    }
     output << tok.str;
   }
 

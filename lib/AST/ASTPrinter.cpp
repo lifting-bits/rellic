@@ -8,10 +8,14 @@
 
 #include "rellic/AST/ASTPrinter.h"
 
+#include <clang/AST/Decl.h>
+#include <clang/AST/Expr.h>
+#include <clang/AST/Stmt.h>
 #include <clang/AST/Type.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <sstream>
 
@@ -55,6 +59,82 @@ static clang::QualType GetDeclType(clang::Decl *decl) {
 }
 
 }  // namespace
+
+void DeclTokenizer::PrintPragmas(clang::Decl *decl) {}
+
+void DeclTokenizer::PrintAttributes(clang::Decl *decl) {}
+
+void DeclTokenizer::PrintDeclType(clang::QualType type,
+                                  llvm::StringRef decl_name) {
+  std::string buf{""};
+  llvm::raw_string_ostream ss(buf);
+  type.print(ss, unit.getASTContext().getPrintingPolicy(), decl_name,
+             /* Indentation=*/0U);
+  out.push_back({.str = ss.str()});
+}
+
+void DeclTokenizer::VisitVarDecl(clang::VarDecl *vdecl) {
+  PrintPragmas(vdecl);
+
+  clang::QualType vtype;
+  if (vdecl->getTypeSourceInfo()) {
+    vtype = vdecl->getTypeSourceInfo()->getType();
+  } else {
+    LOG(FATAL) << "There was ObjC stuff here. Not sure if it's needed.";
+  }
+
+  clang::StorageClass sc{vdecl->getStorageClass()};
+  if (sc != clang::SC_None) {
+    std::string scs_str{clang::VarDecl::getStorageClassSpecifierString(sc)};
+    out.push_back({.str = scs_str + " "});
+  }
+
+  switch (vdecl->getTSCSpec()) {
+    case clang::TSCS_unspecified:
+      break;
+
+    case clang::TSCS___thread:
+      out.push_back({.str = "__thread "});
+      break;
+
+    case clang::TSCS__Thread_local:
+      out.push_back({.str = "_Thread_local "});
+      break;
+
+    case clang::TSCS_thread_local:
+      out.push_back({.str = "thread_local "});
+      break;
+  }
+
+  if (vdecl->isModulePrivate()) {
+    out.push_back({.str = "__module_private__ "});
+  }
+
+  PrintDeclType(vtype, vdecl->getName());
+  out.back().node.decl = vdecl;
+
+  if (clang::Expr *init = vdecl->getInit()) {
+    if (vdecl->getInitStyle() == clang::VarDecl::CallInit &&
+        !clang::isa<clang::ParenListExpr>(init)) {
+      out.push_back({.str = "("});
+    } else if (vdecl->getInitStyle() == clang::VarDecl::CInit) {
+      out.push_back({.str = " = "});
+    }
+
+    StmtTokenizer(out, unit).Visit(init);
+
+    if (vdecl->getInitStyle() == clang::VarDecl::CallInit &&
+        !clang::isa<clang::ParenListExpr>(init)) {
+      out.push_back({.str = ")"});
+    }
+  }
+
+  PrintAttributes(vdecl);
+}
+
+void DeclTokenizer::VisitParmVarDecl(clang::ParmVarDecl *pdecl) {
+  VisitVarDecl(pdecl);
+}
 
 void DeclTokenizer::PrintGroup(clang::Decl **begin, unsigned num_decls) {
   if (num_decls == 1) {
@@ -156,6 +236,8 @@ void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx) {
 }
 
 void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
+  PrintPragmas(fdecl);
+
   switch (fdecl->getStorageClass()) {
     case clang::SC_None:
       break;
@@ -185,82 +267,112 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
     out.push_back({.str = "__module_private__ "});
   }
 
-  std::string Proto{fdecl->getName().str()};
-  out.push_back({.node = {.decl = fdecl}, .str = fdecl->getName().str()});
+  std::list<Token> proto;
+  proto.push_back({.node = {.decl = fdecl}, .str = fdecl->getName().str()});
 
-  clang::QualType Ty{fdecl->getType()};
-  while (const auto PT = clang::dyn_cast<clang::ParenType>(Ty)) {
-    Proto = '(' + Proto + ')';
-    Ty = PT->getInnerType();
+  clang::QualType ftype{fdecl->getType()};
+  while (const auto pt = clang::dyn_cast<clang::ParenType>(ftype)) {
+    proto.push_front({.str = "("});
+    proto.push_back({.str = ")"});
+    ftype = pt->getInnerType();
   }
 
-  if (const auto AFT = Ty->getAs<clang::FunctionType>()) {
-    const clang::FunctionProtoType *FT{nullptr};
+  if (const auto aft = ftype->getAs<clang::FunctionType>()) {
+    const clang::FunctionProtoType *ft{nullptr};
     if (fdecl->hasWrittenPrototype()) {
-      FT = clang::dyn_cast<clang::FunctionProtoType>(AFT);
+      ft = clang::dyn_cast<clang::FunctionProtoType>(aft);
     }
 
-    Proto += "(";
+    proto.push_back({.str = "("});
 
-    if (FT) {
-      llvm::raw_string_ostream POut(Proto);
-      for (auto i{0U}, e = fdecl->getNumParams(); i != e; ++i) {
+    if (ft) {
+      DeclTokenizer param_tokenizer(proto, unit);
+      for (auto i{0U}, e{fdecl->getNumParams()}; i != e; ++i) {
         if (i) {
-          POut << ", ";
+          proto.push_back({.str = ", "});
         }
-        VisitParmVarDecl(fdecl->getParamDecl(i));
+        param_tokenizer.VisitParmVarDecl(fdecl->getParamDecl(i));
       }
 
-      if (FT->isVariadic()) {
+      if (ft->isVariadic()) {
         if (fdecl->getNumParams()) {
-          POut << ", ";
+          proto.push_back({.str = ", "});
         }
-        POut << "...";
+        proto.push_back({.str = "..."});
       }
     } else if (fdecl->doesThisDeclarationHaveABody() &&
                !fdecl->hasPrototype()) {
-      for (auto i{0U}, e = fdecl->getNumParams(); i != e; ++i) {
+      for (auto i{0U}, e{fdecl->getNumParams()}; i != e; ++i) {
         if (i) {
-          Proto += ", ";
+          proto.push_back({.str = ", "});
         }
-        Proto += fdecl->getParamDecl(i)->getNameAsString();
+        auto pdecl{fdecl->getParamDecl(i)};
+        auto pname{pdecl->getNameAsString()};
+        proto.push_back({.node = {.decl = pdecl}, .str = pname});
       }
     }
 
-    Proto += ")";
+    proto.push_back({.str = ")"});
 
-    if (FT) {
-      if (FT->isConst()) {
-        Proto += " const";
-      }
-      if (FT->isVolatile()) {
-        Proto += " volatile";
-      }
-      if (FT->isRestrict()) {
-        Proto += " restrict";
+    if (ft) {
+      if (ft->isConst()) {
+        proto.push_back({.str = " const"});
       }
 
-      switch (FT->getRefQualifier()) {
+      if (ft->isVolatile()) {
+        proto.push_back({.str = " volatile"});
+      }
+
+      if (ft->isRestrict()) {
+        proto.push_back({.str = " restrict"});
+      }
+
+      switch (ft->getRefQualifier()) {
         case clang::RQ_None:
           break;
         case clang::RQ_LValue:
-          Proto += " &";
+          proto.push_back({.str = " &"});
           break;
         case clang::RQ_RValue:
-          Proto += " &&";
+          proto.push_back({.str = " &&"});
           break;
       }
     }
-    Out << Proto;
+
+    // TODO(surovic): Factor out this abomination (Look down)
+    {
+      std::string placeholder{""};
+      // for (auto &tok : proto) {
+      //   placeholder += tok.str;
+      // }
+      std::string buf{""};
+      llvm::raw_string_ostream ss(buf);
+      aft->getReturnType().print(ss, unit.getASTContext().getPrintingPolicy(),
+                                 placeholder);
+      out.push_back({{.type = aft->getReturnType()}, .str = ss.str()});
+    }
+
+    out.splice(out.end(), proto);
+
   } else {
-    Ty.print(Out, Policy, Proto);
+    // TODO(surovic): Factor out this abomination (Look up)
+    std::string placeholder{""};
+    // for (auto &tok : proto) {
+    //   placeholder += tok.str;
+    // }
+    std::string buf{""};
+    llvm::raw_string_ostream ss(buf);
+    ftype.print(ss, unit.getASTContext().getPrintingPolicy(), placeholder);
+    out.push_back({{.type = ftype}, .str = ss.str()});
   }
+
+  PrintAttributes(fdecl);
 
   if (fdecl->doesThisDeclarationHaveABody()) {
     if (!fdecl->hasPrototype() && fdecl->getNumParams()) {
       // This is a K&R function definition, so we need to print the
       // parameters.
-      for (auto i{0U}, e = fdecl->getNumParams(); i != e; ++i) {
+      for (auto i{0U}, e{fdecl->getNumParams()}; i != e; ++i) {
         VisitParmVarDecl(fdecl->getParamDecl(i));
         out.push_back({{}, ";"});
       }
@@ -274,6 +386,144 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
 
 void DeclTokenizer::VisitTranslationUnitDecl(clang::TranslationUnitDecl *decl) {
   VisitDeclContext(decl);
+}
+
+void StmtTokenizer::PrintStmt(clang::Stmt *stmt) {
+  if (stmt && clang::isa<clang::Expr>(stmt)) {
+    out.push_back({.str = ";"});
+    Visit(stmt);
+  } else if (stmt) {
+    Visit(stmt);
+  } else {
+    Token nulltok{.node = {.stmt = nullptr},
+                  .str = "<<<NULL STATEMENT>>>" + nl};
+    out.push_back(nulltok);
+  }
+}
+
+void StmtTokenizer::PrintExpr(clang::Expr *expr) {
+  if (expr) {
+    Visit(expr);
+  } else {
+    out.push_back({.node = {.stmt = nullptr}, .str = "<null expr>"});
+  }
+}
+
+void StmtTokenizer::VisitCompoundStmt(clang::CompoundStmt *stmt) {
+  out.push_back({.str = "{"});
+  for (auto child : stmt->body()) {
+    PrintStmt(child);
+  }
+  out.push_back({.str = "}"});
+}
+
+void StmtTokenizer::VisitDeclStmt(clang::DeclStmt *stmt) {
+  llvm::SmallVector<clang::Decl *, 2> decls(stmt->decls());
+  DeclTokenizer(out, unit).PrintGroup(decls.data(), decls.size());
+  out.push_back({.str = ";"});
+}
+
+void StmtTokenizer::VisitIfStmt(clang::IfStmt *ifstmt) {
+  out.push_back({.node = {.stmt = ifstmt}, .str = "if"});
+  out.push_back({.str = "("});
+
+  if (ifstmt->getInit()) {
+    Visit(ifstmt->getInit());
+  }
+
+  if (const auto ds = ifstmt->getConditionVariableDeclStmt()) {
+    VisitDeclStmt(ds);
+  } else {
+    PrintExpr(ifstmt->getCond());
+  }
+
+  out.push_back({.str = ")"});
+
+  if (auto cs = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
+    VisitCompoundStmt(cs);
+    // OS << (If->getElse() ? " " : NL);
+  } else {
+    // OS << NL;
+    PrintStmt(ifstmt->getThen());
+  }
+
+  if (auto es = ifstmt->getElse()) {
+    out.push_back({.str = "else"});
+
+    if (auto cs = clang::dyn_cast<clang::CompoundStmt>(es)) {
+      VisitCompoundStmt(cs);
+      // OS << NL;
+    } else if (auto elseif = clang::dyn_cast<clang::IfStmt>(es)) {
+      VisitIfStmt(elseif);
+    } else {
+      // OS << NL;
+      PrintStmt(ifstmt->getElse());
+    }
+  }
+}
+
+void StmtTokenizer::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
+  std::string buf;
+  llvm::raw_string_ostream ss(buf);
+  ss << '(';
+  cast->getTypeAsWritten().print(ss, unit.getASTContext().getPrintingPolicy());
+  ss << ')';
+  out.push_back({.node = {.stmt = cast}, .str = ss.str()});
+  Visit(cast->getSubExpr());
+}
+
+void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *ilit) {
+  bool is_signed{ilit->getType()->isSignedIntegerType()};
+  std::stringstream ss;
+  ss << ilit->getValue().toString(10, is_signed);
+  // Emit suffixes.  Integer literals are always a builtin integer type.
+  switch (ilit->getType()->castAs<clang::BuiltinType>()->getKind()) {
+    case clang::BuiltinType::Char_S:
+    case clang::BuiltinType::Char_U:
+      ss << "i8";
+      break;
+
+    case clang::BuiltinType::UChar:
+      ss << "Ui8";
+      break;
+
+    case clang::BuiltinType::Short:
+      ss << "i16";
+      break;
+
+    case clang::BuiltinType::UShort:
+      ss << "Ui16";
+      break;
+
+    case clang::BuiltinType::Int:
+      break;  // no suffix.
+
+    case clang::BuiltinType::UInt:
+      ss << 'U';
+      break;
+
+    case clang::BuiltinType::Long:
+      ss << 'L';
+      break;
+
+    case clang::BuiltinType::ULong:
+      ss << "UL";
+      break;
+
+    case clang::BuiltinType::LongLong:
+      ss << "LL";
+      break;
+
+    case clang::BuiltinType::ULongLong:
+      ss << "ULL";
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected type for integer literal!";
+      break;
+  }
+
+  out.push_back({.node = {.stmt = ilit}, .str = ss.str()});
 }
 
 }  // namespace rellic

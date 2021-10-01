@@ -390,13 +390,12 @@ void DeclTokenizer::VisitTranslationUnitDecl(clang::TranslationUnitDecl *decl) {
 
 void StmtTokenizer::PrintStmt(clang::Stmt *stmt) {
   if (stmt && clang::isa<clang::Expr>(stmt)) {
-    out.push_back({.str = ";"});
     Visit(stmt);
+    out.push_back({.str = ";"});
   } else if (stmt) {
     Visit(stmt);
   } else {
-    Token nulltok{.node = {.stmt = nullptr},
-                  .str = "<<<NULL STATEMENT>>>" + nl};
+    Token nulltok{.node = {.stmt = nullptr}, .str = "<<<NULL STATEMENT>>>"};
     out.push_back(nulltok);
   }
 }
@@ -441,9 +440,7 @@ void StmtTokenizer::VisitIfStmt(clang::IfStmt *ifstmt) {
 
   if (auto cs = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
     VisitCompoundStmt(cs);
-    // OS << (If->getElse() ? " " : NL);
   } else {
-    // OS << NL;
     PrintStmt(ifstmt->getThen());
   }
 
@@ -452,24 +449,21 @@ void StmtTokenizer::VisitIfStmt(clang::IfStmt *ifstmt) {
 
     if (auto cs = clang::dyn_cast<clang::CompoundStmt>(es)) {
       VisitCompoundStmt(cs);
-      // OS << NL;
     } else if (auto elseif = clang::dyn_cast<clang::IfStmt>(es)) {
       VisitIfStmt(elseif);
     } else {
-      // OS << NL;
       PrintStmt(ifstmt->getElse());
     }
   }
 }
 
-void StmtTokenizer::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
-  std::string buf;
-  llvm::raw_string_ostream ss(buf);
-  ss << '(';
-  cast->getTypeAsWritten().print(ss, unit.getASTContext().getPrintingPolicy());
-  ss << ')';
-  out.push_back({.node = {.stmt = cast}, .str = ss.str()});
-  Visit(cast->getSubExpr());
+void StmtTokenizer::VisitReturnStmt(clang::ReturnStmt *stmt) {
+  out.push_back({.node = {.stmt = stmt}, .str = "return"});
+  if (stmt->getRetValue()) {
+    out.push_back({.str = " "});
+    PrintExpr(stmt->getRetValue());
+  }
+  out.push_back({.str = ";"});
 }
 
 void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *ilit) {
@@ -524,6 +518,45 @@ void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *ilit) {
   }
 
   out.push_back({.node = {.stmt = ilit}, .str = ss.str()});
+}
+
+void StmtTokenizer::VisitDeclRefExpr(clang::DeclRefExpr *ref) {
+  auto name{ref->getNameInfo().getAsString()};
+  out.push_back({.node = {.stmt = ref}, .str = name});
+}
+
+void StmtTokenizer::VisitParenExpr(clang::ParenExpr *paren) {
+  out.push_back({.node = {.stmt = paren}, .str = "("});
+  PrintExpr(paren->getSubExpr());
+  out.push_back({.node = {.stmt = paren}, .str = ")"});
+}
+
+void StmtTokenizer::VisitImplicitCastExpr(clang::ImplicitCastExpr *cast) {
+  // No need to print anything, simply forward to the subexpression.
+  PrintExpr(cast->getSubExpr());
+}
+
+void StmtTokenizer::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
+  std::string buf;
+  llvm::raw_string_ostream ss(buf);
+  ss << '(';
+  cast->getTypeAsWritten().print(ss, unit.getASTContext().getPrintingPolicy());
+  ss << ')';
+  out.push_back({.node = {.stmt = cast}, .str = ss.str()});
+  Visit(cast->getSubExpr());
+}
+
+void StmtTokenizer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub) {
+  PrintExpr(sub->getLHS());
+  out.push_back({.node = {.stmt = sub}, .str = "["});
+  PrintExpr(sub->getRHS());
+  out.push_back({.node = {.stmt = sub}, .str = "]"});
+}
+
+void StmtTokenizer::VisitBinaryOperator(clang::BinaryOperator *binop) {
+  Visit(binop->getLHS());
+  out.push_back({.node = {.stmt = binop}, .str = binop->getOpcodeStr().str()});
+  Visit(binop->getRHS());
 }
 
 }  // namespace rellic

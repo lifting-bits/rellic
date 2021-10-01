@@ -47,6 +47,10 @@ class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
 
   void PrintGroup(clang::Decl **begin, unsigned num_decls);
 
+  void VisitDecl(clang::Decl *dec) {
+    LOG(FATAL) << "Unimplemented decl handler!";
+  }
+
   void VisitVarDecl(clang::VarDecl *decl);
   void VisitParmVarDecl(clang::ParmVarDecl *decl);
   void VisitDeclContext(clang::DeclContext *dctx);
@@ -58,7 +62,6 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
  private:
   std::list<Token> &out;
   const clang::ASTUnit &unit;
-  std::string nl;
 
   void PrintStmt(clang::Stmt *stmt);
   void PrintExpr(clang::Expr *expr);
@@ -67,17 +70,22 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   StmtTokenizer(std::list<Token> &out, const clang::ASTUnit &unit)
       : out(out), unit(unit) {}
 
-  // void VisitStmt(clang::Stmt *stmt) {
-  //   stmt->dump();
-  //   LOG(FATAL) << "SATAN";
-  // }
+  void VisitStmt(clang::Stmt *stmt) {
+    LOG(FATAL) << "Unimplemented stmt handler!";
+  }
 
   void VisitCompoundStmt(clang::CompoundStmt *stmt);
   void VisitDeclStmt(clang::DeclStmt *stmt);
   void VisitIfStmt(clang::IfStmt *stmt);
+  void VisitReturnStmt(clang::ReturnStmt *stmt);
 
-  void VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   void VisitIntegerLiteral(clang::IntegerLiteral *ilit);
+  void VisitDeclRefExpr(clang::DeclRefExpr *ref);
+  void VisitParenExpr(clang::ParenExpr *paren);
+  void VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
+  void VisitImplicitCastExpr(clang::ImplicitCastExpr *cast);
+  void VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
+  void VisitBinaryOperator(clang::BinaryOperator *binop);
 };
 
 }  // namespace rellic

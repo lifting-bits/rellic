@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <clang/AST/ASTDumperUtils.h>
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclVisitor.h>
 #include <clang/AST/Expr.h>
@@ -19,16 +20,47 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <variant>
+
 namespace rellic {
 
-struct Token {
-  union ASTNodeRef {
-    clang::Stmt *stmt;
-    clang::Decl *decl;
-    clang::QualType type;
-  } node;
+enum TokenKind { Stmt, Decl, Type, Space, Newline, Indent, Misc };
 
+class Token {
+ private:
+  TokenKind kind;
+  std::variant<std::monostate, clang::Stmt *, clang::Decl *, clang::QualType>
+      node;
   std::string str;
+
+  Token(TokenKind kind) : kind(kind) {}
+  Token(std::string &str) : kind(TokenKind::Misc), str(str) {}
+
+  template <typename T>
+  Token(TokenKind kind, T node, std::string &str)
+      : kind(kind), node(node), str(str) {}
+
+ public:
+  static Token CreateStmt(clang::Stmt *stmt, std::string str) {
+    return Token(TokenKind::Stmt, stmt, str);
+  }
+
+  static Token CreateDecl(clang::Decl *decl, std::string str) {
+    return Token(TokenKind::Decl, decl, str);
+  }
+
+  static Token CreateType(clang::QualType type, std::string str) {
+    return Token(TokenKind::Type, type, str);
+  }
+
+  static Token CreateSpace() { return Token(TokenKind::Space); }
+  static Token CreateNewline() { return Token(TokenKind::Newline); }
+  static Token CreateIndent() { return Token(TokenKind::Indent); }
+
+  static Token CreateMisc(std::string str) { return Token(str); }
+
+  const std::string &GetString() { return str; }
+  TokenKind GetKind() { return kind; }
 };
 
 class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
@@ -36,14 +68,17 @@ class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
   std::list<Token> &out;
   const clang::ASTUnit &unit;
 
+  unsigned indent;
+
+  void Indent();
   void PrintAttributes(clang::Decl *decl);
-  void PrintDeclType(clang::QualType type, llvm::StringRef decl_name);
   void PrintPragmas(clang::Decl *decl);
   void ProcessDeclGroup(llvm::SmallVectorImpl<clang::Decl *> &decls);
 
  public:
-  DeclTokenizer(std::list<Token> &out, const clang::ASTUnit &unit)
-      : out(out), unit(unit) {}
+  DeclTokenizer(std::list<Token> &out, const clang::ASTUnit &unit,
+                unsigned indent = 0U)
+      : out(out), unit(unit), indent(indent) {}
 
   void PrintGroup(clang::Decl **begin, unsigned num_decls);
 
@@ -63,12 +98,20 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   std::list<Token> &out;
   const clang::ASTUnit &unit;
 
+  unsigned indent;
+
+  void Indent();
   void PrintStmt(clang::Stmt *stmt);
+  void PrintRawInitStmt(clang::Stmt *stmt, unsigned prefix_width);
   void PrintExpr(clang::Expr *expr);
+  void PrintRawCompoundStmt(clang::CompoundStmt *stmt);
+  void PrintRawDeclStmt(clang::DeclStmt *stmt);
+  void PrintRawIfStmt(clang::IfStmt *ifstmt);
 
  public:
-  StmtTokenizer(std::list<Token> &out, const clang::ASTUnit &unit)
-      : out(out), unit(unit) {}
+  StmtTokenizer(std::list<Token> &out, const clang::ASTUnit &unit,
+                unsigned indent = 0U)
+      : out(out), unit(unit), indent(indent) {}
 
   void VisitStmt(clang::Stmt *stmt) {
     LOG(FATAL) << "Unimplemented stmt handler!";

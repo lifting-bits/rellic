@@ -208,7 +208,30 @@ static bool GeneratePseudocode(llvm::Module& module,
     // if (it != stmt_provenance.end()) {
     //   output << "/* " << rellic::LLVMThingToString(it->second) << " */";
     // }
-    output << tok.str;
+    switch (tok.GetKind()) {
+      case rellic::TokenKind::Stmt:
+      case rellic::TokenKind::Decl:
+      case rellic::TokenKind::Type:
+      case rellic::TokenKind::Misc:
+        output << tok.GetString();
+        break;
+
+      case rellic::TokenKind::Space:
+        output << ' ';
+        break;
+
+      case rellic::TokenKind::Newline:
+        output << '\n';
+        break;
+
+      case rellic::TokenKind::Indent:
+        output << "    ";
+        break;
+
+      default:
+        LOG(FATAL) << "Unknown token type!";
+        break;
+    }
   }
 
   // ast_unit->getASTContext().getTranslationUnitDecl()->print(output);

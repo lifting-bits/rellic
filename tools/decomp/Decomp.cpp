@@ -23,6 +23,7 @@
 
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
+#include "rellic/AST/DebugInfoVisitor.h"
 #include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
@@ -101,13 +102,15 @@ static void UpdateProvenanceMap(StmtToIRMap& provenance,
 static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
+  rellic::DebugInfoVisitor visitor;
+  visitor.visit(module);
 
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module.getTargetTriple()};
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
   llvm::legacy::PassManager pm_ast;
-  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
+  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit, visitor.GetIRToNameMap())};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
   pm_ast.add(gr);
   pm_ast.add(dse);

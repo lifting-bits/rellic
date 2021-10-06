@@ -14,6 +14,7 @@
 
 #include <unordered_set>
 
+#include "rellic/AST/DebugInfoVisitor.h"
 #include "rellic/AST/IRToASTVisitor.h"
 
 namespace rellic {
@@ -51,7 +52,7 @@ class GenerateAST : public llvm::ModulePass {
  public:
   static char ID;
 
-  GenerateAST(clang::ASTUnit &unit);
+  GenerateAST(clang::ASTUnit &unit, IRToNameMap &names);
 
   IRToStmtMap &GetIRToStmtMap() { return ast_gen.GetIRToStmtMap(); }
 

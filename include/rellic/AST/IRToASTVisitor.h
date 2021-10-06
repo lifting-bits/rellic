@@ -14,6 +14,7 @@
 #include <llvm/IR/Operator.h>
 #include <llvm/IR/Value.h>
 #include <rellic/AST/Util.h>
+#include <rellic/AST/DebugInfoVisitor.h>
 
 #include <memory>
 #include <unordered_map>
@@ -36,6 +37,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;
   IRToStmtMap stmts;
+  IRToNameMap &names;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type);
@@ -45,7 +47,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit);
+  IRToASTVisitor(clang::ASTUnit &unit, IRToNameMap &names);
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);

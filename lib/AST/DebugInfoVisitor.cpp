@@ -23,6 +23,13 @@ void DebugInfoVisitor::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
   auto* loc = inst.getVariableLocation();
 
   names[loc] = var->getName().str();
+  scopes[loc] = var->getScope();
+}
+
+void DebugInfoVisitor::visitInstruction(llvm::Instruction& inst) {
+  if (auto* loc = inst.getDebugLoc().get()) {
+    scopes[&inst] = loc->getScope();
+  }
 }
 
 }  // namespace rellic

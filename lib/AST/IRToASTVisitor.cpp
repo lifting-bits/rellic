@@ -22,8 +22,8 @@
 
 namespace rellic {
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit, IRToNameMap &names)
-    : ast_ctx(unit.getASTContext()), ast(unit), names(names) {}
+IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit, IRToNameMap &names_)
+    : ast_ctx(unit.getASTContext()), ast(unit), names(names_) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
@@ -619,7 +619,7 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     auto name{inst.getName().str()};
     if (name.empty()) {
       auto debug_name = names.find(&inst);
-      if(debug_name != names.end()) {
+      if (debug_name != names.end()) {
         name = debug_name->second;
       } else {
         name = "var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl));

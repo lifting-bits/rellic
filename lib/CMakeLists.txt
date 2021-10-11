@@ -12,6 +12,7 @@ add_library(${PROJECT_NAME} STATIC
   AST/ExprCombine.cpp
   AST/GenerateAST.cpp
   AST/IRToASTVisitor.cpp
+  AST/LocalDeclRenamer.cpp
   AST/LoopRefine.cpp
   AST/NestedCondProp.cpp
   AST/NestedScopeCombine.cpp

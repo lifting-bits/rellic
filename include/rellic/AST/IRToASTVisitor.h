@@ -8,13 +8,14 @@
 
 #pragma once
 
+#include <clang/AST/Decl.h>
 #include <clang/AST/Stmt.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/Operator.h>
 #include <llvm/IR/Value.h>
-#include <rellic/AST/Util.h>
 #include <rellic/AST/DebugInfoVisitor.h>
+#include <rellic/AST/Util.h>
 
 #include <memory>
 #include <unordered_map>
@@ -27,6 +28,7 @@ namespace rellic {
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+using ValDeclToIRMap = std::unordered_map<clang::Decl *, llvm::Value *>;
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
@@ -36,8 +38,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;
+  ValDeclToIRMap inverse_value_decls;
   IRToStmtMap stmts;
-  IRToNameMap &names;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type);
@@ -47,12 +49,13 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit, IRToNameMap &names);
+  IRToASTVisitor(clang::ASTUnit &unit);
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
 
   IRToStmtMap &GetIRToStmtMap() { return stmts; }
+  ValDeclToIRMap &GetValDeclToIRMap() { return inverse_value_decls; }
 
   void VisitGlobalVar(llvm::GlobalVariable &var);
   void VisitFunctionDecl(llvm::Function &func);

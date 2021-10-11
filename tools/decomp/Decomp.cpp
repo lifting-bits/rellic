@@ -27,6 +27,7 @@
 #include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
+#include "rellic/AST/LocalDeclRenamer.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
@@ -110,10 +111,13 @@ static bool GeneratePseudocode(llvm::Module& module,
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
   llvm::legacy::PassManager pm_ast;
-  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit, visitor.GetIRToNameMap())};
+  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
+  rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
+      *ast_unit, visitor.GetIRToNameMap(), gr->GetValDeclToIRMap())};
   pm_ast.add(gr);
   pm_ast.add(dse);
+  pm_ast.add(ldr);
   pm_ast.run(module);
 
   StmtToIRMap stmt_provenance;

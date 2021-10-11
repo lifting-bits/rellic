@@ -15,8 +15,10 @@
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/LoopInfo.h>
+#include <llvm/IR/DebugInfoMetadata.h>
 
 #include <algorithm>
+#include <unordered_set>
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
@@ -367,10 +369,10 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 char GenerateAST::ID = 0;
 
-GenerateAST::GenerateAST(clang::ASTUnit &unit, IRToNameMap &names)
+GenerateAST::GenerateAST(clang::ASTUnit &unit)
     : ModulePass(GenerateAST::ID),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(unit, names),
+      ast_gen(unit),
       ast(unit) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {

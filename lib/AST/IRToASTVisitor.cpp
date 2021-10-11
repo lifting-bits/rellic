@@ -22,8 +22,8 @@
 
 namespace rellic {
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit, IRToNameMap &names_)
-    : ast_ctx(unit.getASTContext()), ast(unit), names(names_) {}
+IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
+    : ast_ctx(unit.getASTContext()), ast(unit) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
@@ -353,7 +353,6 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
   } else {
     LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
   }
-
   return decl;
 }
 
@@ -618,14 +617,10 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
     auto name{inst.getName().str()};
     if (name.empty()) {
-      auto debug_name = names.find(&inst);
-      if (debug_name != names.end()) {
-        name = debug_name->second;
-      } else {
-        name = "var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl));
-      }
+      name = "var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl));
     }
     var = ast.CreateVarDecl(fdecl, GetQualType(inst.getAllocatedType()), name);
+    inverse_value_decls[var] = &inst;
     fdecl->addDecl(var);
   }
 

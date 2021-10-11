@@ -2,6 +2,7 @@ name: Run AnghaBench CI Cron Jobs
 
 on:
   # Run this workflow every day at 3am
+  pull_request:
   schedule:
    - cron: "0 3 * * *"
 

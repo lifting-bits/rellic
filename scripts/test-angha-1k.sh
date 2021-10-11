@@ -112,13 +112,13 @@ do
     fi
 
     # This is currently informational only
-    mkdir -p "$(pwd)/recompile/${arch}"
-    ${SRC_DIR}/external/lifting-tools-ci/tool_run_scripts/recompile.py \
-        --clang "clang-${LLVM_VERSION}" \
-        --input-dir "$(pwd)/decompile/${arch}" \
-        --output-dir "$(pwd)/recompile/${arch}" \
-        --run-name "recompile-live-ci-${arch}" \
-        --dump-stats
+    #    mkdir -p "$(pwd)/recompile/${arch}"
+    #    ${SRC_DIR}/external/lifting-tools-ci/tool_run_scripts/recompile.py \
+    #        --clang "clang-${LLVM_VERSION}" \
+    #        --input-dir "$(pwd)/decompile/${arch}" \
+    #        --output-dir "$(pwd)/recompile/${arch}" \
+    #        --run-name "recompile-live-ci-${arch}" \
+    #        --dump-stats
 done
 
 if [[ "${FAILED}" = "no" ]]

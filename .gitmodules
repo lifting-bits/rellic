@@ -4,4 +4,4 @@
 [submodule "external/lifting-tools-ci"]
 	path = external/lifting-tools-ci
 	url = https://github.com/lifting-bits/lifting-tools-ci.git
-	branch = master
+	branch = do_ci_fix

@@ -38,7 +38,12 @@ bool LocalDeclRenamer::VisitDeclStmt(clang::DeclStmt *stmt) {
       return true;
     }
 
-    decl->setDeclName(ast.CreateIdentifier(name->second));
+    // Append the automatically-generated name to the debug-info name in order
+    // to avoid any lexical scoping issue
+    // FIXME: Recover proper lexical scoping from debug info metadata
+    auto old_name = decl->getName().str();
+    auto new_name = name->second + "_" + old_name;
+    decl->setDeclName(ast.CreateIdentifier(new_name));
   }
 
   return true;

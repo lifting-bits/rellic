@@ -25,7 +25,6 @@ class LocalDeclRenamer : public llvm::ModulePass,
  private:
   ASTBuilder ast;
   clang::ASTContext *ast_ctx;
-  DeclMap old_to_new;
 
   ValDeclToIRMap &decls;
   IRToNameMap &names;
@@ -37,7 +36,6 @@ class LocalDeclRenamer : public llvm::ModulePass,
                    ValDeclToIRMap &decls);
 
   bool VisitDeclStmt(clang::DeclStmt *stmt);
-  bool VisitDeclRefExpr(clang::DeclRefExpr *expr);
 
   bool runOnModule(llvm::Module &module) override;
 };

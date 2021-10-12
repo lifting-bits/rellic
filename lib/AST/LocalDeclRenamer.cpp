@@ -38,21 +38,9 @@ bool LocalDeclRenamer::VisitDeclStmt(clang::DeclStmt *stmt) {
       return true;
     }
 
-    auto *old_decl = clang::cast<clang::VarDecl>(decl);
-    auto *new_decl = ast.CreateVarDecl(old_decl->getDeclContext(),
-                                       old_decl->getType(), name->second);
-    old_to_new[old_decl] = new_decl;
-    substitutions[stmt] = ast.CreateDeclStmt(new_decl);
+    decl->setDeclName(ast.CreateIdentifier(name->second));
   }
 
-  return true;
-}
-
-bool LocalDeclRenamer::VisitDeclRefExpr(clang::DeclRefExpr *expr) {
-  auto new_decl = old_to_new.find(expr->getDecl());
-  if (new_decl != old_to_new.end()) {
-    expr->setDecl(new_decl->second);
-  }
   return true;
 }
 

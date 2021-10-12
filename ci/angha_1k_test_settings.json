@@ -1,5 +1,16 @@
 {
 	"tests.ignore": [
+        "amd64/RetroArch/deps/libz/extr_gzwrite.c_gz_zero.bc",
+        "amd64/Quake-III-Arena/code/botlib/extr_be_aas_sample.c_AAS_BBoxAreas.bc",
+        "amd64/fastsocket/kernel/drivers/power/extr_wm831x_power.c_wm831x_battey_apply_config.bc",
+        "amd64/linux/drivers/video/fbdev/via/extr_via-core.c_via_pci_setup_mmio.bc",
+        "amd64/linux/drivers/s390/crypto/extr_zcrypt_api.c_is_desired_ep11_card.bc",
+        "amd64/linux/fs/ceph/extr_mds_client.c_ceph_alloc_readdir_reply_buffer.bc",
+        "amd64/sumatrapdf/ext/unarr/lzmasdk/extr_Ppmd8.c_CreateSuccessors.bc",
+        "amd64/linux/tools/spi/extr_spidev_fdx.c_main.bc",
+        "amd64/exploitdb/exploits/unix/remote/extr_19645.c_main.bc",
+        "amd64/DOOM/sndserv/extr_soundsrv.c_main.bc",
+        "amd64/linux/drivers/acpi/extr_acpi_pnp.c_is_cmos_rtc_device.bc",
         "amd64/freebsd/sys/contrib/octeon-sdk/extr_cvmx-nand.c___cvmx_nand_get_free_cmd_bytes.bc",
         "amd64/freebsd/contrib/ncurses/ncurses/win32con/extr_win_driver.c_drv_doupdate.bc",
         "amd64/radare2/shlr/gdb/src/gdbserver/extr_core.c__server_handle_exec_file_read.bc",

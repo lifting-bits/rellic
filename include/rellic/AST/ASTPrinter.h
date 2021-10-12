@@ -61,6 +61,11 @@ class Token {
 
   const std::string &GetString() { return str; }
   TokenKind GetKind() { return kind; }
+
+  clang::Stmt *GetStmt() {
+    CHECK(std::holds_alternative<clang::Stmt *>(node));
+    return std::get<clang::Stmt *>(node);
+  }
 };
 
 class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {

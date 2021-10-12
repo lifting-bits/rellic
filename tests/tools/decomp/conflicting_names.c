@@ -1,6 +1,8 @@
 extern int atoi(const char *);
 
-int main(int argc, char *argv[]) {
+int main(void) {
+  int argc = 0;
+  char **argv = 0;
   int ret = 0;
   if (1 < argc) {
     int argc = atoi(argv[1]);

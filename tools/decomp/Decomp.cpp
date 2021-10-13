@@ -111,7 +111,7 @@ static bool GeneratePseudocode(llvm::Module& module,
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
   llvm::legacy::PassManager pm_ast;
-  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
+  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit, visitor)};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
   rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
       *ast_unit, visitor.GetIRToNameMap(), gr->GetValDeclToIRMap())};

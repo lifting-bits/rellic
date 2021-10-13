@@ -16,6 +16,7 @@
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <rellic/AST/DebugInfoVisitor.h>
 
 #include <algorithm>
 #include <unordered_set>
@@ -369,10 +370,10 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 char GenerateAST::ID = 0;
 
-GenerateAST::GenerateAST(clang::ASTUnit &unit)
+GenerateAST::GenerateAST(clang::ASTUnit &unit, DebugInfoVisitor &debug_info)
     : ModulePass(GenerateAST::ID),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(unit),
+      ast_gen(unit, debug_info),
       ast(unit) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {

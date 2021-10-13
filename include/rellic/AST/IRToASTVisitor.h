@@ -33,6 +33,7 @@ using ValDeclToIRMap = std::unordered_map<clang::Decl *, llvm::Value *>;
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
   clang::ASTContext &ast_ctx;
+  DebugInfoVisitor &debug_info;
 
   ASTBuilder ast;
 
@@ -42,14 +43,14 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   IRToStmtMap stmts;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
-  clang::QualType GetQualType(llvm::Type *type);
+  clang::QualType GetQualType(llvm::Type *type, llvm::DIType *di);
 
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
 
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit);
+  IRToASTVisitor(clang::ASTUnit &unit, DebugInfoVisitor &debug_info);
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);

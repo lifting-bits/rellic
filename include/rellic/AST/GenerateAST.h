@@ -52,7 +52,7 @@ class GenerateAST : public llvm::ModulePass {
  public:
   static char ID;
 
-  GenerateAST(clang::ASTUnit &unit);
+  GenerateAST(clang::ASTUnit &unit, DebugInfoVisitor &debug_info);
 
   IRToStmtMap &GetIRToStmtMap() { return ast_gen.GetIRToStmtMap(); }
   ValDeclToIRMap &GetValDeclToIRMap() { return ast_gen.GetValDeclToIRMap(); }

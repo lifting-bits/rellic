@@ -25,8 +25,6 @@ jobs:
           - { name: 'ubuntu', tag: '18.04' }
           - { name: 'ubuntu', tag: '20.04' }
         llvm: [
-          '10',
-          '11',
           '12'
           ]
 
@@ -79,8 +77,8 @@ jobs:
         run: |
           rellic-decomp-${{ matrix.llvm }}.0 --version
 
-      - name: Run Integration Tests (AnghaBench 1K, LLVM 11)
-        if: ${{ matrix.llvm == '11' && matrix.ubuntu == '20.04' }}
+      - name: Run Integration Tests (AnghaBench 1K, LLVM 12)
+        if: ${{ matrix.llvm == '12' && matrix.image.tag == '20.04' }}
         shell: bash
         run: |
           apt-get install -y clang-${{ matrix.llvm }}
@@ -111,7 +109,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [
-          'macos-10.15'
+          'macos-11'
           ]
         llvm: [
           '12'
@@ -195,8 +193,8 @@ jobs:
           zip -r9 rellic_ubuntu-20.04_packages.zip \
                   ubuntu-20.04*
 
-          zip -r9 rellic_macos-10.15_packages.zip \
-                  macos-10.15*
+          zip -r9 rellic_macos-11_packages.zip \
+                  macos-11*
 
       - name: Upload the Ubuntu 18.04 packages
         uses: actions/upload-release-asset@v1
@@ -222,7 +220,7 @@ jobs:
           asset_name: rellic_ubuntu-20.04_packages.zip
           asset_content_type: application/gzip
 
-      - name: Upload the macOS 10.15 packages
+      - name: Upload the macOS 11 packages
         uses: actions/upload-release-asset@v1
 
         env:
@@ -230,8 +228,8 @@ jobs:
 
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: rellic_macos-10.15_packages.zip
-          asset_name: rellic_macos-10.15_packages.zip
+          asset_path: rellic_macos-11_packages.zip
+          asset_name: rellic_macos-11_packages.zip
           asset_content_type: application/gzip
 
   Docker_Linux:

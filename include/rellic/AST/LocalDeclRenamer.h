@@ -14,6 +14,7 @@
 #include <llvm/Pass.h>
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "rellic/AST/DebugInfoVisitor.h"
 #include "rellic/AST/IRToASTVisitor.h"
@@ -30,7 +31,9 @@ class LocalDeclRenamer : public llvm::ModulePass,
   clang::ASTContext *ast_ctx;
 
   ValDeclToIRMap decls;
+  std::unordered_set<std::string> seen_names;
   IRToNameMap &names;
+  IRToValDeclMap &inv_decl;
 
  public:
   static char ID;
@@ -39,6 +42,7 @@ class LocalDeclRenamer : public llvm::ModulePass,
                    IRToValDeclMap &decls);
 
   bool VisitDeclStmt(clang::DeclStmt *stmt);
+  bool VisitFunctionDecl(clang::FunctionDecl *decl);
 
   bool runOnModule(llvm::Module &module) override;
 };

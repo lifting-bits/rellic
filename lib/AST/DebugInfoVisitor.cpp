@@ -100,6 +100,13 @@ void DebugInfoVisitor::visitFunction(llvm::Function& func) {
   if (auto* subprogram = func.getSubprogram()) {
     auto* ditype = subprogram->getType();
     funcs[&func] = ditype;
+
+    if (func.arg_size() + 1 != ditype->getTypeArray().size()) {
+      // Debug metadata is not compatible with bitcode, bail out
+      // FIXME: Find a way to reconcile differences
+      return;
+    }
+
     CHECK(func.arg_size() + 1 == ditype->getTypeArray().size());
     size_t i = 1;
     for (auto& arg : func.args()) {

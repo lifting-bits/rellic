@@ -13,6 +13,8 @@
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/Support/Casting.h>
 
+#include <unordered_set>
+
 #include "rellic/AST/Compat/Stmt.h"
 
 namespace rellic {
@@ -55,13 +57,22 @@ bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
     return true;
   }
 
+  std::unordered_set<std::string> seen_names;
+
   for (size_t i = 0; i < decl_fields.size(); i++) {
     auto *decl_field = decl_fields[i];
     auto *di_field = di_fields[i];
 
-    auto old_name = decl_field->getName().str();
+    // FIXME: Is a clash between field names actually possible?
+    // Can this mechanism actually be left out?
     auto name = di_field->getName().str();
-    decl_field->setDeclName(ast.CreateIdentifier(name + "_" + old_name));
+    if (seen_names.find(name) == seen_names.end()) {
+      seen_names.insert(name);
+      decl_field->setDeclName(ast.CreateIdentifier(name));
+    } else {
+      auto old_name = decl_field->getName().str();
+      decl_field->setDeclName(ast.CreateIdentifier(name + "_" + old_name));
+    }
   }
 
   return true;

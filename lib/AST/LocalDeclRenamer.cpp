@@ -23,11 +23,8 @@ LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names_,
     : ModulePass(LocalDeclRenamer::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      names(names_) {
-  for (auto &pair : decls_) {
-    decls[pair.second] = pair.first;
-  }
-}
+      names(names_),
+      inv_decl(decls_) {}
 
 bool LocalDeclRenamer::VisitDeclStmt(clang::DeclStmt *stmt) {
   if (auto *decl = clang::cast<clang::VarDecl>(stmt->getSingleDecl())) {
@@ -41,20 +38,34 @@ bool LocalDeclRenamer::VisitDeclStmt(clang::DeclStmt *stmt) {
       return true;
     }
 
-    // Append the automatically-generated name to the debug-info name in order
-    // to avoid any lexical scoping issue
-    // FIXME: Recover proper lexical scoping from debug info metadata
-    auto old_name = decl->getName().str();
-    auto new_name = name->second + "_" + old_name;
-    decl->setDeclName(ast.CreateIdentifier(new_name));
+    if (seen_names.find(name->second) == seen_names.end()) {
+      seen_names.insert(name->second);
+      decl->setDeclName(ast.CreateIdentifier(name->second));
+    } else {
+      // Append the automatically-generated name to the debug-info name in order
+      // to avoid any lexical scoping issue
+      // FIXME: Recover proper lexical scoping from debug info metadata
+      auto old_name = decl->getName().str();
+      auto new_name = name->second + "_" + old_name;
+      decl->setDeclName(ast.CreateIdentifier(new_name));
+    }
   }
 
+  return true;
+}
+
+bool LocalDeclRenamer::VisitFunctionDecl(clang::FunctionDecl *decl) {
+  // New function, new scope: forget all previously seen names
+  seen_names = {};
   return true;
 }
 
 bool LocalDeclRenamer::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Renaming local declarations";
   Initialize();
+  for (auto &pair : inv_decl) {
+    decls[pair.second] = pair.first;
+  }
   TraverseDecl(ast_ctx->getTranslationUnitDecl());
   return changed;
 }

@@ -73,7 +73,7 @@ def roundtrip(self, rellic, filename, clang, timeout, translate_only):
         cp1 = run_cmd([out1], timeout)
 
         rt_bc = os.path.join(tempdir, "rt.bc")
-        compile(self, clang, filename, rt_bc, timeout, ["-c", "-emit-llvm"])
+        compile(self, clang, filename, rt_bc, timeout, ["-c", "-emit-llvm", "-g3"])
 
         rt_c = os.path.join(tempdir, "rt.c")
         decompile(self, rellic, rt_bc, rt_c, timeout)

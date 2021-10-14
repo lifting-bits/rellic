@@ -69,7 +69,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
         auto *basictype = llvm::cast<llvm::DIBasicType>(di);
         auto signedness = basictype->getSignedness().getValueOr(
             llvm::DIBasicType::Signedness::Unsigned);
-        sign = signedness == llvm::DIBasicType::Signedness::Signed ? 1 : 0;
+        sign = signedness == llvm::DIBasicType::Signedness::Signed;
       }
       result = ast.GetLeastIntTypeForBitWidth(size, sign);
     } break;

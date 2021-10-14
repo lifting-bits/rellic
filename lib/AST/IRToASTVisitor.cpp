@@ -6,17 +6,17 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#include <llvm/IR/DebugInfoMetadata.h>
-
-#include <algorithm>
 #define GOOGLE_STRIP_LOG 1
+
+#include "rellic/AST/IRToASTVisitor.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/IR/DebugInfoMetadata.h>
 
+#include <algorithm>
 #include <iterator>
 
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/BC/Compat/DerivedTypes.h"
 #include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Compat/Value.h"
@@ -33,10 +33,6 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
   auto typedi = debug_info.GetIRTypeToDITypeMap();
   if (!di) {
     di = typedi[type];
-  }
-
-  if (di && llvm::isa<llvm::DIDerivedType>(di)) {
-    di = llvm::cast<llvm::DIDerivedType>(di)->getBaseType();
   }
 
   clang::QualType result;
@@ -66,7 +62,11 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
       int sign = 0;
       if (di) {
-        auto *basictype = llvm::cast<llvm::DIBasicType>(di);
+        while (auto *derived = llvm::dyn_cast<llvm::DIDerivedType>(di)) {
+          di = derived->getBaseType();
+        }
+
+        auto *basictype = llvm::dyn_cast<llvm::DIBasicType>(di);
         auto signedness = basictype->getSignedness().getValueOr(
             llvm::DIBasicType::Signedness::Unsigned);
         sign = signedness == llvm::DIBasicType::Signedness::Signed;
@@ -99,12 +99,23 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
 
     case llvm::Type::PointerTyID: {
       auto ptr{llvm::cast<llvm::PointerType>(type)};
-      result = ast_ctx.getPointerType(GetQualType(ptr->getElementType(), di));
+      llvm::DIType *ditype = nullptr;
+      if (di) {
+        auto *derived = llvm::cast<llvm::DIDerivedType>(di);
+        ditype = derived->getBaseType();
+      }
+      result =
+          ast_ctx.getPointerType(GetQualType(ptr->getElementType(), ditype));
     } break;
 
     case llvm::Type::ArrayTyID: {
       auto arr{llvm::cast<llvm::ArrayType>(type)};
-      auto elm{GetQualType(arr->getElementType(), di)};
+      llvm::DIType *elmtype = nullptr;
+      if (di) {
+        auto *composite = llvm::cast<llvm::DICompositeType>(di);
+        elmtype = llvm::cast<llvm::DIType>(composite->getBaseType());
+      }
+      auto elm{GetQualType(arr->getElementType(), elmtype)};
       result = GetConstantArrayType(ast_ctx, elm, arr->getNumElements());
     } break;
 
@@ -159,7 +170,15 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
     default: {
       if (type->isVectorTy()) {
         auto vtype{llvm::cast<llvm::VectorType>(type)};
-        auto etype{GetQualType(vtype->getElementType(), di)};
+        llvm::DIType *elmtype = nullptr;
+        if (di) {
+          if (auto *derived = llvm::dyn_cast<llvm::DIDerivedType>(di)) {
+            di = derived->getBaseType();
+          }
+          auto *vec = llvm::cast<llvm::DICompositeType>(di);
+          elmtype = vec->getBaseType();
+        }
+        auto etype{GetQualType(vtype->getElementType(), elmtype)};
         auto ecnt{GetNumElements(vtype)};
         auto vkind{clang::VectorType::GenericVector};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
@@ -436,6 +455,7 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   if (parm) {
     return;
   }
+  auto *di = debug_info.GetIRArgToDITypeMap()[&arg];
   // Create a name
   auto name{arg.hasName() ? arg.getName().str()
                           : "arg" + std::to_string(arg.getArgNo())};
@@ -443,7 +463,7 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
   // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, GetQualType(arg.getType(), nullptr), name);
+  parm = ast.CreateParamDecl(fdecl, GetQualType(arg.getType(), di), name);
 }
 
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
@@ -460,9 +480,11 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
     return;
   }
 
+  auto *di = debug_info.GetIRFuncToDITypeMap()[&func];
+
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto type{GetQualType(func.getFunctionType(), nullptr)};
+  auto type{GetQualType(func.getFunctionType(), di)};
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
   tudecl->addDecl(decl);

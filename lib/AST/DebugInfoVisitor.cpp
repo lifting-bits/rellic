@@ -6,20 +6,20 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/Support/Casting.h>
-
-#include <utility>
 #define GOOGLE_STRIP_LOG 1
+
+#include "rellic/AST/DebugInfoVisitor.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/Support/Casting.h>
 
 #include <algorithm>
 #include <iterator>
+#include <utility>
 
-#include "rellic/AST/DebugInfoVisitor.h"
 #include "rellic/AST/Util.h"
 #include "rellic/BC/Util.h"
 
@@ -81,7 +81,7 @@ void DebugInfoVisitor::walkType(llvm::Type* type, llvm::DIType* ditype) {
     } break;
     case llvm::Type::ArrayTyID: {
       auto* arrtype = llvm::cast<llvm::ArrayType>(type);
-      auto* arrditype = llvm::cast<llvm::DIDerivedType>(ditype);
+      auto* arrditype = llvm::cast<llvm::DICompositeType>(ditype);
 
       walkType(arrtype->getElementType(), arrditype->getBaseType());
     } break;
@@ -98,7 +98,15 @@ void DebugInfoVisitor::walkType(llvm::Type* type, llvm::DIType* ditype) {
 
 void DebugInfoVisitor::visitFunction(llvm::Function& func) {
   if (auto* subprogram = func.getSubprogram()) {
-    walkType(func.getFunctionType(), subprogram->getType());
+    auto* ditype = subprogram->getType();
+    funcs[&func] = ditype;
+    CHECK(func.arg_size() + 1 == ditype->getTypeArray().size());
+    size_t i = 1;
+    for (auto& arg : func.args()) {
+      auto* argtype = ditype->getTypeArray()[i++];
+      args[&arg] = argtype;
+    }
+    walkType(func.getFunctionType(), ditype);
   }
 }
 

@@ -9,7 +9,9 @@
 #pragma once
 
 #include <clang/AST/Stmt.h>
+#include <llvm/IR/Argument.h>
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/InstrTypes.h>
@@ -30,6 +32,9 @@ using IRToNameMap = std::unordered_map<llvm::Value *, std::string>;
 using IRToScopeMap = std::unordered_map<llvm::Value *, llvm::DILocalScope *>;
 using IRToDITypeMap = std::unordered_map<llvm::Value *, llvm::DIType *>;
 using IRTypeToDITypeMap = std::unordered_map<llvm::Type *, llvm::DIType *>;
+using IRFuncToDITypeMap =
+    std::unordered_map<llvm::Function *, llvm::DISubroutineType *>;
+using IRArgToDITypeMap = std::unordered_map<llvm::Argument *, llvm::DIType *>;
 
 class DebugInfoVisitor : public llvm::InstVisitor<DebugInfoVisitor> {
  private:
@@ -37,6 +42,8 @@ class DebugInfoVisitor : public llvm::InstVisitor<DebugInfoVisitor> {
   IRToScopeMap scopes;
   IRToDITypeMap valtypes;
   IRTypeToDITypeMap types;
+  IRFuncToDITypeMap funcs;
+  IRArgToDITypeMap args;
 
   void walkType(llvm::Type *type, llvm::DIType *ditype);
 
@@ -45,6 +52,8 @@ class DebugInfoVisitor : public llvm::InstVisitor<DebugInfoVisitor> {
   IRToScopeMap &GetIRToScopeMap() { return scopes; }
   IRToDITypeMap &GetIRToDITypeMap() { return valtypes; }
   IRTypeToDITypeMap &GetIRTypeToDITypeMap() { return types; }
+  IRFuncToDITypeMap &GetIRFuncToDITypeMap() { return funcs; }
+  IRArgToDITypeMap &GetIRArgToDITypeMap() { return args; }
 
   void visitDbgDeclareInst(llvm::DbgDeclareInst &inst);
   void visitInstruction(llvm::Instruction &inst);

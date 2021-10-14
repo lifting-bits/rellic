@@ -41,10 +41,10 @@ def compile(self, clang, input, output, timeout, options=None):
     cmd.extend([input, "-o", output])
     p = run_cmd(cmd, timeout)
 
-    self.assertEqual(p.returncode, 0, "clang failure")
     self.assertEqual(
         len(p.stderr), 0, "errors or warnings during compilation: %s" % p.stderr
     )
+    self.assertEqual(p.returncode, 0, "clang failure")
 
     return p
 

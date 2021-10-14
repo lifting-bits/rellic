@@ -32,6 +32,7 @@
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
 #include "rellic/AST/ReachBasedRefine.h"
+#include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Version/Version.h"
@@ -111,13 +112,16 @@ static bool GeneratePseudocode(llvm::Module& module,
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
   llvm::legacy::PassManager pm_ast;
-  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit, visitor)};
+  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
   rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
-      *ast_unit, visitor.GetIRToNameMap(), gr->GetValDeclToIRMap())};
+      *ast_unit, visitor.GetIRToNameMap(), gr->GetIRToValDeclMap())};
+  rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
+      *ast_unit, visitor.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
   pm_ast.add(gr);
   pm_ast.add(dse);
   pm_ast.add(ldr);
+  pm_ast.add(sfr);
   pm_ast.run(module);
 
   StmtToIRMap stmt_provenance;

@@ -19,12 +19,15 @@ namespace rellic {
 char LocalDeclRenamer::ID = 0;
 
 LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names_,
-                                   ValDeclToIRMap &decls_)
+                                   IRToValDeclMap &decls_)
     : ModulePass(LocalDeclRenamer::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      decls(decls_),
-      names(names_) {}
+      names(names_) {
+  for (auto &pair : decls_) {
+    decls[pair.second] = pair.first;
+  }
+}
 
 bool LocalDeclRenamer::VisitDeclStmt(clang::DeclStmt *stmt) {
   if (auto *decl = clang::cast<clang::VarDecl>(stmt->getSingleDecl())) {

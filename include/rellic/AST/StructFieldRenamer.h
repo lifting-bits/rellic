@@ -10,6 +10,7 @@
 
 #include <clang/AST/Decl.h>
 #include <clang/AST/Expr.h>
+#include <clang/AST/Type.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Pass.h>
 
@@ -21,24 +22,25 @@
 
 namespace rellic {
 
-using ValDeclToIRMap = std::unordered_map<clang::ValueDecl *, llvm::Value *>;
+using TypeDeclToIRMap = std::unordered_map<clang::TypeDecl *, llvm::Type *>;
 
-class LocalDeclRenamer : public llvm::ModulePass,
-                         public TransformVisitor<LocalDeclRenamer> {
+class StructFieldRenamer : public llvm::ModulePass,
+                           public TransformVisitor<StructFieldRenamer> {
  private:
   ASTBuilder ast;
   clang::ASTContext *ast_ctx;
 
-  ValDeclToIRMap decls;
-  IRToNameMap &names;
+  TypeDeclToIRMap decls;
+  IRTypeToDITypeMap &types;
+  IRToTypeDeclMap &inv_decl;
 
  public:
   static char ID;
 
-  LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
-                   IRToValDeclMap &decls);
+  StructFieldRenamer(clang::ASTUnit &unit, IRTypeToDITypeMap &types,
+                     IRToTypeDeclMap &decls);
 
-  bool VisitDeclStmt(clang::DeclStmt *stmt);
+  bool VisitRecordDecl(clang::RecordDecl *decl);
 
   bool runOnModule(llvm::Module &module) override;
 };

@@ -35,6 +35,13 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
     di = typedi[type];
   }
 
+  if (di) {
+    while (auto *derived = llvm::dyn_cast<llvm::DIDerivedType>(di)) {
+      // Walk down the typedefs chain
+      di = derived->getBaseType();
+    }
+  }
+
   clang::QualType result;
   switch (type->getTypeID()) {
     case llvm::Type::VoidTyID:
@@ -62,10 +69,6 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
       int sign = 0;
       if (di) {
-        while (auto *derived = llvm::dyn_cast<llvm::DIDerivedType>(di)) {
-          di = derived->getBaseType();
-        }
-
         auto *basictype = llvm::dyn_cast<llvm::DIBasicType>(di);
         auto signedness = basictype->getSignedness().getValueOr(
             llvm::DIBasicType::Signedness::Unsigned);
@@ -99,13 +102,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
 
     case llvm::Type::PointerTyID: {
       auto ptr{llvm::cast<llvm::PointerType>(type)};
-      llvm::DIType *ditype = nullptr;
-      if (di) {
-        auto *derived = llvm::cast<llvm::DIDerivedType>(di);
-        ditype = derived->getBaseType();
-      }
-      result =
-          ast_ctx.getPointerType(GetQualType(ptr->getElementType(), ditype));
+      result = ast_ctx.getPointerType(GetQualType(ptr->getElementType(), di));
     } break;
 
     case llvm::Type::ArrayTyID: {
@@ -172,9 +169,6 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
         auto vtype{llvm::cast<llvm::VectorType>(type)};
         llvm::DIType *elmtype = nullptr;
         if (di) {
-          if (auto *derived = llvm::dyn_cast<llvm::DIDerivedType>(di)) {
-            di = derived->getBaseType();
-          }
           auto *vec = llvm::cast<llvm::DICompositeType>(di);
           elmtype = vec->getBaseType();
         }

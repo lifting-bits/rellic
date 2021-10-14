@@ -61,7 +61,7 @@ static clang::QualType GetDeclType(clang::Decl *decl) {
 }  // namespace
 
 void DeclTokenizer::Indent() {
-  for (auto i{0U}; i < indent; ++i) {
+  for (auto i{0U}; i < indent_level; ++i) {
     out.push_back(Token::CreateIndent());
   }
 }
@@ -113,7 +113,7 @@ void DeclTokenizer::VisitVarDecl(clang::VarDecl *vdecl) {
   std::string buf{""};
   llvm::raw_string_ostream ss(buf);
   vtype.print(ss, unit.getASTContext().getPrintingPolicy(), vdecl->getName(),
-              /*Indentation=*/0U);
+              indent_level);
 
   out.push_back(Token::CreateDecl(vdecl, ss.str()));
 
@@ -169,7 +169,11 @@ void DeclTokenizer::ProcessDeclGroup(
   decls.clear();
 }
 
-void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx) {
+void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx, bool indent) {
+  if (indent) {
+    indent_level += 1;
+  }
+  
   llvm::SmallVector<clang::Decl *, 2U> decls;
   for (auto dit = dctx->decls_begin(), dend = dctx->decls_end(); dit != dend;
        ++dit) {
@@ -251,7 +255,7 @@ void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx) {
   }
 
   if (indent) {
-    indent -= 1;
+    indent_level -= 1;
   }
 }
 
@@ -383,6 +387,8 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
       aft->getReturnType().print(ss, unit.getASTContext().getPrintingPolicy(),
                                  placeholder);
       out.push_back(Token::CreateType(aft->getReturnType(), ss.str()));
+      // TODO(surovic): This should be removed once we have a type tokenizer
+      out.push_back(Token::CreateSpace());
     }
 
     out.splice(out.end(), proto);
@@ -423,17 +429,66 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
 }
 
 void DeclTokenizer::VisitTranslationUnitDecl(clang::TranslationUnitDecl *decl) {
-  VisitDeclContext(decl);
+  VisitDeclContext(decl, false);
+}
+
+void DeclTokenizer::VisitFieldDecl(clang::FieldDecl *fdecl) {
+  // FIXME: add printing of pragma attributes if required.
+  if (fdecl->isModulePrivate()) {
+    out.push_back(Token::CreateMisc("__module_private__"));
+    out.push_back(Token::CreateSpace());
+  }
+
+  std::string buf{""};
+  llvm::raw_string_ostream ss(buf);
+  fdecl->getType().print(ss, unit.getASTContext().getPrintingPolicy(),
+                         fdecl->getName(), indent_level);
+
+  out.push_back(Token::CreateDecl(fdecl, ss.str()));
+
+  if (fdecl->isBitField()) {
+    out.push_back(Token::CreateSpace());
+    out.push_back(Token::CreateMisc(";"));
+    out.push_back(Token::CreateSpace());
+    StmtTokenizer(out, unit).Visit(fdecl->getBitWidth());
+  }
+
+  PrintAttributes(fdecl);
+}
+
+void DeclTokenizer::VisitRecordDecl(clang::RecordDecl *rdecl) {
+  if (rdecl->isModulePrivate()) {
+    out.push_back(Token::CreateMisc("__module_private__"));
+    out.push_back(Token::CreateSpace());
+  }
+
+  out.push_back(Token::CreateMisc(rdecl->getKindName().str()));
+
+  PrintAttributes(rdecl);
+
+  if (rdecl->getIdentifier()) {
+    out.push_back(Token::CreateSpace());
+    out.push_back(Token::CreateDecl(rdecl, rdecl->getNameAsString()));
+  }
+
+  if (rdecl->isCompleteDefinition()) {
+    out.push_back(Token::CreateSpace());
+    out.push_back(Token::CreateMisc("{"));
+    out.push_back(Token::CreateNewline());
+    VisitDeclContext(rdecl);
+    Indent();
+    out.push_back(Token::CreateMisc("}"));
+  }
 }
 
 void StmtTokenizer::Indent() {
-  for (auto i{0U}; i < indent; ++i) {
+  for (auto i{0U}; i < indent_level; ++i) {
     out.push_back(Token::CreateIndent());
   }
 }
 
 void StmtTokenizer::PrintStmt(clang::Stmt *stmt) {
-  indent += 1;
+  indent_level += 1;
   if (stmt && clang::isa<clang::Expr>(stmt)) {
     Indent();
     Visit(stmt);
@@ -445,12 +500,12 @@ void StmtTokenizer::PrintStmt(clang::Stmt *stmt) {
     Indent();
     out.push_back(Token::CreateStmt(nullptr, "<<<NULL STATEMENT>>>"));
   }
-  indent -= 1;
+  indent_level -= 1;
 }
 
 void StmtTokenizer::PrintRawInitStmt(clang::Stmt *stmt, unsigned prefix_width) {
   // FIXME: Cope better with odd prefix widths.
-  indent += (prefix_width + 1) / 2;
+  indent_level += (prefix_width + 1) / 2;
   if (auto declstmt = clang::dyn_cast<clang::DeclStmt>(stmt))
     PrintRawDeclStmt(declstmt);
   else {
@@ -459,7 +514,7 @@ void StmtTokenizer::PrintRawInitStmt(clang::Stmt *stmt, unsigned prefix_width) {
 
   out.push_back(Token::CreateMisc(";"));
   out.push_back(Token::CreateSpace());
-  indent -= (prefix_width + 1) / 2;
+  indent_level -= (prefix_width + 1) / 2;
 }
 
 void StmtTokenizer::PrintExpr(clang::Expr *expr) {
@@ -646,6 +701,54 @@ void StmtTokenizer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub) {
   out.push_back(Token::CreateStmt(sub, "["));
   PrintExpr(sub->getRHS());
   out.push_back(Token::CreateStmt(sub, "]"));
+}
+
+void StmtTokenizer::PrintCallArgs(clang::CallExpr *call) {
+  for (auto i{0U}, e{call->getNumArgs()}; i != e; ++i) {
+    if (i) {
+      out.push_back(Token::CreateMisc(","));
+      out.push_back(Token::CreateSpace());
+    }
+    PrintExpr(call->getArg(i));
+  }
+}
+
+void StmtTokenizer::VisitCallExpr(clang::CallExpr *call) {
+  PrintExpr(call->getCallee());
+  out.push_back(Token::CreateStmt(call, "("));
+  PrintCallArgs(call);
+  out.push_back(Token::CreateStmt(call, ")"));
+}
+
+void StmtTokenizer::VisitUnaryOperator(clang::UnaryOperator *unop) {
+  auto opc_str{clang::UnaryOperator::getOpcodeStr(unop->getOpcode()).str()};
+  if (!unop->isPostfix()) {
+    out.push_back(Token::CreateStmt(unop, opc_str));
+
+    // Print a space if this is an "identifier operator" like __real, or if
+    // it might be concatenated incorrectly like '+'.
+    switch (unop->getOpcode()) {
+      default:
+        break;
+      case clang::UO_Real:
+      case clang::UO_Imag:
+      case clang::UO_Extension:
+        out.push_back(Token::CreateSpace());
+        break;
+      case clang::UO_Plus:
+      case clang::UO_Minus:
+        if (clang::isa<clang::UnaryOperator>(unop->getSubExpr())) {
+          out.push_back(Token::CreateSpace());
+        }
+        break;
+    }
+  }
+
+  PrintExpr(unop->getSubExpr());
+
+  if (unop->isPostfix()) {
+    out.push_back(Token::CreateStmt(unop, opc_str));
+  }
 }
 
 void StmtTokenizer::VisitBinaryOperator(clang::BinaryOperator *binop) {

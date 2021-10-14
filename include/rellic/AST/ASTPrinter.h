@@ -73,7 +73,7 @@ class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
   std::list<Token> &out;
   const clang::ASTUnit &unit;
 
-  unsigned indent;
+  unsigned indent_level;
 
   void Indent();
   void PrintAttributes(clang::Decl *decl);
@@ -83,19 +83,21 @@ class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
  public:
   DeclTokenizer(std::list<Token> &out, const clang::ASTUnit &unit,
                 unsigned indent = 0U)
-      : out(out), unit(unit), indent(indent) {}
+      : out(out), unit(unit), indent_level(indent) {}
 
   void PrintGroup(clang::Decl **begin, unsigned num_decls);
 
-  void VisitDecl(clang::Decl *dec) {
+  void VisitDecl(clang::Decl *decl) {
     LOG(FATAL) << "Unimplemented decl handler!";
   }
 
   void VisitVarDecl(clang::VarDecl *decl);
   void VisitParmVarDecl(clang::ParmVarDecl *decl);
-  void VisitDeclContext(clang::DeclContext *dctx);
+  void VisitDeclContext(clang::DeclContext *dctx, bool indent = true);
   void VisitFunctionDecl(clang::FunctionDecl *decl);
   void VisitTranslationUnitDecl(clang::TranslationUnitDecl *decl);
+  void VisitFieldDecl(clang::FieldDecl *decl);
+  void VisitRecordDecl(clang::RecordDecl *decl);
 };
 
 class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
@@ -103,7 +105,7 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   std::list<Token> &out;
   const clang::ASTUnit &unit;
 
-  unsigned indent;
+  unsigned indent_level;
 
   void Indent();
   void PrintStmt(clang::Stmt *stmt);
@@ -112,11 +114,12 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   void PrintRawCompoundStmt(clang::CompoundStmt *stmt);
   void PrintRawDeclStmt(clang::DeclStmt *stmt);
   void PrintRawIfStmt(clang::IfStmt *ifstmt);
+  void PrintCallArgs(clang::CallExpr *call);
 
  public:
   StmtTokenizer(std::list<Token> &out, const clang::ASTUnit &unit,
                 unsigned indent = 0U)
-      : out(out), unit(unit), indent(indent) {}
+      : out(out), unit(unit), indent_level(indent) {}
 
   void VisitStmt(clang::Stmt *stmt) {
     LOG(FATAL) << "Unimplemented stmt handler!";
@@ -133,6 +136,8 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   void VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   void VisitImplicitCastExpr(clang::ImplicitCastExpr *cast);
   void VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
+  void VisitCallExpr(clang::CallExpr *call);
+  void VisitUnaryOperator(clang::UnaryOperator *unop);
   void VisitBinaryOperator(clang::BinaryOperator *binop);
 };
 

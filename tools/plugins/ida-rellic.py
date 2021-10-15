@@ -40,18 +40,16 @@ class rellic_decompile_function_t(ida_kernwin.action_handler_t):
         if opt_path is None:
             return False
 
-        llvm_version_list = ["11.0", "10.0", "9.0"]
+        llvm_version_list = ["12"]
 
         for llvm_version in llvm_version_list:
             anvill_decompile_json_path = which(
                 "anvill-decompile-json-" + llvm_version)
-            rellic_decomp_path = which("rellic-decomp-" + llvm_version)
+            rellic_decomp_path = which("rellic-decomp-" + llvm_version + ".0")
 
             if anvill_decompile_json_path is not None and rellic_decomp_path is not None:
-                major_llvm_version = llvm_version.split(".")[0]
-
                 remill_semantics_path = "/usr/local/share/remill/" + \
-                    major_llvm_version + "/semantics"
+                    llvm_version + "/semantics"
 
                 if not os.path.isdir(remill_semantics_path):
                     raise RuntimeError(

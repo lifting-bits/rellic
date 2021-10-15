@@ -703,6 +703,27 @@ void StmtTokenizer::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub) {
   out.push_back(Token::CreateStmt(sub, "]"));
 }
 
+void StmtTokenizer::VisitMemberExpr(clang::MemberExpr *member) {
+  PrintExpr(member->getBase());
+
+  auto pm{clang::dyn_cast<clang::MemberExpr>(member->getBase())};
+  auto pd{pm ? clang::dyn_cast<clang::FieldDecl>(pm->getMemberDecl())
+             : nullptr};
+
+  if (!pd || !pd->isAnonymousStructOrUnion()) {
+    out.push_back(Token::CreateMisc(member->isArrow() ? "->" : "."));
+  }
+
+  if (auto fd = clang::dyn_cast<clang::FieldDecl>(member->getMemberDecl())) {
+    if (fd->isAnonymousStructOrUnion()) {
+      return;
+    }
+  }
+
+  auto name{member->getMemberNameInfo().getAsString()};
+  out.push_back(Token::CreateStmt(member, name));
+}
+
 void StmtTokenizer::PrintCallArgs(clang::CallExpr *call) {
   for (auto i{0U}, e{call->getNumArgs()}; i != e; ++i) {
     if (i) {

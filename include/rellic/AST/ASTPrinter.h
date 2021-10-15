@@ -137,6 +137,7 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   void VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   void VisitImplicitCastExpr(clang::ImplicitCastExpr *cast);
   void VisitArraySubscriptExpr(clang::ArraySubscriptExpr *sub);
+  void VisitMemberExpr(clang::MemberExpr *member);
   void VisitCallExpr(clang::CallExpr *call);
   void VisitUnaryOperator(clang::UnaryOperator *unop);
   void VisitBinaryOperator(clang::BinaryOperator *binop);

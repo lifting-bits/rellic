@@ -58,6 +58,43 @@ static clang::QualType GetDeclType(clang::Decl *decl) {
   return clang::QualType();
 }
 
+static void PrintFloatingLiteral(llvm::raw_ostream &os,
+                                 clang::FloatingLiteral *lit,
+                                 bool print_suffix) {
+  llvm::SmallString<16> str;
+  lit->getValue().toString(str);
+  os << str;
+  if (str.find_first_not_of("-0123456789") == llvm::StringRef::npos) {
+    os << '.';  // Trailing dot in order to separate from ints.
+  }
+
+  if (!print_suffix) {
+    return;
+  }
+
+  // Emit suffixes.  Float literals are always a builtin float type.
+  switch (lit->getType()->castAs<clang::BuiltinType>()->getKind()) {
+    case clang::BuiltinType::Half:
+      break;  // FIXME: suffix?
+    case clang::BuiltinType::Double:
+      break;  // no suffix.
+    case clang::BuiltinType::Float16:
+      os << "F16";
+      break;
+    case clang::BuiltinType::Float:
+      os << 'F';
+      break;
+    case clang::BuiltinType::LongDouble:
+      os << 'L';
+      break;
+    case clang::BuiltinType::Float128:
+      os << 'Q';
+      break;
+    default:
+      LOG(FATAL) << "Unexpected type for float literal!";
+  }
+}
+
 }  // namespace
 
 void DeclTokenizer::Indent() {
@@ -600,9 +637,24 @@ void StmtTokenizer::PrintRawIfStmt(clang::IfStmt *ifstmt) {
   }
 }
 
-void StmtTokenizer::VisitIfStmt(clang::IfStmt *ifstmt) {
+void StmtTokenizer::VisitIfStmt(clang::IfStmt *stmt) {
   Indent();
-  PrintRawIfStmt(ifstmt);
+  PrintRawIfStmt(stmt);
+}
+
+void StmtTokenizer::VisitWhileStmt(clang::WhileStmt *stmt) {
+  Indent();
+  out.push_back(Token::CreateStmt(stmt, "while"));
+  out.push_back(Token::CreateSpace());
+  out.push_back(Token::CreateMisc("("));
+  if (const auto ds = stmt->getConditionVariableDeclStmt()) {
+    PrintRawDeclStmt(ds);
+  } else {
+    PrintExpr(stmt->getCond());
+  }
+  out.push_back(Token::CreateMisc(")"));
+  out.push_back(Token::CreateNewline());
+  PrintStmt(stmt->getBody());
 }
 
 void StmtTokenizer::VisitReturnStmt(clang::ReturnStmt *stmt) {
@@ -616,12 +668,12 @@ void StmtTokenizer::VisitReturnStmt(clang::ReturnStmt *stmt) {
   out.push_back(Token::CreateNewline());
 }
 
-void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *ilit) {
-  bool is_signed{ilit->getType()->isSignedIntegerType()};
+void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *lit) {
+  bool is_signed{lit->getType()->isSignedIntegerType()};
   std::stringstream ss;
-  ss << ilit->getValue().toString(10U, is_signed);
+  ss << lit->getValue().toString(10U, is_signed);
   // Emit suffixes.  Integer literals are always a builtin integer type.
-  switch (ilit->getType()->castAs<clang::BuiltinType>()->getKind()) {
+  switch (lit->getType()->castAs<clang::BuiltinType>()->getKind()) {
     case clang::BuiltinType::Char_S:
     case clang::BuiltinType::Char_U:
       ss << "i8";
@@ -667,7 +719,54 @@ void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *ilit) {
       break;
   }
 
-  out.push_back(Token::CreateStmt(ilit, ss.str()));
+  out.push_back(Token::CreateStmt(lit, ss.str()));
+}
+
+void StmtTokenizer::VisitFloatingLiteral(clang::FloatingLiteral *lit) {
+  std::string buf;
+  llvm::raw_string_ostream ss(buf);
+  PrintFloatingLiteral(ss, lit, /*print_suffix=*/true);
+  out.push_back(Token::CreateStmt(lit, ss.str()));
+}
+
+void StmtTokenizer::VisitStringLiteral(clang::StringLiteral *lit) {
+  std::string buf;
+  llvm::raw_string_ostream ss(buf);
+  lit->outputString(ss);
+  out.push_back(Token::CreateStmt(lit, ss.str()));
+}
+
+void StmtTokenizer::VisitInitListExpr(clang::InitListExpr *list) {
+  if (list->getSyntacticForm()) {
+    Visit(list->getSyntacticForm());
+    return;
+  }
+
+  out.push_back(Token::CreateStmt(list, "{"));
+
+  for (auto i{0U}, e{list->getNumInits()}; i != e; ++i) {
+    if (i) {
+      out.push_back(Token::CreateMisc(","));
+      out.push_back(Token::CreateSpace());
+    }
+    if (list->getInit(i)) {
+      PrintExpr(list->getInit(i));
+    } else {
+      out.push_back(Token::CreateStmt(list, "{}"));
+    }
+  }
+
+  out.push_back(Token::CreateStmt(list, "}"));
+}
+
+void StmtTokenizer::VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *lit) {
+  out.push_back(Token::CreateStmt(lit, "("));
+  std::string buf;
+  llvm::raw_string_ostream ss(buf);
+  lit->getType().print(ss, unit.getASTContext().getPrintingPolicy());
+  out.push_back(Token::CreateStmt(lit, ss.str()));
+  out.push_back(Token::CreateStmt(lit, ")"));
+  PrintExpr(lit->getInitializer());
 }
 
 void StmtTokenizer::VisitDeclRefExpr(clang::DeclRefExpr *ref) {

@@ -129,9 +129,14 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   void VisitCompoundStmt(clang::CompoundStmt *stmt);
   void VisitDeclStmt(clang::DeclStmt *stmt);
   void VisitIfStmt(clang::IfStmt *stmt);
+  void VisitWhileStmt(clang::WhileStmt *stmt);
   void VisitReturnStmt(clang::ReturnStmt *stmt);
 
-  void VisitIntegerLiteral(clang::IntegerLiteral *ilit);
+  void VisitIntegerLiteral(clang::IntegerLiteral *lit);
+  void VisitFloatingLiteral(clang::FloatingLiteral *lit);
+  void VisitStringLiteral(clang::StringLiteral *lit);
+  void VisitInitListExpr(clang::InitListExpr* list);
+  void VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *lit);
   void VisitDeclRefExpr(clang::DeclRefExpr *ref);
   void VisitParenExpr(clang::ParenExpr *paren);
   void VisitCStyleCastExpr(clang::CStyleCastExpr *cast);

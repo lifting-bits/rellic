@@ -26,39 +26,46 @@ LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names_,
       names(names_),
       inv_decl(decls_) {}
 
-bool LocalDeclRenamer::VisitDeclStmt(clang::DeclStmt *stmt) {
-  if (auto *decl = clang::cast<clang::VarDecl>(stmt->getSingleDecl())) {
-    auto val = decls.find(decl);
-    if (val == decls.end()) {
-      return true;
-    }
+bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
+  if (renamed_decls.find(decl) != renamed_decls.end()) {
+    return true;
+  }
+  renamed_decls.insert(decl);
 
-    auto name = names.find(val->second);
-    if (name == names.end()) {
-      return true;
-    }
+  auto val = decls.find(decl);
+  if (val == decls.end()) {
+    return true;
+  }
 
-    if (seen_names.find(name->second) == seen_names.end()) {
-      seen_names.insert(name->second);
-      decl->setDeclName(ast.CreateIdentifier(name->second));
-    } else {
-      // Append the automatically-generated name to the debug-info name in order
-      // to avoid any lexical scoping issue
-      // FIXME: Recover proper lexical scoping from debug info metadata
-      auto old_name = decl->getName().str();
-      auto new_name = name->second + "_" + old_name;
-      decl->setDeclName(ast.CreateIdentifier(new_name));
-    }
+  auto name = names.find(val->second);
+  if (name == names.end()) {
+    return true;
+  }
+
+  if (seen_names.find(name->second) == seen_names.end()) {
+    seen_names.insert(name->second);
+    decl->setDeclName(ast.CreateIdentifier(name->second));
+  } else {
+    // Append the automatically-generated name to the debug-info name in order
+    // to avoid any lexical scoping issue
+    // FIXME: Recover proper lexical scoping from debug info metadata
+    auto old_name = decl->getName().str();
+    auto new_name = name->second + "_" + old_name;
+    decl->setDeclName(ast.CreateIdentifier(new_name));
   }
 
   return true;
 }
 
 bool LocalDeclRenamer::VisitFunctionDecl(clang::FunctionDecl *decl) {
-  // New function, new scope: forget all previously seen names
   seen_names = {};
+  for (auto *param : decl->parameters()) {
+    seen_names.insert(param->getName().str());
+  }
   return true;
 }
+
+bool LocalDeclRenamer::shouldTraversePostOrder() { return false; }
 
 bool LocalDeclRenamer::runOnModule(llvm::Module &module) {
   LOG(INFO) << "Renaming local declarations";

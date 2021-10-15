@@ -32,6 +32,7 @@ class LocalDeclRenamer : public llvm::ModulePass,
 
   ValDeclToIRMap decls;
   std::unordered_set<std::string> seen_names;
+  std::unordered_set<clang::VarDecl *> renamed_decls;
   IRToNameMap &names;
   IRToValDeclMap &inv_decl;
 
@@ -41,7 +42,8 @@ class LocalDeclRenamer : public llvm::ModulePass,
   LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
                    IRToValDeclMap &decls);
 
-  bool VisitDeclStmt(clang::DeclStmt *stmt);
+  bool shouldTraversePostOrder() override;
+  bool VisitVarDecl(clang::VarDecl *decl);
   bool VisitFunctionDecl(clang::FunctionDecl *decl);
 
   bool runOnModule(llvm::Module &module) override;

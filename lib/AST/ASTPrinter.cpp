@@ -620,8 +620,11 @@ void StmtTokenizer::PrintRawIfStmt(clang::IfStmt *ifstmt) {
   if (auto cs = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
     Space();
     PrintRawCompoundStmt(cs);
-    out.push_back(ifstmt->getElse() ? Token::CreateSpace()
-                                    : Token::CreateNewline());
+    if (ifstmt->getElse()) {
+      Space();
+    } else {
+      Newline();
+    }
   } else {
     Newline();
     PrintStmt(ifstmt->getThen());
@@ -665,6 +668,29 @@ void StmtTokenizer::VisitWhileStmt(clang::WhileStmt *stmt) {
   out.push_back(Token::CreateMisc(")"));
   Newline();
   PrintStmt(stmt->getBody());
+}
+
+void StmtTokenizer::VisitDoStmt(clang::DoStmt *stmt) {
+  Indent();
+  out.push_back(Token::CreateStmt(stmt, "do"));
+  Space();
+
+  if (auto cs = clang::dyn_cast<clang::CompoundStmt>(stmt->getBody())) {
+    PrintRawCompoundStmt(cs);
+    Space();
+  } else {
+    Newline();
+    PrintStmt(stmt->getBody());
+    Indent();
+  }
+
+  out.push_back(Token::CreateStmt(stmt, "while"));
+  Space();
+  out.push_back(Token::CreateMisc("("));
+  PrintExpr(stmt->getCond());
+  out.push_back(Token::CreateMisc(")"));
+  out.push_back(Token::CreateMisc(";"));
+  Newline();
 }
 
 void StmtTokenizer::VisitReturnStmt(clang::ReturnStmt *stmt) {

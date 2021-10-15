@@ -14,7 +14,6 @@
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/Operator.h>
 #include <llvm/IR/Value.h>
-#include <rellic/AST/DebugInfoVisitor.h>
 #include <rellic/AST/Util.h>
 
 #include <memory>

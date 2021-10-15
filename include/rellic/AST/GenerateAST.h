@@ -14,7 +14,6 @@
 
 #include <unordered_set>
 
-#include "rellic/AST/DebugInfoVisitor.h"
 #include "rellic/AST/IRToASTVisitor.h"
 
 namespace rellic {

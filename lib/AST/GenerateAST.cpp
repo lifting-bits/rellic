@@ -15,8 +15,6 @@
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/LoopInfo.h>
-#include <llvm/IR/DebugInfoMetadata.h>
-#include <rellic/AST/DebugInfoVisitor.h>
 
 #include <algorithm>
 #include <unordered_set>

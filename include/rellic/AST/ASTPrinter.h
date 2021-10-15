@@ -75,7 +75,10 @@ class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
 
   unsigned indent_level;
 
+  void Space();
   void Indent();
+  void Newline();
+
   void PrintAttributes(clang::Decl *decl);
   void PrintPragmas(clang::Decl *decl);
   void ProcessDeclGroup(llvm::SmallVectorImpl<clang::Decl *> &decls);
@@ -107,7 +110,10 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
 
   unsigned indent_level;
 
+  void Space();
   void Indent();
+  void Newline();
+
   void PrintStmt(clang::Stmt *stmt);
   void PrintRawInitStmt(clang::Stmt *stmt, unsigned prefix_width);
   void PrintExpr(clang::Expr *expr);
@@ -135,7 +141,7 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   void VisitIntegerLiteral(clang::IntegerLiteral *lit);
   void VisitFloatingLiteral(clang::FloatingLiteral *lit);
   void VisitStringLiteral(clang::StringLiteral *lit);
-  void VisitInitListExpr(clang::InitListExpr* list);
+  void VisitInitListExpr(clang::InitListExpr *list);
   void VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *lit);
   void VisitDeclRefExpr(clang::DeclRefExpr *ref);
   void VisitParenExpr(clang::ParenExpr *paren);

@@ -95,13 +95,25 @@ static void PrintFloatingLiteral(llvm::raw_ostream &os,
   }
 }
 
-}  // namespace
+static void SpaceImpl(std::list<Token> &list) {
+  list.push_back(Token::CreateSpace());
+}
 
-void DeclTokenizer::Indent() {
-  for (auto i{0U}; i < indent_level; ++i) {
-    out.push_back(Token::CreateIndent());
+static void IndentImpl(std::list<Token> &list, unsigned level) {
+  for (auto i{0U}; i < level; ++i) {
+    list.push_back(Token::CreateIndent());
   }
 }
+
+static void NewlineImpl(std::list<Token> &list) {
+  list.push_back(Token::CreateNewline());
+}
+
+}  // namespace
+
+void DeclTokenizer::Space() { SpaceImpl(out); }
+void DeclTokenizer::Indent() { IndentImpl(out, indent_level); }
+void DeclTokenizer::Newline() { NewlineImpl(out); }
 
 void DeclTokenizer::PrintPragmas(clang::Decl *decl) {}
 
@@ -119,7 +131,7 @@ void DeclTokenizer::VisitVarDecl(clang::VarDecl *vdecl) {
   if (sc != clang::SC_None) {
     std::string scs_str{clang::VarDecl::getStorageClassSpecifierString(sc)};
     out.push_back(Token::CreateMisc(scs_str));
-    out.push_back(Token::CreateSpace());
+    Space();
   }
 
   switch (vdecl->getTSCSpec()) {
@@ -128,23 +140,23 @@ void DeclTokenizer::VisitVarDecl(clang::VarDecl *vdecl) {
 
     case clang::TSCS___thread:
       out.push_back(Token::CreateMisc("__thread"));
-      out.push_back(Token::CreateSpace());
+      Space();
       break;
 
     case clang::TSCS__Thread_local:
       out.push_back(Token::CreateMisc("_Thread_local"));
-      out.push_back(Token::CreateSpace());
+      Space();
       break;
 
     case clang::TSCS_thread_local:
       out.push_back(Token::CreateMisc("thread_local"));
-      out.push_back(Token::CreateSpace());
+      Space();
       break;
   }
 
   if (vdecl->isModulePrivate()) {
     out.push_back(Token::CreateMisc("__module_private__"));
-    out.push_back(Token::CreateSpace());
+    Space();
   }
 
   std::string buf{""};
@@ -156,9 +168,9 @@ void DeclTokenizer::VisitVarDecl(clang::VarDecl *vdecl) {
 
   if (auto init = vdecl->getInit()) {
     if (vdecl->getInitStyle() == clang::VarDecl::CInit) {
-      out.push_back(Token::CreateSpace());
+      Space();
       out.push_back(Token::CreateMisc("="));
-      out.push_back(Token::CreateSpace());
+      Space();
     } else {
       LOG(FATAL) << "Invalid initialization style.";
     }
@@ -191,7 +203,7 @@ void DeclTokenizer::PrintGroup(clang::Decl **begin, unsigned num_decls) {
       is_first = false;
     } else {
       out.push_back(Token::CreateMisc(","));
-      out.push_back(Token::CreateSpace());
+      Space();
     }
     Visit(*begin);
   }
@@ -202,7 +214,7 @@ void DeclTokenizer::ProcessDeclGroup(
   Indent();
   PrintGroup(decls.data(), decls.size());
   out.push_back(Token::CreateMisc(";"));
-  out.push_back(Token::CreateNewline());
+  Newline();
   decls.clear();
 }
 
@@ -283,7 +295,7 @@ void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx, bool indent) {
              ->doesThisDeclarationHaveABody())) {
       // StmtPrinter already added a newline after CompoundStmt.
     } else {
-      out.push_back(Token::CreateNewline());
+      Newline();
     }
   }
 
@@ -305,17 +317,17 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
 
     case clang::SC_Extern:
       out.push_back(Token::CreateMisc("extern"));
-      out.push_back(Token::CreateSpace());
+      Space();
       break;
 
     case clang::SC_Static:
       out.push_back(Token::CreateMisc("static"));
-      out.push_back(Token::CreateSpace());
+      Space();
       break;
 
     case clang::SC_PrivateExtern:
       out.push_back(Token::CreateMisc("__private_extern__"));
-      out.push_back(Token::CreateSpace());
+      Space();
       break;
 
     case clang::SC_Auto:
@@ -325,12 +337,12 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
 
   if (fdecl->isInlineSpecified()) {
     out.push_back(Token::CreateMisc("inline"));
-    out.push_back(Token::CreateSpace());
+    Space();
   }
 
   if (fdecl->isModulePrivate()) {
     out.push_back(Token::CreateMisc("__module_private__"));
-    out.push_back(Token::CreateSpace());
+    Space();
   }
 
   std::list<Token> proto;
@@ -356,7 +368,7 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
       for (auto i{0U}, e{fdecl->getNumParams()}; i != e; ++i) {
         if (i) {
           proto.push_back(Token::CreateMisc(","));
-          proto.push_back(Token::CreateSpace());
+          SpaceImpl(proto);
         }
         param_tokenizer.VisitParmVarDecl(fdecl->getParamDecl(i));
       }
@@ -364,7 +376,7 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
       if (ft->isVariadic()) {
         if (fdecl->getNumParams()) {
           proto.push_back(Token::CreateMisc(","));
-          proto.push_back(Token::CreateSpace());
+          SpaceImpl(proto);
         }
         proto.push_back(Token::CreateMisc("..."));
       }
@@ -373,7 +385,7 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
       for (auto i{0U}, e{fdecl->getNumParams()}; i != e; ++i) {
         if (i) {
           proto.push_back(Token::CreateMisc(","));
-          proto.push_back(Token::CreateSpace());
+          SpaceImpl(proto);
         }
         auto pdecl{fdecl->getParamDecl(i)};
         auto pname{pdecl->getNameAsString()};
@@ -385,17 +397,17 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
 
     if (ft) {
       if (ft->isConst()) {
-        proto.push_back(Token::CreateSpace());
+        SpaceImpl(proto);
         proto.push_back(Token::CreateMisc("const"));
       }
 
       if (ft->isVolatile()) {
-        proto.push_back(Token::CreateSpace());
+        SpaceImpl(proto);
         proto.push_back(Token::CreateMisc("volatile"));
       }
 
       if (ft->isRestrict()) {
-        proto.push_back(Token::CreateSpace());
+        SpaceImpl(proto);
         proto.push_back(Token::CreateMisc("restrict"));
       }
 
@@ -403,11 +415,11 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
         case clang::RQ_None:
           break;
         case clang::RQ_LValue:
-          proto.push_back(Token::CreateSpace());
+          SpaceImpl(proto);
           proto.push_back(Token::CreateMisc("&"));
           break;
         case clang::RQ_RValue:
-          proto.push_back(Token::CreateSpace());
+          SpaceImpl(proto);
           proto.push_back(Token::CreateMisc("&&"));
           break;
       }
@@ -425,7 +437,7 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
                                  placeholder);
       out.push_back(Token::CreateType(aft->getReturnType(), ss.str()));
       // TODO(surovic): This should be removed once we have a type tokenizer
-      out.push_back(Token::CreateSpace());
+      Space();
     }
 
     out.splice(out.end(), proto);
@@ -448,15 +460,15 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
     if (!fdecl->hasPrototype() && fdecl->getNumParams()) {
       // This is a K&R function definition, so we need to print the
       // parameters.
-      out.push_back(Token::CreateNewline());
+      Newline();
       for (auto i{0U}, e{fdecl->getNumParams()}; i != e; ++i) {
         Indent();
         VisitParmVarDecl(fdecl->getParamDecl(i));
         out.push_back(Token::CreateMisc(";"));
-        out.push_back(Token::CreateNewline());
+        Newline();
       }
     } else {
-      out.push_back(Token::CreateSpace());
+      Space();
     }
 
     if (fdecl->getBody()) {
@@ -473,7 +485,7 @@ void DeclTokenizer::VisitFieldDecl(clang::FieldDecl *fdecl) {
   // FIXME: add printing of pragma attributes if required.
   if (fdecl->isModulePrivate()) {
     out.push_back(Token::CreateMisc("__module_private__"));
-    out.push_back(Token::CreateSpace());
+    Space();
   }
 
   std::string buf{""};
@@ -484,9 +496,9 @@ void DeclTokenizer::VisitFieldDecl(clang::FieldDecl *fdecl) {
   out.push_back(Token::CreateDecl(fdecl, ss.str()));
 
   if (fdecl->isBitField()) {
-    out.push_back(Token::CreateSpace());
+    Space();
     out.push_back(Token::CreateMisc(";"));
-    out.push_back(Token::CreateSpace());
+    Space();
     StmtTokenizer(out, unit).Visit(fdecl->getBitWidth());
   }
 
@@ -496,7 +508,7 @@ void DeclTokenizer::VisitFieldDecl(clang::FieldDecl *fdecl) {
 void DeclTokenizer::VisitRecordDecl(clang::RecordDecl *rdecl) {
   if (rdecl->isModulePrivate()) {
     out.push_back(Token::CreateMisc("__module_private__"));
-    out.push_back(Token::CreateSpace());
+    Space();
   }
 
   out.push_back(Token::CreateMisc(rdecl->getKindName().str()));
@@ -504,25 +516,23 @@ void DeclTokenizer::VisitRecordDecl(clang::RecordDecl *rdecl) {
   PrintAttributes(rdecl);
 
   if (rdecl->getIdentifier()) {
-    out.push_back(Token::CreateSpace());
+    Space();
     out.push_back(Token::CreateDecl(rdecl, rdecl->getNameAsString()));
   }
 
   if (rdecl->isCompleteDefinition()) {
-    out.push_back(Token::CreateSpace());
+    Space();
     out.push_back(Token::CreateMisc("{"));
-    out.push_back(Token::CreateNewline());
+    Newline();
     VisitDeclContext(rdecl);
     Indent();
     out.push_back(Token::CreateMisc("}"));
   }
 }
 
-void StmtTokenizer::Indent() {
-  for (auto i{0U}; i < indent_level; ++i) {
-    out.push_back(Token::CreateIndent());
-  }
-}
+void StmtTokenizer::Space() { SpaceImpl(out); }
+void StmtTokenizer::Indent() { IndentImpl(out, indent_level); }
+void StmtTokenizer::Newline() { NewlineImpl(out); }
 
 void StmtTokenizer::PrintStmt(clang::Stmt *stmt) {
   indent_level += 1;
@@ -530,7 +540,7 @@ void StmtTokenizer::PrintStmt(clang::Stmt *stmt) {
     Indent();
     Visit(stmt);
     out.push_back(Token::CreateMisc(";"));
-    out.push_back(Token::CreateNewline());
+    Newline();
   } else if (stmt) {
     Visit(stmt);
   } else {
@@ -550,7 +560,7 @@ void StmtTokenizer::PrintRawInitStmt(clang::Stmt *stmt, unsigned prefix_width) {
   }
 
   out.push_back(Token::CreateMisc(";"));
-  out.push_back(Token::CreateSpace());
+  Space();
   indent_level -= (prefix_width + 1) / 2;
 }
 
@@ -564,7 +574,7 @@ void StmtTokenizer::PrintExpr(clang::Expr *expr) {
 
 void StmtTokenizer::PrintRawCompoundStmt(clang::CompoundStmt *stmt) {
   out.push_back(Token::CreateMisc("{"));
-  out.push_back(Token::CreateNewline());
+  Newline();
   for (auto child : stmt->body()) {
     PrintStmt(child);
   }
@@ -575,7 +585,7 @@ void StmtTokenizer::PrintRawCompoundStmt(clang::CompoundStmt *stmt) {
 void StmtTokenizer::VisitCompoundStmt(clang::CompoundStmt *stmt) {
   Indent();
   PrintRawCompoundStmt(stmt);
-  out.push_back(Token::CreateNewline());
+  Newline();
 }
 
 void StmtTokenizer::PrintRawDeclStmt(clang::DeclStmt *stmt) {
@@ -587,12 +597,12 @@ void StmtTokenizer::VisitDeclStmt(clang::DeclStmt *stmt) {
   Indent();
   PrintRawDeclStmt(stmt);
   out.push_back(Token::CreateMisc(";"));
-  out.push_back(Token::CreateNewline());
+  Newline();
 }
 
 void StmtTokenizer::PrintRawIfStmt(clang::IfStmt *ifstmt) {
   out.push_back(Token::CreateStmt(ifstmt, "if"));
-  out.push_back(Token::CreateSpace());
+  Space();
   out.push_back(Token::CreateMisc("("));
 
   if (ifstmt->getInit()) {
@@ -608,12 +618,12 @@ void StmtTokenizer::PrintRawIfStmt(clang::IfStmt *ifstmt) {
   out.push_back(Token::CreateMisc(")"));
 
   if (auto cs = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
-    out.push_back(Token::CreateSpace());
+    Space();
     PrintRawCompoundStmt(cs);
     out.push_back(ifstmt->getElse() ? Token::CreateSpace()
                                     : Token::CreateNewline());
   } else {
-    out.push_back(Token::CreateNewline());
+    Newline();
     PrintStmt(ifstmt->getThen());
     if (ifstmt->getElse()) {
       Indent();
@@ -624,14 +634,14 @@ void StmtTokenizer::PrintRawIfStmt(clang::IfStmt *ifstmt) {
     out.push_back(Token::CreateMisc("else"));
 
     if (auto cs = clang::dyn_cast<clang::CompoundStmt>(es)) {
-      out.push_back(Token::CreateSpace());
+      Space();
       PrintRawCompoundStmt(cs);
-      out.push_back(Token::CreateNewline());
+      Newline();
     } else if (auto elseif = clang::dyn_cast<clang::IfStmt>(es)) {
-      out.push_back(Token::CreateSpace());
+      Space();
       PrintRawIfStmt(elseif);
     } else {
-      out.push_back(Token::CreateNewline());
+      Newline();
       PrintStmt(ifstmt->getElse());
     }
   }
@@ -645,7 +655,7 @@ void StmtTokenizer::VisitIfStmt(clang::IfStmt *stmt) {
 void StmtTokenizer::VisitWhileStmt(clang::WhileStmt *stmt) {
   Indent();
   out.push_back(Token::CreateStmt(stmt, "while"));
-  out.push_back(Token::CreateSpace());
+  Space();
   out.push_back(Token::CreateMisc("("));
   if (const auto ds = stmt->getConditionVariableDeclStmt()) {
     PrintRawDeclStmt(ds);
@@ -653,7 +663,7 @@ void StmtTokenizer::VisitWhileStmt(clang::WhileStmt *stmt) {
     PrintExpr(stmt->getCond());
   }
   out.push_back(Token::CreateMisc(")"));
-  out.push_back(Token::CreateNewline());
+  Newline();
   PrintStmt(stmt->getBody());
 }
 
@@ -661,11 +671,11 @@ void StmtTokenizer::VisitReturnStmt(clang::ReturnStmt *stmt) {
   Indent();
   out.push_back(Token::CreateStmt(stmt, "return"));
   if (stmt->getRetValue()) {
-    out.push_back(Token::CreateSpace());
+    Space();
     PrintExpr(stmt->getRetValue());
   }
   out.push_back(Token::CreateMisc(";"));
-  out.push_back(Token::CreateNewline());
+  Newline();
 }
 
 void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *lit) {
@@ -747,7 +757,7 @@ void StmtTokenizer::VisitInitListExpr(clang::InitListExpr *list) {
   for (auto i{0U}, e{list->getNumInits()}; i != e; ++i) {
     if (i) {
       out.push_back(Token::CreateMisc(","));
-      out.push_back(Token::CreateSpace());
+      Space();
     }
     if (list->getInit(i)) {
       PrintExpr(list->getInit(i));
@@ -827,7 +837,7 @@ void StmtTokenizer::PrintCallArgs(clang::CallExpr *call) {
   for (auto i{0U}, e{call->getNumArgs()}; i != e; ++i) {
     if (i) {
       out.push_back(Token::CreateMisc(","));
-      out.push_back(Token::CreateSpace());
+      Space();
     }
     PrintExpr(call->getArg(i));
   }
@@ -853,12 +863,12 @@ void StmtTokenizer::VisitUnaryOperator(clang::UnaryOperator *unop) {
       case clang::UO_Real:
       case clang::UO_Imag:
       case clang::UO_Extension:
-        out.push_back(Token::CreateSpace());
+        Space();
         break;
       case clang::UO_Plus:
       case clang::UO_Minus:
         if (clang::isa<clang::UnaryOperator>(unop->getSubExpr())) {
-          out.push_back(Token::CreateSpace());
+          Space();
         }
         break;
     }
@@ -873,22 +883,22 @@ void StmtTokenizer::VisitUnaryOperator(clang::UnaryOperator *unop) {
 
 void StmtTokenizer::VisitBinaryOperator(clang::BinaryOperator *binop) {
   Visit(binop->getLHS());
-  out.push_back(Token::CreateSpace());
+  Space();
   out.push_back(Token::CreateStmt(binop, binop->getOpcodeStr().str()));
-  out.push_back(Token::CreateSpace());
+  Space();
   Visit(binop->getRHS());
 }
 
 void StmtTokenizer::VisitConditionalOperator(
     clang::ConditionalOperator *condop) {
   PrintExpr(condop->getCond());
-  out.push_back(Token::CreateSpace());
+  Space();
   out.push_back(Token::CreateStmt(condop, "?"));
-  out.push_back(Token::CreateSpace());
+  Space();
   PrintExpr(condop->getLHS());
-  out.push_back(Token::CreateSpace());
+  Space();
   out.push_back(Token::CreateStmt(condop, ":"));
-  out.push_back(Token::CreateSpace());
+  Space();
   PrintExpr(condop->getRHS());
 }
 

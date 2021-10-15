@@ -126,13 +126,13 @@ static void PrintJSON(llvm::raw_ostream& os, TokenList& tokens,
     llvm::json::Object json_tok;
     switch (tok.GetKind()) {
       case rellic::TokenKind::Stmt: {
-        llvm::SmallString<64U> str("");
         auto it{provenance.find(tok.GetStmt())};
         if (it != provenance.end()) {
           auto pc{GetPCMetadata(it->second)};
           if (pc.hasValue()) {
+            llvm::SmallString<64U> str("");
             pc->toStringUnsigned(str);
-            json_tok["address"] = str.str();
+            json_tok["address"] = str;
           }
         }
         json_tok["text"] = tok.GetString();
@@ -303,7 +303,7 @@ static bool GeneratePseudocode(llvm::Module& module,
     PrintJSON(output, tokens, stmt_provenance);
     return true;
   }
-  
+
   PrintC(output, tokens);
 
   // ast_unit->getASTContext().getTranslationUnitDecl()->print(output);

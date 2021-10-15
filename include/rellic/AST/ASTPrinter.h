@@ -122,6 +122,7 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
       : out(out), unit(unit), indent_level(indent) {}
 
   void VisitStmt(clang::Stmt *stmt) {
+    stmt->dump();
     LOG(FATAL) << "Unimplemented stmt handler!";
   }
 
@@ -139,6 +140,7 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   void VisitCallExpr(clang::CallExpr *call);
   void VisitUnaryOperator(clang::UnaryOperator *unop);
   void VisitBinaryOperator(clang::BinaryOperator *binop);
+  void VisitConditionalOperator(clang::ConditionalOperator *condop);
 };
 
 }  // namespace rellic

@@ -173,7 +173,7 @@ void DeclTokenizer::VisitDeclContext(clang::DeclContext *dctx, bool indent) {
   if (indent) {
     indent_level += 1;
   }
-  
+
   llvm::SmallVector<clang::Decl *, 2U> decls;
   for (auto dit = dctx->decls_begin(), dend = dctx->decls_end(); dit != dend;
        ++dit) {
@@ -757,6 +757,19 @@ void StmtTokenizer::VisitBinaryOperator(clang::BinaryOperator *binop) {
   out.push_back(Token::CreateStmt(binop, binop->getOpcodeStr().str()));
   out.push_back(Token::CreateSpace());
   Visit(binop->getRHS());
+}
+
+void StmtTokenizer::VisitConditionalOperator(
+    clang::ConditionalOperator *condop) {
+  PrintExpr(condop->getCond());
+  out.push_back(Token::CreateSpace());
+  out.push_back(Token::CreateStmt(condop, "?"));
+  out.push_back(Token::CreateSpace());
+  PrintExpr(condop->getLHS());
+  out.push_back(Token::CreateSpace());
+  out.push_back(Token::CreateStmt(condop, ":"));
+  out.push_back(Token::CreateSpace());
+  PrintExpr(condop->getRHS());
 }
 
 }  // namespace rellic

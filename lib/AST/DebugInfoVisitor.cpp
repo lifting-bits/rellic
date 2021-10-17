@@ -52,7 +52,10 @@ void DebugInfoVisitor::walkType(llvm::Type* type, llvm::DIType* ditype) {
       std::copy(params.begin(), params.end(), std::back_inserter(type_array));
 
       auto di_types = funcditype->getTypeArray();
-      CHECK(type_array.size() == di_types.size());
+      if (type_array.size() != di_types.size()) {
+        // Mismatch between bitcode and debug metadata, bail out
+        break;
+      }
       for (size_t i = 0; i < type_array.size(); i++) {
         walkType(type_array[i], di_types[i]);
       }
@@ -65,8 +68,11 @@ void DebugInfoVisitor::walkType(llvm::Type* type, llvm::DIType* ditype) {
 
       auto elems = strcttype->elements();
       auto di_elems = strctditype->getElements();
-      CHECK(elems.size() == di_elems.size());
-      for (size_t i = 0; i < types.size(); i++) {
+      if (elems.size() != di_elems.size()) {
+        // Mismatch between bitcode and debug metadata, bail out
+        break;
+      }
+      for (size_t i = 0; i < elems.size(); i++) {
         auto* field = llvm::cast<llvm::DIType>(di_elems[i]);
         walkType(elems[i], field);
       }

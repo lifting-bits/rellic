@@ -41,10 +41,22 @@ void DebugInfoVisitor::visitInstruction(llvm::Instruction& inst) {
 }
 
 void DebugInfoVisitor::walkType(llvm::Type* type, llvm::DIType* ditype) {
+  if (!ditype || types.find(type) != types.end()) {
+    return;
+  }
+
+  while (auto* derived = llvm::dyn_cast<llvm::DIDerivedType>(ditype)) {
+    ditype = derived->getBaseType();
+    if (!ditype) {
+      return;
+    }
+  }
+
   switch (type->getTypeID()) {
     case llvm::Type::FunctionTyID: {
       auto* functype = llvm::cast<llvm::FunctionType>(type);
       auto* funcditype = llvm::cast<llvm::DISubroutineType>(ditype);
+      types[type] = ditype;
 
       std::vector<llvm::Type*> type_array;
       type_array.push_back(functype->getReturnType());
@@ -59,12 +71,11 @@ void DebugInfoVisitor::walkType(llvm::Type* type, llvm::DIType* ditype) {
       for (size_t i = 0; i < type_array.size(); i++) {
         walkType(type_array[i], di_types[i]);
       }
-
-      types[type] = ditype;
     } break;
     case llvm::Type::StructTyID: {
       auto* strcttype = llvm::cast<llvm::StructType>(type);
       auto* strctditype = llvm::cast<llvm::DICompositeType>(ditype);
+      types[type] = ditype;
 
       auto elems = strcttype->elements();
       auto di_elems = strctditype->getElements();
@@ -76,27 +87,19 @@ void DebugInfoVisitor::walkType(llvm::Type* type, llvm::DIType* ditype) {
         auto* field = llvm::cast<llvm::DIType>(di_elems[i]);
         walkType(elems[i], field);
       }
-
-      types[type] = ditype;
     } break;
     case llvm::Type::PointerTyID: {
       auto* ptrtype = llvm::cast<llvm::PointerType>(type);
-      auto* ptrditype = llvm::cast<llvm::DIDerivedType>(ditype);
-
-      walkType(ptrtype->getElementType(), ptrditype->getBaseType());
+      walkType(ptrtype->getElementType(), ditype);
     } break;
     case llvm::Type::ArrayTyID: {
       auto* arrtype = llvm::cast<llvm::ArrayType>(type);
-      auto* arrditype = llvm::cast<llvm::DICompositeType>(ditype);
-
-      walkType(arrtype->getElementType(), arrditype->getBaseType());
+      walkType(arrtype->getElementType(), ditype);
     } break;
     default: {
       if (type->isVectorTy()) {
         auto* vtype = llvm::cast<llvm::VectorType>(type);
-        auto* vditype = llvm::cast<llvm::DIDerivedType>(ditype);
-
-        walkType(vtype->getElementType(), vditype->getBaseType());
+        walkType(vtype->getElementType(), ditype);
       }
     } break;
   }

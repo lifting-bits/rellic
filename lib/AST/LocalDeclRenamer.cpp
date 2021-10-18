@@ -12,6 +12,8 @@
 #include <glog/logging.h>
 #include <llvm/Support/Casting.h>
 
+#include <ios>
+
 #include "rellic/AST/Compat/Stmt.h"
 
 namespace rellic {
@@ -23,8 +25,18 @@ LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names_,
     : ModulePass(LocalDeclRenamer::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
+      seen_names(1),
       names(names_),
       inv_decl(decls_) {}
+
+bool LocalDeclRenamer::isNameVisible(const std::string &name) {
+  for (auto &scope : seen_names) {
+    if (scope.find(name) != scope.end()) {
+      return true;
+    }
+  }
+  return false;
+}
 
 bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
   if (renamed_decls.find(decl) != renamed_decls.end()) {
@@ -39,11 +51,12 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
 
   auto name = names.find(val->second);
   if (name == names.end()) {
+    seen_names.back().insert(decl->getName().str());
     return true;
   }
 
-  if (seen_names.find(name->second) == seen_names.end()) {
-    seen_names.insert(name->second);
+  if (!isNameVisible(name->second)) {
+    seen_names.back().insert(name->second);
     decl->setDeclName(ast.CreateIdentifier(name->second));
   } else {
     // Append the automatically-generated name to the debug-info name in order
@@ -52,23 +65,26 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
     auto old_name = decl->getName().str();
     auto new_name = name->second + "_" + old_name;
     decl->setDeclName(ast.CreateIdentifier(new_name));
+    seen_names.back().insert(new_name);
   }
 
   return true;
 }
 
-bool LocalDeclRenamer::VisitFunctionDecl(clang::FunctionDecl *decl) {
-  seen_names = {};
+bool LocalDeclRenamer::TraverseFunctionDecl(clang::FunctionDecl *decl) {
+  std::unordered_set<std::string> scope;
   for (auto *param : decl->parameters()) {
-    seen_names.insert(param->getName().str());
+    scope.insert(param->getName().str());
   }
+  seen_names.push_back(scope);
+  RecursiveASTVisitor<LocalDeclRenamer>::TraverseFunctionDecl(decl);
+  seen_names.pop_back();
   return true;
 }
 
 bool LocalDeclRenamer::shouldTraversePostOrder() { return false; }
 
 bool LocalDeclRenamer::runOnModule(llvm::Module &module) {
-  LOG(INFO) << "Renaming local declarations";
   Initialize();
   for (auto &pair : inv_decl) {
     decls[pair.second] = pair.first;

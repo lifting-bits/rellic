@@ -693,6 +693,13 @@ void StmtTokenizer::VisitDoStmt(clang::DoStmt *stmt) {
   Newline();
 }
 
+void StmtTokenizer::VisitBreakStmt(clang::BreakStmt *stmt) {
+  Indent();
+  out.push_back(Token::CreateStmt(stmt, "break"));
+  out.push_back(Token::CreateMisc(";"));
+  Newline();
+}
+
 void StmtTokenizer::VisitReturnStmt(clang::ReturnStmt *stmt) {
   Indent();
   out.push_back(Token::CreateStmt(stmt, "return"));

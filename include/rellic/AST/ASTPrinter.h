@@ -137,6 +137,7 @@ class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {
   void VisitIfStmt(clang::IfStmt *stmt);
   void VisitWhileStmt(clang::WhileStmt *stmt);
   void VisitDoStmt(clang::DoStmt *stmt);
+  void VisitBreakStmt(clang::BreakStmt *stmt);
   void VisitReturnStmt(clang::ReturnStmt *stmt);
 
   void VisitIntegerLiteral(clang::IntegerLiteral *lit);

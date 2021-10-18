@@ -4,6 +4,7 @@ add_library(${PROJECT_NAME} STATIC
   AST/Compat/Stmt.cpp
   
   AST/ASTBuilder.cpp
+  AST/ASTPrinter.cpp
   AST/CXXToCDecl.cpp
   AST/InferenceRule.cpp
   AST/DeadStmtElim.cpp

@@ -62,7 +62,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       for (auto param : func->params()) {
         params.push_back(GetQualType(param));
       }
-      auto epi = clang::FunctionProtoType::ExtProtoInfo();
+      auto epi{clang::FunctionProtoType::ExtProtoInfo()};
       epi.Variadic = func->isVarArg();
       result = ast_ctx.getFunctionType(ret, params, epi);
     } break;

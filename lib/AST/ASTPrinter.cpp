@@ -377,8 +377,8 @@ void DeclTokenizer::VisitFunctionDecl(clang::FunctionDecl *fdecl) {
         if (fdecl->getNumParams()) {
           proto.push_back(Token::CreateMisc(","));
           SpaceImpl(proto);
+          proto.push_back(Token::CreateMisc("..."));
         }
-        proto.push_back(Token::CreateMisc("..."));
       }
     } else if (fdecl->doesThisDeclarationHaveABody() &&
                !fdecl->hasPrototype()) {

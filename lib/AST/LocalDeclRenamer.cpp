@@ -20,14 +20,14 @@ namespace rellic {
 
 char LocalDeclRenamer::ID = 0;
 
-LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names_,
-                                   IRToValDeclMap &decls_)
+LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
+                                   IRToValDeclMap &decls)
     : ModulePass(LocalDeclRenamer::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       seen_names(1),
-      names(names_),
-      inv_decl(decls_) {}
+      names(names),
+      inv_decl(decls) {}
 
 bool LocalDeclRenamer::isNameVisible(const std::string &name) {
   for (auto &scope : seen_names) {
@@ -44,12 +44,12 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
   }
   renamed_decls.insert(decl);
 
-  auto val = decls.find(decl);
+  auto val{decls.find(decl)};
   if (val == decls.end()) {
     return true;
   }
 
-  auto name = names.find(val->second);
+  auto name{names.find(val->second)};
   if (name == names.end()) {
     seen_names.back().insert(decl->getName().str());
     return true;
@@ -61,9 +61,9 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
   } else {
     // Append the automatically-generated name to the debug-info name in order
     // to avoid any lexical scoping issue
-    // FIXME: Recover proper lexical scoping from debug info metadata
-    auto old_name = decl->getName().str();
-    auto new_name = name->second + "_" + old_name;
+    // TODO(frabert): Recover proper lexical scoping from debug info metadata
+    auto old_name{decl->getName().str()};
+    auto new_name{name->second + "_" + old_name};
     decl->setDeclName(ast.CreateIdentifier(new_name));
     seen_names.back().insert(new_name);
   }
@@ -73,7 +73,7 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
 
 bool LocalDeclRenamer::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   std::unordered_set<std::string> scope;
-  for (auto *param : decl->parameters()) {
+  for (auto param : decl->parameters()) {
     scope.insert(param->getName().str());
   }
   seen_names.push_back(scope);

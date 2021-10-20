@@ -104,8 +104,8 @@ static void UpdateProvenanceMap(StmtToIRMap& provenance,
 static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
-  rellic::DebugInfoVisitor visitor;
-  visitor.visit(module);
+  rellic::DebugInfoVisitor div;
+  div.visit(module);
 
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module.getTargetTriple()};
@@ -115,9 +115,9 @@ static bool GeneratePseudocode(llvm::Module& module,
   rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
   rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
-      *ast_unit, visitor.GetIRToNameMap(), gr->GetIRToValDeclMap())};
+      *ast_unit, div.GetIRToNameMap(), gr->GetIRToValDeclMap())};
   rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
-      *ast_unit, visitor.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
+      *ast_unit, div.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
   pm_ast.add(gr);
   pm_ast.add(dse);
   pm_ast.add(ldr);

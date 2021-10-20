@@ -8,20 +8,8 @@
 
 #pragma once
 
-#include <clang/AST/Stmt.h>
-#include <llvm/IR/Argument.h>
 #include <llvm/IR/DebugInfoMetadata.h>
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
-#include <llvm/IR/InstrTypes.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/IntrinsicInst.h>
-#include <llvm/IR/Operator.h>
-#include <llvm/IR/Type.h>
-#include <llvm/IR/Value.h>
-#include <rellic/AST/Util.h>
 
 #include <memory>
 #include <unordered_map>
@@ -45,7 +33,7 @@ class DebugInfoVisitor : public llvm::InstVisitor<DebugInfoVisitor> {
   IRFuncToDITypeMap funcs;
   IRArgToDITypeMap args;
 
-  void walkType(llvm::Type *type, llvm::DIType *ditype);
+  void WalkType(llvm::Type *type, llvm::DIType *ditype);
 
  public:
   IRToNameMap &GetIRToNameMap() { return names; }

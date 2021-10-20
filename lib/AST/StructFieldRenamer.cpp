@@ -22,24 +22,24 @@ namespace rellic {
 char StructFieldRenamer::ID = 0;
 
 StructFieldRenamer::StructFieldRenamer(clang::ASTUnit &unit,
-                                       IRTypeToDITypeMap &types_,
-                                       IRToTypeDeclMap &decls_)
+                                       IRTypeToDITypeMap &types,
+                                       IRToTypeDeclMap &decls)
     : ModulePass(StructFieldRenamer::ID),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
-      types(types_),
-      inv_decl(decls_) {}
+      types(types),
+      inv_decl(decls) {}
 
 bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
-  auto *type = decls[decl];
+  auto type{decls[decl]};
   CHECK(type);
 
-  auto *di = types[type];
+  auto di{types[type]};
   if (!di) {
     return true;
   }
 
-  auto *ditype = llvm::cast<llvm::DICompositeType>(di);
+  auto ditype = llvm::cast<llvm::DICompositeType>(di);
   std::vector<clang::FieldDecl *> decl_fields;
   std::vector<llvm::DIDerivedType *> di_fields;
 
@@ -51,26 +51,20 @@ bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
     di_fields.push_back(llvm::cast<llvm::DIDerivedType>(field));
   }
 
-  if (decl_fields.size() != di_fields.size()) {
-    // Debug metadata is not compatible with bitcode, bail out
-    // FIXME: Find a way to reconcile differences
-    return true;
-  }
-
   std::unordered_set<std::string> seen_names;
 
-  for (size_t i = 0; i < decl_fields.size(); i++) {
-    auto *decl_field = decl_fields[i];
-    auto *di_field = di_fields[i];
+  for (auto i{0U}; i < decl_fields.size(); ++i) {
+    auto decl_field{decl_fields[i]};
+    auto di_field{di_fields[i]};
 
-    // FIXME: Is a clash between field names actually possible?
+    // FIXME(frabert): Is a clash between field names actually possible?
     // Can this mechanism actually be left out?
-    auto name = di_field->getName().str();
+    auto name{di_field->getName().str()};
     if (seen_names.find(name) == seen_names.end()) {
       seen_names.insert(name);
       decl_field->setDeclName(ast.CreateIdentifier(name));
     } else {
-      auto old_name = decl_field->getName().str();
+      auto old_name{decl_field->getName().str()};
       decl_field->setDeclName(ast.CreateIdentifier(name + "_" + old_name));
     }
   }

@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <clang/AST/Decl.h>
-#include <clang/AST/Expr.h>
-#include <clang/AST/Type.h>
-#include <llvm/IR/Module.h>
 #include <llvm/Pass.h>
 
 #include <unordered_map>

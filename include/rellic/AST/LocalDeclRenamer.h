@@ -8,9 +8,6 @@
 
 #pragma once
 
-#include <clang/AST/Decl.h>
-#include <clang/AST/Expr.h>
-#include <llvm/IR/Module.h>
 #include <llvm/Pass.h>
 
 #include <unordered_map>
@@ -31,7 +28,10 @@ class LocalDeclRenamer : public llvm::ModulePass,
   clang::ASTContext *ast_ctx;
 
   ValDeclToIRMap decls;
+
+  // Stores currently visible names, with scope awareness
   std::vector<std::unordered_set<std::string>> seen_names;
+
   std::unordered_set<clang::VarDecl *> renamed_decls;
   IRToNameMap &names;
   IRToValDeclMap &inv_decl;

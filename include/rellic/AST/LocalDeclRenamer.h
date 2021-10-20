@@ -36,7 +36,7 @@ class LocalDeclRenamer : public llvm::ModulePass,
   IRToNameMap &names;
   IRToValDeclMap &inv_decl;
 
-  bool isNameVisible(const std::string &name);
+  bool IsNameVisible(const std::string &name);
 
  public:
   static char ID;

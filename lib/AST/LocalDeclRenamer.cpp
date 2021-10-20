@@ -29,7 +29,7 @@ LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
       names(names),
       inv_decl(decls) {}
 
-bool LocalDeclRenamer::isNameVisible(const std::string &name) {
+bool LocalDeclRenamer::IsNameVisible(const std::string &name) {
   for (auto &scope : seen_names) {
     if (scope.find(name) != scope.end()) {
       return true;
@@ -55,7 +55,7 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
     return true;
   }
 
-  if (!isNameVisible(name->second)) {
+  if (!IsNameVisible(name->second)) {
     seen_names.back().insert(name->second);
     decl->setDeclName(ast.CreateIdentifier(name->second));
   } else {

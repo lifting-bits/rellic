@@ -316,6 +316,29 @@ class TripleCStyleCastElimRule : public InferenceRule {
   }
 };
 
+// Matches (type *)0U and subs it for 0U
+class CStyleZeroToPtrCastElimRule : public InferenceRule {
+ public:
+  CStyleZeroToPtrCastElimRule()
+      : InferenceRule(
+            cStyleCastExpr(hasType(pointerType()),
+                           has(ignoringImpCasts(integerLiteral(equals(0U)))))
+                .bind("cast")) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
+    CHECK(cast == match)
+        << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
+
+    return cast->getSubExpr()->IgnoreParenImpCasts();
+  }
+};
+
 }  // namespace
 
 char ExprCombine::ID = 0;
@@ -324,6 +347,16 @@ ExprCombine::ExprCombine(clang::ASTUnit &u)
     : ModulePass(ExprCombine::ID), unit(u) {}
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
+  std::vector<std::unique_ptr<InferenceRule>> pointer_rules;
+
+  pointer_rules.emplace_back(new CStyleZeroToPtrCastElimRule);
+
+  auto sub_ptr{ApplyFirstMatchingRule(unit, cast, pointer_rules)};
+  if (sub_ptr != cast) {
+    substitutions[cast] = sub_ptr;
+    return true;
+  }
+
   clang::Expr::EvalResult result;
   auto &ctx{unit.getASTContext()};
   if (cast->EvaluateAsRValue(result, ctx)) {

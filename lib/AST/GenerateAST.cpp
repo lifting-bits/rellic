@@ -17,7 +17,6 @@
 #include <llvm/Analysis/LoopInfo.h>
 
 #include <algorithm>
-#include <unordered_set>
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"

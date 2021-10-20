@@ -32,7 +32,7 @@ StructFieldRenamer::StructFieldRenamer(clang::ASTUnit &unit,
 
 bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
   auto type{decls[decl]};
-  CHECK(type);
+  CHECK(type) << "Type information not present for declaration";
 
   auto di{types[type]};
   if (!di) {

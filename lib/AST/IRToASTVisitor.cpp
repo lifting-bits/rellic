@@ -616,7 +616,7 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
   auto &var{value_decls[&inst]};
   if (!var) {
     auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
-    auto name = "var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl));
+    auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
     var = ast.CreateVarDecl(fdecl, GetQualType(inst.getAllocatedType()), name);
     fdecl->addDecl(var);
   }

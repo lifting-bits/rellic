@@ -24,7 +24,7 @@ using IRFuncToDITypeMap =
     std::unordered_map<llvm::Function *, llvm::DISubroutineType *>;
 using IRArgToDITypeMap = std::unordered_map<llvm::Argument *, llvm::DIType *>;
 
-class DebugInfoVisitor : public llvm::InstVisitor<DebugInfoVisitor> {
+class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
  private:
   IRToNameMap names;
   IRToScopeMap scopes;

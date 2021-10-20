@@ -7,7 +7,7 @@ add_library(${PROJECT_NAME} STATIC
   AST/CXXToCDecl.cpp
   AST/InferenceRule.cpp
   AST/DeadStmtElim.cpp
-  AST/DebugInfoVisitor.cpp
+  AST/DebugInfoCollector.cpp
   AST/CondBasedRefine.cpp
   AST/ExprCombine.cpp
   AST/GenerateAST.cpp

@@ -12,7 +12,7 @@
 
 #include <unordered_map>
 
-#include "rellic/AST/DebugInfoVisitor.h"
+#include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 

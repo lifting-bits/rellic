@@ -23,7 +23,7 @@
 
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
-#include "rellic/AST/DebugInfoVisitor.h"
+#include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
@@ -104,8 +104,8 @@ static void UpdateProvenanceMap(StmtToIRMap& provenance,
 static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
-  rellic::DebugInfoVisitor div;
-  div.visit(module);
+  rellic::DebugInfoCollector dic;
+  dic.visit(module);
 
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module.getTargetTriple()};
@@ -115,9 +115,9 @@ static bool GeneratePseudocode(llvm::Module& module,
   rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
   rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
-      *ast_unit, div.GetIRToNameMap(), gr->GetIRToValDeclMap())};
+      *ast_unit, dic.GetIRToNameMap(), gr->GetIRToValDeclMap())};
   rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
-      *ast_unit, div.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
+      *ast_unit, dic.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
   pm_ast.add(gr);
   pm_ast.add(dse);
   pm_ast.add(ldr);

@@ -19,11 +19,11 @@
 #include <iterator>
 #include <utility>
 
-#include "rellic/AST/DebugInfoVisitor.h"
+#include "rellic/AST/DebugInfoCollector.h"
 
 namespace rellic {
 
-void DebugInfoVisitor::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
+void DebugInfoCollector::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
   auto var{inst.getVariable()};
   auto loc{inst.getVariableLocation()};
 
@@ -32,13 +32,13 @@ void DebugInfoVisitor::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
   valtypes[loc] = var->getType();
 }
 
-void DebugInfoVisitor::visitInstruction(llvm::Instruction& inst) {
+void DebugInfoCollector::visitInstruction(llvm::Instruction& inst) {
   if (auto loc{inst.getDebugLoc().get()}) {
     scopes[&inst] = loc->getScope();
   }
 }
 
-void DebugInfoVisitor::WalkType(llvm::Type* type, llvm::DIType* ditype) {
+void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
   if (!ditype || types.find(type) != types.end()) {
     return;
   }
@@ -109,7 +109,7 @@ void DebugInfoVisitor::WalkType(llvm::Type* type, llvm::DIType* ditype) {
   }
 }
 
-void DebugInfoVisitor::visitFunction(llvm::Function& func) {
+void DebugInfoCollector::visitFunction(llvm::Function& func) {
   auto subprogram{func.getSubprogram()};
   if (!subprogram) {
     return;

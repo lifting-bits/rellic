@@ -47,6 +47,29 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
     // We are only interested in analyzing function types and structure types,
     // so we need to "unwrap" any DIDerivedType, of which there might be several
     // layers, in case of e.g. typedefs of typedefs, or pointers to pointers.
+    //
+    // Practical example: given the following source code
+    //
+    //   struct foo {
+    //     int field;
+    //   };
+    //   typedef struct foo foo_t;
+    //   int main(void) {
+    //     const volatile foo_t **a;
+    //   }
+    //
+    // The variable `a` will be annotated with
+    // DIDerivedType             (pointer)
+    // - DIDerivedType           (pointer)
+    //   - DIDerivedType         (const)
+    //     - DIDerivedType       (volatile)
+    //       - DIDerivedType     (typedef)
+    //         - DICompositeType (struct)
+    //
+    // We are only interested in walking the actual struct. Note that the
+    // information about e.g. const volatile is not lost, as the original
+    // DIDerivedType is still associated with the original llvm::Value by
+    // visitDbgDeclareInst
     ditype = derived->getBaseType();
     if (!ditype) {
       // This happens in the case of void pointers

@@ -5,9 +5,9 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-
-#include <llvm/IR/Metadata.h>
 #define GOOGLE_STRIP_LOG 1
+
+#include "rellic/AST/DebugInfoCollector.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -19,8 +19,6 @@
 #include <iterator>
 #include <utility>
 
-#include "rellic/AST/DebugInfoCollector.h"
-
 namespace rellic {
 
 void DebugInfoCollector::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
@@ -30,6 +28,8 @@ void DebugInfoCollector::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
   names[loc] = var->getName().str();
   scopes[loc] = var->getScope();
   valtypes[loc] = var->getType();
+
+  WalkType(loc->getType(), var->getType());
 }
 
 void DebugInfoCollector::visitInstruction(llvm::Instruction& inst) {

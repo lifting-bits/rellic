@@ -25,13 +25,16 @@
 #include "rellic/AST/ASTPrinter.h"
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
+#include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
+#include "rellic/AST/LocalDeclRenamer.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
 #include "rellic/AST/ReachBasedRefine.h"
+#include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Version/Version.h"
@@ -198,6 +201,8 @@ static void PrintC(llvm::raw_ostream& os, TokenList& tokens) {
 static bool GeneratePseudocode(llvm::Module& module,
                                llvm::raw_ostream& output) {
   InitOptPasses();
+  rellic::DebugInfoCollector dic;
+  dic.visit(module);
 
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module.getTargetTriple()};
@@ -206,8 +211,14 @@ static bool GeneratePseudocode(llvm::Module& module,
   llvm::legacy::PassManager pm_ast;
   rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
+  rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
+      *ast_unit, dic.GetIRToNameMap(), gr->GetIRToValDeclMap())};
+  rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
+      *ast_unit, dic.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
   pm_ast.add(gr);
   pm_ast.add(dse);
+  pm_ast.add(ldr);
+  pm_ast.add(sfr);
   pm_ast.run(module);
 
   // TODO(surovic): Add llvm::Value* -> clang::Decl* map

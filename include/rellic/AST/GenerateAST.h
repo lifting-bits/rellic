@@ -54,6 +54,8 @@ class GenerateAST : public llvm::ModulePass {
   GenerateAST(clang::ASTUnit &unit);
 
   IRToStmtMap &GetIRToStmtMap() { return ast_gen.GetIRToStmtMap(); }
+  IRToValDeclMap &GetIRToValDeclMap() { return ast_gen.GetIRToValDeclMap(); }
+  IRToTypeDeclMap &GetIRToTypeDeclMap() { return ast_gen.GetIRToTypeDeclMap(); }
 
   void getAnalysisUsage(llvm::AnalysisUsage &usage) const override;
   bool runOnModule(llvm::Module &module) override;

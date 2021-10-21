@@ -41,10 +41,10 @@ def compile(self, clang, input, output, timeout, options=None):
     cmd.extend([input, "-o", output])
     p = run_cmd(cmd, timeout)
 
-    self.assertEqual(p.returncode, 0, "clang failure")
     self.assertEqual(
         len(p.stderr), 0, "errors or warnings during compilation: %s" % p.stderr
     )
+    self.assertEqual(p.returncode, 0, "clang failure")
 
     return p
 
@@ -64,7 +64,7 @@ def decompile(self, rellic, input, output, timeout):
     return p
 
 
-def roundtrip(self, rellic, filename, clang, timeout, translate_only):
+def roundtrip(self, rellic, filename, clang, timeout, translate_only, additional_flags=[]):
     with tempfile.TemporaryDirectory() as tempdir:
         out1 = os.path.join(tempdir, "out1")
         compile(self, clang, filename, out1, timeout)
@@ -73,7 +73,9 @@ def roundtrip(self, rellic, filename, clang, timeout, translate_only):
         cp1 = run_cmd([out1], timeout)
 
         rt_bc = os.path.join(tempdir, "rt.bc")
-        compile(self, clang, filename, rt_bc, timeout, ["-c", "-emit-llvm"])
+        flags = ["-c", "-emit-llvm"]
+        flags.extend(additional_flags)
+        compile(self, clang, filename, rt_bc, timeout, flags)
 
         rt_c = os.path.join(tempdir, "rt.c")
         decompile(self, rellic, rt_bc, rt_c, timeout)
@@ -116,6 +118,7 @@ if __name__ == "__main__":
     def test_generator(path):
         def test(self):
             roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only)
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, ["-g3"])
 
         return test
 

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <clang/AST/Decl.h>
 #include <clang/AST/Stmt.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
@@ -51,6 +52,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
 
   IRToStmtMap &GetIRToStmtMap() { return stmts; }
+  IRToValDeclMap &GetIRToValDeclMap() { return value_decls; }
+  IRToTypeDeclMap &GetIRToTypeDeclMap() { return type_decls; }
 
   void VisitGlobalVar(llvm::GlobalVariable &var);
   void VisitFunctionDecl(llvm::Function &func);

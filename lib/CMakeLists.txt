@@ -8,10 +8,12 @@ add_library(${PROJECT_NAME} STATIC
   AST/CXXToCDecl.cpp
   AST/InferenceRule.cpp
   AST/DeadStmtElim.cpp
+  AST/DebugInfoCollector.cpp
   AST/CondBasedRefine.cpp
   AST/ExprCombine.cpp
   AST/GenerateAST.cpp
   AST/IRToASTVisitor.cpp
+  AST/LocalDeclRenamer.cpp
   AST/LoopRefine.cpp
   AST/NestedCondProp.cpp
   AST/NestedScopeCombine.cpp
@@ -19,6 +21,7 @@ add_library(${PROJECT_NAME} STATIC
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp
   AST/ReachBasedRefine.cpp
+  AST/StructFieldRenamer.cpp
   
   BC/Util.cpp
   BC/Compat/Value.cpp

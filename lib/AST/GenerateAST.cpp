@@ -367,10 +367,10 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 char GenerateAST::ID = 0;
 
-GenerateAST::GenerateAST(clang::ASTUnit &unit)
+GenerateAST::GenerateAST(clang::ASTUnit &unit, DebugInfoCollector &dic)
     : ModulePass(GenerateAST::ID),
       ast_ctx(&unit.getASTContext()),
-      ast_gen(unit),
+      ast_gen(unit, dic),
       ast(unit) {}
 
 void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {

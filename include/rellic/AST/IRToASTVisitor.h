@@ -21,6 +21,7 @@
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/DebugInfoCollector.h"
 
 namespace rellic {
 
@@ -37,8 +38,10 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;
   IRToStmtMap stmts;
+  DebugInfoCollector &dic;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
+  clang::QualType GetQualType(llvm::Type *type, llvm::DIType *ditype);
   clang::QualType GetQualType(llvm::Type *type);
 
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
@@ -46,7 +49,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit);
+  IRToASTVisitor(clang::ASTUnit &unit, DebugInfoCollector &dic);
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);

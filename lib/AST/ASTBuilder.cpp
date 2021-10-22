@@ -442,4 +442,12 @@ clang::ReturnStmt *ASTBuilder::CreateReturn(clang::Expr *retval) {
   return CreateReturnStmt(ctx, retval);
 }
 
+clang::TypedefDecl *ASTBuilder::CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                                  clang::IdentifierInfo *id,
+                                                  clang::QualType type) {
+  return clang::TypedefDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+                                    clang::SourceLocation(), id,
+                                    ctx.getTrivialTypeSourceInfo(type));
+}
+
 }  // namespace rellic

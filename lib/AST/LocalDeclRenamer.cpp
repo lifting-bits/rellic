@@ -12,8 +12,6 @@
 #include <glog/logging.h>
 #include <llvm/Support/Casting.h>
 
-#include <ios>
-
 #include "rellic/AST/Compat/Stmt.h"
 
 namespace rellic {

@@ -32,6 +32,26 @@ void DebugInfoCollector::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
   WalkType(loc->getType(), var->getType());
 }
 
+void DebugInfoCollector::visitModule(llvm::Module& module) {
+  for (auto& gvar : module.globals()) {
+    llvm::SmallVector<llvm::DIGlobalVariableExpression*> gves;
+    gvar.getDebugInfo(gves);
+    auto ptrtype{gvar.getType()};
+    CHECK_LE(gves.size(), 1)
+        << "More than one DIGlobalVariableExpression for global variable";
+
+    if (gves.size() > 0) {
+      auto digve{gves[0]};
+      auto digvar{digve->getVariable()};
+      names[&gvar] = digvar->getName().str();
+      scopes[&gvar] = digvar->getScope();
+      valtypes[&gvar] = digvar->getType();
+
+      WalkType(ptrtype->getElementType(), digvar->getType());
+    }
+  }
+}
+
 void DebugInfoCollector::visitInstruction(llvm::Instruction& inst) {
   if (auto loc{inst.getDebugLoc().get()}) {
     scopes[&inst] = loc->getScope();
@@ -88,6 +108,7 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
       std::copy(params.begin(), params.end(), std::back_inserter(type_array));
 
       auto di_types{funcditype->getTypeArray()};
+      ret_types[functype] = di_types[0];
       if (type_array.size() != di_types.size()) {
         // Mismatch between bitcode and debug metadata, bail out
         break;

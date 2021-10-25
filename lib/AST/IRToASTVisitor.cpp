@@ -107,7 +107,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
 
     case llvm::Type::FunctionTyID: {
       auto func{llvm::cast<llvm::FunctionType>(type)};
-      auto ret{GetQualType(func->getReturnType())};
+      auto ret{GetQualType(func->getReturnType(),
+                           dic.GetIRFuncTypeToDIRetTypeMap()[func])};
       std::vector<clang::QualType> params;
       for (auto param : func->params()) {
         params.push_back(GetQualType(param));

@@ -67,7 +67,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
           return ast_ctx.getTypedefType(tdef_decl);
         } break;
         case llvm::dwarf::DW_TAG_member: {
-          ditype = derived->getBaseType();
+          return GetQualType(type, derived->getBaseType());
         };
       }
     }

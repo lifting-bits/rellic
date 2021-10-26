@@ -28,6 +28,8 @@ namespace rellic {
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+using DIToTypedefMap =
+    std::unordered_map<llvm::DIDerivedType *, clang::TypedefNameDecl *>;
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
@@ -37,6 +39,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;
+  DIToTypedefMap typedef_decls;
   IRToStmtMap stmts;
   DebugInfoCollector &dic;
 

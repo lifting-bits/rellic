@@ -57,15 +57,18 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
             return ast_ctx.getRestrictType(GetQualType(type, base_type));
           }
         case llvm::dwarf::DW_TAG_typedef: {
-          // TODO(frabert): typedefs need to be implemented in ASTPrinter first
-          //
-          // auto tudecl{ast_ctx.getTranslationUnitDecl()};
-          // auto *tdef{ast.CreateTypedefDecl(tudecl, derived->getName().str(),
-          //                                  GetQualType(type, base_type))};
-          // tudecl->addDecl(tdef);
-          // return ast_ctx.getTypedefType(tdef);
-          return GetQualType(type, base_type);
+          auto &tdef_decl{typedef_decls[derived]};
+          if (!tdef_decl) {
+            auto tudecl{ast_ctx.getTranslationUnitDecl()};
+            tdef_decl = ast.CreateTypedefDecl(tudecl, derived->getName().str(),
+                                              GetQualType(type, base_type));
+            tudecl->addDecl(tdef_decl);
+          }
+          return ast_ctx.getTypedefType(tdef_decl);
         } break;
+        case llvm::dwarf::DW_TAG_member: {
+          ditype = derived->getBaseType();
+        };
       }
     }
   }
@@ -96,9 +99,13 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
     case llvm::Type::IntegerTyID: {
       int sign{0};
       if (ditype) {
-        auto inttype{llvm::cast<llvm::DIBasicType>(ditype)};
-        sign =
-            inttype->getSignedness() == llvm::DIBasicType::Signedness::Signed;
+        // TODO(frabert): this path will not be taken when arguments will have
+        // been merged/split or when a struct passed by value has been optimized
+        // away
+        if (auto inttype = llvm::dyn_cast<llvm::DIBasicType>(ditype)) {
+          sign =
+              inttype->getSignedness() == llvm::DIBasicType::Signedness::Signed;
+        }
       }
       auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
@@ -107,11 +114,21 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
 
     case llvm::Type::FunctionTyID: {
       auto func{llvm::cast<llvm::FunctionType>(type)};
-      auto ret{GetQualType(func->getReturnType(),
-                           dic.GetIRFuncTypeToDIRetTypeMap()[func])};
+      std::vector<llvm::DIType *> ditype_array{func->getNumParams() + 1};
+      if (ditype) {
+        auto difunctype{llvm::cast<llvm::DISubroutineType>(ditype)};
+        auto arr{difunctype->getTypeArray()};
+        if (arr.size() == ditype_array.size()) {
+          for (auto i{0UL}; i < arr.size(); ++i) {
+            ditype_array[i] = arr[i];
+          }
+        }
+      }
+      auto ret{GetQualType(func->getReturnType(), ditype_array[0])};
       std::vector<clang::QualType> params;
+      auto i{1UL};
       for (auto param : func->params()) {
-        params.push_back(GetQualType(param));
+        params.push_back(GetQualType(param, ditype_array[i++]));
       }
       auto epi{clang::FunctionProtoType::ExtProtoInfo()};
       epi.Variadic = func->isVarArg();
@@ -145,6 +162,16 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
       if (!decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
         auto strct{llvm::cast<llvm::StructType>(type)};
+        std::vector<llvm::DIType *> fields_ditype{strct->getNumElements()};
+        if (ditype) {
+          auto strct_ditype{llvm::cast<llvm::DICompositeType>(ditype)};
+          auto di_elems{strct_ditype->getElements()};
+          if (di_elems.size() == fields_ditype.size()) {
+            for (auto i{0U}; i < di_elems.size(); ++i) {
+              fields_ditype[i] = llvm::cast<llvm::DIType>(di_elems[i]);
+            }
+          }
+        }
         auto sname{strct->getName().str()};
         if (sname.empty()) {
           auto num{GetNumDecls<clang::TypeDecl>(tudecl)};
@@ -154,7 +181,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
         decl = sdecl = ast.CreateStructDecl(tudecl, sname);
         // Add fields to the C struct
         for (auto ecnt{0U}; ecnt < strct->getNumElements(); ++ecnt) {
-          auto etype{GetQualType(strct->getElementType(ecnt))};
+          auto etype{
+              GetQualType(strct->getElementType(ecnt), fields_ditype[ecnt])};
           auto fname{"field" + std::to_string(ecnt)};
           sdecl->addDecl(ast.CreateFieldDecl(sdecl, etype, fname));
         }
@@ -175,7 +203,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
     default: {
       if (type->isVectorTy()) {
         auto vtype{llvm::cast<llvm::VectorType>(type)};
-        auto etype{GetQualType(vtype->getElementType())};
+        auto etype{GetQualType(vtype->getElementType(), ditype)};
         auto ecnt{GetNumElements(vtype)};
         auto vkind{clang::VectorType::GenericVector};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
@@ -460,9 +488,16 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   // Get parent function declaration
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
+  llvm::DIType *ditype{nullptr};
+  auto difunctype{dic.GetIRFuncToDITypeMap()[func]};
+  if (difunctype) {
+    auto ditype_array{difunctype->getTypeArray()};
+    if (ditype_array.size() == func->getFunctionType()->getNumParams() + 1) {
+      ditype = ditype_array[arg.getArgNo() + 1];
+    }
+  }
   // Create a declaration
-  parm = ast.CreateParamDecl(
-      fdecl, GetQualType(arg.getType(), dic.GetIRToDITypeMap()[&arg]), name);
+  parm = ast.CreateParamDecl(fdecl, GetQualType(arg.getType(), ditype), name);
 }
 
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {

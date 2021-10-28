@@ -8,6 +8,8 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
+#include <clang/AST/Decl.h>
+
 #include "Util.h"
 
 namespace {
@@ -1247,6 +1249,22 @@ TEST_SUITE("ASTBuilder::CreateReturn") {
         REQUIRE(ret_stmt != nullptr);
         CHECK(clang::isa<clang::ReturnStmt>(ret_stmt));
         CHECK(ret_stmt->getRetValue() == lit);
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateTypedefDecl") {
+  SCENARIO("Create a typedef declaration") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      THEN("return a typedef int foo;") {
+        auto tdef_decl{ast.CreateTypedefDecl(tudecl, "foo", ctx.IntTy)};
+        REQUIRE(tdef_decl != nullptr);
+        CHECK(clang::isa<clang::TypedefDecl>(tdef_decl));
       }
     }
   }

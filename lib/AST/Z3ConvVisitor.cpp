@@ -6,6 +6,7 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include <llvm/ADT/SmallString.h>
 #define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/Z3ConvVisitor.h"
@@ -800,7 +801,8 @@ bool Z3ConvVisitor::VisitFloatingLiteral(clang::FloatingLiteral *lit) {
   }
 
   auto size{api.getBitWidth()};
-  auto bits{api.toString(/*Radix=*/10, /*Signed=*/false)};
+  llvm::SmallString<64U> bits;
+  api.toString(bits, /*Radix=*/10U, /*Signed=*/false);
   auto sort{GetZ3Sort(lit->getType())};
   auto bv{z_ctx->bv_val(bits.c_str(), size)};
   auto fpa{z3::to_expr(*z_ctx, Z3_mk_fpa_to_fp_bv(*z_ctx, bv, sort))};

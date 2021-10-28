@@ -118,6 +118,10 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
       if (ditype) {
         auto difunctype{llvm::cast<llvm::DISubroutineType>(ditype)};
         auto arr{difunctype->getTypeArray()};
+        // TODO(frabert): related to what happens a few lines above.
+        // Argument count between debug data and actual bitcode can differ
+        // due to ABI constraints. Need to figure out a way to reconcile the two
+        // views.
         if (arr.size() == ditype_array.size()) {
           for (auto i{0UL}; i < arr.size(); ++i) {
             ditype_array[i] = arr[i];

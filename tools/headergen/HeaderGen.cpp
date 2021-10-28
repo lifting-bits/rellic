@@ -100,7 +100,9 @@ int main(int argc, char* argv[]) {
   }
 
   std::error_code ec;
-  llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
+  // FIXME(surovic): Figure out if the fix below works.
+  // llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
+  llvm::raw_fd_ostream output(FLAGS_output, ec);
   CHECK(!ec) << "Failed to create output file: " << ec.message();
   // Read a CXX AST from our input file
   auto cxx_ast_unit =

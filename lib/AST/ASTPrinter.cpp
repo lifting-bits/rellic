@@ -14,6 +14,7 @@
 #include <clang/AST/Type.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -713,48 +714,48 @@ void StmtTokenizer::VisitReturnStmt(clang::ReturnStmt *stmt) {
 
 void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *lit) {
   bool is_signed{lit->getType()->isSignedIntegerType()};
-  std::stringstream ss;
-  ss << lit->getValue().toString(10U, is_signed);
+  llvm::SmallString<32U> str;
+  lit->getValue().toString(str, 10U, is_signed);
   // Emit suffixes.  Integer literals are always a builtin integer type.
   switch (lit->getType()->castAs<clang::BuiltinType>()->getKind()) {
     case clang::BuiltinType::Char_S:
     case clang::BuiltinType::Char_U:
-      ss << "i8";
+      str += "i8";
       break;
 
     case clang::BuiltinType::UChar:
-      ss << "Ui8";
+      str += "Ui8";
       break;
 
     case clang::BuiltinType::Short:
-      ss << "i16";
+      str += "i16";
       break;
 
     case clang::BuiltinType::UShort:
-      ss << "Ui16";
+      str += "Ui16";
       break;
 
     case clang::BuiltinType::Int:
       break;  // no suffix.
 
     case clang::BuiltinType::UInt:
-      ss << 'U';
+      str += 'U';
       break;
 
     case clang::BuiltinType::Long:
-      ss << 'L';
+      str += 'L';
       break;
 
     case clang::BuiltinType::ULong:
-      ss << "UL";
+      str += "UL";
       break;
 
     case clang::BuiltinType::LongLong:
-      ss << "LL";
+      str += "LL";
       break;
 
     case clang::BuiltinType::ULongLong:
-      ss << "ULL";
+      str += "ULL";
       break;
 
     default:
@@ -762,7 +763,7 @@ void StmtTokenizer::VisitIntegerLiteral(clang::IntegerLiteral *lit) {
       break;
   }
 
-  out.push_back(Token::CreateStmt(lit, ss.str()));
+  out.push_back(Token::CreateStmt(lit, str.c_str()));
 }
 
 void StmtTokenizer::VisitFloatingLiteral(clang::FloatingLiteral *lit) {

@@ -388,7 +388,7 @@ int main(int argc, char* argv[]) {
   auto module = rellic::LoadModuleFromFile(llvm_ctx.get(), FLAGS_input);
 
   std::error_code ec;
-  llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
+  llvm::raw_fd_ostream output(FLAGS_output, ec);
   CHECK(!ec) << "Failed to create output file: " << ec.message();
 
   if (FLAGS_remove_phi_nodes) {

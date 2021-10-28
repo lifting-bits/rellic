@@ -697,7 +697,7 @@ TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
           REQUIRE(lnot != nullptr);
           auto subexpr{lnot->getSubExpr()};
           CHECK(clang::isa<clang::ImplicitCastExpr>(subexpr));
-          CHECK(subexpr->isRValue());
+          CHECK(subexpr->Classify(ctx).isRValue());
           CHECK(subexpr->IgnoreImpCasts() == declref);
           CHECK(lnot->getType() == ctx.IntTy);
           CHECK(lnot->getOpcode() == clang::UO_LNot);
@@ -719,7 +719,7 @@ TEST_SUITE("ASTBuilder::CreateUnaryOperator") {
           REQUIRE(bnot != nullptr);
           auto subexpr{bnot->getSubExpr()};
           CHECK(clang::isa<clang::ImplicitCastExpr>(subexpr));
-          CHECK(subexpr->isRValue());
+          CHECK(subexpr->Classify(ctx).isRValue());
           CHECK(subexpr->IgnoreImpCasts() == declref);
           CHECK(bnot->getType() == declref->getType());
           CHECK(bnot->getOpcode() == clang::UO_Not);

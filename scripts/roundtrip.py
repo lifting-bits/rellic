@@ -118,7 +118,21 @@ if __name__ == "__main__":
     def test_generator(path):
         def test(self):
             roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only)
-            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, ["-g3"])
+            debug_flags = [
+                "-O1",
+                "-g3",
+                "-gfull",
+                "-gdwarf-5",
+                #"-fno-eliminate-unused-debug-symbols",
+                "-fno-common",
+                "-fno-builtin",
+                "-ffreestanding",
+                "-nostdlib",
+                "-fno-inline",
+                "-fno-assume-sane-operator-new",
+                "-mno-inline-all-stringops"
+            ]
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, debug_flags)
 
         return test
 

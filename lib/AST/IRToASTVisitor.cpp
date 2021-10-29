@@ -114,7 +114,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
 
     case llvm::Type::FunctionTyID: {
       auto func{llvm::cast<llvm::FunctionType>(type)};
-      std::vector<llvm::DIType *> ditype_array{func->getNumParams() + 1};
+      std::vector<llvm::DIType *> ditype_array{func->getNumParams() +
+                                               func->isVarArg() + 1};
       if (ditype) {
         auto difunctype{llvm::cast<llvm::DISubroutineType>(ditype)};
         auto arr{difunctype->getTypeArray()};

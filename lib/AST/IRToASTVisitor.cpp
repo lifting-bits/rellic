@@ -497,7 +497,9 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   auto difunctype{dic.GetIRFuncToDITypeMap()[func]};
   if (difunctype) {
     auto ditype_array{difunctype->getTypeArray()};
-    if (ditype_array.size() == func->getFunctionType()->getNumParams() + 1) {
+    auto functype{func->getFunctionType()};
+    if (ditype_array.size() ==
+        functype->getNumParams() + functype->isVarArg() + 1) {
       ditype = ditype_array[arg.getArgNo() + 1];
     }
   }
@@ -522,7 +524,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto ftype{func.getFunctionType()};
-  auto type{GetQualType(ftype, dic.GetIRTypeToDITypeMap()[ftype])};
+  auto type{GetQualType(ftype, dic.GetIRFuncToDITypeMap()[&func])};
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
   tudecl->addDecl(decl);

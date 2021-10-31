@@ -97,7 +97,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
       break;
 
     case llvm::Type::IntegerTyID: {
-      int sign{0};
+      int sign{1};
       if (ditype) {
         // TODO(frabert): this path will not be taken when arguments will have
         // been merged/split or when a struct passed by value has been optimized

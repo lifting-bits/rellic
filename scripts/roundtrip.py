@@ -130,7 +130,9 @@ if __name__ == "__main__":
                 "-nostdlib",
                 "-fno-inline",
                 "-fno-assume-sane-operator-new",
-                "-mno-inline-all-stringops"
+                "-mno-inline-all-stringops",
+                "-Xclang",
+                "-disable-llvm-passes"
             ]
             roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, debug_flags)
 

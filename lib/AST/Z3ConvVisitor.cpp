@@ -6,8 +6,7 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#include <llvm/ADT/SmallString.h>
-#define GOOGLE_STRIP_LOG 1
+#define GOOGLE_STRIP_LOG 0
 
 #include "rellic/AST/Z3ConvVisitor.h"
 
@@ -175,6 +174,7 @@ clang::ValueDecl *Z3ConvVisitor::GetCValDecl(z3::func_decl z_decl) {
 }
 
 z3::sort Z3ConvVisitor::GetZ3Sort(clang::QualType type) {
+  type = type.getDesugaredType(*c_ctx);
   // Void
   if (type->isVoidType()) {
     return z_ctx->uninterpreted_sort("void");

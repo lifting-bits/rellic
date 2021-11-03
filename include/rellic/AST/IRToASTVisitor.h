@@ -10,6 +10,7 @@
 
 #include <clang/AST/Decl.h>
 #include <clang/AST/Stmt.h>
+#include <llvm/IR/Argument.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/Operator.h>
@@ -27,6 +28,7 @@ namespace rellic {
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
@@ -37,6 +39,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;
   IRToStmtMap stmts;
+  ArgToTempMap temp_decls;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type);

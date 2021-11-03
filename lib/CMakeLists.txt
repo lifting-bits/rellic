@@ -11,7 +11,6 @@ add_library(${PROJECT_NAME} STATIC
   AST/DebugInfoCollector.cpp
   AST/CondBasedRefine.cpp
   AST/ExprCombine.cpp
-  AST/FixByVal.cpp
   AST/GenerateAST.cpp
   AST/IRToASTVisitor.cpp
   AST/LocalDeclRenamer.cpp

@@ -398,8 +398,28 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   // Get parent function declaration
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
+  auto argtype{arg.getType()};
+  if (arg.hasByValAttr()) {
+    argtype = llvm::cast<llvm::PointerType>(argtype)->getElementType();
+  }
   // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, GetQualType(arg.getType()), name);
+  parm = ast.CreateParamDecl(fdecl, GetQualType(argtype), name);
+}
+
+static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
+  std::vector<llvm::Type *> new_arg_types{};
+
+  for (auto &arg : func.args()) {
+    if (arg.hasByValAttr()) {
+      auto ptrtype{llvm::cast<llvm::PointerType>(arg.getType())};
+      new_arg_types.push_back(ptrtype->getElementType());
+    } else {
+      new_arg_types.push_back(arg.getType());
+    }
+  }
+
+  return llvm::FunctionType::get(func.getReturnType(), new_arg_types,
+                                 func.isVarArg());
 }
 
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
@@ -418,7 +438,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto type{GetQualType(func.getFunctionType())};
+  auto type{GetQualType(GetFixedFunctionType(func))};
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
   tudecl->addDecl(decl);
@@ -470,8 +490,13 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   }
 
   std::vector<clang::Expr *> args;
-  for (auto &arg : inst.arg_operands()) {
-    args.push_back(GetOperandExpr(arg));
+  for (auto i{0U}; i < inst.getNumArgOperands(); ++i) {
+    auto &arg{inst.getArgOperandUse(i)};
+    auto opnd{GetOperandExpr(arg)};
+    if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
+      opnd = ast.CreateDeref(opnd);
+    }
+    args.push_back(opnd);
   }
 
   clang::Expr *callexpr{nullptr};
@@ -508,6 +533,24 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
 
   auto indexed_type{inst.getPointerOperandType()};
   auto base{GetOperandExpr(inst.getPointerOperand())};
+
+  if (auto arg = llvm::dyn_cast<llvm::Argument>(inst.getPointerOperand())) {
+    if (arg->hasByValAttr()) {
+      auto &temp{temp_decls[arg]};
+      if (!temp) {
+        auto addr_of_arg{ast.CreateAddrOf(base)};
+        auto func{inst.getFunction()};
+        auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
+        auto argdecl{clang::cast<clang::ParmVarDecl>(value_decls[arg])};
+        temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
+                                 argdecl->getName().str() + "_ptr");
+        temp->setInit(addr_of_arg);
+        fdecl->addDecl(temp);
+      }
+
+      base = ast.CreateDeclRef(temp);
+    }
+  }
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {

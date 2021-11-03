@@ -27,6 +27,7 @@
 #include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/ExprCombine.h"
+#include "rellic/AST/FixByVal.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
@@ -209,12 +210,14 @@ static bool GeneratePseudocode(llvm::Module& module,
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
   llvm::legacy::PassManager pm_ast;
+  rellic::FixByVal* fbv{new rellic::FixByVal()};
   rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
   rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
   rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
       *ast_unit, dic.GetIRToNameMap(), gr->GetIRToValDeclMap())};
   rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
       *ast_unit, dic.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
+  pm_ast.add(fbv);
   pm_ast.add(gr);
   pm_ast.add(dse);
   pm_ast.add(ldr);

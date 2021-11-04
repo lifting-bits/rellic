@@ -349,7 +349,30 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a function argument or local variable
   if (llvm::isa<llvm::Argument>(val)) {
-    return CreateRef();
+    auto arg{llvm::cast<llvm::Argument>(val)};
+    auto ref{CreateRef()};
+    if (arg->hasByValAttr()) {
+      // Since arguments that have the `byval` are pointers, but actually mean
+      // pass-by-value semantics, we need to create an auxiliary pointer to the
+      // actual argument and use it instead of the actual argument.
+      // This is because `byval` arguments are pointers, so each reference to
+      // those arguments assume they are dealing with pointers.
+      auto &temp{temp_decls[arg]};
+      if (!temp) {
+        auto addr_of_arg{ast.CreateAddrOf(ref)};
+        auto func{arg->getParent()};
+        auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
+        auto argdecl{clang::cast<clang::ParmVarDecl>(value_decls[arg])};
+        temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
+                                 argdecl->getName().str() + "_ptr");
+        temp->setInit(addr_of_arg);
+        fdecl->addDecl(temp);
+      }
+
+      return ast.CreateDeclRef(temp);
+    } else {
+      return ref;
+    }
   }
   // Operand is a result of an expression
   if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
@@ -503,8 +526,41 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
       ditype = ditype_array[arg.getArgNo() + 1];
     }
   }
+
+  auto argtype{arg.getType()};
+  if (arg.hasByValAttr()) {
+    auto byval{arg.getAttribute(llvm::Attribute::ByVal)};
+    argtype = byval.getValueAsType();
+  }
   // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, GetQualType(arg.getType(), ditype), name);
+  parm = ast.CreateParamDecl(fdecl, GetQualType(argtype), name);
+}
+
+// This function fixes function types for those functions that have arguments
+// that are passed by value using the `byval` attribute.
+// They need special treatment because those arguments, instead of actually
+// being passed by value, are instead passed "by reference" from a bitcode point
+// of view, with the caveat that the actual semantics are more like "create a
+// copy of the reference before calling, and pass a pointer to that copy
+// instead" (this is done implicitly).
+// Thus, we need to convert a function type like
+//   i32 @do_foo(%struct.foo* byval(%struct.foo) align 4 %f)
+// into
+//   i32 @do_foo(%struct.foo %f)
+static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
+  std::vector<llvm::Type *> new_arg_types{};
+
+  for (auto &arg : func.args()) {
+    if (arg.hasByValAttr()) {
+      auto ptrtype{llvm::cast<llvm::PointerType>(arg.getType())};
+      new_arg_types.push_back(ptrtype->getElementType());
+    } else {
+      new_arg_types.push_back(arg.getType());
+    }
+  }
+
+  return llvm::FunctionType::get(func.getReturnType(), new_arg_types,
+                                 func.isVarArg());
 }
 
 void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
@@ -523,7 +579,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto ftype{func.getFunctionType()};
+  auto ftype{GetFixedFunctionType(func)};
   auto type{GetQualType(ftype, dic.GetIRFuncToDITypeMap()[&func])};
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
@@ -576,8 +632,13 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   }
 
   std::vector<clang::Expr *> args;
-  for (auto &arg : inst.arg_operands()) {
-    args.push_back(GetOperandExpr(arg));
+  for (auto i{0U}; i < inst.getNumArgOperands(); ++i) {
+    auto &arg{inst.getArgOperandUse(i)};
+    auto opnd{GetOperandExpr(arg)};
+    if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
+      opnd = ast.CreateDeref(opnd);
+    }
+    args.push_back(opnd);
   }
 
   clang::Expr *callexpr{nullptr};

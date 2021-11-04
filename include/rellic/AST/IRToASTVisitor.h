@@ -10,6 +10,7 @@
 
 #include <clang/AST/Decl.h>
 #include <clang/AST/Stmt.h>
+#include <llvm/IR/Argument.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/Operator.h>
@@ -30,6 +31,7 @@ using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
 using DIToTypedefMap =
     std::unordered_map<llvm::DIDerivedType *, clang::TypedefNameDecl *>;
+using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
  private:
@@ -42,6 +44,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   DIToTypedefMap typedef_decls;
   IRToStmtMap stmts;
   DebugInfoCollector &dic;
+  ArgToTempMap temp_decls;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type, llvm::DIType *ditype);

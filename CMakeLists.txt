@@ -159,3 +159,9 @@ add_test(NAME test_roundtrip_translate_only
   COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# Tests that can be decompiled
+add_test(NAME test_decompile
+  COMMAND scripts/decompile.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)

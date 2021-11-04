@@ -66,6 +66,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
           }
           return ast_ctx.getTypedefType(tdef_decl);
         } break;
+        case llvm::dwarf::DW_TAG_inheritance:
         case llvm::dwarf::DW_TAG_member: {
           return GetQualType(type, derived->getBaseType());
         };
@@ -533,7 +534,7 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
     argtype = byval.getValueAsType();
   }
   // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, GetQualType(argtype), name);
+  parm = ast.CreateParamDecl(fdecl, GetQualType(argtype, ditype), name);
 }
 
 // This function fixes function types for those functions that have arguments

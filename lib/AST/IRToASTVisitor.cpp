@@ -255,7 +255,25 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a function argument or local variable
   if (llvm::isa<llvm::Argument>(val)) {
-    return CreateRef();
+    auto arg{llvm::cast<llvm::Argument>(val)};
+    auto ref{CreateRef()};
+    if (arg->hasByValAttr()) {
+      auto &temp{temp_decls[arg]};
+      if (!temp) {
+        auto addr_of_arg{ast.CreateAddrOf(ref)};
+        auto func{arg->getParent()};
+        auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
+        auto argdecl{clang::cast<clang::ParmVarDecl>(value_decls[arg])};
+        temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
+                                 argdecl->getName().str() + "_ptr");
+        temp->setInit(addr_of_arg);
+        fdecl->addDecl(temp);
+      }
+
+      return ast.CreateDeclRef(temp);
+    } else {
+      return ref;
+    }
   }
   // Operand is a result of an expression
   if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
@@ -533,24 +551,6 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
 
   auto indexed_type{inst.getPointerOperandType()};
   auto base{GetOperandExpr(inst.getPointerOperand())};
-
-  if (auto arg = llvm::dyn_cast<llvm::Argument>(inst.getPointerOperand())) {
-    if (arg->hasByValAttr()) {
-      auto &temp{temp_decls[arg]};
-      if (!temp) {
-        auto addr_of_arg{ast.CreateAddrOf(base)};
-        auto func{inst.getFunction()};
-        auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
-        auto argdecl{clang::cast<clang::ParmVarDecl>(value_decls[arg])};
-        temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
-                                 argdecl->getName().str() + "_ptr");
-        temp->setInit(addr_of_arg);
-        fdecl->addDecl(temp);
-      }
-
-      base = ast.CreateDeclRef(temp);
-    }
-  }
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {

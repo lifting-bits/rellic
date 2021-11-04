@@ -423,7 +423,8 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
   auto argtype{arg.getType()};
   if (arg.hasByValAttr()) {
-    argtype = llvm::cast<llvm::PointerType>(argtype)->getElementType();
+    auto byval{arg.getAttribute(llvm::Attribute::ByVal)};
+    argtype = byval.getValueAsType();
   }
   // Create a declaration
   parm = ast.CreateParamDecl(fdecl, GetQualType(argtype), name);

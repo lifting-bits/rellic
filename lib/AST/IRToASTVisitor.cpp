@@ -870,8 +870,8 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto rhs{GetOperandExpr(inst.getOperand(1))};
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *operand, bool sign) {
-    auto type{ast_ctx.getIntTypeForBitwidth(
-        ast_ctx.getTypeSize(operand->getType()), sign)};
+    auto type{ast.GetIntTypeForBitWidth(ast_ctx.getTypeSize(operand->getType()),
+                                        sign)};
     return ast.CreateCStyleCast(type, operand);
   }};
   // Where the magic happens
@@ -955,7 +955,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *op, bool sign) {
     auto ot{op->getType()};
-    auto rt{ast_ctx.getIntTypeForBitwidth(ast_ctx.getTypeSize(ot), sign)};
+    auto rt{ast.GetIntTypeForBitWidth(ast_ctx.getTypeSize(ot), sign)};
     return rt == ot ? op : ast.CreateCStyleCast(rt, op);
   }};
   // Cast operands for signed predicates
@@ -1026,17 +1026,17 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     case llvm::CastInst::Trunc: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
       auto sign{operand->getType()->isSignedIntegerType()};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
+      type = ast.GetIntTypeForBitWidth(bitwidth, sign);
     } break;
 
     case llvm::CastInst::ZExt: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/0U);
+      type = ast.GetIntTypeForBitWidth(bitwidth, /*signed=*/0U);
     } break;
 
     case llvm::CastInst::SExt: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1U);
+      type = ast.GetIntTypeForBitWidth(bitwidth, /*signed=*/1U);
     } break;
 
     case llvm::CastInst::AddrSpaceCast:

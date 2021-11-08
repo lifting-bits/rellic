@@ -27,6 +27,7 @@ class ASTBuilder {
  public:
   ASTBuilder(clang::ASTUnit &unit);
   // Type helpers
+  clang::QualType GetIntTypeForBitWidth(unsigned size, unsigned sign);
   clang::QualType GetLeastIntTypeForBitWidth(unsigned size, unsigned sign);
   clang::QualType GetLeastRealTypeForBitWidth(unsigned size);
   // Literals

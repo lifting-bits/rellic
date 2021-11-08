@@ -82,9 +82,18 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
 ASTBuilder::ASTBuilder(clang::ASTUnit &unit)
     : unit(unit), ctx(unit.getASTContext()), sema(unit.getSema()) {}
 
+clang::QualType ASTBuilder::GetIntTypeForBitWidth(unsigned size,
+                                                  unsigned sign) {
+  if (ctx.getIntWidth(ctx.CharTy) == size && sign) {
+    return ctx.CharTy;
+  }
+
+  return ctx.getIntTypeForBitwidth(size, sign);
+}
+
 clang::QualType ASTBuilder::GetLeastIntTypeForBitWidth(unsigned size,
                                                        unsigned sign) {
-  auto result{ctx.getIntTypeForBitwidth(size, sign)};
+  auto result{GetIntTypeForBitWidth(size, sign)};
   if (!result.isNull()) {
     return result;
   }
@@ -92,7 +101,7 @@ clang::QualType ASTBuilder::GetLeastIntTypeForBitWidth(unsigned size,
   auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
   CHECK(target_type != clang::TargetInfo::IntType::NoInt)
       << "Failed to infer clang::TargetInfo::IntType for bitwidth: " << size;
-  result = ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
+  result = GetIntTypeForBitWidth(ti.getTypeWidth(target_type), sign);
   CHECK(!result.isNull()) << "Failed to infer clang::QualType for bitwidth: "
                           << size;
   return result;

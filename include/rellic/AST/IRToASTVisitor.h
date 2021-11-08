@@ -45,6 +45,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   IRToStmtMap stmts;
   DebugInfoCollector &dic;
   ArgToTempMap temp_decls;
+  size_t num_literal_structs = 0;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type, llvm::DIType *ditype);

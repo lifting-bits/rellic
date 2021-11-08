@@ -178,7 +178,9 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
             }
           }
         }
-        auto sname{strct->getName().str()};
+        auto sname{strct->isLiteral() ? ("literal_struct_" +
+                                         std::to_string(num_literal_structs++))
+                                      : strct->getName().str()};
         if (sname.empty()) {
           auto num{GetNumDecls<clang::TypeDecl>(tudecl)};
           sname = "struct" + std::to_string(num);

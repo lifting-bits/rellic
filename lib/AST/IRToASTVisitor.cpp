@@ -825,6 +825,13 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   auto lhs{GetOperandExpr(inst.getPointerOperand())};
   // Get the operand we're assigning from
   auto rhs{GetOperandExpr(inst.getValueOperand())};
+  if (auto unop = clang::dyn_cast<clang::UnaryOperator>(rhs)) {
+    if (unop->getOpcode() == clang::UO_Deref &&
+        unop->getSubExpr()->getType() == ast_ctx.VoidPtrTy) {
+      rhs = ast.CreateDeref(
+          ast.CreateCStyleCast(lhs->getType(), unop->getSubExpr()));
+    }
+  }
   // Create the assignemnt itself
   assign = ast.CreateAssign(ast.CreateDeref(lhs), rhs);
 }

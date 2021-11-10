@@ -88,7 +88,7 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
       std::copy(params.begin(), params.end(), std::back_inserter(type_array));
 
       auto di_types{funcditype->getTypeArray()};
-      if (type_array.size() != di_types.size()) {
+      if (type_array.size() + functype->isVarArg() != di_types.size()) {
         // Mismatch between bitcode and debug metadata, bail out
         break;
       }
@@ -102,6 +102,7 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
       auto strcttype{llvm::cast<llvm::StructType>(type)};
       auto strctditype{llvm::cast<llvm::DICompositeType>(ditype)};
 
+      structs.push_back(strctditype);
       auto elems{strcttype->elements()};
       auto di_elems{strctditype->getElements()};
       if (elems.size() != di_elems.size()) {
@@ -140,7 +141,8 @@ void DebugInfoCollector::visitFunction(llvm::Function& func) {
 
   auto ditype{subprogram->getType()};
 
-  if (func.arg_size() + 1 != ditype->getTypeArray().size()) {
+  auto type_array{ditype->getTypeArray()};
+  if (func.arg_size() + func.isVarArg() + 1 != type_array.size()) {
     // Debug metadata is not compatible with bitcode, bail out
     // TODO(frabert): Find a way to reconcile differences
     return;
@@ -148,7 +150,6 @@ void DebugInfoCollector::visitFunction(llvm::Function& func) {
 
   funcs[&func] = ditype;
   size_t i{1};
-  auto type_array{ditype->getTypeArray()};
   for (auto& arg : func.args()) {
     auto argtype{type_array[i++]};
     args[&arg] = argtype;

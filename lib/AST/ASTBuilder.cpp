@@ -243,6 +243,14 @@ clang::RecordDecl *ASTBuilder::CreateStructDecl(clang::DeclContext *decl_ctx,
                                    clang::SourceLocation(), id, prev_decl);
 }
 
+clang::RecordDecl *ASTBuilder::CreateUnionDecl(clang::DeclContext *decl_ctx,
+                                               clang::IdentifierInfo *id,
+                                               clang::RecordDecl *prev_decl) {
+  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Union, decl_ctx,
+                                   clang::SourceLocation(),
+                                   clang::SourceLocation(), id, prev_decl);
+}
+
 clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
                                               clang::QualType type,
                                               clang::IdentifierInfo *id) {
@@ -440,6 +448,14 @@ clang::ReturnStmt *ASTBuilder::CreateReturn(clang::Expr *retval) {
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::ReturnStmt>();
   return CreateReturnStmt(ctx, retval);
+}
+
+clang::TypedefDecl *ASTBuilder::CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                                  clang::IdentifierInfo *id,
+                                                  clang::QualType type) {
+  return clang::TypedefDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+                                    clang::SourceLocation(), id,
+                                    ctx.getTrivialTypeSourceInfo(type));
 }
 
 }  // namespace rellic

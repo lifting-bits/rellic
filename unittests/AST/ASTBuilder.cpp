@@ -567,6 +567,22 @@ TEST_SUITE("ASTBuilder::CreateStructDecl") {
   }
 }
 
+TEST_SUITE("ASTBuilder::CreateUnionDecl") {
+  SCENARIO("Create a clang::RecordDecl") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit()};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      THEN("return an empty union u") {
+        auto record_decl{ast.CreateUnionDecl(tudecl, "u")};
+        REQUIRE(record_decl != nullptr);
+        CHECK(record_decl->getName() == "u");
+      }
+    }
+  }
+}
+
 TEST_SUITE("ASTBuilder::CreateFieldDecl") {
   SCENARIO("Create a clang::FieldDecl") {
     GIVEN("Structure definition s") {

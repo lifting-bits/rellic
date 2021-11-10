@@ -97,6 +97,16 @@ class ASTBuilder {
                                       clang::RecordDecl *prev_decl = nullptr) {
     return CreateStructDecl(decl_ctx, CreateIdentifier(name), prev_decl);
   }
+  // Union declaration
+  clang::RecordDecl *CreateUnionDecl(clang::DeclContext *decl_ctx,
+                                     clang::IdentifierInfo *id,
+                                     clang::RecordDecl *prev_decl = nullptr);
+
+  clang::RecordDecl *CreateUnionDecl(clang::DeclContext *decl_ctx,
+                                     std::string name,
+                                     clang::RecordDecl *prev_decl = nullptr) {
+    return CreateStructDecl(decl_ctx, CreateIdentifier(name), prev_decl);
+  }
   // Structure field declaration
   clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
                                     clang::QualType type,
@@ -257,6 +267,16 @@ class ASTBuilder {
   clang::BreakStmt *CreateBreak();
   // Return
   clang::ReturnStmt *CreateReturn(clang::Expr *retval = nullptr);
+  // Typedef declaration
+  clang::TypedefDecl *CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                        clang::IdentifierInfo *id,
+                                        clang::QualType type);
+
+  clang::TypedefDecl *CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                        std::string name,
+                                        clang::QualType type) {
+    return CreateTypedefDecl(decl_ctx, CreateIdentifier(name), type);
+  }
 };
 
 }  // namespace rellic

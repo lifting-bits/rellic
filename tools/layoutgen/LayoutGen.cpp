@@ -5,9 +5,14 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
 #include <clang/AST/DeclBase.h>
+#include <clang/AST/RecordLayout.h>
 #include <clang/AST/Type.h>
+#include <clang/Basic/AttributeCommonInfo.h>
+#include <clang/Basic/SourceLocation.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <clang/Tooling/Tooling.h>
 #include <gflags/gflags.h>
@@ -81,6 +86,7 @@ class StructGenerator {
   unsigned anon_count{0};
 
   clang::QualType VisitType(llvm::DIType* t) {
+    DLOG(INFO) << "VisitType: " << rellic::LLVMThingToString(t);
     if (!t) {
       return ast_ctx.VoidTy;
     }
@@ -99,7 +105,10 @@ class StructGenerator {
     return {};
   }
 
-  void VisitFields(clang::RecordDecl* decl, llvm::DICompositeType* s) {
+  void VisitFields(
+      clang::RecordDecl* decl, llvm::DICompositeType* s,
+      std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
+      bool isUnion) {
     std::vector<llvm::DIDerivedType*> elems{};
     auto nodes{s->getElements()};
     std::for_each(nodes.begin(), nodes.end(), [&](auto node) {
@@ -112,22 +121,42 @@ class StructGenerator {
     });
 
     auto count{0U};
+    auto curr_offset{0U};
     for (auto elem : elems) {
+      if (curr_offset < elem->getOffsetInBits()) {
+        auto padding_type{ast_ctx.CharTy};
+        auto type_size{ast_ctx.getTypeSize(padding_type)};
+        auto needed_padding{elem->getOffsetInBits() - curr_offset};
+        auto padding_count{needed_padding / type_size};
+        auto padding_arr_type{
+            rellic::GetConstantArrayType(ast_ctx, padding_type, padding_count)};
+        auto padding_decl{ast.CreateFieldDecl(
+            decl, padding_arr_type, "padding_" + std::to_string(count++))};
+        decl->addDecl(padding_decl);
+        curr_offset += padding_count * type_size;
+      }
+
       std::string name{elem->getName().str()};
       if (name == "") {
         name = "anon";
       }
       name = name + "_" + std::to_string(count++);
-
+      CHECK_EQ(curr_offset, elem->getOffsetInBits())
+          << "Couldn't correctly offset field " << name;
       auto type{VisitType(elem->getBaseType())};
       auto fdecl{ast.CreateFieldDecl(decl, type, name)};
+      map[fdecl] = elem;
       decl->addDecl(fdecl);
+      if (!isUnion) {
+        curr_offset += ast_ctx.getTypeSize(type);
+      }
     }
     decl->completeDefinition();
   }
 
   clang::QualType VisitStruct(llvm::DICompositeType* s) {
-    auto decl{decls[s]};
+    DLOG(INFO) << "VisitStruct: " << rellic::LLVMThingToString(s);
+    auto& decl{decls[s]};
     if (decl) {
       return ast_ctx.getRecordType(decl);
     }
@@ -140,13 +169,28 @@ class StructGenerator {
     }
 
     decl = ast.CreateStructDecl(ast_ctx.getTranslationUnitDecl(), name);
-    VisitFields(decl, s);
+    clang::AttributeCommonInfo info{clang::SourceLocation{}};
+    decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
+    std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
+    VisitFields(decl, s, fmap, /*isUnion=*/false);
     ast_ctx.getTranslationUnitDecl()->addDecl(decl);
+    auto& layout{ast_ctx.getASTRecordLayout(decl)};
+    auto i{0U};
+    for (auto field : decl->fields()) {
+      auto type{fmap[field]};
+      if (type) {
+        CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
+            << "Field " << field->getName().str() << " of struct "
+            << decl->getName().str() << " is not correctly aligned";
+      }
+      ++i;
+    }
     return ast_ctx.getRecordType(decl);
   }
 
   clang::QualType VisitUnion(llvm::DICompositeType* u) {
-    auto decl{decls[u]};
+    DLOG(INFO) << "VisitUnion: " << rellic::LLVMThingToString(u);
+    auto& decl{decls[u]};
     if (decl) {
       return ast_ctx.getRecordType(decl);
     }
@@ -159,12 +203,14 @@ class StructGenerator {
     }
 
     decl = ast.CreateUnionDecl(ast_ctx.getTranslationUnitDecl(), name);
-    VisitFields(decl, u);
+    std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
+    VisitFields(decl, u, fmap, /*isUnion=*/true);
     ast_ctx.getTranslationUnitDecl()->addDecl(decl);
     return ast_ctx.getRecordType(decl);
   }
 
   clang::QualType VisitArray(llvm::DICompositeType* a) {
+    DLOG(INFO) << "VisitArray: " << rellic::LLVMThingToString(a);
     auto base{VisitType(a->getBaseType())};
     auto subrange{llvm::cast<llvm::DISubrange>(a->getElements()[0])};
     auto* ci = subrange->getCount().dyn_cast<llvm::ConstantInt*>();
@@ -172,6 +218,7 @@ class StructGenerator {
   }
 
   clang::QualType VisitDerived(llvm::DIDerivedType* d) {
+    DLOG(INFO) << "VisitDerived: " << rellic::LLVMThingToString(d);
     auto base{VisitType(d->getBaseType())};
     switch (d->getTag()) {
       case llvm::dwarf::DW_TAG_const_type:
@@ -199,6 +246,7 @@ class StructGenerator {
   }
 
   clang::QualType VisitBasic(llvm::DIBasicType* b) {
+    DLOG(INFO) << "VisitBasic: " << rellic::LLVMThingToString(b);
     if (b->getEncoding() == llvm::dwarf::DW_ATE_float) {
       return ast_ctx.getRealTypeForBitwidth(b->getSizeInBits(), false);
     } else {
@@ -209,6 +257,7 @@ class StructGenerator {
   }
 
   clang::QualType VisitSubroutine(llvm::DISubroutineType* s) {
+    DLOG(INFO) << "VisitSubroutine: " << rellic::LLVMThingToString(s);
     auto type_array{s->getTypeArray()};
     auto ret_type{VisitType(type_array[0])};
     std::vector<clang::QualType> params{};
@@ -227,9 +276,12 @@ class StructGenerator {
   }
 
   clang::QualType VisitComposite(llvm::DICompositeType* type) {
+    DLOG(INFO) << "VisitComposite: " << rellic::LLVMThingToString(type);
     switch (type->getTag()) {
-      case llvm::dwarf::DW_TAG_structure_type:
       case llvm::dwarf::DW_TAG_class_type:
+        DLOG(INFO) << "Treating class declaration as struct";
+        [[fallthrough]];
+      case llvm::dwarf::DW_TAG_structure_type:
         return VisitStruct(type);
       case llvm::dwarf::DW_TAG_union_type:
         return VisitUnion(type);

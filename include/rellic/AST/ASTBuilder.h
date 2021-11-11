@@ -105,7 +105,7 @@ class ASTBuilder {
   clang::RecordDecl *CreateUnionDecl(clang::DeclContext *decl_ctx,
                                      std::string name,
                                      clang::RecordDecl *prev_decl = nullptr) {
-    return CreateStructDecl(decl_ctx, CreateIdentifier(name), prev_decl);
+    return CreateUnionDecl(decl_ctx, CreateIdentifier(name), prev_decl);
   }
   // Structure field declaration
   clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,

@@ -8,10 +8,12 @@
 #include "rellic/AST/StructGenerator.h"
 
 #include <clang/AST/Attr.h>
+#include <clang/AST/Expr.h>
 #include <clang/AST/RecordLayout.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <string>
 #include <unordered_set>
 
 #include "rellic/AST/Compat/ASTContext.h"
@@ -23,19 +25,21 @@ clang::QualType StructGenerator::VisitType(llvm::DIType* t) {
   if (!t) {
     return ast_ctx.VoidTy;
   }
-
-  if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
-    return VisitComposite(comp);
-  } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
-    return VisitDerived(der);
-  } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
-    return VisitBasic(basic);
-  } else if (auto sub = llvm::dyn_cast<llvm::DISubroutineType>(t)) {
-    return VisitSubroutine(sub);
-  } else {
-    LOG(FATAL) << "Unknown DIType: " << rellic::LLVMThingToString(t);
+  auto& type{types[t]};
+  if (type.isNull()) {
+    if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
+      type = VisitComposite(comp);
+    } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
+      type = VisitDerived(der);
+    } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
+      type = VisitBasic(basic);
+    } else if (auto sub = llvm::dyn_cast<llvm::DISubroutineType>(t)) {
+      type = VisitSubroutine(sub);
+    } else {
+      LOG(FATAL) << "Unknown DIType: " << rellic::LLVMThingToString(t);
+    }
   }
-  return {};
+  return type;
 }
 
 void StructGenerator::VisitFields(
@@ -110,10 +114,9 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s) {
 
   std::string name{s->getName().str()};
   if (name == "") {
-    name = "anon_struct_" + std::to_string(anon_count++);
-  } else {
-    name = "struct_" + name;
+    name = "anon";
   }
+  name += "_" + std::to_string(decl_count++);
 
   decl = ast.CreateStructDecl(ast_ctx.getTranslationUnitDecl(), name);
   clang::AttributeCommonInfo info{clang::SourceLocation{}};
@@ -148,10 +151,9 @@ clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u) {
 
   std::string name{u->getName().str()};
   if (name == "") {
-    name = "anon_union_" + std::to_string(anon_count++);
-  } else {
-    name = "union_" + name;
+    name = "anon";
   }
+  name += "_" + std::to_string(decl_count++);
 
   decl = ast.CreateUnionDecl(ast_ctx.getTranslationUnitDecl(), name);
   std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
@@ -185,7 +187,9 @@ clang::QualType StructGenerator::VisitDerived(llvm::DIDerivedType* d) {
       auto& tdef_decl{typedef_decls[d]};
       if (!tdef_decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
-        tdef_decl = ast.CreateTypedefDecl(tudecl, d->getName().str(), base);
+        tdef_decl = ast.CreateTypedefDecl(
+            tudecl, d->getName().str() + "_" + std::to_string(decl_count++),
+            base);
         tudecl->addDecl(tdef_decl);
       }
       return ast_ctx.getTypedefType(tdef_decl);
@@ -242,6 +246,36 @@ clang::QualType StructGenerator::VisitComposite(llvm::DICompositeType* type) {
       LOG(FATAL) << "Invalid DICompositeType tag: " << type->getTag();
   }
   return {};
+}
+
+std::vector<clang::Expr*> StructGenerator::GetAccessor(clang::Expr* base,
+                                                       clang::RecordDecl* decl,
+                                                       unsigned int offset,
+                                                       unsigned int length) {
+  std::vector<clang::Expr*> res{};
+  auto& layout{ast_ctx.getASTRecordLayout(decl)};
+
+  for (auto field : decl->fields()) {
+    auto idx{field->getFieldIndex()};
+    auto type{field->getType().getDesugaredType(ast_ctx)};
+    auto field_offset{layout.getFieldOffset(idx)};
+    auto field_size{ast_ctx.getTypeSize(type)};
+    if (offset >= field_offset &&
+        offset + length <= field_offset + field_size) {
+      if (type->isAggregateType()) {
+        auto subdecl{type->getAsRecordDecl()};
+        auto suboffset{offset - field_offset};
+        auto new_base{ast.CreateDot(base, field)};
+        for (auto r : GetAccessor(new_base, subdecl, suboffset, length)) {
+          res.push_back(r);
+        }
+      } else if (offset == field_offset && length == field_size) {
+        res.push_back(ast.CreateDot(base, field));
+      }
+    }
+  }
+
+  return res;
 }
 
 StructGenerator::StructGenerator(clang::ASTUnit& ast_unit)

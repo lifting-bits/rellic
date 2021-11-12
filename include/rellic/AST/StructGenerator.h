@@ -11,6 +11,7 @@
 #include <llvm/IR/DebugInfoMetadata.h>
 
 #include <unordered_map>
+#include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
 
@@ -22,7 +23,8 @@ class StructGenerator {
   std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*> decls{};
   std::unordered_map<llvm::DIDerivedType*, clang::TypedefNameDecl*>
       typedef_decls{};
-  unsigned anon_count{0};
+  std::unordered_map<llvm::DIType*, clang::QualType> types{};
+  unsigned decl_count{0};
 
   void VisitFields(
       clang::RecordDecl* decl, llvm::DICompositeType* s,
@@ -41,5 +43,8 @@ class StructGenerator {
   StructGenerator(clang::ASTUnit& ast_unit);
 
   clang::QualType VisitType(llvm::DIType* t);
+  std::vector<clang::Expr*> GetAccessor(clang::Expr* base,
+                                        clang::RecordDecl* decl,
+                                        unsigned offset, unsigned length);
 };
 }  // namespace rellic

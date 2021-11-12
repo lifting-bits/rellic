@@ -22,6 +22,7 @@ add_library(${PROJECT_NAME} STATIC
   AST/Z3ConvVisitor.cpp
   AST/ReachBasedRefine.cpp
   AST/StructFieldRenamer.cpp
+  AST/StructGenerator.cpp
   
   BC/Util.cpp
   BC/Compat/Value.cpp

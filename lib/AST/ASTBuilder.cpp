@@ -262,6 +262,20 @@ clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
       /*PrevDecl=*/nullptr);
 }
 
+clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
+                                              clang::QualType type,
+                                              clang::IdentifierInfo *id,
+                                              unsigned bitwidth) {
+  auto bw{clang::IntegerLiteral::Create(ctx, llvm::APInt(32, bitwidth),
+                                        ctx.IntTy, clang::SourceLocation())};
+  return sema.CheckFieldDecl(clang::DeclarationName(id), type,
+                             ctx.getTrivialTypeSourceInfo(type), record,
+                             clang::SourceLocation(), /*Mutable=*/false, bw,
+                             clang::ICIS_NoInit, clang::SourceLocation(),
+                             clang::AccessSpecifier::AS_none,
+                             /*PrevDecl=*/nullptr);
+}
+
 clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {
   return new (ctx)
       clang::DeclStmt(clang::DeclGroupRef(decl), clang::SourceLocation(),

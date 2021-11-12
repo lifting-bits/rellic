@@ -127,13 +127,20 @@ class StructGenerator {
         auto padding_type{ast_ctx.CharTy};
         auto type_size{ast_ctx.getTypeSize(padding_type)};
         auto needed_padding{elem->getOffsetInBits() - curr_offset};
-        auto padding_count{needed_padding / type_size};
-        auto padding_arr_type{
-            rellic::GetConstantArrayType(ast_ctx, padding_type, padding_count)};
-        auto padding_decl{ast.CreateFieldDecl(
-            decl, padding_arr_type, "padding_" + std::to_string(count++))};
+        clang::FieldDecl* padding_decl{};
+        if (needed_padding % type_size) {
+          padding_decl = ast.CreateFieldDecl(
+              decl, ast_ctx.IntTy, "padding_" + std::to_string(count++),
+              needed_padding);
+        } else {
+          auto padding_count{needed_padding / type_size};
+          auto padding_arr_type{rellic::GetConstantArrayType(
+              ast_ctx, padding_type, padding_count)};
+          padding_decl = ast.CreateFieldDecl(
+              decl, padding_arr_type, "padding_" + std::to_string(count++));
+        }
         decl->addDecl(padding_decl);
-        curr_offset += padding_count * type_size;
+        curr_offset = elem->getOffsetInBits();
       }
 
       std::string name{elem->getName().str()};
@@ -141,15 +148,22 @@ class StructGenerator {
         name = "anon";
       }
       name = name + "_" + std::to_string(count++);
-      CHECK_EQ(curr_offset, elem->getOffsetInBits())
-          << "Couldn't correctly offset field " << name;
+
       auto type{VisitType(elem->getBaseType())};
-      auto fdecl{ast.CreateFieldDecl(decl, type, name)};
+      clang::FieldDecl* fdecl{};
+      if (elem->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
+        fdecl = ast.CreateFieldDecl(decl, type, name, elem->getSizeInBits());
+        if (!isUnion) {
+          curr_offset += elem->getSizeInBits();
+        }
+      } else {
+        fdecl = ast.CreateFieldDecl(decl, type, name);
+        if (!isUnion) {
+          curr_offset += ast_ctx.getTypeSize(type);
+        }
+      }
       map[fdecl] = elem;
       decl->addDecl(fdecl);
-      if (!isUnion) {
-        curr_offset += ast_ctx.getTypeSize(type);
-      }
     }
     decl->completeDefinition();
   }

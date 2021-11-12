@@ -116,6 +116,16 @@ class ASTBuilder {
                                     clang::QualType type, std::string name) {
     return CreateFieldDecl(record, type, CreateIdentifier(name));
   }
+  clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
+                                    clang::QualType type,
+                                    clang::IdentifierInfo *id,
+                                    unsigned bitwidth);
+
+  clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
+                                    clang::QualType type, std::string name,
+                                    unsigned bitwidth) {
+    return CreateFieldDecl(record, type, CreateIdentifier(name), bitwidth);
+  }
   // Declaration statement
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);
   // Declaration reference

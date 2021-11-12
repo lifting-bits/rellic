@@ -562,6 +562,8 @@ TEST_SUITE("ASTBuilder::CreateStructDecl") {
         auto record_decl{ast.CreateStructDecl(tudecl, "s")};
         REQUIRE(record_decl != nullptr);
         CHECK(record_decl->getName() == "s");
+        CHECK(record_decl->getTagKind() ==
+              clang::RecordDecl::TagKind::TTK_Struct);
       }
     }
   }
@@ -578,6 +580,8 @@ TEST_SUITE("ASTBuilder::CreateUnionDecl") {
         auto record_decl{ast.CreateUnionDecl(tudecl, "u")};
         REQUIRE(record_decl != nullptr);
         CHECK(record_decl->getName() == "u");
+        CHECK(record_decl->getTagKind() ==
+              clang::RecordDecl::TagKind::TTK_Union);
       }
     }
   }
@@ -598,6 +602,25 @@ TEST_SUITE("ASTBuilder::CreateFieldDecl") {
         REQUIRE(field_decl != nullptr);
         CHECK(field_decl->getType() == type);
         CHECK(field_decl->getName() == "f");
+      }
+    }
+  }
+
+  SCENARIO("Create a bitfield clang::FieldDecl") {
+    GIVEN("Structure definition s") {
+      auto unit{GetASTUnit("struct s{};")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      auto record_decl{GetDecl<clang::RecordDecl>(tudecl, "s")};
+      REQUIRE(record_decl->field_empty());
+      THEN("return structure s with member int f with size 3") {
+        auto type{ctx.IntTy};
+        auto field_decl{ast.CreateFieldDecl(record_decl, type, "f", 3)};
+        REQUIRE(field_decl != nullptr);
+        CHECK(field_decl->getType() == type);
+        CHECK(field_decl->getName() == "f");
+        CHECK(field_decl->getBitWidthValue(ctx) == 3);
       }
     }
   }

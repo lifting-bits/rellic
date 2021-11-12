@@ -190,6 +190,8 @@ class StructGenerator {
     ast_ctx.getTranslationUnitDecl()->addDecl(decl);
     auto& layout{ast_ctx.getASTRecordLayout(decl)};
     auto i{0U};
+    CHECK_EQ(s->getSizeInBits(), layout.getSize().getQuantity() *
+                                     ast_ctx.getTypeSize(ast_ctx.CharTy));
     for (auto field : decl->fields()) {
       auto type{fmap[field]};
       if (type) {
@@ -220,6 +222,9 @@ class StructGenerator {
     std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
     VisitFields(decl, u, fmap, /*isUnion=*/true);
     ast_ctx.getTranslationUnitDecl()->addDecl(decl);
+    auto& layout{ast_ctx.getASTRecordLayout(decl)};
+    CHECK_EQ(u->getSizeInBits(), layout.getSize().getQuantity() *
+                                     ast_ctx.getTypeSize(ast_ctx.CharTy));
     return ast_ctx.getRecordType(decl);
   }
 

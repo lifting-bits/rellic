@@ -37,11 +37,13 @@ install(TARGETS ${RELLIC_HEADERGEN} DESTINATION "bin")
 set(RELLIC_LAYOUTGEN ${PROJECT_NAME}-layoutgen-${RELLIC_LLVM_VERSION})
 
 add_executable(${RELLIC_LAYOUTGEN}
-layoutgen/LayoutGen.cpp
+  layoutgen/LayoutGen.cpp
 )
 
 target_link_libraries(${RELLIC_LAYOUTGEN} PRIVATE ${PROJECT_NAME})
 add_project_properties(${RELLIC_LAYOUTGEN})
+
+set(RELLIC_LAYOUTGEN ${RELLIC_LAYOUTGEN} PARENT_SCOPE)
 
 install(TARGETS ${RELLIC_LAYOUTGEN} DESTINATION "bin")
 

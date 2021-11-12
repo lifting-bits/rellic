@@ -190,8 +190,10 @@ class StructGenerator {
     ast_ctx.getTranslationUnitDecl()->addDecl(decl);
     auto& layout{ast_ctx.getASTRecordLayout(decl)};
     auto i{0U};
-    CHECK_EQ(s->getSizeInBits(), layout.getSize().getQuantity() *
-                                     ast_ctx.getTypeSize(ast_ctx.CharTy));
+    // TODO(frabert): Ideally we'd also check that the size as declared in the
+    // debug data is the same as the one computed from the declaration, but
+    // bitfields create issues e.g. in the `bitcode` test: the debug info size
+    // for the struct is 32, but in reality it's 8
     for (auto field : decl->fields()) {
       auto type{fmap[field]};
       if (type) {
@@ -222,9 +224,6 @@ class StructGenerator {
     std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
     VisitFields(decl, u, fmap, /*isUnion=*/true);
     ast_ctx.getTranslationUnitDecl()->addDecl(decl);
-    auto& layout{ast_ctx.getASTRecordLayout(decl)};
-    CHECK_EQ(u->getSizeInBits(), layout.getSize().getQuantity() *
-                                     ast_ctx.getTypeSize(ast_ctx.CharTy));
     return ast_ctx.getRecordType(decl);
   }
 

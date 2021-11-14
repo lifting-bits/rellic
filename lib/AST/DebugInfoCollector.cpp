@@ -14,6 +14,7 @@
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/Support/Casting.h>
+#include <rellic/BC/Util.h>
 
 #include <algorithm>
 #include <iterator>
@@ -43,93 +44,151 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
     return;
   }
 
-  while (auto derived{llvm::dyn_cast<llvm::DIDerivedType>(ditype)}) {
-    // We are only interested in analyzing function types and structure types,
-    // so we need to "unwrap" any DIDerivedType, of which there might be several
-    // layers, in case of e.g. typedefs of typedefs, or pointers to pointers.
-    //
-    // Practical example: given the following source code
-    //
-    //   struct foo {
-    //     int field;
-    //   };
-    //   typedef struct foo foo_t;
-    //   int main(void) {
-    //     const volatile foo_t **a;
-    //   }
-    //
-    // The variable `a` will be annotated with
-    // DIDerivedType             (pointer)
-    // - DIDerivedType           (pointer)
-    //   - DIDerivedType         (const)
-    //     - DIDerivedType       (volatile)
-    //       - DIDerivedType     (typedef)
-    //         - DICompositeType (struct)
-    //
-    // We are only interested in walking the actual struct. Note that the
-    // information about e.g. const volatile is not lost, as the original
-    // DIDerivedType is still associated with the original llvm::Value by
-    // visitDbgDeclareInst
-    ditype = derived->getBaseType();
-    if (!ditype) {
-      // This happens in the case of void pointers
-      return;
+  DLOG(INFO) << "Inspecting " << LLVMThingToString(ditype);
+  if (auto funcditype = llvm::dyn_cast<llvm::DISubroutineType>(ditype)) {
+    auto di_types{funcditype->getTypeArray()};
+
+    llvm::FunctionType* functype{};
+    if (type) {
+      functype = llvm::dyn_cast<llvm::FunctionType>(type);
     }
-  }
 
-  switch (type->getTypeID()) {
-    case llvm::Type::FunctionTyID: {
-      auto functype{llvm::cast<llvm::FunctionType>(type)};
-      auto funcditype{llvm::cast<llvm::DISubroutineType>(ditype)};
-
-      std::vector<llvm::Type*> type_array;
-      type_array.push_back(functype->getReturnType());
-      auto params{functype->params()};
-      std::copy(params.begin(), params.end(), std::back_inserter(type_array));
-
-      auto di_types{funcditype->getTypeArray()};
-      if (type_array.size() + functype->isVarArg() != di_types.size()) {
-        // Mismatch between bitcode and debug metadata, bail out
-        break;
+    std::vector<llvm::Type*> type_array{};
+    if (functype) {
+      if (functype->getNumParams() + functype->isVarArg() + 1 !=
+          di_types.size()) {
+        DLOG(INFO) << "Associated function " << LLVMThingToString(type)
+                   << " is not compatible";
+        type_array.resize(di_types.size());
+      } else {
+        type_array.push_back(functype->getReturnType());
+        auto params{functype->params()};
+        std::copy(params.begin(), params.end(), std::back_inserter(type_array));
       }
-
       types[type] = ditype;
-      for (auto i{0U}; i < type_array.size(); ++i) {
-        WalkType(type_array[i], di_types[i]);
-      }
-    } break;
-    case llvm::Type::StructTyID: {
-      auto strcttype{llvm::cast<llvm::StructType>(type)};
-      auto strctditype{llvm::cast<llvm::DICompositeType>(ditype)};
+    } else {
+      type_array.resize(di_types.size());
+    }
 
-      structs.push_back(strctditype);
-      auto elems{strcttype->elements()};
-      auto di_elems{strctditype->getElements()};
-      if (elems.size() != di_elems.size()) {
-        // Mismatch between bitcode and debug metadata, bail out
+    DLOG_IF(INFO, type && !functype)
+        << "Associated type " << LLVMThingToString(type)
+        << " is not a function";
+
+    for (auto i{0U}; i < di_types.size(); ++i) {
+      WalkType(type_array[i], di_types[i]);
+    }
+  } else if (auto composite = llvm::dyn_cast<llvm::DICompositeType>(ditype)) {
+    std::vector<llvm::DIDerivedType*> di_fields{};
+    for (auto elem : composite->getElements()) {
+      if (auto field = llvm::dyn_cast<llvm::DIDerivedType>(elem)) {
+        auto tag{field->getTag()};
+        if (tag == llvm::dwarf::DW_TAG_member ||
+            tag == llvm::dwarf::DW_TAG_inheritance) {
+          di_fields.push_back(field);
+        }
+      }
+    }
+
+    if (composite->getTag() == llvm::dwarf::DW_TAG_array_type) {
+      llvm::Type* basetype{};
+
+      if (type) {
+        if (composite->getFlags() &
+            llvm::DICompositeType::DIFlags::FlagVector) {
+          if (auto arrtype = llvm::dyn_cast<llvm::ArrayType>(type)) {
+            basetype = arrtype->getElementType();
+          } else {
+            DLOG(INFO) << "Associated type " << LLVMThingToString(type)
+                       << " is not an array";
+          }
+        } else {
+          if (auto vectype = llvm::dyn_cast<llvm::VectorType>(type)) {
+            basetype = vectype->getElementType();
+          } else {
+            DLOG(INFO) << "Associated type " << LLVMThingToString(type)
+                       << " is not a vector";
+          }
+        }
+        types[type] = ditype;
+      }
+
+      WalkType(basetype, composite->getBaseType());
+    } else {
+      llvm::StructType* strcttype{};
+      if (type) {
+        strcttype = llvm::dyn_cast<llvm::StructType>(type);
+      }
+
+      std::vector<llvm::Type*> elems{};
+      if (strcttype) {
+        if (strcttype->getNumElements() != di_fields.size()) {
+          elems.resize(di_fields.size());
+          DLOG(INFO) << "Associated struct " << LLVMThingToString(type)
+                     << " is not compatible";
+        } else {
+          elems = strcttype->elements();
+        }
+        types[type] = ditype;
+      } else {
+        elems.resize(di_fields.size());
+      }
+
+      DLOG_IF(INFO, type && !strcttype)
+          << "Associated type " << LLVMThingToString(type)
+          << " is not a struct";
+
+      structs.push_back(composite);
+      for (auto i{0U}; i < di_fields.size(); ++i) {
+        WalkType(elems[i], di_fields[i]);
+      }
+    }
+  } else if (auto derived = llvm::dyn_cast<llvm::DIDerivedType>(ditype)) {
+    auto baseditype{derived->getBaseType()};
+    switch (derived->getTag()) {
+      case llvm::dwarf::DW_TAG_pointer_type: {
+        llvm::PointerType* ptrtype{};
+        if (type) {
+          ptrtype = llvm::dyn_cast<llvm::PointerType>(type);
+        }
+
+        DLOG_IF(INFO, type && !ptrtype)
+            << "Associated type " << LLVMThingToString(type)
+            << " is not a pointer";
+
+        auto basetype{ptrtype ? ptrtype->getElementType() : nullptr};
+        WalkType(basetype, baseditype);
+      } break;
+      default:
+        // We are only interested in analyzing function types and structure
+        // types, so we need to "unwrap" any DIDerivedType, of which there might
+        // be several layers, in case of e.g. typedefs of typedefs, or pointers
+        // to pointers.
+        //
+        // Practical example: given the following source code
+        //
+        //   struct foo {
+        //     int field;
+        //   };
+        //   typedef struct foo foo_t;
+        //   int main(void) {
+        //     const volatile foo_t **a;
+        //   }
+        //
+        // The variable `a` will be annotated with
+        // DIDerivedType             (pointer)
+        // - DIDerivedType           (pointer)
+        //   - DIDerivedType         (const)
+        //     - DIDerivedType       (volatile)
+        //       - DIDerivedType     (typedef)
+        //         - DICompositeType (struct)
+        //
+        // We are only interested in walking the actual struct. Note that the
+        // information about e.g. const volatile is not lost, as the original
+        // DIDerivedType is still associated with the original llvm::Value by
+        // visitDbgDeclareInst
+        WalkType(type, baseditype);
         break;
-      }
-
-      types[type] = ditype;
-      for (auto i{0U}; i < elems.size(); ++i) {
-        auto field{llvm::cast<llvm::DIType>(di_elems[i])};
-        WalkType(elems[i], field);
-      }
-    } break;
-    case llvm::Type::PointerTyID: {
-      auto ptrtype{llvm::cast<llvm::PointerType>(type)};
-      WalkType(ptrtype->getElementType(), ditype);
-    } break;
-    case llvm::Type::ArrayTyID: {
-      auto arrtype{llvm::cast<llvm::ArrayType>(type)};
-      WalkType(arrtype->getElementType(), ditype);
-    } break;
-    default: {
-      if (type->isVectorTy()) {
-        auto vtype{llvm::cast<llvm::VectorType>(type)};
-        WalkType(vtype->getElementType(), ditype);
-      }
-    } break;
+    }
   }
 }
 
@@ -140,19 +199,17 @@ void DebugInfoCollector::visitFunction(llvm::Function& func) {
   }
 
   auto ditype{subprogram->getType()};
-
   auto type_array{ditype->getTypeArray()};
-  if (func.arg_size() + func.isVarArg() + 1 != type_array.size()) {
+  if (func.arg_size() + func.isVarArg() + 1 == type_array.size()) {
+    funcs[&func] = ditype;
+    size_t i{1};
+    for (auto& arg : func.args()) {
+      auto argtype{type_array[i++]};
+      args[&arg] = argtype;
+    }
+  } else {
     // Debug metadata is not compatible with bitcode, bail out
     // TODO(frabert): Find a way to reconcile differences
-    return;
-  }
-
-  funcs[&func] = ditype;
-  size_t i{1};
-  for (auto& arg : func.args()) {
-    auto argtype{type_array[i++]};
-    args[&arg] = argtype;
   }
   WalkType(func.getFunctionType(), ditype);
 }

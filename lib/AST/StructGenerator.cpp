@@ -5,8 +5,9 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#include <llvm/IR/DebugInfoMetadata.h>
-#define GOOGLE_STRIP_LOG 0
+#define GOOGLE_STRIP_LOG 1
+
+#include "rellic/AST/StructGenerator.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
@@ -18,7 +19,6 @@
 #include <unordered_set>
 
 #include "rellic/AST/Compat/ASTContext.h"
-#include "rellic/AST/StructGenerator.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {
@@ -44,28 +44,54 @@ clang::QualType StructGenerator::VisitType(llvm::DIType* t) {
   return type;
 }
 
+static std::vector<llvm::DIDerivedType*> GetFields(
+    llvm::DICompositeType* composite) {
+  std::vector<llvm::DIDerivedType*> fields{};
+  auto nodes{composite->getElements()};
+  std::for_each(nodes.begin(), nodes.end(), [&](auto node) {
+    if (auto type = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
+      auto tag{type->getTag()};
+
+      if (tag != llvm::dwarf::DW_TAG_member &&
+          tag != llvm::dwarf::DW_TAG_inheritance) {
+        return;
+      }
+
+      if (type->getFlags() & llvm::DIDerivedType::DIFlags::FlagStaticMember) {
+        return;
+      }
+
+      if (tag == llvm::dwarf::DW_TAG_inheritance) {
+        auto sub_fields{
+            GetFields(llvm::cast<llvm::DICompositeType>(type->getBaseType()))};
+        if (sub_fields.size() == 0) {
+          // Ignore empty base types
+          return;
+        }
+      }
+
+      fields.push_back(type);
+    }
+  });
+  std::sort(fields.begin(), fields.end(), [](auto a, auto b) {
+    return a->getOffsetInBits() < b->getOffsetInBits();
+  });
+
+  return fields;
+}
+
 void StructGenerator::VisitFields(
     clang::RecordDecl* decl, llvm::DICompositeType* s,
     std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
     bool isUnion) {
-  std::vector<llvm::DIDerivedType*> elems{};
-  auto nodes{s->getElements()};
-  std::for_each(nodes.begin(), nodes.end(), [&](auto node) {
-    if (auto type = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
-      elems.push_back(type);
-    }
-  });
-  std::sort(elems.begin(), elems.end(), [](auto a, auto b) {
-    return a->getOffsetInBits() < b->getOffsetInBits();
-  });
+  auto elems{GetFields(s)};
 
   auto count{0U};
   auto curr_offset{0U};
   for (auto elem : elems) {
-    if (elem->getFlags() & llvm::DIDerivedType::DIFlags::FlagStaticMember) {
-      continue;
-    }
-
+    CHECK_LE(curr_offset, elem->getOffsetInBits())
+        << "Field " << LLVMThingToString(elem)
+        << " cannot be correctly aligned";
     if (curr_offset < elem->getOffsetInBits()) {
       auto padding_type{ast_ctx.CharTy};
       auto type_size{ast_ctx.getTypeSize(padding_type)};
@@ -138,8 +164,7 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s) {
   // for the struct is 32, but in reality it's 8
   for (auto field : decl->fields()) {
     auto type{fmap[field]};
-    if (type &&
-        !(type->getFlags() & llvm::DIDerivedType::DIFlags::FlagStaticMember)) {
+    if (type) {
       CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
           << "Field " << field->getName().str() << " of struct "
           << decl->getName().str() << " is not correctly aligned";

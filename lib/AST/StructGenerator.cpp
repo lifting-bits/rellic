@@ -5,9 +5,8 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#define GOOGLE_STRIP_LOG 1
-
-#include "rellic/AST/StructGenerator.h"
+#include <llvm/IR/DebugInfoMetadata.h>
+#define GOOGLE_STRIP_LOG 0
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
@@ -19,6 +18,7 @@
 #include <unordered_set>
 
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/StructGenerator.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {
@@ -62,6 +62,10 @@ void StructGenerator::VisitFields(
   auto count{0U};
   auto curr_offset{0U};
   for (auto elem : elems) {
+    if (elem->getFlags() & llvm::DIDerivedType::DIFlags::FlagStaticMember) {
+      continue;
+    }
+
     if (curr_offset < elem->getOffsetInBits()) {
       auto padding_type{ast_ctx.CharTy};
       auto type_size{ast_ctx.getTypeSize(padding_type)};
@@ -134,7 +138,8 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s) {
   // for the struct is 32, but in reality it's 8
   for (auto field : decl->fields()) {
     auto type{fmap[field]};
-    if (type) {
+    if (type &&
+        !(type->getFlags() & llvm::DIDerivedType::DIFlags::FlagStaticMember)) {
       CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
           << "Field " << field->getName().str() << " of struct "
           << decl->getName().str() << " is not correctly aligned";

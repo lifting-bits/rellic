@@ -44,6 +44,20 @@ clang::QualType StructGenerator::VisitType(llvm::DIType* t) {
   return type;
 }
 
+// Walks down a chain of typedefs to get the ultimate base type for a class
+static llvm::DICompositeType* GetBaseType(llvm::DIType* type) {
+  if (auto composite = llvm::dyn_cast<llvm::DICompositeType>(type)) {
+    return composite;
+  } else if (auto derived = llvm::dyn_cast<llvm::DIDerivedType>(type)) {
+    if (derived->getTag() == llvm::dwarf::DW_TAG_typedef) {
+      return GetBaseType(derived->getBaseType());
+    }
+  }
+
+  LOG(FATAL) << "Invalid type " << LLVMThingToString(type);
+  return nullptr;
+}
+
 static std::vector<llvm::DIDerivedType*> GetFields(
     llvm::DICompositeType* composite) {
   std::vector<llvm::DIDerivedType*> fields{};
@@ -62,8 +76,7 @@ static std::vector<llvm::DIDerivedType*> GetFields(
       }
 
       if (tag == llvm::dwarf::DW_TAG_inheritance) {
-        auto sub_fields{
-            GetFields(llvm::cast<llvm::DICompositeType>(type->getBaseType()))};
+        auto sub_fields{GetFields(GetBaseType(type->getBaseType()))};
         if (sub_fields.size() == 0) {
           // Ignore empty base types
           return;

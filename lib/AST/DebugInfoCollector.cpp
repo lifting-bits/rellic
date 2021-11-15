@@ -40,10 +40,9 @@ void DebugInfoCollector::visitInstruction(llvm::Instruction& inst) {
 }
 
 void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
-  if (!ditype || types.find(type) != types.end() || ditypes.count(ditype)) {
+  if (!ditype || types.find(type) != types.end()) {
     return;
   }
-  ditypes.insert(ditype);
 
   DLOG(INFO) << "Inspecting " << LLVMThingToString(ditype);
   if (auto funcditype = llvm::dyn_cast<llvm::DISubroutineType>(ditype)) {
@@ -157,6 +156,7 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
             << " is not a pointer";
 
         auto basetype{ptrtype ? ptrtype->getElementType() : nullptr};
+        types[type] = ditype;
         WalkType(basetype, baseditype);
       } break;
       default:

@@ -57,9 +57,9 @@ def genlayout(self, rellic, input, output, timeout):
     p = run_cmd(cmd, timeout)
 
     self.assertEqual(
-        len(p.stderr), 0, "errors or warnings during layout generation: %s" % p.stderr
+        len(p.stderr), 0, "errors or warnings during header generation: %s" % p.stderr
     )
-    self.assertEqual(p.returncode, 0, "rellic-layout failure: %s" % p.stderr)
+    self.assertEqual(p.returncode, 0, "rellic-headergen failure: %s" % p.stderr)
 
     return p
 
@@ -90,7 +90,7 @@ class TestRoundtrip(unittest.TestCase):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("rellic", help="path to rellic-layoutgen")
+    parser.add_argument("rellic", help="path to rellic-headergen")
     parser.add_argument("tests", help="path to test directory")
     parser.add_argument("clang", help="path to clang")
     parser.add_argument("-t", "--timeout", help="set timeout in seconds", type=int)

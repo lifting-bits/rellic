@@ -166,7 +166,7 @@ add_test(NAME test_decompile
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
-add_test(NAME test_layoutgen
-  COMMAND scripts/test-layoutgen.py $<TARGET_FILE:${RELLIC_LAYOUTGEN}> tests/tools/layoutgen/ "${CLANG_PATH}"
+add_test(NAME test_headergen
+  COMMAND scripts/test-headergen.py $<TARGET_FILE:${RELLIC_HEADERGEN}> tests/tools/headergen/ "${CLANG_PATH}"
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

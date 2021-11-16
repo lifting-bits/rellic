@@ -28,24 +28,9 @@ add_executable(${RELLIC_HEADERGEN}
 target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_NAME})
 add_project_properties(${RELLIC_HEADERGEN})
 
+set(RELLIC_HEADERGEN ${RELLIC_HEADERGEN} PARENT_SCOPE)
+
 install(TARGETS ${RELLIC_HEADERGEN} DESTINATION "bin")
-
-#
-# rellic-layoutgen
-#
-
-set(RELLIC_LAYOUTGEN ${PROJECT_NAME}-layoutgen-${RELLIC_LLVM_VERSION})
-
-add_executable(${RELLIC_LAYOUTGEN}
-  layoutgen/LayoutGen.cpp
-)
-
-target_link_libraries(${RELLIC_LAYOUTGEN} PRIVATE ${PROJECT_NAME})
-add_project_properties(${RELLIC_LAYOUTGEN})
-
-set(RELLIC_LAYOUTGEN ${RELLIC_LAYOUTGEN} PARENT_SCOPE)
-
-install(TARGETS ${RELLIC_LAYOUTGEN} DESTINATION "bin")
 
 #
 # IDA UI plugin

@@ -16,6 +16,7 @@
 
 #include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/StructGenerator.h"
+#include "rellic/AST/SubprogramGenerator.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Version/Version.h"
 
@@ -94,9 +95,14 @@ int main(int argc, char* argv[]) {
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module->getTargetTriple()};
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
-  rellic::StructGenerator gen(*ast_unit);
+  rellic::StructGenerator strctgen(*ast_unit);
+  rellic::SubprogramGenerator subgen(*ast_unit, strctgen);
   for (auto type : dic->GetStructs()) {
-    gen.VisitType(type);
+    strctgen.VisitType(type);
+  }
+
+  for (auto func : dic->GetSubprograms()) {
+    subgen.VisitSubprogram(func);
   }
 
   std::error_code ec;

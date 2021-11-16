@@ -227,6 +227,8 @@ clang::QualType StructGenerator::VisitDerived(llvm::DIDerivedType* d) {
       return ast_ctx.getRestrictType(base);
     case llvm::dwarf::DW_TAG_pointer_type:
     case llvm::dwarf::DW_TAG_reference_type:
+    case llvm::dwarf::DW_TAG_rvalue_reference_type:
+    case llvm::dwarf::DW_TAG_ptr_to_member_type:
       return ast_ctx.getPointerType(base);
     case llvm::dwarf::DW_TAG_typedef: {
       auto& tdef_decl{typedef_decls[d]};

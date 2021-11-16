@@ -198,6 +198,7 @@ void DebugInfoCollector::visitFunction(llvm::Function& func) {
   if (!subprogram) {
     return;
   }
+  subprograms.push_back(subprogram);
 
   auto ditype{subprogram->getType()};
   auto type_array{ditype->getTypeArray()};

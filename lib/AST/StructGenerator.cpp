@@ -304,7 +304,8 @@ std::vector<clang::Expr*> StructGenerator::GetAccessor(clang::Expr* base,
     auto idx{field->getFieldIndex()};
     auto type{field->getType().getDesugaredType(ast_ctx)};
     auto field_offset{layout.getFieldOffset(idx)};
-    auto field_size{ast_ctx.getTypeSize(type)};
+    auto field_size{field->isBitField() ? field->getBitWidthValue(ast_ctx)
+                                        : ast_ctx.getTypeSize(type)};
     if (offset >= field_offset &&
         offset + length <= field_offset + field_size) {
       if (type->isAggregateType()) {

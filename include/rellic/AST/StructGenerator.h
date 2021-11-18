@@ -36,7 +36,7 @@ class StructGenerator {
   clang::QualType VisitStruct(llvm::DICompositeType* s);
   clang::QualType VisitUnion(llvm::DICompositeType* u);
   clang::QualType VisitArray(llvm::DICompositeType* a);
-  clang::QualType VisitBasic(llvm::DIBasicType* b);
+  clang::QualType VisitBasic(llvm::DIBasicType* b, int sizeHint);
   clang::QualType VisitSubroutine(llvm::DISubroutineType* s);
   clang::QualType VisitComposite(llvm::DICompositeType* type);
   clang::QualType VisitDerived(llvm::DIDerivedType* d);
@@ -44,7 +44,7 @@ class StructGenerator {
  public:
   StructGenerator(clang::ASTUnit& ast_unit);
 
-  clang::QualType VisitType(llvm::DIType* t);
+  clang::QualType VisitType(llvm::DIType* t, int sizeHint = -1);
   std::vector<clang::Expr*> GetAccessor(clang::Expr* base,
                                         clang::RecordDecl* decl,
                                         unsigned offset, unsigned length);

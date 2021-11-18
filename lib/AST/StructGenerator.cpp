@@ -5,9 +5,8 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#define GOOGLE_STRIP_LOG 1
-
-#include "rellic/AST/StructGenerator.h"
+#include <llvm/BinaryFormat/Dwarf.h>
+#define GOOGLE_STRIP_LOG 0
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
@@ -19,10 +18,11 @@
 #include <unordered_set>
 
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/StructGenerator.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {
-clang::QualType StructGenerator::VisitType(llvm::DIType* t) {
+clang::QualType StructGenerator::VisitType(llvm::DIType* t, int sizeHint) {
   VLOG(1) << "VisitType: " << rellic::LLVMThingToString(t);
   if (!t) {
     return ast_ctx.VoidTy;
@@ -34,7 +34,7 @@ clang::QualType StructGenerator::VisitType(llvm::DIType* t) {
     } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
       type = VisitDerived(der);
     } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
-      type = VisitBasic(basic);
+      type = VisitBasic(basic, sizeHint);
     } else if (auto sub = llvm::dyn_cast<llvm::DISubroutineType>(t)) {
       type = VisitSubroutine(sub);
     } else {
@@ -133,7 +133,8 @@ void StructGenerator::VisitFields(
     }
     name = name + "_" + std::to_string(count++);
 
-    auto type{VisitType(elem->getBaseType())};
+    auto type{VisitType(elem->getBaseType(), elem->getSizeInBits())};
+    CHECK(!type.isNull());
     clang::FieldDecl* fdecl{};
     if (elem->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
       fdecl = ast.CreateFieldDecl(decl, type, name, elem->getSizeInBits());
@@ -178,17 +179,17 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s) {
   // bitfields create issues e.g. in the `bitcode` test: the debug info size
   // for the struct is 32, but in reality it's 8
 
-  auto& layout{ast_ctx.getASTRecordLayout(decl)};
-  auto i{0U};
-  for (auto field : decl->fields()) {
-    auto type{fmap[field]};
-    if (type) {
-      CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
-          << "Field " << field->getName().str() << " of struct "
-          << decl->getName().str() << " is not correctly aligned";
-    }
-    ++i;
-  }
+  // auto& layout{ast_ctx.getASTRecordLayout(decl)};
+  // auto i{0U};
+  // for (auto field : decl->fields()) {
+  //  auto type{fmap[field]};
+  //  if (type) {
+  //    CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
+  //        << "Field " << field->getName().str() << " of struct "
+  //        << decl->getName().str() << " is not correctly aligned";
+  //  }
+  //  ++i;
+  //}
   return ast_ctx.getRecordType(decl);
 }
 
@@ -288,8 +289,14 @@ clang::QualType StructGenerator::VisitDerived(llvm::DIDerivedType* d) {
   return {};
 }
 
-clang::QualType StructGenerator::VisitBasic(llvm::DIBasicType* b) {
+clang::QualType StructGenerator::VisitBasic(llvm::DIBasicType* b,
+                                            int sizeHint) {
   VLOG(1) << "VisitBasic: " << rellic::LLVMThingToString(b);
+  if (b->getTag() == llvm::dwarf::DW_TAG_unspecified_type) {
+    CHECK_GT(sizeHint, 0) << "Cannot create type with unspecified size";
+    return ast_ctx.getIntTypeForBitwidth(sizeHint, 0);
+  }
+
   if (b->getEncoding() == llvm::dwarf::DW_ATE_float) {
     return ast_ctx.getRealTypeForBitwidth(b->getSizeInBits(), false);
   } else {

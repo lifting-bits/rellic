@@ -251,6 +251,14 @@ clang::RecordDecl *ASTBuilder::CreateUnionDecl(clang::DeclContext *decl_ctx,
                                    clang::SourceLocation(), id, prev_decl);
 }
 
+clang::EnumDecl *ASTBuilder::CreateEnumDecl(clang::DeclContext *decl_ctx,
+                                            clang::IdentifierInfo *id,
+                                            clang::EnumDecl *prev_decl) {
+  return clang::EnumDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+                                 clang::SourceLocation(), id, prev_decl, false,
+                                 false, false);
+}
+
 clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
                                               clang::QualType type,
                                               clang::IdentifierInfo *id) {
@@ -274,6 +282,14 @@ clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
                              clang::ICIS_NoInit, clang::SourceLocation(),
                              clang::AccessSpecifier::AS_none,
                              /*PrevDecl=*/nullptr);
+}
+
+clang::EnumConstantDecl *ASTBuilder::CreateEnumConstantDecl(
+    clang::EnumDecl *e, clang::IdentifierInfo *id, clang::QualType type,
+    llvm::APInt value, bool isUnsigned) {
+  return clang::EnumConstantDecl::Create(ctx, e, clang::SourceLocation(), id,
+                                         type, /*Expr=*/nullptr,
+                                         llvm::APSInt(value, isUnsigned));
 }
 
 clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {

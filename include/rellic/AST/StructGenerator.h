@@ -20,7 +20,8 @@ namespace rellic {
 class StructGenerator {
   clang::ASTContext& ast_ctx;
   rellic::ASTBuilder ast;
-  std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*> decls{};
+  std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*> record_decls{};
+  std::unordered_map<llvm::DICompositeType*, clang::EnumDecl*> enum_decls{};
   std::unordered_map<llvm::DIDerivedType*, clang::TypedefNameDecl*>
       typedef_decls{};
   std::unordered_map<llvm::DIType*, clang::QualType> types{};
@@ -31,6 +32,7 @@ class StructGenerator {
       std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
       bool isUnion);
 
+  clang::QualType VisitEnum(llvm::DICompositeType* e);
   clang::QualType VisitStruct(llvm::DICompositeType* s);
   clang::QualType VisitUnion(llvm::DICompositeType* u);
   clang::QualType VisitArray(llvm::DICompositeType* a);

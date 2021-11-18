@@ -107,6 +107,16 @@ class ASTBuilder {
                                      clang::RecordDecl *prev_decl = nullptr) {
     return CreateUnionDecl(decl_ctx, CreateIdentifier(name), prev_decl);
   }
+  // Enum declaration
+  clang::EnumDecl *CreateEnumDecl(clang::DeclContext *decl_ctx,
+                                  clang::IdentifierInfo *id,
+                                  clang::EnumDecl *prev_decl = nullptr);
+
+  clang::EnumDecl *CreateEnumDecl(clang::DeclContext *decl_ctx,
+                                  std::string name,
+                                  clang::EnumDecl *prev_decl = nullptr) {
+    return CreateEnumDecl(decl_ctx, CreateIdentifier(name), prev_decl);
+  }
   // Structure field declaration
   clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
                                     clang::QualType type,
@@ -125,6 +135,21 @@ class ASTBuilder {
                                     clang::QualType type, std::string name,
                                     unsigned bitwidth) {
     return CreateFieldDecl(record, type, CreateIdentifier(name), bitwidth);
+  }
+  // Enum constant declaration
+  clang::EnumConstantDecl *CreateEnumConstantDecl(clang::EnumDecl *e,
+                                                  clang::IdentifierInfo *id,
+                                                  clang::QualType type,
+                                                  llvm::APInt value,
+                                                  bool isUnsigned = true);
+
+  clang::EnumConstantDecl *CreateEnumConstantDecl(clang::EnumDecl *e,
+                                                  std::string name,
+                                                  clang::QualType type,
+                                                  llvm::APInt value,
+                                                  bool isUnsigned = true) {
+    return CreateEnumConstantDecl(e, CreateIdentifier(name), type, value,
+                                  isUnsigned);
   }
   // Declaration statement
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);

@@ -5,15 +5,12 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#include <clang/AST/Decl.h>
+#define GOOGLE_STRIP_LOG 0
 
-#include <string>
-#define GOOGLE_STRIP_LOG 1
+#include "rellic/AST/SubprogramGenerator.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-#include "rellic/AST/SubprogramGenerator.h"
 
 namespace rellic {
 SubprogramGenerator::SubprogramGenerator(clang::ASTUnit& ast_unit,
@@ -32,6 +29,7 @@ clang::FunctionDecl* SubprogramGenerator::VisitSubprogram(
     name = linkageName;
   }
   CHECK_NE(name, "");
+  DLOG(INFO) << "Visiting subprogram " << name;
 
   auto type{struct_gen.VisitType(subp->getType())};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};

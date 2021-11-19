@@ -5,8 +5,9 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#include <llvm/BinaryFormat/Dwarf.h>
-#define GOOGLE_STRIP_LOG 0
+#define GOOGLE_STRIP_LOG 1
+
+#include "rellic/AST/StructGenerator.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
@@ -18,12 +19,11 @@
 #include <unordered_set>
 
 #include "rellic/AST/Compat/ASTContext.h"
-#include "rellic/AST/StructGenerator.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {
 clang::QualType StructGenerator::VisitType(llvm::DIType* t, int sizeHint) {
-  VLOG(1) << "VisitType: " << rellic::LLVMThingToString(t);
+  VLOG(2) << "VisitType: " << rellic::LLVMThingToString(t);
   if (!t) {
     return ast_ctx.VoidTy;
   }
@@ -258,7 +258,7 @@ clang::QualType StructGenerator::VisitArray(llvm::DICompositeType* a) {
 }
 
 clang::QualType StructGenerator::VisitDerived(llvm::DIDerivedType* d) {
-  VLOG(1) << "VisitDerived: " << rellic::LLVMThingToString(d);
+  VLOG(2) << "VisitDerived: " << rellic::LLVMThingToString(d);
   auto base{VisitType(d->getBaseType())};
   switch (d->getTag()) {
     case llvm::dwarf::DW_TAG_const_type:
@@ -293,8 +293,15 @@ clang::QualType StructGenerator::VisitBasic(llvm::DIBasicType* b,
                                             int sizeHint) {
   VLOG(1) << "VisitBasic: " << rellic::LLVMThingToString(b);
   if (b->getTag() == llvm::dwarf::DW_TAG_unspecified_type) {
-    CHECK_GT(sizeHint, 0) << "Cannot create type with unspecified size";
-    return ast_ctx.getIntTypeForBitwidth(sizeHint, 0);
+    if (sizeHint <= 0) {
+      // TODO(frabert): this happens for e.g.
+      // `typedef decltype(nullptr) nullptr_t;`
+      // in which case the debug info doesn't specify the size of
+      // the type. Best guess in this case is the size of void*
+      return ast_ctx.VoidPtrTy;
+    } else {
+      return ast_ctx.getIntTypeForBitwidth(sizeHint, 0);
+    }
   }
 
   if (b->getEncoding() == llvm::dwarf::DW_ATE_float) {
@@ -315,9 +322,15 @@ clang::QualType StructGenerator::VisitBasic(llvm::DIBasicType* b,
 clang::QualType StructGenerator::VisitSubroutine(llvm::DISubroutineType* s) {
   VLOG(1) << "VisitSubroutine: " << rellic::LLVMThingToString(s);
   auto type_array{s->getTypeArray()};
+  auto epi{clang::FunctionProtoType::ExtProtoInfo()};
+  if (type_array.size() == 0) {
+    // TODO(frabert): I'm not sure why this happens or how to best handle this.
+    // I'm going to guess it's a "void(void)"
+    return ast_ctx.getFunctionType(ast_ctx.VoidTy, {}, epi);
+  }
+
   auto ret_type{VisitType(type_array[0])};
   std::vector<clang::QualType> params{};
-  auto epi{clang::FunctionProtoType::ExtProtoInfo()};
   for (auto i{1U}; i < type_array.size(); ++i) {
     auto t{type_array[i]};
     if (!t) {
@@ -332,7 +345,7 @@ clang::QualType StructGenerator::VisitSubroutine(llvm::DISubroutineType* s) {
 }
 
 clang::QualType StructGenerator::VisitComposite(llvm::DICompositeType* type) {
-  VLOG(1) << "VisitComposite: " << rellic::LLVMThingToString(type);
+  VLOG(2) << "VisitComposite: " << rellic::LLVMThingToString(type);
   switch (type->getTag()) {
     case llvm::dwarf::DW_TAG_class_type:
       DLOG(INFO) << "Treating class declaration as struct";

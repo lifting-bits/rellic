@@ -140,6 +140,9 @@ void StructGenerator::VisitFields(
       fdecl = ast.CreateFieldDecl(decl, type, name, elem->getSizeInBits());
     } else {
       fdecl = ast.CreateFieldDecl(decl, type, name);
+      if (elem->getSizeInBits()) {
+        CHECK_EQ(elem->getSizeInBits(), ast_ctx.getTypeSize(type));
+      }
     }
 
     if (!isUnion) {
@@ -172,24 +175,36 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s) {
   clang::AttributeCommonInfo info{clang::SourceLocation{}};
   decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
   std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
-  VisitFields(decl, s, fmap, /*isUnion=*/false);
+  if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
+    auto type{ast_ctx.CharTy};
+    auto type_size{ast_ctx.getTypeSize(type)};
+    auto size{s->getSizeInBits()};
+    auto padding_count{size / type_size};
+    auto padding_arr_type{
+        rellic::GetConstantArrayType(ast_ctx, type, padding_count)};
+    auto padding_decl{ast.CreateFieldDecl(decl, padding_arr_type, "padding")};
+    decl->addDecl(padding_decl);
+    decl->completeDefinition();
+  } else {
+    VisitFields(decl, s, fmap, /*isUnion=*/false);
+  }
   ast_ctx.getTranslationUnitDecl()->addDecl(decl);
   // TODO(frabert): Ideally we'd also check that the size as declared in the
   // debug data is the same as the one computed from the declaration, but
   // bitfields create issues e.g. in the `bitcode` test: the debug info size
   // for the struct is 32, but in reality it's 8
 
-  // auto& layout{ast_ctx.getASTRecordLayout(decl)};
-  // auto i{0U};
-  // for (auto field : decl->fields()) {
-  //  auto type{fmap[field]};
-  //  if (type) {
-  //    CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
-  //        << "Field " << field->getName().str() << " of struct "
-  //        << decl->getName().str() << " is not correctly aligned";
-  //  }
-  //  ++i;
-  //}
+  auto& layout{ast_ctx.getASTRecordLayout(decl)};
+  auto i{0U};
+  for (auto field : decl->fields()) {
+    auto type{fmap[field]};
+    if (type) {
+      CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
+          << "Field " << field->getName().str() << " of struct "
+          << decl->getName().str() << " is not correctly aligned";
+    }
+    ++i;
+  }
   return ast_ctx.getRecordType(decl);
 }
 

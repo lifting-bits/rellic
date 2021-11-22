@@ -30,16 +30,16 @@ class StructGenerator {
   void VisitFields(
       clang::RecordDecl* decl, llvm::DICompositeType* s,
       std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
-      bool isUnion);
+      bool isUnion, int sizeHint);
 
   clang::QualType VisitEnum(llvm::DICompositeType* e);
-  clang::QualType VisitStruct(llvm::DICompositeType* s);
-  clang::QualType VisitUnion(llvm::DICompositeType* u);
+  clang::QualType VisitStruct(llvm::DICompositeType* s, int sizeHint);
+  clang::QualType VisitUnion(llvm::DICompositeType* u, int sizeHint);
   clang::QualType VisitArray(llvm::DICompositeType* a);
   clang::QualType VisitBasic(llvm::DIBasicType* b, int sizeHint);
   clang::QualType VisitSubroutine(llvm::DISubroutineType* s);
-  clang::QualType VisitComposite(llvm::DICompositeType* type);
-  clang::QualType VisitDerived(llvm::DIDerivedType* d);
+  clang::QualType VisitComposite(llvm::DICompositeType* type, int sizeHint);
+  clang::QualType VisitDerived(llvm::DIDerivedType* d, int sizeHint);
 
  public:
   StructGenerator(clang::ASTUnit& ast_unit);

@@ -30,7 +30,7 @@ clang::QualType StructGenerator::VisitType(llvm::DIType* t, int sizeHint) {
   auto& type{types[t]};
   if (type.isNull()) {
     if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
-      type = VisitComposite(comp, sizeHint);
+      type = VisitComposite(comp);
     } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
       type = VisitDerived(der, sizeHint);
     } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
@@ -132,9 +132,10 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
   if (!fields.size()) {
     return 0;
   }
+  static auto count{0U};
 
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto decl{ast.CreateStructDecl(tudecl, "temp")};
+  auto decl{ast.CreateStructDecl(tudecl, "temp" + std::to_string(count++))};
   clang::AttributeCommonInfo info{clang::SourceLocation{}};
   decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
   for (auto& field : fields) {
@@ -151,16 +152,15 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
 void StructGenerator::VisitFields(
     clang::RecordDecl* decl, llvm::DICompositeType* s,
     std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
-    bool isUnion, int sizeHint) {
+    bool isUnion) {
   auto elems{GetFields(s)};
   auto count{0U};
   std::vector<FieldInfo> fields{};
 
-  decl->completeDefinition();
   for (auto elem : elems) {
     auto curr_offset{isUnion ? 0 : GetStructSize(ast_ctx, ast, fields)};
     DLOG(INFO) << "Field " << elem->getName().str()
-               << " offset: " << curr_offset;
+               << " offset: " << curr_offset << " in " << decl->getName().str();
     CHECK_LE(curr_offset, elem->getOffsetInBits())
         << "Field " << LLVMThingToString(elem)
         << " cannot be correctly aligned";
@@ -191,21 +191,10 @@ void StructGenerator::VisitFields(
     map[fdecl] = elem;
     decl->addDecl(fdecl);
   }
-
-  if (sizeHint > 0) {
-    auto curr_size{GetStructSize(ast_ctx, ast, fields)};
-    CHECK_LE(curr_size, sizeHint);
-    if (curr_size < (unsigned)sizeHint) {
-      auto needed_padding{sizeHint - curr_size};
-      auto padding{CreatePadding(ast_ctx, needed_padding, count)};
-      fields.push_back(padding);
-      decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, padding));
-    }
-  }
+  decl->completeDefinition();
 }
 
-clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s,
-                                             int sizeHint) {
+clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s) {
   VLOG(1) << "VisitStruct: " << rellic::LLVMThingToString(s);
   auto& decl{record_decls[s]};
   if (decl) {
@@ -233,7 +222,7 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s,
     decl->addDecl(padding_decl);
     decl->completeDefinition();
   } else {
-    VisitFields(decl, s, fmap, /*isUnion=*/false, sizeHint);
+    VisitFields(decl, s, fmap, /*isUnion=*/false);
   }
   ast_ctx.getTranslationUnitDecl()->addDecl(decl);
   // TODO(frabert): Ideally we'd also check that the size as declared in the
@@ -242,21 +231,19 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s,
   // for the struct is 32, but in reality it's 8
 
   auto& layout{ast_ctx.getASTRecordLayout(decl)};
-  auto i{0U};
   for (auto field : decl->fields()) {
     auto type{fmap[field]};
     if (type) {
-      CHECK_EQ(layout.getFieldOffset(i), type->getOffsetInBits())
+      CHECK_EQ(layout.getFieldOffset(field->getFieldIndex()),
+               type->getOffsetInBits())
           << "Field " << field->getName().str() << " of struct "
           << decl->getName().str() << " is not correctly aligned";
     }
-    ++i;
   }
   return ast_ctx.getRecordType(decl);
 }
 
-clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u,
-                                            int sizeHint) {
+clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u) {
   VLOG(1) << "VisitUnion: " << rellic::LLVMThingToString(u);
   auto& decl{record_decls[u]};
   if (decl) {
@@ -271,7 +258,7 @@ clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u,
 
   decl = ast.CreateUnionDecl(ast_ctx.getTranslationUnitDecl(), name);
   std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
-  VisitFields(decl, u, fmap, /*isUnion=*/true, -1);
+  VisitFields(decl, u, fmap, /*isUnion=*/true);
   ast_ctx.getTranslationUnitDecl()->addDecl(decl);
   return ast_ctx.getRecordType(decl);
 }
@@ -408,17 +395,16 @@ clang::QualType StructGenerator::VisitSubroutine(llvm::DISubroutineType* s) {
   return ast_ctx.getFunctionType(ret_type, params, epi);
 }
 
-clang::QualType StructGenerator::VisitComposite(llvm::DICompositeType* type,
-                                                int sizeHint) {
+clang::QualType StructGenerator::VisitComposite(llvm::DICompositeType* type) {
   VLOG(2) << "VisitComposite: " << rellic::LLVMThingToString(type);
   switch (type->getTag()) {
     case llvm::dwarf::DW_TAG_class_type:
       DLOG(INFO) << "Treating class declaration as struct";
       [[fallthrough]];
     case llvm::dwarf::DW_TAG_structure_type:
-      return VisitStruct(type, sizeHint);
+      return VisitStruct(type);
     case llvm::dwarf::DW_TAG_union_type:
-      return VisitUnion(type, sizeHint);
+      return VisitUnion(type);
     case llvm::dwarf::DW_TAG_array_type:
       return VisitArray(type);
     case llvm::dwarf::DW_TAG_enumeration_type:

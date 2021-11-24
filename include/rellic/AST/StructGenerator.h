@@ -32,19 +32,21 @@ class StructGenerator {
       std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
       bool isUnion);
 
-  clang::QualType VisitEnum(llvm::DICompositeType* e);
-  clang::QualType VisitStruct(llvm::DICompositeType* s);
-  clang::QualType VisitUnion(llvm::DICompositeType* u);
+  clang::QualType VisitEnum(llvm::DICompositeType* e, bool fwdDecl);
+  clang::QualType VisitStruct(llvm::DICompositeType* s, bool fwdDecl);
+  clang::QualType VisitUnion(llvm::DICompositeType* u, bool fwdDecl);
   clang::QualType VisitArray(llvm::DICompositeType* a);
   clang::QualType VisitBasic(llvm::DIBasicType* b, int sizeHint);
   clang::QualType VisitSubroutine(llvm::DISubroutineType* s);
-  clang::QualType VisitComposite(llvm::DICompositeType* type);
-  clang::QualType VisitDerived(llvm::DIDerivedType* d, int sizeHint);
+  clang::QualType VisitComposite(llvm::DICompositeType* type, bool fwdDecl);
+  clang::QualType VisitDerived(llvm::DIDerivedType* d, bool fwdDecl,
+                               int sizeHint);
 
  public:
   StructGenerator(clang::ASTUnit& ast_unit);
 
-  clang::QualType VisitType(llvm::DIType* t, int sizeHint = -1);
+  clang::QualType VisitType(llvm::DIType* t, bool forwardDeclaration = false,
+                            int sizeHint = -1);
   std::vector<clang::Expr*> GetAccessor(clang::Expr* base,
                                         clang::RecordDecl* decl,
                                         unsigned offset, unsigned length);

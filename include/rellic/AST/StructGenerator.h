@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <clang/AST/Decl.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 
 #include <unordered_map>
@@ -27,10 +28,10 @@ class StructGenerator {
   std::unordered_map<llvm::DIType*, clang::QualType> types{};
   unsigned decl_count{0};
 
-  void VisitFields(
-      clang::RecordDecl* decl, llvm::DICompositeType* s,
-      std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
-      bool isUnion);
+  using DeclToDbgInfo =
+      std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>;
+  void VisitFields(clang::RecordDecl* decl, llvm::DICompositeType* s,
+                   DeclToDbgInfo& map, bool isUnion);
 
   clang::QualType VisitEnum(llvm::DICompositeType* e, bool fwdDecl);
   clang::QualType VisitStruct(llvm::DICompositeType* s, bool fwdDecl);

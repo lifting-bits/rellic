@@ -150,10 +150,9 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
   return layout.getFieldOffset(fields.size() - 1) + last_size;
 }
 
-void StructGenerator::VisitFields(
-    clang::RecordDecl* decl, llvm::DICompositeType* s,
-    std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>& map,
-    bool isUnion) {
+void StructGenerator::VisitFields(clang::RecordDecl* decl,
+                                  llvm::DICompositeType* s, DeclToDbgInfo& map,
+                                  bool isUnion) {
   auto elems{GetFields(s)};
   auto count{0U};
   std::vector<FieldInfo> fields{};
@@ -215,7 +214,7 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s,
   if (!fwdDecl) {
     clang::AttributeCommonInfo info{clang::SourceLocation{}};
     decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
-    std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
+    DeclToDbgInfo fmap{};
     if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
       auto type{ast_ctx.CharTy};
       auto type_size{ast_ctx.getTypeSize(type)};
@@ -268,7 +267,7 @@ clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u,
   }
 
   if (!fwdDecl) {
-    std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
+    DeclToDbgInfo fmap{};
     VisitFields(decl, u, fmap, /*isUnion=*/true);
   }
 

@@ -202,53 +202,53 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s,
   auto& decl{record_decls[s]};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   if (!decl) {
-  std::string name{s->getName().str()};
-  if (name == "") {
-    name = "anon";
-  }
-  name += "_" + std::to_string(decl_count++);
+    std::string name{s->getName().str()};
+    if (name == "") {
+      name = "anon";
+    }
+    name += "_" + std::to_string(decl_count++);
     decl = ast.CreateStructDecl(tudecl, name);
   } else if (!fwdDecl && !decl->isCompleteDefinition()) {
     decl = ast.CreateStructDecl(tudecl, decl->getName().str(), decl);
   }
 
   if (!fwdDecl) {
-  clang::AttributeCommonInfo info{clang::SourceLocation{}};
-  decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
-  std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
-  if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
-    auto type{ast_ctx.CharTy};
-    auto type_size{ast_ctx.getTypeSize(type)};
-    auto size{s->getSizeInBits()};
-    auto padding_count{size / type_size};
-    auto padding_arr_type{
-        rellic::GetConstantArrayType(ast_ctx, type, padding_count)};
-    auto padding_decl{ast.CreateFieldDecl(decl, padding_arr_type, "padding")};
-    decl->addDecl(padding_decl);
-    decl->completeDefinition();
-  } else {
-    VisitFields(decl, s, fmap, /*isUnion=*/false);
-  }
-  // TODO(frabert): Ideally we'd also check that the size as declared in the
-  // debug data is the same as the one computed from the declaration, but
-  // bitfields create issues e.g. in the `bitcode` test: the debug info size
-  // for the struct is 32, but in reality it's 8
+    clang::AttributeCommonInfo info{clang::SourceLocation{}};
+    decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
+    std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
+    if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
+      auto type{ast_ctx.CharTy};
+      auto type_size{ast_ctx.getTypeSize(type)};
+      auto size{s->getSizeInBits()};
+      auto padding_count{size / type_size};
+      auto padding_arr_type{
+          rellic::GetConstantArrayType(ast_ctx, type, padding_count)};
+      auto padding_decl{ast.CreateFieldDecl(decl, padding_arr_type, "padding")};
+      decl->addDecl(padding_decl);
+      decl->completeDefinition();
+    } else {
+      VisitFields(decl, s, fmap, /*isUnion=*/false);
+    }
+    // TODO(frabert): Ideally we'd also check that the size as declared in the
+    // debug data is the same as the one computed from the declaration, but
+    // bitfields create issues e.g. in the `bitcode` test: the debug info size
+    // for the struct is 32, but in reality it's 8
 
-  auto& layout{ast_ctx.getASTRecordLayout(decl)};
-  for (auto field : decl->fields()) {
-    auto type{fmap[field]};
-    if (type) {
-      CHECK_EQ(layout.getFieldOffset(field->getFieldIndex()),
-               type->getOffsetInBits())
-          << "Field " << field->getName().str() << " of struct "
-          << decl->getName().str() << " is not correctly aligned";
+    auto& layout{ast_ctx.getASTRecordLayout(decl)};
+    for (auto field : decl->fields()) {
+      auto type{fmap[field]};
+      if (type) {
+        CHECK_EQ(layout.getFieldOffset(field->getFieldIndex()),
+                 type->getOffsetInBits())
+            << "Field " << field->getName().str() << " of struct "
+            << decl->getName().str() << " is not correctly aligned";
+      }
     }
   }
-}
 
   tudecl->addDecl(decl);
-    return ast_ctx.getRecordType(decl);
-  }
+  return ast_ctx.getRecordType(decl);
+}
 
 clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u,
                                             bool fwdDecl) {
@@ -256,20 +256,20 @@ clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u,
   auto& decl{record_decls[u]};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   if (!decl) {
-  std::string name{u->getName().str()};
-  if (name == "") {
-    name = "anon";
-  }
-  name += "_" + std::to_string(decl_count++);
+    std::string name{u->getName().str()};
+    if (name == "") {
+      name = "anon";
+    }
+    name += "_" + std::to_string(decl_count++);
 
     decl = ast.CreateUnionDecl(tudecl, name);
   } else if (!decl->isCompleteDefinition()) {
     decl = ast.CreateUnionDecl(tudecl, decl->getName().str(), decl);
   }
 
-  if (!fwdDecl && !decl->isCompleteDefinition()) {
-  std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
-  VisitFields(decl, u, fmap, /*isUnion=*/true);
+  if (!fwdDecl) {
+    std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*> fmap{};
+    VisitFields(decl, u, fmap, /*isUnion=*/true);
   }
 
   tudecl->addDecl(decl);
@@ -282,33 +282,33 @@ clang::QualType StructGenerator::VisitEnum(llvm::DICompositeType* e,
   auto& decl{enum_decls[e]};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   if (!decl) {
-  std::string name{e->getName().str()};
-  if (name == "") {
-    name = "anon";
-  }
-  name += "_" + std::to_string(decl_count++);
-  decl = ast.CreateEnumDecl(tudecl, name);
+    std::string name{e->getName().str()};
+    if (name == "") {
+      name = "anon";
+    }
+    name += "_" + std::to_string(decl_count++);
+    decl = ast.CreateEnumDecl(tudecl, name);
   } else if (!decl->isCompleteDefinition()) {
     decl = ast.CreateEnumDecl(tudecl, decl->getName().str(), decl);
   }
 
-  if (!fwdDecl && !decl->isCompleteDefinition()) {
+  if (!fwdDecl) {
     auto base{VisitType(e->getBaseType(), /*fwdDecl=*/false)};
-  auto i{0U};
-  for (auto elem : e->getElements()) {
-    if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-      auto elem_name{enumerator->getName().str()};
-      if (elem_name == "") {
-        elem_name = "anon";
-      }
-      elem_name += "_" + std::to_string(i++);
+    auto i{0U};
+    for (auto elem : e->getElements()) {
+      if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
+        auto elem_name{enumerator->getName().str()};
+        if (elem_name == "") {
+          elem_name = "anon";
+        }
+        elem_name += "_" + std::to_string(i++);
 
-      auto cdecl{ast.CreateEnumConstantDecl(decl, elem_name, base,
-                                            enumerator->getValue())};
-      decl->addDecl(cdecl);
+        auto cdecl{ast.CreateEnumConstantDecl(decl, elem_name, base,
+                                              enumerator->getValue())};
+        decl->addDecl(cdecl);
+      }
     }
-  }
-  decl->completeDefinition(base, base, 0, 0);
+    decl->completeDefinition(base, base, 0, 0);
   }
 
   tudecl->addDecl(decl);

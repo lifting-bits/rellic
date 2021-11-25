@@ -209,6 +209,8 @@ clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s,
     decl = ast.CreateStructDecl(tudecl, name);
   } else if (!fwdDecl && !decl->isCompleteDefinition()) {
     decl = ast.CreateStructDecl(tudecl, decl->getName().str(), decl);
+  } else {
+    return ast_ctx.getRecordType(decl);
   }
 
   if (!fwdDecl) {
@@ -262,8 +264,10 @@ clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u,
     name += "_" + std::to_string(decl_count++);
 
     decl = ast.CreateUnionDecl(tudecl, name);
-  } else if (!decl->isCompleteDefinition()) {
+  } else if (!fwdDecl && !decl->isCompleteDefinition()) {
     decl = ast.CreateUnionDecl(tudecl, decl->getName().str(), decl);
+  } else {
+    return ast_ctx.getRecordType(decl);
   }
 
   if (!fwdDecl) {
@@ -287,8 +291,10 @@ clang::QualType StructGenerator::VisitEnum(llvm::DICompositeType* e,
     }
     name += "_" + std::to_string(decl_count++);
     decl = ast.CreateEnumDecl(tudecl, name);
-  } else if (!decl->isCompleteDefinition()) {
+  } else if (!fwdDecl && !decl->isCompleteDefinition()) {
     decl = ast.CreateEnumDecl(tudecl, decl->getName().str(), decl);
+  } else {
+    return ast_ctx.getEnumType(decl);
   }
 
   if (!fwdDecl) {

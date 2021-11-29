@@ -49,7 +49,7 @@ class StructGenerator {
   void DefineEnum(llvm::DICompositeType* s);
 
   void VisitType(llvm::DIType* t, std::vector<llvm::DICompositeType*>& list,
-                 std::unordered_set<llvm::DIType*>& visited, bool fwdDecl);
+                 std::unordered_set<llvm::DIType*>& visited);
 
  public:
   StructGenerator(clang::ASTUnit& ast_unit);
@@ -61,7 +61,7 @@ class StructGenerator {
     std::vector<llvm::DICompositeType*> sorted_types{};
     std::unordered_set<llvm::DIType*> visited_types{};
     for (auto i{begin}; i != end; ++i) {
-      VisitType(*i, sorted_types, visited_types, /*fwdDecl=*/false);
+      VisitType(*i, sorted_types, visited_types);
     }
 
     for (auto type : sorted_types) {

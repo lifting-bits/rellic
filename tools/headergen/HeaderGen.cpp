@@ -97,9 +97,8 @@ int main(int argc, char* argv[]) {
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
   rellic::StructGenerator strctgen(*ast_unit);
   rellic::SubprogramGenerator subgen(*ast_unit, strctgen);
-  for (auto type : dic->GetStructs()) {
-    strctgen.VisitType(type);
-  }
+  auto types{dic->GetTypes()};
+  strctgen.GenerateDecls(types.begin(), types.end());
 
   for (auto func : dic->GetSubprograms()) {
     subgen.VisitSubprogram(func);

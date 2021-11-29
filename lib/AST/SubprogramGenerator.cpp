@@ -5,7 +5,7 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#define GOOGLE_STRIP_LOG 0
+#define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/SubprogramGenerator.h"
 
@@ -31,7 +31,7 @@ clang::FunctionDecl* SubprogramGenerator::VisitSubprogram(
   CHECK_NE(name, "");
   DLOG(INFO) << "Visiting subprogram " << name;
 
-  auto type{struct_gen.VisitType(subp->getType())};
+  auto type{struct_gen.GetType(subp->getType())};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto fdecl{ast.CreateFunctionDecl(tudecl, type, name)};
   auto type_arr{subp->getType()->getTypeArray()};
@@ -42,8 +42,8 @@ clang::FunctionDecl* SubprogramGenerator::VisitSubprogram(
     }
     // TODO(frabert): Extract names from bitcode if available
     auto parmname{"arg" + std::to_string(i)};
-    params.push_back(ast.CreateParamDecl(
-        fdecl, struct_gen.VisitType(type_arr[i]), parmname));
+    params.push_back(
+        ast.CreateParamDecl(fdecl, struct_gen.GetType(type_arr[i]), parmname));
   }
   fdecl->setParams(params);
   tudecl->addDecl(fdecl);

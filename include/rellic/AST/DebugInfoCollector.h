@@ -34,7 +34,7 @@ class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
   IRTypeToDITypeMap types;
   IRFuncToDITypeMap funcs;
   IRArgToDITypeMap args;
-  std::vector<llvm::DICompositeType *> structs;
+  std::unordered_set<llvm::DIType *> type_set;
   std::vector<llvm::DISubprogram *> subprograms;
 
   void WalkType(llvm::Type *type, llvm::DIType *ditype);
@@ -46,7 +46,7 @@ class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
   IRTypeToDITypeMap &GetIRTypeToDITypeMap() { return types; }
   IRFuncToDITypeMap &GetIRFuncToDITypeMap() { return funcs; }
   IRArgToDITypeMap &GetIRArgToDITypeMap() { return args; }
-  std::vector<llvm::DICompositeType *> &GetStructs() { return structs; }
+  std::unordered_set<llvm::DIType *> &GetTypes() { return type_set; }
   std::vector<llvm::DISubprogram *> &GetSubprograms() { return subprograms; }
 
   void visitDbgDeclareInst(llvm::DbgDeclareInst &inst);

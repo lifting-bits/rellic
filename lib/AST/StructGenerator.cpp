@@ -22,26 +22,25 @@
 #include "rellic/BC/Util.h"
 
 namespace rellic {
-clang::QualType StructGenerator::VisitType(llvm::DIType* t, bool fwdDecl,
-                                           int sizeHint) {
-  VLOG(2) << "VisitType: " << rellic::LLVMThingToString(t);
+clang::QualType StructGenerator::BuildType(llvm::DIType* t, int sizeHint) {
+  VLOG(2) << "BuildType: " << rellic::LLVMThingToString(t);
   if (!t) {
     return ast_ctx.VoidTy;
   }
-  auto& type{types[t]};
-  if (type.isNull()) {
-    if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
-      type = VisitComposite(comp, fwdDecl);
-    } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
-      type = VisitDerived(der, fwdDecl, sizeHint);
-    } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
-      type = VisitBasic(basic, sizeHint);
-    } else if (auto sub = llvm::dyn_cast<llvm::DISubroutineType>(t)) {
-      type = VisitSubroutine(sub);
-    } else {
-      LOG(FATAL) << "Unknown DIType: " << rellic::LLVMThingToString(t);
-    }
+
+  clang::QualType type{};
+  if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
+    type = BuildComposite(comp);
+  } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
+    type = BuildDerived(der, sizeHint);
+  } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
+    type = BuildBasic(basic, sizeHint);
+  } else if (auto sub = llvm::dyn_cast<llvm::DISubroutineType>(t)) {
+    type = BuildSubroutine(sub);
+  } else {
+    LOG(FATAL) << "Unknown DIType: " << rellic::LLVMThingToString(t);
   }
+  CHECK(!type.isNull());
   return type;
 }
 
@@ -177,8 +176,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
     }
     name = name + "_" + std::to_string(count++);
 
-    auto type{VisitType(elem->getBaseType(), /*fwdDecl=*/false,
-                        elem->getSizeInBits())};
+    auto type{BuildType(elem->getBaseType(), elem->getSizeInBits())};
     CHECK(!type.isNull());
     FieldInfo field{};
     if (elem->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
@@ -195,165 +193,129 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   decl->completeDefinition();
 }
 
-clang::QualType StructGenerator::VisitStruct(llvm::DICompositeType* s,
-                                             bool fwdDecl) {
-  VLOG(1) << "VisitStruct: " << rellic::LLVMThingToString(s);
-  auto& decl{record_decls[s]};
+void StructGenerator::DefineStruct(llvm::DICompositeType* s) {
+  VLOG(1) << "DefineStruct: " << rellic::LLVMThingToString(s);
+  auto& fwd_decl{CHECK_NOTNULL(fwd_decl_records[s])};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  if (!decl) {
-    std::string name{s->getName().str()};
-    if (name == "") {
-      name = "anon";
-    }
-    name += "_" + std::to_string(decl_count++);
-    decl = ast.CreateStructDecl(tudecl, name);
-  } else if (!fwdDecl && !decl->isCompleteDefinition()) {
-    decl = ast.CreateStructDecl(tudecl, decl->getName().str(), decl);
+  auto decl{ast.CreateStructDecl(tudecl, fwd_decl->getName().str(), fwd_decl)};
+
+  clang::AttributeCommonInfo info{clang::SourceLocation{}};
+  decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
+  DeclToDbgInfo fmap{};
+  if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
+    auto size{s->getSizeInBits()};
+    unsigned count{};
+    auto info{CreatePadding(ast_ctx, size, count)};
+    decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, info));
+    decl->completeDefinition();
   } else {
-    return ast_ctx.getRecordType(decl);
+    VisitFields(decl, s, fmap, /*isUnion=*/false);
+  }
+  // TODO(frabert): Ideally we'd also check that the size as declared in the
+  // debug data is the same as the one computed from the declaration, but
+  // bitfields create issues e.g. in the `bitcode` test: the debug info size
+  // for the struct is 32, but in reality it's 8
+
+  auto& layout{ast_ctx.getASTRecordLayout(decl)};
+  for (auto field : decl->fields()) {
+    auto type{fmap[field]};
+    if (type) {
+      CHECK_EQ(layout.getFieldOffset(field->getFieldIndex()),
+               type->getOffsetInBits())
+          << "Field " << field->getName().str() << " of struct "
+          << decl->getName().str() << " is not correctly aligned";
+    }
   }
 
-  if (!fwdDecl) {
-    clang::AttributeCommonInfo info{clang::SourceLocation{}};
-    decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
-    DeclToDbgInfo fmap{};
-    if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
-      auto type{ast_ctx.CharTy};
-      auto type_size{ast_ctx.getTypeSize(type)};
-      auto size{s->getSizeInBits()};
-      auto padding_count{size / type_size};
-      auto padding_arr_type{
-          rellic::GetConstantArrayType(ast_ctx, type, padding_count)};
-      auto padding_decl{ast.CreateFieldDecl(decl, padding_arr_type, "padding")};
-      decl->addDecl(padding_decl);
-      decl->completeDefinition();
-    } else {
-      VisitFields(decl, s, fmap, /*isUnion=*/false);
-    }
-    // TODO(frabert): Ideally we'd also check that the size as declared in the
-    // debug data is the same as the one computed from the declaration, but
-    // bitfields create issues e.g. in the `bitcode` test: the debug info size
-    // for the struct is 32, but in reality it's 8
+  tudecl->addDecl(decl);
+}
 
-    auto& layout{ast_ctx.getASTRecordLayout(decl)};
-    for (auto field : decl->fields()) {
-      auto type{fmap[field]};
-      if (type) {
-        CHECK_EQ(layout.getFieldOffset(field->getFieldIndex()),
-                 type->getOffsetInBits())
-            << "Field " << field->getName().str() << " of struct "
-            << decl->getName().str() << " is not correctly aligned";
+void StructGenerator::DefineUnion(llvm::DICompositeType* u) {
+  VLOG(1) << "DefineUnion: " << rellic::LLVMThingToString(u);
+  auto& fwd_decl{CHECK_NOTNULL(fwd_decl_records[u])};
+  auto tudecl{ast_ctx.getTranslationUnitDecl()};
+  auto decl{ast.CreateUnionDecl(tudecl, fwd_decl->getName().str(), fwd_decl)};
+
+  DeclToDbgInfo fmap{};
+  VisitFields(decl, u, fmap, /*isUnion=*/true);
+
+  tudecl->addDecl(decl);
+}
+
+void StructGenerator::DefineEnum(llvm::DICompositeType* e) {
+  VLOG(1) << "DefineEnum: " << rellic::LLVMThingToString(e);
+  auto& fwd_decl{CHECK_NOTNULL(fwd_decl_enums[e])};
+  auto tudecl{ast_ctx.getTranslationUnitDecl()};
+  auto decl{ast.CreateEnumDecl(tudecl, fwd_decl->getName().str(), fwd_decl)};
+
+  auto base{BuildType(e->getBaseType())};
+  auto i{0U};
+  for (auto elem : e->getElements()) {
+    if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
+      auto elem_name{enumerator->getName().str()};
+      if (elem_name == "") {
+        elem_name = "anon";
       }
+      elem_name += "_" + std::to_string(i++);
+
+      auto cdecl{ast.CreateEnumConstantDecl(decl, elem_name, base,
+                                            enumerator->getValue())};
+      decl->addDecl(cdecl);
     }
   }
+  decl->completeDefinition(base, base, 0, 0);
 
   tudecl->addDecl(decl);
-  return ast_ctx.getRecordType(decl);
 }
 
-clang::QualType StructGenerator::VisitUnion(llvm::DICompositeType* u,
-                                            bool fwdDecl) {
-  VLOG(1) << "VisitUnion: " << rellic::LLVMThingToString(u);
-  auto& decl{record_decls[u]};
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  if (!decl) {
-    std::string name{u->getName().str()};
-    if (name == "") {
-      name = "anon";
-    }
-    name += "_" + std::to_string(decl_count++);
-
-    decl = ast.CreateUnionDecl(tudecl, name);
-  } else if (!fwdDecl && !decl->isCompleteDefinition()) {
-    decl = ast.CreateUnionDecl(tudecl, decl->getName().str(), decl);
-  } else {
-    return ast_ctx.getRecordType(decl);
+void StructGenerator::DefineComposite(llvm::DICompositeType* t) {
+  VLOG(2) << "DefineComposite: " << LLVMThingToString(t);
+  switch (t->getTag()) {
+    case llvm::dwarf::DW_TAG_structure_type:
+    case llvm::dwarf::DW_TAG_class_type:
+      DefineStruct(t);
+      break;
+    case llvm::dwarf::DW_TAG_union_type:
+      DefineUnion(t);
+      break;
+    case llvm::dwarf::DW_TAG_enumeration_type:
+      DefineEnum(t);
+      break;
+    default:
+      LOG(FATAL) << "Invalid DICompositeType: " << LLVMThingToString(t);
   }
-
-  if (!fwdDecl) {
-    DeclToDbgInfo fmap{};
-    VisitFields(decl, u, fmap, /*isUnion=*/true);
-  }
-
-  tudecl->addDecl(decl);
-  return ast_ctx.getRecordType(decl);
 }
 
-clang::QualType StructGenerator::VisitEnum(llvm::DICompositeType* e,
-                                           bool fwdDecl) {
-  VLOG(1) << "VisitEnum: " << rellic::LLVMThingToString(e);
-  auto& decl{enum_decls[e]};
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  if (!decl) {
-    std::string name{e->getName().str()};
-    if (name == "") {
-      name = "anon";
-    }
-    name += "_" + std::to_string(decl_count++);
-    decl = ast.CreateEnumDecl(tudecl, name);
-  } else if (!fwdDecl && !decl->isCompleteDefinition()) {
-    decl = ast.CreateEnumDecl(tudecl, decl->getName().str(), decl);
-  } else {
-    return ast_ctx.getEnumType(decl);
-  }
-
-  if (!fwdDecl) {
-    auto base{VisitType(e->getBaseType(), /*fwdDecl=*/false)};
-    auto i{0U};
-    for (auto elem : e->getElements()) {
-      if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-        auto elem_name{enumerator->getName().str()};
-        if (elem_name == "") {
-          elem_name = "anon";
-        }
-        elem_name += "_" + std::to_string(i++);
-
-        auto cdecl{ast.CreateEnumConstantDecl(decl, elem_name, base,
-                                              enumerator->getValue())};
-        decl->addDecl(cdecl);
-      }
-    }
-    decl->completeDefinition(base, base, 0, 0);
-  }
-
-  tudecl->addDecl(decl);
-  return ast_ctx.getEnumType(decl);
-}
-
-clang::QualType StructGenerator::VisitArray(llvm::DICompositeType* a) {
-  VLOG(1) << "VisitArray: " << rellic::LLVMThingToString(a);
-  auto base{VisitType(a->getBaseType(), /*fwdDecl=*/false)};
+clang::QualType StructGenerator::BuildArray(llvm::DICompositeType* a) {
+  VLOG(1) << "BuildArray: " << rellic::LLVMThingToString(a);
+  auto base{BuildType(a->getBaseType())};
   auto subrange{llvm::cast<llvm::DISubrange>(a->getElements()[0])};
   auto* ci = subrange->getCount().dyn_cast<llvm::ConstantInt*>();
   return rellic::GetConstantArrayType(ast_ctx, base, ci->getSExtValue());
 }
 
-clang::QualType StructGenerator::VisitDerived(llvm::DIDerivedType* d,
-                                              bool fwdDecl, int sizeHint) {
-  VLOG(2) << "VisitDerived: " << rellic::LLVMThingToString(d);
+clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
+                                              int sizeHint) {
+  VLOG(2) << "BuildDerived: " << rellic::LLVMThingToString(d);
   switch (d->getTag()) {
     case llvm::dwarf::DW_TAG_const_type:
-      return ast_ctx.getConstType(
-          VisitType(d->getBaseType(), fwdDecl, sizeHint));
+      return ast_ctx.getConstType(BuildType(d->getBaseType(), sizeHint));
     case llvm::dwarf::DW_TAG_volatile_type:
-      return ast_ctx.getVolatileType(
-          VisitType(d->getBaseType(), fwdDecl, sizeHint));
+      return ast_ctx.getVolatileType(BuildType(d->getBaseType(), sizeHint));
     case llvm::dwarf::DW_TAG_restrict_type:
-      return ast_ctx.getRestrictType(
-          VisitType(d->getBaseType(), fwdDecl, sizeHint));
+      return ast_ctx.getRestrictType(BuildType(d->getBaseType(), sizeHint));
     case llvm::dwarf::DW_TAG_pointer_type:
     case llvm::dwarf::DW_TAG_reference_type:
     case llvm::dwarf::DW_TAG_rvalue_reference_type:
     case llvm::dwarf::DW_TAG_ptr_to_member_type:
-      return ast_ctx.getPointerType(
-          VisitType(d->getBaseType(), /*fwdDecl=*/true, sizeHint));
+      return ast_ctx.getPointerType(BuildType(d->getBaseType(), sizeHint));
     case llvm::dwarf::DW_TAG_typedef: {
       auto& tdef_decl{typedef_decls[d]};
       if (!tdef_decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
         tdef_decl = ast.CreateTypedefDecl(
             tudecl, d->getName().str() + "_" + std::to_string(decl_count++),
-            VisitType(d->getBaseType(), fwdDecl, sizeHint));
+            BuildType(d->getBaseType(), sizeHint));
         tudecl->addDecl(tdef_decl);
       }
       return ast_ctx.getTypedefType(tdef_decl);
@@ -364,9 +326,9 @@ clang::QualType StructGenerator::VisitDerived(llvm::DIDerivedType* d,
   return {};
 }
 
-clang::QualType StructGenerator::VisitBasic(llvm::DIBasicType* b,
+clang::QualType StructGenerator::BuildBasic(llvm::DIBasicType* b,
                                             int sizeHint) {
-  VLOG(1) << "VisitBasic: " << rellic::LLVMThingToString(b);
+  VLOG(1) << "BuildBasic: " << rellic::LLVMThingToString(b);
   if (b->getTag() == llvm::dwarf::DW_TAG_unspecified_type) {
     if (sizeHint <= 0) {
       // TODO(frabert): this happens for e.g.
@@ -394,8 +356,8 @@ clang::QualType StructGenerator::VisitBasic(llvm::DIBasicType* b,
   }
 }
 
-clang::QualType StructGenerator::VisitSubroutine(llvm::DISubroutineType* s) {
-  VLOG(1) << "VisitSubroutine: " << rellic::LLVMThingToString(s);
+clang::QualType StructGenerator::BuildSubroutine(llvm::DISubroutineType* s) {
+  VLOG(1) << "BuildSubroutine: " << rellic::LLVMThingToString(s);
   auto type_array{s->getTypeArray()};
   auto epi{clang::FunctionProtoType::ExtProtoInfo()};
   if (type_array.size() == 0) {
@@ -404,7 +366,7 @@ clang::QualType StructGenerator::VisitSubroutine(llvm::DISubroutineType* s) {
     return ast_ctx.getFunctionType(ast_ctx.VoidTy, {}, epi);
   }
 
-  auto ret_type{VisitType(type_array[0], /*fwdDecl=*/false)};
+  auto ret_type{BuildType(type_array[0])};
   std::vector<clang::QualType> params{};
   for (auto i{1U}; i < type_array.size(); ++i) {
     auto t{type_array[i]};
@@ -413,31 +375,152 @@ clang::QualType StructGenerator::VisitSubroutine(llvm::DISubroutineType* s) {
           << "Only last argument type can be null";
       epi.Variadic = true;
     } else {
-      params.push_back(VisitType(t, /*fwdDecl=*/false));
+      params.push_back(BuildType(t));
     }
   }
   return ast_ctx.getFunctionType(ret_type, params, epi);
 }
 
-clang::QualType StructGenerator::VisitComposite(llvm::DICompositeType* type,
-                                                bool fwdDecl) {
-  VLOG(2) << "VisitComposite: " << rellic::LLVMThingToString(type);
+clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
+  VLOG(2) << "BuildComposite: " << rellic::LLVMThingToString(type);
   switch (type->getTag()) {
     case llvm::dwarf::DW_TAG_class_type:
       DLOG(INFO) << "Treating class declaration as struct";
       [[fallthrough]];
     case llvm::dwarf::DW_TAG_structure_type:
-      return VisitStruct(type, fwdDecl);
     case llvm::dwarf::DW_TAG_union_type:
-      return VisitUnion(type, fwdDecl);
+      return ast_ctx.getRecordType(fwd_decl_records[type]);
     case llvm::dwarf::DW_TAG_array_type:
-      return VisitArray(type);
+      return BuildArray(type);
     case llvm::dwarf::DW_TAG_enumeration_type:
-      return VisitEnum(type, fwdDecl);
+      return ast_ctx.getEnumType(fwd_decl_enums[type]);
     default:
       LOG(FATAL) << "Invalid DICompositeType tag: " << type->getTag();
   }
   return {};
+}
+
+std::string StructGenerator::GetAnonName(llvm::DICompositeType* t) {
+  std::string name{t->getName().str()};
+  if (name == "") {
+    name = "anon";
+  }
+  name += "_" + std::to_string(decl_count++);
+  return name;
+}
+
+void StructGenerator::VisitType(llvm::DIType* t,
+                                std::vector<llvm::DICompositeType*>& list,
+                                std::unordered_set<llvm::DIType*>& visited,
+                                bool fwdDecl) {
+  VLOG(1) << "VisitType: " << rellic::LLVMThingToString(t);
+  if (!t || visited.count(t)) {
+    return;
+  }
+  visited.insert(t);
+
+  auto tudecl{ast_ctx.getTranslationUnitDecl()};
+  if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
+    if (fwdDecl) {
+      switch (comp->getTag()) {
+        case llvm::dwarf::DW_TAG_class_type:
+        case llvm::dwarf::DW_TAG_structure_type: {
+          if (!fwd_decl_records[comp]) {
+            auto decl{ast.CreateStructDecl(tudecl, GetAnonName(comp))};
+            fwd_decl_records[comp] = decl;
+            tudecl->addDecl(decl);
+          }
+        } break;
+        case llvm::dwarf::DW_TAG_union_type: {
+          if (!fwd_decl_records[comp]) {
+            auto decl{ast.CreateUnionDecl(tudecl, GetAnonName(comp))};
+            fwd_decl_records[comp] = decl;
+            tudecl->addDecl(decl);
+          }
+        } break;
+        case llvm::dwarf::DW_TAG_array_type:
+          /* skip */
+          break;
+        case llvm::dwarf::DW_TAG_enumeration_type: {
+          if (!fwd_decl_enums[comp]) {
+            auto decl{ast.CreateEnumDecl(tudecl, GetAnonName(comp))};
+            fwd_decl_enums[comp] = decl;
+            tudecl->addDecl(decl);
+          }
+        } break;
+        default:
+          LOG(FATAL) << "Invalid DICompositeType tag: " << comp->getTag();
+      }
+    } else {
+      switch (comp->getTag()) {
+        case llvm::dwarf::DW_TAG_class_type:
+        case llvm::dwarf::DW_TAG_structure_type: {
+          if (!fwd_decl_records[comp]) {
+            auto decl{ast.CreateStructDecl(tudecl, GetAnonName(comp))};
+            fwd_decl_records[comp] = decl;
+            tudecl->addDecl(decl);
+          }
+          for (auto field : GetFields(comp)) {
+            VisitType(field->getBaseType(), list, visited, /*fwdDecl=*/false);
+          }
+        } break;
+        case llvm::dwarf::DW_TAG_union_type: {
+          if (!fwd_decl_records[comp]) {
+            auto decl{ast.CreateUnionDecl(tudecl, GetAnonName(comp))};
+            fwd_decl_records[comp] = decl;
+            tudecl->addDecl(decl);
+          }
+          for (auto field : GetFields(comp)) {
+            VisitType(field->getBaseType(), list, visited, /*fwdDecl=*/false);
+          }
+        } break;
+        case llvm::dwarf::DW_TAG_array_type:
+          VisitType(comp->getBaseType(), list, visited, /*fwdDecl=*/false);
+          break;
+        case llvm::dwarf::DW_TAG_enumeration_type: {
+          if (!fwd_decl_enums[comp]) {
+            auto decl{ast.CreateEnumDecl(tudecl, GetAnonName(comp))};
+            fwd_decl_enums[comp] = decl;
+            tudecl->addDecl(decl);
+          }
+          VisitType(comp->getBaseType(), list, visited, /*fwdDecl=*/false);
+        } break;
+        default:
+          LOG(FATAL) << "Invalid DICompositeType tag: " << comp->getTag();
+      }
+
+      if (comp->getTag() != llvm::dwarf::DW_TAG_array_type) {
+        DLOG(INFO) << "Adding " << comp->getName().str() << " to list";
+        list.push_back(comp);
+      }
+    }
+  } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
+    auto base{der->getBaseType()};
+    switch (der->getTag()) {
+      case llvm::dwarf::DW_TAG_pointer_type:
+      case llvm::dwarf::DW_TAG_reference_type:
+      case llvm::dwarf::DW_TAG_rvalue_reference_type:
+      case llvm::dwarf::DW_TAG_ptr_to_member_type:
+      case llvm::dwarf::DW_TAG_typedef:
+        VisitType(base, list, visited, /*fwdDecl=*/true);
+        break;
+      default:
+        VisitType(base, list, visited, fwdDecl);
+        break;
+    }
+  } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
+    /* skip */
+  } else if (auto sub = llvm::dyn_cast<llvm::DISubroutineType>(t)) {
+    for (auto type : sub->getTypeArray()) {
+      VisitType(type, list, visited, /*fwdDecl=*/true);
+    }
+  } else {
+    LOG(FATAL) << "Unknown DIType: " << rellic::LLVMThingToString(t);
+  }
+}
+
+clang::QualType StructGenerator::GetType(llvm::DIType* t) {
+  return BuildType(t);
 }
 
 std::vector<clang::Expr*> StructGenerator::GetAccessor(clang::Expr* base,

@@ -43,6 +43,7 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
   if (!ditype || types.find(type) != types.end()) {
     return;
   }
+  type_set.insert(ditype);
 
   DLOG(INFO) << "Inspecting " << LLVMThingToString(ditype);
   if (auto funcditype = llvm::dyn_cast<llvm::DISubroutineType>(ditype)) {
@@ -137,7 +138,6 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
           << "Associated type " << LLVMThingToString(type)
           << " is not a struct";
 
-      structs.push_back(composite);
       for (auto i{0U}; i < di_fields.size(); ++i) {
         WalkType(elems[i], di_fields[i]);
       }

@@ -12,6 +12,7 @@
 #include <llvm/IR/DebugInfoMetadata.h>
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
@@ -21,11 +22,11 @@ namespace rellic {
 class StructGenerator {
   clang::ASTContext& ast_ctx;
   rellic::ASTBuilder ast;
-  std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*> record_decls{};
-  std::unordered_map<llvm::DICompositeType*, clang::EnumDecl*> enum_decls{};
+  std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*>
+      fwd_decl_records{};
+  std::unordered_map<llvm::DICompositeType*, clang::EnumDecl*> fwd_decl_enums{};
   std::unordered_map<llvm::DIDerivedType*, clang::TypedefNameDecl*>
       typedef_decls{};
-  std::unordered_map<llvm::DIType*, clang::QualType> types{};
   unsigned decl_count{0};
 
   using DeclToDbgInfo =
@@ -33,21 +34,41 @@ class StructGenerator {
   void VisitFields(clang::RecordDecl* decl, llvm::DICompositeType* s,
                    DeclToDbgInfo& map, bool isUnion);
 
-  clang::QualType VisitEnum(llvm::DICompositeType* e, bool fwdDecl);
-  clang::QualType VisitStruct(llvm::DICompositeType* s, bool fwdDecl);
-  clang::QualType VisitUnion(llvm::DICompositeType* u, bool fwdDecl);
-  clang::QualType VisitArray(llvm::DICompositeType* a);
-  clang::QualType VisitBasic(llvm::DIBasicType* b, int sizeHint);
-  clang::QualType VisitSubroutine(llvm::DISubroutineType* s);
-  clang::QualType VisitComposite(llvm::DICompositeType* type, bool fwdDecl);
-  clang::QualType VisitDerived(llvm::DIDerivedType* d, bool fwdDecl,
-                               int sizeHint);
+  std::string GetAnonName(llvm::DICompositeType* t);
+
+  clang::QualType BuildArray(llvm::DICompositeType* a);
+  clang::QualType BuildBasic(llvm::DIBasicType* b, int sizeHint);
+  clang::QualType BuildSubroutine(llvm::DISubroutineType* s);
+  clang::QualType BuildComposite(llvm::DICompositeType* type);
+  clang::QualType BuildDerived(llvm::DIDerivedType* d, int sizeHint);
+  clang::QualType BuildType(llvm::DIType* t, int sizeHint = -1);
+
+  void DefineComposite(llvm::DICompositeType* s);
+  void DefineStruct(llvm::DICompositeType* s);
+  void DefineUnion(llvm::DICompositeType* s);
+  void DefineEnum(llvm::DICompositeType* s);
+
+  void VisitType(llvm::DIType* t, std::vector<llvm::DICompositeType*>& list,
+                 std::unordered_set<llvm::DIType*>& visited, bool fwdDecl);
 
  public:
   StructGenerator(clang::ASTUnit& ast_unit);
 
-  clang::QualType VisitType(llvm::DIType* t, bool forwardDeclaration = false,
-                            int sizeHint = -1);
+  clang::QualType GetType(llvm::DIType* t);
+
+  template <typename It>
+  void GenerateDecls(It begin, It end) {
+    std::vector<llvm::DICompositeType*> sorted_types{};
+    std::unordered_set<llvm::DIType*> visited_types{};
+    for (auto i{begin}; i != end; ++i) {
+      VisitType(*i, sorted_types, visited_types, /*fwdDecl=*/false);
+    }
+
+    for (auto type : sorted_types) {
+      DefineComposite(type);
+    }
+  }
+
   std::vector<clang::Expr*> GetAccessor(clang::Expr* base,
                                         clang::RecordDecl* decl,
                                         unsigned offset, unsigned length);

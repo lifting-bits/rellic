@@ -304,6 +304,8 @@ clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
       return ast_ctx.getVolatileType(BuildType(d->getBaseType(), sizeHint));
     case llvm::dwarf::DW_TAG_restrict_type:
       return ast_ctx.getRestrictType(BuildType(d->getBaseType(), sizeHint));
+    case llvm::dwarf::DW_TAG_atomic_type:
+      return ast_ctx.getAtomicType(BuildType(d->getBaseType(), sizeHint));
     case llvm::dwarf::DW_TAG_pointer_type:
     case llvm::dwarf::DW_TAG_reference_type:
     case llvm::dwarf::DW_TAG_rvalue_reference_type:

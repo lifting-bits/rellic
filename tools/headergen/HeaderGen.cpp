@@ -26,6 +26,7 @@
 
 DEFINE_string(input, "", "Input file.");
 DEFINE_string(output, "", "Output file.");
+DEFINE_bool(generate_prototypes, true, "Generate function prototypes.");
 
 DECLARE_bool(version);
 
@@ -100,8 +101,10 @@ int main(int argc, char* argv[]) {
   auto types{dic->GetTypes()};
   strctgen.GenerateDecls(types.begin(), types.end());
 
-  for (auto func : dic->GetSubprograms()) {
-    subgen.VisitSubprogram(func);
+  if (FLAGS_generate_prototypes) {
+    for (auto func : dic->GetSubprograms()) {
+      subgen.VisitSubprogram(func);
+    }
   }
 
   std::error_code ec;

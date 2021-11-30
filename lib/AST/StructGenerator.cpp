@@ -258,8 +258,8 @@ void StructGenerator::DefineEnum(llvm::DICompositeType* e) {
       }
       elem_name += "_" + std::to_string(i++);
 
-      auto cdecl{ast.CreateEnumConstantDecl(decl, elem_name, base,
-                                            enumerator->getValue())};
+      auto cdecl{ast.CreateEnumConstantDecl(
+          decl, elem_name, ast.CreateIntLit(enumerator->getValue()))};
       decl->addDecl(cdecl);
     }
   }

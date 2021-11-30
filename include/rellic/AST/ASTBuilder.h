@@ -137,19 +137,15 @@ class ASTBuilder {
     return CreateFieldDecl(record, type, CreateIdentifier(name), bitwidth);
   }
   // Enum constant declaration
-  clang::EnumConstantDecl *CreateEnumConstantDecl(clang::EnumDecl *e,
-                                                  clang::IdentifierInfo *id,
-                                                  clang::QualType type,
-                                                  llvm::APInt value,
-                                                  bool isUnsigned = true);
+  clang::EnumConstantDecl *CreateEnumConstantDecl(
+      clang::EnumDecl *e, clang::IdentifierInfo *id, clang::Expr *expr,
+      clang::EnumConstantDecl *previousConstant = nullptr);
 
-  clang::EnumConstantDecl *CreateEnumConstantDecl(clang::EnumDecl *e,
-                                                  std::string name,
-                                                  clang::QualType type,
-                                                  llvm::APInt value,
-                                                  bool isUnsigned = true) {
-    return CreateEnumConstantDecl(e, CreateIdentifier(name), type, value,
-                                  isUnsigned);
+  clang::EnumConstantDecl *CreateEnumConstantDecl(
+      clang::EnumDecl *e, std::string name, clang::Expr *expr,
+      clang::EnumConstantDecl *previousConstant = nullptr) {
+    return CreateEnumConstantDecl(e, CreateIdentifier(name), expr,
+                                  previousConstant);
   }
   // Declaration statement
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);

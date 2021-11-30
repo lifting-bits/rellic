@@ -285,11 +285,10 @@ clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
 }
 
 clang::EnumConstantDecl *ASTBuilder::CreateEnumConstantDecl(
-    clang::EnumDecl *e, clang::IdentifierInfo *id, clang::QualType type,
-    llvm::APInt value, bool isUnsigned) {
-  return clang::EnumConstantDecl::Create(ctx, e, clang::SourceLocation(), id,
-                                         type, /*Expr=*/nullptr,
-                                         llvm::APSInt(value, isUnsigned));
+    clang::EnumDecl *e, clang::IdentifierInfo *id, clang::Expr *expr,
+    clang::EnumConstantDecl *previousConstant) {
+  return sema.CheckEnumConstant(e, previousConstant, clang::SourceLocation(),
+                                id, expr);
 }
 
 clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {

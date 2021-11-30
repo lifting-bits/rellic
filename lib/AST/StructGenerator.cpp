@@ -341,13 +341,22 @@ clang::QualType StructGenerator::BuildBasic(llvm::DIBasicType* b,
     }
   }
 
+  auto char_size{ast_ctx.getTypeSize(ast_ctx.CharTy)};
+  auto char_signed{ast_ctx.CharTy->isSignedIntegerType()};
+  auto b_size{b->getSizeInBits()};
+  auto b_signed{b->getSignedness() == llvm::DIBasicType::Signedness::Signed};
+
+  if (!b->getSizeInBits()) {
+    if (sizeHint > 0) {
+      b_size = sizeHint;
+    } else {
+      b_size = char_size;
+    }
+  }
+
   if (b->getEncoding() == llvm::dwarf::DW_ATE_float) {
     return ast_ctx.getRealTypeForBitwidth(b->getSizeInBits(), false);
   } else {
-    auto char_size{ast_ctx.getTypeSize(ast_ctx.CharTy)};
-    auto char_signed{ast_ctx.CharTy->isSignedIntegerType()};
-    auto b_size{b->getSizeInBits()};
-    auto b_signed{b->getSignedness() == llvm::DIBasicType::Signedness::Signed};
     if (char_size == b_size && char_signed == b_signed) {
       return ast_ctx.CharTy;
     } else {

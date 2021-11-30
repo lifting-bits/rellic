@@ -34,7 +34,9 @@ class StructGenerator {
   void VisitFields(clang::RecordDecl* decl, llvm::DICompositeType* s,
                    DeclToDbgInfo& map, bool isUnion);
 
-  std::string GetAnonName(llvm::DICompositeType* t);
+  std::string GetUniqueName(llvm::DICompositeType* t);
+  clang::RecordDecl* GetRecordDecl(llvm::DICompositeType* t);
+  clang::EnumDecl* GetEnumDecl(llvm::DICompositeType* t);
 
   clang::QualType BuildArray(llvm::DICompositeType* a);
   clang::QualType BuildBasic(llvm::DIBasicType* b, int sizeHint);

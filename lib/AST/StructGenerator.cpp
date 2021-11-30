@@ -381,6 +381,35 @@ clang::QualType StructGenerator::BuildSubroutine(llvm::DISubroutineType* s) {
   return ast_ctx.getFunctionType(ret_type, params, epi);
 }
 
+clang::RecordDecl* StructGenerator::GetRecordDecl(llvm::DICompositeType* t) {
+  auto& decl{fwd_decl_records[t]};
+  if (!decl) {
+    auto tudecl{ast_ctx.getTranslationUnitDecl()};
+    switch (t->getTag()) {
+      case llvm::dwarf::DW_TAG_class_type:
+      case llvm::dwarf::DW_TAG_structure_type:
+        decl = ast.CreateStructDecl(tudecl, GetUniqueName(t));
+        break;
+      case llvm::dwarf::DW_TAG_union_type:
+        decl = ast.CreateUnionDecl(tudecl, GetUniqueName(t));
+        break;
+      default:
+        LOG(FATAL) << "Invalid DICompositeType: " << LLVMThingToString(t);
+    }
+    tudecl->addDecl(decl);
+  }
+  return decl;
+}
+
+clang::EnumDecl* StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
+  auto& decl{fwd_decl_enums[t]};
+  if (!decl) {
+    auto tudecl{ast_ctx.getTranslationUnitDecl()};
+    decl = ast.CreateEnumDecl(tudecl, GetUniqueName(t));
+  }
+  return decl;
+}
+
 clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
   VLOG(2) << "BuildComposite: " << rellic::LLVMThingToString(type);
   switch (type->getTag()) {
@@ -389,18 +418,18 @@ clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
       [[fallthrough]];
     case llvm::dwarf::DW_TAG_structure_type:
     case llvm::dwarf::DW_TAG_union_type:
-      return ast_ctx.getRecordType(fwd_decl_records[type]);
+      return ast_ctx.getRecordType(GetRecordDecl(type));
     case llvm::dwarf::DW_TAG_array_type:
       return BuildArray(type);
     case llvm::dwarf::DW_TAG_enumeration_type:
-      return ast_ctx.getEnumType(fwd_decl_enums[type]);
+      return ast_ctx.getEnumType(GetEnumDecl(type));
     default:
       LOG(FATAL) << "Invalid DICompositeType tag: " << type->getTag();
   }
   return {};
 }
 
-std::string StructGenerator::GetAnonName(llvm::DICompositeType* t) {
+std::string StructGenerator::GetUniqueName(llvm::DICompositeType* t) {
   std::string name{t->getName().str()};
   if (name == "") {
     name = "anon";
@@ -418,22 +447,12 @@ void StructGenerator::VisitType(llvm::DIType* t,
   }
   visited.insert(t);
 
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
   if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
     switch (comp->getTag()) {
       case llvm::dwarf::DW_TAG_class_type:
-      case llvm::dwarf::DW_TAG_structure_type: {
-        auto decl{ast.CreateStructDecl(tudecl, GetAnonName(comp))};
-        fwd_decl_records[comp] = decl;
-        tudecl->addDecl(decl);
-        for (auto field : GetFields(comp)) {
-          VisitType(field->getBaseType(), list, visited);
-        }
-      } break;
+      case llvm::dwarf::DW_TAG_structure_type:
       case llvm::dwarf::DW_TAG_union_type: {
-        auto decl{ast.CreateUnionDecl(tudecl, GetAnonName(comp))};
-        fwd_decl_records[comp] = decl;
-        tudecl->addDecl(decl);
+        GetRecordDecl(comp);
         for (auto field : GetFields(comp)) {
           VisitType(field->getBaseType(), list, visited);
         }
@@ -442,9 +461,7 @@ void StructGenerator::VisitType(llvm::DIType* t,
         VisitType(comp->getBaseType(), list, visited);
         break;
       case llvm::dwarf::DW_TAG_enumeration_type: {
-        auto decl{ast.CreateEnumDecl(tudecl, GetAnonName(comp))};
-        fwd_decl_enums[comp] = decl;
-        tudecl->addDecl(decl);
+        GetEnumDecl(comp);
         VisitType(comp->getBaseType(), list, visited);
       } break;
       default:
@@ -452,12 +469,22 @@ void StructGenerator::VisitType(llvm::DIType* t,
     }
 
     if (comp->getTag() != llvm::dwarf::DW_TAG_array_type) {
-      DLOG(INFO) << "Adding " << comp->getName().str() << " to list";
+      VLOG(3) << "Adding " << comp->getName().str() << " to list";
       list.push_back(comp);
     }
   } else if (auto der = llvm::dyn_cast<llvm::DIDerivedType>(t)) {
     auto base{der->getBaseType()};
-    VisitType(base, list, visited);
+    switch (der->getTag()) {
+      case llvm::dwarf::DW_TAG_pointer_type:
+      case llvm::dwarf::DW_TAG_reference_type:
+      case llvm::dwarf::DW_TAG_ptr_to_member_type:
+      case llvm::dwarf::DW_TAG_rvalue_reference_type:
+        /* skip */
+        break;
+      default:
+        VisitType(base, list, visited);
+        break;
+    }
   } else if (auto basic = llvm::dyn_cast<llvm::DIBasicType>(t)) {
     /* skip */
   } else if (auto sub = llvm::dyn_cast<llvm::DISubroutineType>(t)) {

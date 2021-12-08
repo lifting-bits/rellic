@@ -6,7 +6,6 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
-#include <llvm/ADT/SmallString.h>
 #define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/Z3ConvVisitor.h"

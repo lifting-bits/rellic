@@ -17,7 +17,7 @@ template <typename T>
 T *GetDecl(clang::DeclContext *decl_ctx, const std::string &name) {
   auto &ctx{decl_ctx->getParentASTContext()};
   auto lookup_result{decl_ctx->noload_lookup(&ctx.Idents.get(name))};
-  REQUIRE(lookup_result.end() - lookup_result.begin() == 1);
+  REQUIRE(std::distance(lookup_result.begin(), lookup_result.end()) == 1);
   auto decl{clang::dyn_cast<T>(lookup_result.front())};
   REQUIRE(decl != nullptr);
   return decl;

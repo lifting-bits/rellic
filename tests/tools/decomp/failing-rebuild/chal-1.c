@@ -17,8 +17,7 @@ bool previous_brake_state = false;
 void brake_on() { serial_println("%s called", __FUNCTION__); }
 void brake_off() { serial_println("%s called", __FUNCTION__); }
 void rx_message_routine(unsigned char buf[]) {
-  int16_t speed_value =
-      (((int16_t)buf[3]) << 8) + buf[2];
+  int16_t speed_value = (((int16_t)buf[3]) << 8) + buf[2];
   uint8_t brake_switch = (buf[4] & 0b00001100) >> 2;
   serial_print("%s", " Speed = ");
   serial_print("%d", speed_value / 256);

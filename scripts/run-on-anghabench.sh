@@ -4,8 +4,8 @@
 export RELLIC_BRANCH=__RELLIC_BRANCH__
 export RUN_SIZE=__RUN_SIZE__
 
-export LLVM_VERSION=11
-export CC=clang-11 CXX=clang++-11
+export LLVM_VERSION=12
+export CC=clang-12 CXX=clang++-12
 
 
 echo "Saving output to $(pwd)/build.log"

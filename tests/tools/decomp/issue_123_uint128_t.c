@@ -1,4 +1,4 @@
-#if defined(__x86_64__) || defined(__i386__) || defined(_M_X86) ||             \
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X86) || \
     defined(__arm__)
 typedef unsigned uint128_t __attribute__((mode(TI)));
 typedef int int128_t __attribute__((mode(TI)));

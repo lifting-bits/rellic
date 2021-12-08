@@ -42,11 +42,11 @@ if(NOT DEFINED WIN32)
   )
 endif()
 
-list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_BINARY_DIR})
+# list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_BINARY_DIR})
 
 # this is needed for the #include directives with absolutes paths to work correctly; it must
 # also be set to PUBLIC since rellic-lift includes some files directly
-list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR})
+list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 #
 # libraries
@@ -118,16 +118,16 @@ macro(add_project_properties target)
 endmacro()
 
 #
-# third party libraries
+# external libraries
 #
 
-add_subdirectory(libraries)
+add_subdirectory(external)
 
 #
 # rellic libraries
 #
 
-add_subdirectory(rellic)
+add_subdirectory(lib)
 
 #
 # rellic executables
@@ -157,5 +157,11 @@ add_test(NAME test_roundtrip_rebuild
 # Tests that may not roundtrip yet, but should emit C
 add_test(NAME test_roundtrip_translate_only
   COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}"
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# Tests that can be decompiled
+add_test(NAME test_decompile
+  COMMAND scripts/decompile.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

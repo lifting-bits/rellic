@@ -12,12 +12,10 @@ Makefile
 CMakeLists.txt.user
 .vscode
 .idea
+.cache
 cmake-build-debug
 cmake-build-release
 compile_commands.json
-
-bin/*
-lib/*
 
 third_party/*
 build/*
@@ -26,6 +24,7 @@ generated/*
 tools/build/*
 
 rellic-build
+rellic-angha-test-1k
 
 # LLVM bitcode files
 *.ll

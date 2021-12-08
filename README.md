@@ -22,7 +22,7 @@ Rellic is supported on Linux platforms and has been tested on Ubuntu 16.04 and 1
 
 Most of Rellic's dependencies can be provided by the [cxx-common](https://github.com/lifting-bits/cxx-common) repository. Trail of Bits hosts downloadable, pre-built versions of cxx-common, which makes it substantially easier to get up and running with Rellic. Nonetheless, the following table represents most of Rellic's dependencies.
 
-| Name | Version | 
+| Name | Version |
 | ---- | ------- |
 | [Git](https://git-scm.com/) | Latest |
 | [CMake](https://cmake.org/) | 3.14+ |
@@ -67,7 +67,7 @@ If the distribution you're on doesn't include a recent release of CMake (3.14 or
 The next step is to clone the Rellic repository.
 
 ```shell
-git clone https://github.com/lifting-bits/rellic.git
+git clone --recurse-submodules https://github.com/lifting-bits/rellic.git
 ```
 
 Finally, we build and package Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be downloaded and placed in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details). This script also creates installable deb, rpm, and tgz packages.

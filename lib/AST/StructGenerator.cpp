@@ -149,12 +149,57 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
   return layout.getFieldOffset(fields.size() - 1) + last_size;
 }
 
+void StructGenerator::DefineNonPackedStruct(
+    clang::RecordDecl* decl, std::vector<llvm::DIDerivedType*>& fields) {
+  for (auto& field : fields) {
+    auto type{BuildType(field->getBaseType(), field->getSizeInBits())};
+    clang::FieldDecl* fdecl;
+    if (field->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
+      fdecl = ast.CreateFieldDecl(decl, type, field->getName().str());
+    } else {
+      fdecl = ast.CreateFieldDecl(decl, type, field->getName().str());
+    }
+    decl->addDecl(CHECK_NOTNULL(fdecl));
+  }
+}
+
+static bool CheckOffsets(std::vector<llvm::DIDerivedType*>& fields,
+                         const clang::ASTRecordLayout& layout) {
+  for (auto i{0U}; i < fields.size(); ++i) {
+    if (fields[i]->getOffsetInBits() != layout.getFieldOffset(i)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void StructGenerator::VisitFields(clang::RecordDecl* decl,
                                   llvm::DICompositeType* s, DeclToDbgInfo& map,
                                   bool isUnion) {
   auto elems{GetFields(s)};
-  auto count{0U};
+  static auto test_count{0U};
+  auto test_decl{
+      ast.CreateStructDecl(ast_ctx.getTranslationUnitDecl(),
+                           "test_packed_" + std::to_string(test_count++))};
+  DefineNonPackedStruct(test_decl, elems);
+  test_decl->completeDefinition();
+  auto& test_layout{ast_ctx.getASTRecordLayout(test_decl)};
+
+  CHECK_EQ(elems.size(), test_layout.getFieldCount())
+      << "Field count doesn't match";
+
+  // Check if the struct can be treated as non packed
+  if (CheckOffsets(elems, test_layout)) {
+    DefineNonPackedStruct(decl, elems);
+    decl->completeDefinition();
+    return;
+  }
+
+  // Struct needs to be packed
+  auto field_count{0U};
   std::vector<FieldInfo> fields{};
+  clang::AttributeCommonInfo attrinfo{clang::SourceLocation{}};
+  decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
 
   for (auto elem : elems) {
     auto curr_offset{isUnion ? 0 : GetStructSize(ast_ctx, ast, fields)};
@@ -165,7 +210,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
         << " cannot be correctly aligned";
     if (curr_offset < elem->getOffsetInBits()) {
       auto needed_padding{elem->getOffsetInBits() - curr_offset};
-      auto info{CreatePadding(ast_ctx, needed_padding, count)};
+      auto info{CreatePadding(ast_ctx, needed_padding, field_count)};
       fields.push_back(info);
       decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, info));
     }
@@ -174,7 +219,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
     if (name == "") {
       name = "anon";
     }
-    name = name + "_" + std::to_string(count++);
+    name = name + "_" + std::to_string(field_count++);
 
     auto type{BuildType(elem->getBaseType(), elem->getSizeInBits())};
     CHECK(!type.isNull());
@@ -199,8 +244,6 @@ void StructGenerator::DefineStruct(llvm::DICompositeType* s) {
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto decl{ast.CreateStructDecl(tudecl, fwd_decl->getName().str(), fwd_decl)};
 
-  clang::AttributeCommonInfo info{clang::SourceLocation{}};
-  decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
   DeclToDbgInfo fmap{};
   if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
     auto size{s->getSizeInBits()};

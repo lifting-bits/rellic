@@ -38,6 +38,9 @@ class StructGenerator {
   clang::RecordDecl* GetRecordDecl(llvm::DICompositeType* t);
   clang::EnumDecl* GetEnumDecl(llvm::DICompositeType* t);
 
+  void DefineNonPackedStruct(clang::RecordDecl* decl,
+                             std::vector<llvm::DIDerivedType*>& fields);
+
   clang::QualType BuildArray(llvm::DICompositeType* a);
   clang::QualType BuildBasic(llvm::DIBasicType* b, int sizeHint);
   clang::QualType BuildSubroutine(llvm::DISubroutineType* s);

@@ -18,6 +18,7 @@
 #include "rellic/AST/ASTBuilder.h"
 
 namespace rellic {
+struct OffsetDIDerivedType;
 
 class StructGenerator {
   clang::ASTContext& ast_ctx;
@@ -39,7 +40,8 @@ class StructGenerator {
   clang::EnumDecl* GetEnumDecl(llvm::DICompositeType* t);
 
   void DefineNonPackedStruct(clang::RecordDecl* decl,
-                             std::vector<llvm::DIDerivedType*>& fields);
+                             std::vector<OffsetDIDerivedType>& fields);
+  unsigned GetLayoutSize(const clang::ASTRecordLayout& layout);
 
   clang::QualType BuildArray(llvm::DICompositeType* a);
   clang::QualType BuildBasic(llvm::DIBasicType* b, int sizeHint);

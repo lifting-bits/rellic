@@ -58,9 +58,14 @@ static llvm::DICompositeType* GetBaseType(llvm::DIType* type) {
   return nullptr;
 }
 
-static std::vector<llvm::DIDerivedType*> GetFields(
+struct OffsetDIDerivedType {
+  uint64_t offset;
+  llvm::DIDerivedType* type;
+};
+
+static std::vector<OffsetDIDerivedType> GetFields(
     llvm::DICompositeType* composite) {
-  std::vector<llvm::DIDerivedType*> fields{};
+  std::vector<OffsetDIDerivedType> fields{};
   auto nodes{composite->getElements()};
   std::for_each(nodes.begin(), nodes.end(), [&](auto node) {
     if (auto type = llvm::dyn_cast<llvm::DIDerivedType>(node)) {
@@ -77,18 +82,17 @@ static std::vector<llvm::DIDerivedType*> GetFields(
 
       if (tag == llvm::dwarf::DW_TAG_inheritance) {
         auto sub_fields{GetFields(GetBaseType(type->getBaseType()))};
-        if (sub_fields.size() == 0) {
-          // Ignore empty base types
-          return;
+        for (auto sub_field : sub_fields) {
+          fields.push_back(
+              {type->getOffsetInBits() + sub_field.offset, sub_field.type});
         }
+      } else {
+        fields.push_back({type->getOffsetInBits(), type});
       }
-
-      fields.push_back(type);
     }
   });
-  std::sort(fields.begin(), fields.end(), [](auto a, auto b) {
-    return a->getOffsetInBits() < b->getOffsetInBits();
-  });
+  std::sort(fields.begin(), fields.end(),
+            [](auto a, auto b) { return a.offset < b.offset; });
 
   return fields;
 }
@@ -150,27 +154,34 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
 }
 
 void StructGenerator::DefineNonPackedStruct(
-    clang::RecordDecl* decl, std::vector<llvm::DIDerivedType*>& fields) {
+    clang::RecordDecl* decl, std::vector<OffsetDIDerivedType>& fields) {
+  unsigned field_count{0U};
   for (auto& field : fields) {
-    auto type{BuildType(field->getBaseType(), field->getSizeInBits())};
+    auto type{
+        BuildType(field.type->getBaseType(), field.type->getSizeInBits())};
+    auto name{field.type->getName().str() + std::to_string(field_count++)};
     clang::FieldDecl* fdecl;
-    if (field->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
-      fdecl = ast.CreateFieldDecl(decl, type, field->getName().str());
+    if (field.type->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
+      fdecl = ast.CreateFieldDecl(decl, type, name);
     } else {
-      fdecl = ast.CreateFieldDecl(decl, type, field->getName().str());
+      fdecl = ast.CreateFieldDecl(decl, type, name);
     }
     decl->addDecl(CHECK_NOTNULL(fdecl));
   }
 }
 
-static bool CheckOffsets(std::vector<llvm::DIDerivedType*>& fields,
+static bool CheckOffsets(std::vector<OffsetDIDerivedType>& fields,
                          const clang::ASTRecordLayout& layout) {
   for (auto i{0U}; i < fields.size(); ++i) {
-    if (fields[i]->getOffsetInBits() != layout.getFieldOffset(i)) {
+    if (fields[i].offset != layout.getFieldOffset(i)) {
       return false;
     }
   }
   return true;
+}
+
+unsigned StructGenerator::GetLayoutSize(const clang::ASTRecordLayout& layout) {
+  return layout.getSize().getQuantity() * ast_ctx.getTypeSize(ast_ctx.CharTy);
 }
 
 void StructGenerator::VisitFields(clang::RecordDecl* decl,
@@ -184,12 +195,13 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   DefineNonPackedStruct(test_decl, elems);
   test_decl->completeDefinition();
   auto& test_layout{ast_ctx.getASTRecordLayout(test_decl)};
+  auto layout_size{GetLayoutSize(test_layout)};
 
   CHECK_EQ(elems.size(), test_layout.getFieldCount())
       << "Field count doesn't match";
 
   // Check if the struct can be treated as non packed
-  if (CheckOffsets(elems, test_layout)) {
+  if (CheckOffsets(elems, test_layout) && layout_size == s->getSizeInBits()) {
     DefineNonPackedStruct(decl, elems);
     decl->completeDefinition();
     return;
@@ -198,43 +210,58 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   // Struct needs to be packed
   auto field_count{0U};
   std::vector<FieldInfo> fields{};
-  clang::AttributeCommonInfo attrinfo{clang::SourceLocation{}};
-  decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
+  if (!isUnion) {
+    clang::AttributeCommonInfo attrinfo{clang::SourceLocation{}};
+    decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
+  }
 
   for (auto elem : elems) {
     auto curr_offset{isUnion ? 0 : GetStructSize(ast_ctx, ast, fields)};
-    DLOG(INFO) << "Field " << elem->getName().str()
+    DLOG(INFO) << "Field " << elem.type->getName().str()
                << " offset: " << curr_offset << " in " << decl->getName().str();
-    CHECK_LE(curr_offset, elem->getOffsetInBits())
-        << "Field " << LLVMThingToString(elem)
+    CHECK_LE(curr_offset, elem.offset)
+        << "Field " << LLVMThingToString(elem.type)
         << " cannot be correctly aligned";
-    if (curr_offset < elem->getOffsetInBits()) {
-      auto needed_padding{elem->getOffsetInBits() - curr_offset};
+    if (curr_offset < elem.offset) {
+      auto needed_padding{elem.offset - curr_offset};
       auto info{CreatePadding(ast_ctx, needed_padding, field_count)};
       fields.push_back(info);
       decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, info));
     }
 
-    std::string name{elem->getName().str()};
+    std::string name{elem.type->getName().str()};
     if (name == "") {
       name = "anon";
     }
     name = name + "_" + std::to_string(field_count++);
 
-    auto type{BuildType(elem->getBaseType(), elem->getSizeInBits())};
+    auto type{BuildType(elem.type->getBaseType(), elem.type->getSizeInBits())};
     CHECK(!type.isNull());
     FieldInfo field{};
-    if (elem->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
-      field = {name, type, (unsigned)elem->getSizeInBits()};
+    if (elem.type->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
+      field = {name, type, (unsigned)elem.type->getSizeInBits()};
     } else {
       field = {name, type, 0};
     }
     auto fdecl{FieldInfoToFieldDecl(ast_ctx, ast, decl, field)};
     fields.push_back(field);
 
-    map[fdecl] = elem;
+    map[fdecl] = elem.type;
     decl->addDecl(fdecl);
   }
+
+  if (!isUnion) {
+    auto cur_size{GetStructSize(ast_ctx, ast, fields)};
+    auto expected_size{s->getSizeInBits()};
+    CHECK_LE(cur_size, expected_size);
+    if (cur_size < expected_size) {
+      auto needed_padding{expected_size - cur_size};
+      auto info{CreatePadding(ast_ctx, needed_padding, field_count)};
+      fields.push_back(info);
+      decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, info));
+    }
+  }
+
   decl->completeDefinition();
 }
 
@@ -254,12 +281,11 @@ void StructGenerator::DefineStruct(llvm::DICompositeType* s) {
   } else {
     VisitFields(decl, s, fmap, /*isUnion=*/false);
   }
-  // TODO(frabert): Ideally we'd also check that the size as declared in the
-  // debug data is the same as the one computed from the declaration, but
-  // bitfields create issues e.g. in the `bitcode` test: the debug info size
-  // for the struct is 32, but in reality it's 8
 
   auto& layout{ast_ctx.getASTRecordLayout(decl)};
+  auto layout_size{GetLayoutSize(layout)};
+  CHECK_EQ(layout_size, s->getSizeInBits())
+      << "Struct " << s->getName().str() << " has incorrect size";
   for (auto field : decl->fields()) {
     auto type{fmap[field]};
     if (type) {
@@ -333,8 +359,8 @@ clang::QualType StructGenerator::BuildArray(llvm::DICompositeType* a) {
   VLOG(1) << "BuildArray: " << rellic::LLVMThingToString(a);
   auto base{BuildType(a->getBaseType())};
   auto subrange{llvm::cast<llvm::DISubrange>(a->getElements()[0])};
-  auto* ci = subrange->getCount().dyn_cast<llvm::ConstantInt*>();
-  return rellic::GetConstantArrayType(ast_ctx, base, ci->getSExtValue());
+  auto* ci = subrange->getCount().get<llvm::ConstantInt*>();
+  return rellic::GetConstantArrayType(ast_ctx, base, ci->getZExtValue());
 }
 
 clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
@@ -508,7 +534,7 @@ void StructGenerator::VisitType(llvm::DIType* t,
       case llvm::dwarf::DW_TAG_union_type: {
         GetRecordDecl(comp);
         for (auto field : GetFields(comp)) {
-          VisitType(field->getBaseType(), list, visited);
+          VisitType(field.type->getBaseType(), list, visited);
         }
       } break;
       case llvm::dwarf::DW_TAG_array_type:

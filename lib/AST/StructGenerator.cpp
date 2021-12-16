@@ -5,8 +5,9 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-#include <llvm/BinaryFormat/Dwarf.h>
 #define GOOGLE_STRIP_LOG 1
+
+#include "rellic/AST/StructGenerator.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
@@ -18,7 +19,6 @@
 #include <unordered_set>
 
 #include "rellic/AST/Compat/ASTContext.h"
-#include "rellic/AST/StructGenerator.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {

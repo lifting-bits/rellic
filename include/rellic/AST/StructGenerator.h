@@ -31,7 +31,7 @@ class StructGenerator {
   unsigned decl_count{0};
 
   using DeclToDbgInfo =
-      std::unordered_map<clang::FieldDecl*, llvm::DIDerivedType*>;
+      std::unordered_map<clang::FieldDecl*, OffsetDIDerivedType>;
   void VisitFields(clang::RecordDecl* decl, llvm::DICompositeType* s,
                    DeclToDbgInfo& map, bool isUnion);
 

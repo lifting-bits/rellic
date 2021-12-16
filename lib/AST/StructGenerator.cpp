@@ -246,7 +246,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
     auto fdecl{FieldInfoToFieldDecl(ast_ctx, ast, decl, field)};
     fields.push_back(field);
 
-    map[fdecl] = elem.type;
+    map[fdecl] = elem;
     decl->addDecl(fdecl);
   }
 
@@ -287,10 +287,10 @@ void StructGenerator::DefineStruct(llvm::DICompositeType* s) {
   CHECK_EQ(layout_size, s->getSizeInBits())
       << "Struct " << s->getName().str() << " has incorrect size";
   for (auto field : decl->fields()) {
-    auto type{fmap[field]};
-    if (type) {
+    auto elem{fmap.find(field)};
+    if (elem != fmap.end()) {
       CHECK_EQ(layout.getFieldOffset(field->getFieldIndex()),
-               type->getOffsetInBits())
+               elem->second.offset)
           << "Field " << field->getName().str() << " of struct "
           << decl->getName().str() << " is not correctly aligned";
     }

@@ -5,9 +5,8 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
+#include <llvm/BinaryFormat/Dwarf.h>
 #define GOOGLE_STRIP_LOG 1
-
-#include "rellic/AST/StructGenerator.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
@@ -19,6 +18,7 @@
 #include <unordered_set>
 
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/StructGenerator.h"
 #include "rellic/BC/Util.h"
 
 namespace rellic {
@@ -311,32 +311,6 @@ void StructGenerator::DefineUnion(llvm::DICompositeType* u) {
   tudecl->addDecl(decl);
 }
 
-void StructGenerator::DefineEnum(llvm::DICompositeType* e) {
-  VLOG(1) << "DefineEnum: " << rellic::LLVMThingToString(e);
-  auto& fwd_decl{CHECK_NOTNULL(fwd_decl_enums[e])};
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto decl{ast.CreateEnumDecl(tudecl, fwd_decl->getName().str(), fwd_decl)};
-
-  auto base{BuildType(e->getBaseType())};
-  auto i{0U};
-  for (auto elem : e->getElements()) {
-    if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-      auto elem_name{enumerator->getName().str()};
-      if (elem_name == "") {
-        elem_name = "anon";
-      }
-      elem_name += "_" + std::to_string(i++);
-
-      auto cdecl{ast.CreateEnumConstantDecl(
-          decl, elem_name, ast.CreateIntLit(enumerator->getValue()))};
-      decl->addDecl(cdecl);
-    }
-  }
-  decl->completeDefinition(base, base, 0, 0);
-
-  tudecl->addDecl(decl);
-}
-
 void StructGenerator::DefineComposite(llvm::DICompositeType* t) {
   VLOG(2) << "DefineComposite: " << LLVMThingToString(t);
   switch (t->getTag()) {
@@ -346,9 +320,6 @@ void StructGenerator::DefineComposite(llvm::DICompositeType* t) {
       break;
     case llvm::dwarf::DW_TAG_union_type:
       DefineUnion(t);
-      break;
-    case llvm::dwarf::DW_TAG_enumeration_type:
-      DefineEnum(t);
       break;
     default:
       LOG(FATAL) << "Invalid DICompositeType: " << LLVMThingToString(t);
@@ -482,11 +453,31 @@ clang::RecordDecl* StructGenerator::GetRecordDecl(llvm::DICompositeType* t) {
 }
 
 clang::EnumDecl* StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
-  auto& decl{fwd_decl_enums[t]};
-  if (!decl) {
-    auto tudecl{ast_ctx.getTranslationUnitDecl()};
-    decl = ast.CreateEnumDecl(tudecl, GetUniqueName(t));
+  auto& decl{enum_decls[t]};
+  if (decl) {
+    return decl;
   }
+
+  auto tudecl{ast_ctx.getTranslationUnitDecl()};
+  decl = ast.CreateEnumDecl(tudecl, GetUniqueName(t));
+  auto base{BuildType(t->getBaseType())};
+  auto i{0U};
+  for (auto elem : t->getElements()) {
+    if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
+      auto elem_name{enumerator->getName().str()};
+      if (elem_name == "") {
+        elem_name = "anon";
+      }
+      elem_name += "_" + std::to_string(i++);
+
+      auto cdecl{ast.CreateEnumConstantDecl(
+          decl, elem_name, ast.CreateIntLit(enumerator->getValue()))};
+      decl->addDecl(cdecl);
+    }
+  }
+  decl->completeDefinition(base, base, 0, 0);
+
+  tudecl->addDecl(decl);
   return decl;
 }
 
@@ -528,7 +519,8 @@ void StructGenerator::VisitType(llvm::DIType* t,
   visited.insert(t);
 
   if (auto comp = llvm::dyn_cast<llvm::DICompositeType>(t)) {
-    switch (comp->getTag()) {
+    auto tag{comp->getTag()};
+    switch (tag) {
       case llvm::dwarf::DW_TAG_class_type:
       case llvm::dwarf::DW_TAG_structure_type:
       case llvm::dwarf::DW_TAG_union_type: {
@@ -548,7 +540,8 @@ void StructGenerator::VisitType(llvm::DIType* t,
         LOG(FATAL) << "Invalid DICompositeType tag: " << comp->getTag();
     }
 
-    if (comp->getTag() != llvm::dwarf::DW_TAG_array_type) {
+    if (tag != llvm::dwarf::DW_TAG_array_type &&
+        tag != llvm::dwarf::DW_TAG_enumeration_type) {
       VLOG(3) << "Adding " << comp->getName().str() << " to list";
       list.push_back(comp);
     }

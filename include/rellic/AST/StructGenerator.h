@@ -25,7 +25,7 @@ class StructGenerator {
   rellic::ASTBuilder ast;
   std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*>
       fwd_decl_records{};
-  std::unordered_map<llvm::DICompositeType*, clang::EnumDecl*> fwd_decl_enums{};
+  std::unordered_map<llvm::DICompositeType*, clang::EnumDecl*> enum_decls{};
   std::unordered_map<llvm::DIDerivedType*, clang::TypedefNameDecl*>
       typedef_decls{};
   unsigned decl_count{0};
@@ -53,7 +53,6 @@ class StructGenerator {
   void DefineComposite(llvm::DICompositeType* s);
   void DefineStruct(llvm::DICompositeType* s);
   void DefineUnion(llvm::DICompositeType* s);
-  void DefineEnum(llvm::DICompositeType* s);
 
   void VisitType(llvm::DIType* t, std::vector<llvm::DICompositeType*>& list,
                  std::unordered_set<llvm::DIType*>& visited);

@@ -8,14 +8,5 @@
 
 @PACKAGE_INIT@
 
-cmake_minimum_required(VERSION 3.2)
-
-if(NOT TARGET "@PROJECT_NAME@")
-
-  include(CMakeFindDependencyMacro)
-  find_dependency("@PROJECT_NAME@")
-
-  # Exported Targets
-  include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
-
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+check_required_components("@PROJECT_NAME@")

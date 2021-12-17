@@ -1,31 +1,25 @@
 #
-# Copyright (c) 2021-present, Trail of Bits, Inc.
+# Copyright (c) 2020-present, Trail of Bits, Inc.
 # All rights reserved.
 #
 # This source code is licensed in accordance with the terms specified in
 # the LICENSE file found in the root directory of this source tree.
 #
 
-# Fix behavior of CMAKE_CXX_STANDARD when targeting macOS.
-if (POLICY CMP0025)
-  cmake_policy(SET CMP0025 NEW)
-endif ()
-
-if (DEFINED VCPKG_ROOT)
-  message(WARNING "Building with VCPKG")
-  include(cmake/vcpkg_helper.cmake)
-else()
-  message(WARNING "Running the standard CMake build; if this is a mistake, reconfigure again and pass `-DVCPKG_ROOT=/path/to/vcpkg`")
-  set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
-endif()
+include("cmake/vcpkg_helper.cmake")
 
 project(rellic)
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.19)
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/settings.cmake")
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils.cmake")
+include("cmake/options.cmake")
+include("cmake/settings.cmake")
+include("cmake/llvm.cmake")
 
-FindAndSelectClangCompiler()
+include(GNUInstallDirs)
+
+if(RELLIC_ENABLE_INSTALL)
+  include("cmake/packaging.cmake")
+endif(RELLIC_ENABLE_INSTALL)
 
 enable_language(C CXX ASM)
 
@@ -46,65 +40,36 @@ endif()
 
 # this is needed for the #include directives with absolutes paths to work correctly; it must
 # also be set to PUBLIC since rellic-lift includes some files directly
-list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include)
+list(APPEND PROJECT_INCLUDEDIRECTORIES $<BUILD_INTERFACE:${RELLIC_SOURCE_DIR}/include>)
+list(APPEND PROJECT_INCLUDEDIRECTORIES $<INSTALL_INTERFACE:include>)
 
 #
 # libraries
 #
 
-# llvm
-find_package(LLVM REQUIRED CONFIG HINTS ${FINDPACKAGE_LLVM_HINTS})
+set(_VCPKG_SHARE_DIR "${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/${CMAKE_INSTALL_DATADIR}")
 
-string(REPLACE "." ";" LLVM_VERSION_LIST ${LLVM_PACKAGE_VERSION})
-list(GET LLVM_VERSION_LIST 0 LLVM_MAJOR_VERSION)
-list(GET LLVM_VERSION_LIST 1 LLVM_MINOR_VERSION)
+find_package(gflags CONFIG REQUIRED HINTS "${_VCPKG_SHARE_DIR}")
+find_package(glog CONFIG REQUIRED HINTS "${_VCPKG_SHARE_DIR}")
+find_llvm(llvm "${_VCPKG_SHARE_DIR}")
 
-set(LLVM_LIBRARIES
-  LLVMCore LLVMSupport LLVMAnalysis LLVMipo LLVMIRReader
-  LLVMBitReader LLVMBitWriter LLVMTransformUtils LLVMScalarOpts
-  LLVMLTO
-)
+# LLVM uses `-lZ3` somewhere, so this is a good way to sneak it in.
+# NOTE: Recent versions of cxx-common vcpkg llvm dependencies fix this
+if(NOT Z3_FOUND)
+    find_package(Z3 4.8 CONFIG REQUIRED)
+    if (NOT TARGET Z3)
+        add_library(Z3 INTERFACE)
+    endif()
+    target_link_libraries(Z3 INTERFACE z3::libz3)
+endif()
 
-list(APPEND PROJECT_LIBRARIES ${LLVM_LIBRARIES})
-list(APPEND PROJECT_DEFINITIONS ${LLVM_DEFINITIONS})
-list(APPEND PROJECT_INCLUDEDIRECTORIES ${LLVM_INCLUDE_DIRS})
+find_package(Clang CONFIG REQUIRED)
+
+find_llvm(llvm "${_VCPKG_SHARE_DIR}")
 
 # clang
 find_package(Clang REQUIRED)
-set(CLANG_LIBS clangIndex clangCodeGen clangASTMatchers clangTooling)
-list(APPEND PROJECT_LIBRARIES ${CLANG_LIBS})
 
-# z3
-find_package(Z3 CONFIG 4.7.1 REQUIRED)
-list(APPEND PROJECT_LIBRARIES z3::libz3)
-
-# Potentially fixup bad LLVM z3 linkage
-get_target_property(LLVMSupport_LIBS LLVMSupport INTERFACE_LINK_LIBRARIES)
-list(FIND LLVMSupport_LIBS "Z3" _index)
-if (${_index} GREATER -1)
-  list(REMOVE_ITEM LLVMSupport_LIBS Z3)
-  list(APPEND LLVMSupport_LIBS z3::libz3)
-  set_target_properties(LLVMSupport PROPERTIES
-    INTERFACE_LINK_LIBRARIES "${LLVMSupport_LIBS}")
-endif()
-
-# google log module
-find_package(glog CONFIG QUIET)
-if (NOT glog_FOUND)
-  find_package(glog REQUIRED)
-  list(APPEND PROJECT_LIBRARIES glog)
-else()
-  list(APPEND PROJECT_LIBRARIES glog::glog)
-endif()
-
-# gflags
-find_package(gflags CONFIG QUIET)
-if (NOT gflags_FOUND)
-  find_package(gflags REQUIRED)
-endif()
-list(APPEND PROJECT_LIBRARIES gflags)
-
-set(RELLIC_LLVM_VERSION "${LLVM_MAJOR_VERSION}.${LLVM_MINOR_VERSION}")
 
 #
 # helper macro to set target properties
@@ -116,6 +81,34 @@ macro(add_project_properties target)
   target_compile_definitions(${target} PUBLIC ${PROJECT_DEFINITIONS})
   target_compile_options(${target} PRIVATE ${PROJECT_CXXFLAGS})
 endmacro()
+
+if(RELLIC_ENABLE_INSTALL)
+  export(PACKAGE "${PROJECT_NAME}")
+  
+  set(cmake_install_dir "lib/cmake/${PROJECT_NAME}")
+  
+  include(CMakePackageConfigHelpers)
+  configure_package_config_file("${PROJECT_NAME}Config.cmake.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+      INSTALL_DESTINATION "${cmake_install_dir}"
+  )
+
+  install(
+      FILES
+          "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+      DESTINATION "${cmake_install_dir}"
+  )
+  install(EXPORT "${PROJECT_NAME}Targets"
+      DESTINATION "${cmake_install_dir}"
+      NAMESPACE "${PROJECT_NAME}::"
+  )
+  install(
+    TARGETS
+      "llvm"
+    EXPORT
+      "${PROJECT_NAME}Targets"
+  )
+endif(RELLIC_ENABLE_INSTALL)
 
 #
 # external libraries
@@ -139,10 +132,8 @@ add_subdirectory(tools)
 # tests
 #
 
-# test options
-option(ENABLE_TESTING "Enable Test Builds" ON)
 
-if (ENABLE_TESTING)
+if (RELLIC_ENABLE_TESTING)
   enable_testing()
 
   add_subdirectory(unittests)

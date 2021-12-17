@@ -1,0 +1,21 @@
+#
+# Copyright (c) 2020-present, Trail of Bits, Inc.
+# All rights reserved.
+#
+# This source code is licensed in accordance with the terms specified in
+# the LICENSE file found in the root directory of this source tree.
+#
+
+@PACKAGE_INIT@
+
+cmake_minimum_required(VERSION 3.2)
+
+if(NOT TARGET "@PROJECT_NAME@")
+
+  include(CMakeFindDependencyMacro)
+  find_dependency("@PROJECT_NAME@")
+
+  # Exported Targets
+  include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+endif()

@@ -2,7 +2,7 @@
 # rellic-unittest
 #
 
-set(RELLIC_UNITTEST ${PROJECT_NAME}-unittest-${RELLIC_LLVM_VERSION})
+set(RELLIC_UNITTEST ${PROJECT_NAME}-unittest)
 
 add_executable(${RELLIC_UNITTEST}
   AST/ASTBuilder.cpp

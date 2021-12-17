@@ -180,8 +180,8 @@ static bool CheckOffsets(std::vector<OffsetDIDerivedType>& fields,
   return true;
 }
 
-unsigned StructGenerator::GetLayoutSize(const clang::ASTRecordLayout& layout) {
-  return layout.getSize().getQuantity() * ast_ctx.getTypeSize(ast_ctx.CharTy);
+uint64_t StructGenerator::GetLayoutSize(const clang::ASTRecordLayout& layout) {
+  return ast_ctx.toBits(layout.getSize());
 }
 
 void StructGenerator::VisitFields(clang::RecordDecl* decl,

@@ -1,4 +1,4 @@
-struct alignas(1ull << 29) big_foo_t {
+struct big_foo_t {
   int x[1ull << 32];
 };
 

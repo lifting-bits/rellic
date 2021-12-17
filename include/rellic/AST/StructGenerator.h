@@ -11,6 +11,7 @@
 #include <clang/AST/Decl.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 
+#include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -41,7 +42,7 @@ class StructGenerator {
 
   void DefineNonPackedStruct(clang::RecordDecl* decl,
                              std::vector<OffsetDIDerivedType>& fields);
-  unsigned GetLayoutSize(const clang::ASTRecordLayout& layout);
+  uint64_t GetLayoutSize(const clang::ASTRecordLayout& layout);
 
   clang::QualType BuildArray(llvm::DICompositeType* a);
   clang::QualType BuildBasic(llvm::DIBasicType* b, int sizeHint);

@@ -23,14 +23,19 @@ Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit)
       simplifier(*z_ctx, "simplify") {}
 
 clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
-  auto z_expr{z_gen->GetOrCreateZ3Expr(c_expr)};
-  z3::goal goal(*z_ctx);
-  goal.add(z_expr);
-  // Apply on `simplifier` on condition
-  auto app{simplifier(goal)};
-  CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-  auto z_result{app[0].as_expr()};
-  return z_gen->GetOrCreateCExpr(z_result);
+  if (c_expr->isKnownToHaveBooleanValue() ||
+      c_expr->isIntegerConstantExpr(*ast_ctx)) {
+    return c_expr;
+  } else {
+    auto z_expr{z_gen->GetOrCreateZ3Expr(c_expr)};
+    z3::goal goal(*z_ctx);
+    goal.add(z_expr);
+    // Apply on `simplifier` on condition
+    auto app{simplifier(goal)};
+    CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
+    auto z_result{app[0].as_expr()};
+    return z_gen->GetOrCreateCExpr(z_result);
+  }
 }
 
 bool Z3CondSimplify::VisitIfStmt(clang::IfStmt *stmt) {

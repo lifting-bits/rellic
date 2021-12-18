@@ -65,11 +65,6 @@ endif()
 
 find_package(Clang CONFIG REQUIRED)
 
-find_llvm(llvm "${_VCPKG_SHARE_DIR}")
-
-# clang
-find_package(Clang REQUIRED)
-
 
 #
 # helper macro to set target properties
@@ -138,31 +133,33 @@ if (RELLIC_ENABLE_TESTING)
 
   add_subdirectory(unittests)
 
-  find_package(Clang CONFIG REQUIRED)
   get_target_property(CLANG_PATH clang LOCATION)
-
   message(STATUS "Clang path for tests: \"${CLANG_PATH}\"")
+  
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  message(STATUS "Python path for tests: \"${Python3_EXECUTABLE}\"")
+
 
   # Tests that survive a complete roundtrip
   add_test(NAME test_roundtrip_rebuild
-    COMMAND scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"
+    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
   # Tests that may not roundtrip yet, but should emit C
   add_test(NAME test_roundtrip_translate_only
-    COMMAND scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}"
+    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
   # Tests that can be decompiled
   add_test(NAME test_decompile
-    COMMAND scripts/decompile.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/
+    COMMAND "${Python3_EXECUTABLE}" scripts/decompile.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
   add_test(NAME test_headergen
-    COMMAND scripts/test-headergen.py $<TARGET_FILE:${RELLIC_HEADERGEN}> tests/tools/headergen/ "${CLANG_PATH}"
+    COMMAND "${Python3_EXECUTABLE}" scripts/test-headergen.py $<TARGET_FILE:${RELLIC_HEADERGEN}> tests/tools/headergen/ "${CLANG_PATH}"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 endif()

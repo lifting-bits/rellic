@@ -96,7 +96,7 @@ Make sure to have the latest release of cxx-common for LLVM 12. Then, build with
 cmake \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DVCPKG_ROOT=/path/to/vcpkg \
-  -DVCPKG_TARGET_TRIPLET=x64-osx \
+  -DVCPKG_TARGET_TRIPLET=x64-osx-rel \
   -DRELLIC_ENABLE_TESTING=OFF \
   -DCMAKE_C_COMPILER=`which clang` \
   -DCMAKE_CXX_COMPILER=`which clang++` \

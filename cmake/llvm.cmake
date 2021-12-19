@@ -6,9 +6,9 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
-function(find_llvm target_name hint_dir)
+function(find_llvm target_name)
   
-  find_package(llvm CONFIG REQUIRED HINTS "${hint_dir}")
+  find_package(llvm CONFIG REQUIRED)
   
   add_library("${target_name}" INTERFACE)
   target_include_directories("${target_name}" SYSTEM INTERFACE

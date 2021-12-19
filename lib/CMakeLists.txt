@@ -6,9 +6,17 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
-
-#define the "Version.cpp" in the binary directory.
-add_subdirectory(Version)
+# Based on: https://github.com/andrew-hardin/cmake-git-version-tracking/blob/master/better-example/CMakeLists.txt
+# By Andrew Hardin
+# Released under the MIT License.
+# https://raw.githubusercontent.com/andrew-hardin/cmake-git-version-tracking/master/LICENSE
+#
+# Define the two required variables before including
+# the source code for watching a git repository.
+set(PRE_CONFIGURE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Version.cpp.in")
+set(POST_CONFIGURE_FILE "${CMAKE_CURRENT_BINARY_DIR}/Version.cpp")
+set(GIT_WORKING_DIR "${PROJECT_SOURCE_DIR}")
+include("${PROJECT_SOURCE_DIR}/cmake/git_watcher.cmake")
 
 set(include_dir "${PROJECT_SOURCE_DIR}/include/${PROJECT_NAME}")
 
@@ -59,7 +67,7 @@ set(BC_COMPAT_HEADERS
 )
 
 set(VERSION_HEADERS
-  "${include_dir}/Version/Version.h"
+  "${include_dir}/Version.h"
 )
 
 set(public_HEADERS
@@ -70,13 +78,13 @@ set(public_HEADERS
   ${VERSION_HEADERS}
 )
 
-add_library("${PROJECT_NAME}" STATIC
-  ${public_HEADERS}
-
+set(AST_COMPAT_SOURCES
   AST/Compat/ASTContext.cpp
   AST/Compat/Mangle.cpp
   AST/Compat/Stmt.cpp
-  
+)
+
+set(AST_SOURCES
   AST/ASTBuilder.cpp
   AST/ASTPrinter.cpp
   AST/CXXToCDecl.cpp
@@ -98,31 +106,46 @@ add_library("${PROJECT_NAME}" STATIC
   AST/StructFieldRenamer.cpp
   AST/StructGenerator.cpp
   AST/SubprogramGenerator.cpp
-  
+)
+
+set(BC_SOURCES
   BC/Util.cpp
+)
+
+set(BC_COMPAT_SOURCES
   BC/Compat/Value.cpp
+)
+
+add_library("${PROJECT_NAME}" STATIC
+  ${public_HEADERS}
+  ${AST_SOURCES}
+  ${AST_COMPAT_SOURCES}
+  ${BC_SOURCES}
+  ${BC_COMPAT_SOURCES}
   
-  "${CMAKE_CURRENT_BINARY_DIR}/Version/Version.cpp"
+  "${POST_CONFIGURE_FILE}"  # Version.cpp
 )
 
 #link version information
 target_link_libraries("${PROJECT_NAME}"
   PUBLIC
     glog::glog
-    gflags::gflags
     llvm
-    clangIndex clangCodeGen clangASTMatchers clangTooling)
+    clangIndex
+    clangCodeGen
+    clangASTMatchers
+    clangTooling
+)
 
 target_compile_features("${PROJECT_NAME}"
   PUBLIC
-    cxx_std_17)
+    cxx_std_17
+)
 
 set_target_properties("${PROJECT_NAME}"
   PROPERTIES
     LINKER_LANGUAGE
       CXX
-    PUBLIC_HEADER
-      "${public_HEADERS}"
 )
 
 add_project_properties("${PROJECT_NAME}")

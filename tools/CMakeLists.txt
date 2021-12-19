@@ -10,31 +10,41 @@
 # rellic-decomp
 #
 
-set(RELLIC_DECOMP ${PROJECT_NAME}-decomp)
+set(RELLIC_DECOMP "${PROJECT_NAME}-decomp")
 
 add_executable(${RELLIC_DECOMP}
-  decomp/Decomp.cpp
+  "decomp/Decomp.cpp"
 )
 
-target_link_libraries(${RELLIC_DECOMP} PRIVATE ${PROJECT_NAME})
+target_link_libraries(${RELLIC_DECOMP}
+  PRIVATE
+    "${PROJECT_NAME}"
+    gflags::gflags
+)
+
 add_project_properties(${RELLIC_DECOMP})
 
-set(RELLIC_DECOMP ${RELLIC_DECOMP} PARENT_SCOPE)
+set(RELLIC_DECOMP "${RELLIC_DECOMP}" PARENT_SCOPE)
 
 #
 # rellic-headergen
 #
 
-set(RELLIC_HEADERGEN ${PROJECT_NAME}-headergen)
+set(RELLIC_HEADERGEN "${PROJECT_NAME}-headergen")
 
 add_executable(${RELLIC_HEADERGEN}
-  headergen/HeaderGen.cpp
+  "headergen/HeaderGen.cpp"
 )
 
-target_link_libraries(${RELLIC_HEADERGEN} PRIVATE ${PROJECT_NAME})
+target_link_libraries(${RELLIC_HEADERGEN}
+  PRIVATE
+    "${PROJECT_NAME}"
+    gflags::gflags
+)
+
 add_project_properties(${RELLIC_HEADERGEN})
 
-set(RELLIC_HEADERGEN ${RELLIC_HEADERGEN} PARENT_SCOPE)
+set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 
 if(RELLIC_ENABLE_INSTALL)
   

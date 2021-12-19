@@ -6,10 +6,16 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
+if(COMMAND cmake_policy)
+  # Don't introduce linker search paths when linking libraries whose full path
+  # is known.
+  cmake_policy(SET CMP0003 NEW)
+endif(COMMAND cmake_policy)
+
 include("cmake/vcpkg_helper.cmake")
 
 project(rellic)
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.21)
 
 include("cmake/options.cmake")
 include("cmake/settings.cmake")
@@ -47,22 +53,10 @@ list(APPEND PROJECT_INCLUDEDIRECTORIES $<INSTALL_INTERFACE:include>)
 # libraries
 #
 
-set(_VCPKG_SHARE_DIR "${VCPKG_ROOT}/installed/${VCPKG_TARGET_TRIPLET}/${CMAKE_INSTALL_DATADIR}")
-
-find_package(gflags CONFIG REQUIRED HINTS "${_VCPKG_SHARE_DIR}")
-find_package(glog CONFIG REQUIRED HINTS "${_VCPKG_SHARE_DIR}")
-find_llvm(llvm "${_VCPKG_SHARE_DIR}")
-
-# LLVM uses `-lZ3` somewhere, so this is a good way to sneak it in.
-# NOTE: Recent versions of cxx-common vcpkg llvm dependencies fix this
-if(NOT Z3_FOUND)
-    find_package(Z3 4.8 CONFIG REQUIRED)
-    if (NOT TARGET Z3)
-        add_library(Z3 INTERFACE)
-    endif()
-    target_link_libraries(Z3 INTERFACE z3::libz3)
-endif()
-
+find_package(gflags CONFIG REQUIRED)
+find_package(glog CONFIG REQUIRED)
+find_package(Z3 4.8 CONFIG REQUIRED)
+find_llvm(llvm)
 find_package(Clang CONFIG REQUIRED)
 
 

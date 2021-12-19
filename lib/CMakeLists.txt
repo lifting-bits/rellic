@@ -129,6 +129,7 @@ add_library("${PROJECT_NAME}" STATIC
 #link version information
 target_link_libraries("${PROJECT_NAME}"
   PUBLIC
+    "${PROJECT_NAME}_cxx_settings"
     glog::glog
     llvm
     clangIndex
@@ -137,18 +138,17 @@ target_link_libraries("${PROJECT_NAME}"
     clangTooling
 )
 
-target_compile_features("${PROJECT_NAME}"
-  PUBLIC
-    cxx_std_17
-)
-
 set_target_properties("${PROJECT_NAME}"
   PROPERTIES
     LINKER_LANGUAGE
       CXX
 )
 
-add_project_properties("${PROJECT_NAME}")
+target_include_directories("${PROJECT_NAME}"
+  PUBLIC
+    $<BUILD_INTERFACE:${RELLIC_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 
 if(RELLIC_ENABLE_INSTALL)
   install(

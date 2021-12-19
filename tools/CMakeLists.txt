@@ -18,11 +18,10 @@ add_executable(${RELLIC_DECOMP}
 
 target_link_libraries(${RELLIC_DECOMP}
   PRIVATE
+    "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
     gflags::gflags
 )
-
-add_project_properties(${RELLIC_DECOMP})
 
 set(RELLIC_DECOMP "${RELLIC_DECOMP}" PARENT_SCOPE)
 
@@ -38,11 +37,10 @@ add_executable(${RELLIC_HEADERGEN}
 
 target_link_libraries(${RELLIC_HEADERGEN}
   PRIVATE
+    "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
     gflags::gflags
 )
-
-add_project_properties(${RELLIC_HEADERGEN})
 
 set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 

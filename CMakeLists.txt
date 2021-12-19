@@ -6,21 +6,15 @@
 # the LICENSE file found in the root directory of this source tree.
 #
 
-if(COMMAND cmake_policy)
-  # Don't introduce linker search paths when linking libraries whose full path
-  # is known.
-  cmake_policy(SET CMP0003 NEW)
-endif(COMMAND cmake_policy)
-
-include("cmake/vcpkg_helper.cmake")
-
-project(rellic)
 cmake_minimum_required(VERSION 3.21)
 
 include("cmake/options.cmake")
+include("cmake/vcpkg_helper.cmake")
+
+project(rellic)
+
 include("cmake/settings.cmake")
 include("cmake/llvm.cmake")
-
 include(GNUInstallDirs)
 
 if(RELLIC_ENABLE_INSTALL)
@@ -31,23 +25,22 @@ enable_language(C CXX ASM)
 
 set(RELLIC_SOURCE_DIR "${PROJECT_SOURCE_DIR}")
 
+add_library("${PROJECT_NAME}_cxx_settings" INTERFACE)
+target_compile_features("${PROJECT_NAME}_cxx_settings"
+  INTERFACE
+    cxx_std_17
+)
+
 # warnings and compiler settings
 if(NOT DEFINED WIN32)
-  set(PROJECT_CXXFLAGS
-    ${GLOBAL_CXXFLAGS}
-    -Werror
-    # -Wconversion
-    -pedantic
-    -Wno-unreachable-code-return
+  target_compile_options("${PROJECT_NAME}_cxx_settings"
+    INTERFACE
+      -Werror
+      # -Wconversion
+      -pedantic
+      -Wno-unreachable-code-return
   )
-endif()
-
-# list(APPEND PROJECT_INCLUDEDIRECTORIES ${CMAKE_CURRENT_BINARY_DIR})
-
-# this is needed for the #include directives with absolutes paths to work correctly; it must
-# also be set to PUBLIC since rellic-lift includes some files directly
-list(APPEND PROJECT_INCLUDEDIRECTORIES $<BUILD_INTERFACE:${RELLIC_SOURCE_DIR}/include>)
-list(APPEND PROJECT_INCLUDEDIRECTORIES $<INSTALL_INTERFACE:include>)
+endif(NOT DEFINED WIN32)
 
 #
 # libraries
@@ -63,13 +56,6 @@ find_package(Clang CONFIG REQUIRED)
 #
 # helper macro to set target properties
 #
-
-macro(add_project_properties target)
-  target_link_libraries(${target} PRIVATE ${PROJECT_LIBRARIES})
-  target_include_directories(${target} SYSTEM PUBLIC ${PROJECT_INCLUDEDIRECTORIES})
-  target_compile_definitions(${target} PUBLIC ${PROJECT_DEFINITIONS})
-  target_compile_options(${target} PRIVATE ${PROJECT_CXXFLAGS})
-endmacro()
 
 if(RELLIC_ENABLE_INSTALL)
   export(PACKAGE "${PROJECT_NAME}")
@@ -93,7 +79,7 @@ if(RELLIC_ENABLE_INSTALL)
   )
   install(
     TARGETS
-      "llvm"
+      "llvm" "${PROJECT_NAME}_cxx_settings"
     EXPORT
       "${PROJECT_NAME}Targets"
   )

@@ -8,7 +8,7 @@
 
 function(find_llvm target_name)
   
-  find_package(llvm CONFIG REQUIRED)
+  find_package(LLVM CONFIG REQUIRED)
   
   add_library("${target_name}" INTERFACE)
   target_include_directories("${target_name}" SYSTEM INTERFACE

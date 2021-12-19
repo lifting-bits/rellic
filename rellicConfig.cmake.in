@@ -14,7 +14,7 @@ if(NOT TARGET rellic::rellic)
   find_dependency(gflags)
   find_dependency(glog)
   find_dependency(Z3)
-  find_dependency(llvm)
+  find_dependency(LLVM)
   find_dependency(Clang)
 
   # Exported Targets

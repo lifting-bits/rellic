@@ -452,33 +452,56 @@ clang::RecordDecl* StructGenerator::GetRecordDecl(llvm::DICompositeType* t) {
   return decl;
 }
 
-clang::EnumDecl* StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
-  auto& decl{enum_decls[t]};
-  if (decl) {
-    return decl;
+clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
+  auto& type{enum_types[t]};
+  if (!type.isNull()) {
+    return type;
   }
 
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  decl = ast.CreateEnumDecl(tudecl, GetUniqueName(t));
   auto base{BuildType(t->getBaseType())};
-  auto i{0U};
-  for (auto elem : t->getElements()) {
-    if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-      auto elem_name{enumerator->getName().str()};
-      if (elem_name == "") {
-        elem_name = "anon";
-      }
-      elem_name += "_" + std::to_string(i++);
+  auto name{GetUniqueName(t)};
+  if (base == ast_ctx.IntTy || base == ast_ctx.UnsignedIntTy) {
+    auto decl{ast.CreateEnumDecl(tudecl, name)};
+    auto i{0U};
+    for (auto elem : t->getElements()) {
+      if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
+        auto elem_name{enumerator->getName().str()};
+        if (elem_name == "") {
+          elem_name = "anon";
+        }
+        elem_name += "_" + std::to_string(i++);
 
-      auto cdecl{ast.CreateEnumConstantDecl(
-          decl, elem_name, ast.CreateIntLit(enumerator->getValue()))};
-      decl->addDecl(cdecl);
+        auto cdecl{ast.CreateEnumConstantDecl(
+            decl, elem_name, ast.CreateIntLit(enumerator->getValue()))};
+        decl->addDecl(cdecl);
+      }
+    }
+    decl->completeDefinition(base, base, 0, 0);
+
+    tudecl->addDecl(decl);
+    type = ast_ctx.getEnumType(decl);
+  } else {
+    auto tdef{ast.CreateTypedefDecl(tudecl, name, base)};
+    tudecl->addDecl(tdef);
+    type = ast_ctx.getTypedefType(tdef);
+
+    auto i{0U};
+    for (auto elem : t->getElements()) {
+      if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
+        auto elem_name{enumerator->getName().str()};
+        if (elem_name == "") {
+          elem_name = "anon";
+        }
+        elem_name += "_" + std::to_string(i++);
+        auto vdecl{
+            ast.CreateVarDecl(tudecl, type, elem_name, clang::SC_Static)};
+        vdecl->setInit(ast.CreateIntLit(enumerator->getValue()));
+        tudecl->addDecl(vdecl);
+      }
     }
   }
-  decl->completeDefinition(base, base, 0, 0);
-
-  tudecl->addDecl(decl);
-  return decl;
+  return type;
 }
 
 clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
@@ -493,7 +516,7 @@ clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
     case llvm::dwarf::DW_TAG_array_type:
       return BuildArray(type);
     case llvm::dwarf::DW_TAG_enumeration_type:
-      return ast_ctx.getEnumType(GetEnumDecl(type));
+      return GetEnumDecl(type);
     default:
       LOG(FATAL) << "Invalid DICompositeType tag: " << type->getTag();
   }

@@ -212,10 +212,11 @@ clang::IdentifierInfo *ASTBuilder::CreateIdentifier(std::string name) {
 
 clang::VarDecl *ASTBuilder::CreateVarDecl(clang::DeclContext *decl_ctx,
                                           clang::QualType type,
-                                          clang::IdentifierInfo *id) {
+                                          clang::IdentifierInfo *id,
+                                          clang::StorageClass storage_class) {
   return clang::VarDecl::Create(
       ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id, type,
-      ctx.getTrivialTypeSourceInfo(type), clang::SC_None);
+      ctx.getTrivialTypeSourceInfo(type), storage_class);
 }
 
 clang::FunctionDecl *ASTBuilder::CreateFunctionDecl(

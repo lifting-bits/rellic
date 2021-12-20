@@ -60,13 +60,15 @@ class ASTBuilder {
   // Identifiers
   clang::IdentifierInfo *CreateIdentifier(std::string name);
   // Variable declaration
-  clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx,
-                                clang::QualType type,
-                                clang::IdentifierInfo *id);
+  clang::VarDecl *CreateVarDecl(
+      clang::DeclContext *decl_ctx, clang::QualType type,
+      clang::IdentifierInfo *id,
+      clang::StorageClass storage_class = clang::SC_None);
 
-  clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx,
-                                clang::QualType type, std::string name) {
-    return CreateVarDecl(decl_ctx, type, CreateIdentifier(name));
+  clang::VarDecl *CreateVarDecl(
+      clang::DeclContext *decl_ctx, clang::QualType type, std::string name,
+      clang::StorageClass storage_class = clang::SC_None) {
+    return CreateVarDecl(decl_ctx, type, CreateIdentifier(name), storage_class);
   }
   // Function declaration
   clang::FunctionDecl *CreateFunctionDecl(clang::DeclContext *decl_ctx,

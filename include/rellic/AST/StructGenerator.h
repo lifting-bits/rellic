@@ -26,7 +26,7 @@ class StructGenerator {
   rellic::ASTBuilder ast;
   std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*>
       fwd_decl_records{};
-  std::unordered_map<llvm::DICompositeType*, clang::EnumDecl*> enum_decls{};
+  std::unordered_map<llvm::DICompositeType*, clang::QualType> enum_types{};
   std::unordered_map<llvm::DIDerivedType*, clang::TypedefNameDecl*>
       typedef_decls{};
   unsigned decl_count{0};
@@ -38,7 +38,7 @@ class StructGenerator {
 
   std::string GetUniqueName(llvm::DICompositeType* t);
   clang::RecordDecl* GetRecordDecl(llvm::DICompositeType* t);
-  clang::EnumDecl* GetEnumDecl(llvm::DICompositeType* t);
+  clang::QualType GetEnumDecl(llvm::DICompositeType* t);
 
   void DefineNonPackedStruct(clang::RecordDecl* decl,
                              std::vector<OffsetDIDerivedType>& fields);

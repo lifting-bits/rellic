@@ -10,4 +10,7 @@ T sum(T x, Ts... y) {
   return x + sum(y...);
 }
 
-int main(void) { printf("%d\n", sum(1, 2, 3, 4, 5)); }
+extern "C" int main(void) {
+  printf("%d\n", sum(1, 2, 3, 4, 5));
+  return 0;
+}

@@ -174,6 +174,7 @@ clang::ValueDecl *Z3ConvVisitor::GetCValDecl(z3::func_decl z_decl) {
 }
 
 z3::sort Z3ConvVisitor::GetZ3Sort(clang::QualType type) {
+  type = type.getDesugaredType(*c_ctx);
   // Void
   if (type->isVoidType()) {
     return z_ctx->uninterpreted_sort("void");

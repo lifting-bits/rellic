@@ -22,4 +22,5 @@ int main() {
     foo_t f;
     f.t = 3;
     printf("%d\n", bar(f));
+    return 0;
 }

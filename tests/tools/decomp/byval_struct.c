@@ -14,4 +14,5 @@ int main() {
     struct foo f = {atoi("1"), atoi("2"), atoi("3"), atoi("4")};
     long long x = get_3x(f);
     printf("%lld %lld\n", f.x, x);
+    return 0;
 }

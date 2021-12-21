@@ -60,6 +60,9 @@ bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
     // FIXME(frabert): Is a clash between field names actually possible?
     // Can this mechanism actually be left out?
     auto name{di_field->getName().str()};
+    if (di_field->getTag() == llvm::dwarf::DW_TAG_inheritance) {
+      name = di_field->getBaseType()->getName().str() + "_base";
+    }
     if (seen_names.find(name) == seen_names.end()) {
       seen_names.insert(name);
       decl_field->setDeclName(ast.CreateIdentifier(name));

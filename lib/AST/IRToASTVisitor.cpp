@@ -5,7 +5,6 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-
 #define GOOGLE_STRIP_LOG 1
 
 #include "rellic/AST/IRToASTVisitor.h"
@@ -22,10 +21,59 @@
 
 namespace rellic {
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
-    : ast_ctx(unit.getASTContext()), ast(unit) {}
+IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit, DebugInfoCollector &dic)
+    : ast_ctx(unit.getASTContext()), ast(unit), dic(dic) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
+  return GetQualType(type, dic.GetIRTypeToDITypeMap()[type]);
+}
+
+clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type,
+                                            llvm::DIType *ditype) {
+  if (ditype) {
+    if (auto derived = llvm::dyn_cast<llvm::DIDerivedType>(ditype)) {
+      auto base_type{derived->getBaseType()};
+      switch (derived->getTag()) {
+        default:
+          break;
+        case llvm::dwarf::DW_TAG_const_type:
+          // FIXME(frabert):
+          // https://github.com/lifting-bits/rellic/issues/190#issuecomment-949694419
+          if (!base_type) {
+            return ast_ctx.VoidTy;
+          } else {
+            return GetQualType(type, base_type);
+          }
+        case llvm::dwarf::DW_TAG_volatile_type:
+          if (!base_type) {
+            return ast_ctx.getVolatileType(ast_ctx.VoidTy);
+          } else {
+            return ast_ctx.getVolatileType(GetQualType(type, base_type));
+          }
+        case llvm::dwarf::DW_TAG_restrict_type:
+          if (!base_type) {
+            return ast_ctx.getRestrictType(ast_ctx.VoidTy);
+          } else {
+            return ast_ctx.getRestrictType(GetQualType(type, base_type));
+          }
+        case llvm::dwarf::DW_TAG_typedef: {
+          auto &tdef_decl{typedef_decls[derived]};
+          if (!tdef_decl) {
+            auto tudecl{ast_ctx.getTranslationUnitDecl()};
+            tdef_decl = ast.CreateTypedefDecl(tudecl, derived->getName().str(),
+                                              GetQualType(type, base_type));
+            tudecl->addDecl(tdef_decl);
+          }
+          return ast_ctx.getTypedefType(tdef_decl);
+        } break;
+        case llvm::dwarf::DW_TAG_inheritance:
+        case llvm::dwarf::DW_TAG_member: {
+          return GetQualType(type, derived->getBaseType());
+        };
+      }
+    }
+  }
+
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
   clang::QualType result;
   switch (type->getTypeID()) {
@@ -50,17 +98,43 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       break;
 
     case llvm::Type::IntegerTyID: {
+      int sign{1};
+      if (ditype) {
+        // TODO(frabert): this path will not be taken when arguments will have
+        // been merged/split or when a struct passed by value has been optimized
+        // away
+        if (auto inttype = llvm::dyn_cast<llvm::DIBasicType>(ditype)) {
+          sign =
+              inttype->getSignedness() == llvm::DIBasicType::Signedness::Signed;
+        }
+      }
       auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/0);
+      result = ast.GetLeastIntTypeForBitWidth(size, sign);
     } break;
 
     case llvm::Type::FunctionTyID: {
       auto func{llvm::cast<llvm::FunctionType>(type)};
-      auto ret{GetQualType(func->getReturnType())};
+      std::vector<llvm::DIType *> ditype_array{func->getNumParams() +
+                                               func->isVarArg() + 1};
+      if (ditype) {
+        auto difunctype{llvm::cast<llvm::DISubroutineType>(ditype)};
+        auto arr{difunctype->getTypeArray()};
+        // TODO(frabert): related to what happens a few lines above.
+        // Argument count between debug data and actual bitcode can differ
+        // due to ABI constraints. Need to figure out a way to reconcile the two
+        // views.
+        if (arr.size() == ditype_array.size()) {
+          for (auto i{0UL}; i < arr.size(); ++i) {
+            ditype_array[i] = arr[i];
+          }
+        }
+      }
+      auto ret{GetQualType(func->getReturnType(), ditype_array[0])};
       std::vector<clang::QualType> params;
+      auto i{1UL};
       for (auto param : func->params()) {
-        params.push_back(GetQualType(param));
+        params.push_back(GetQualType(param, ditype_array[i++]));
       }
       auto epi{clang::FunctionProtoType::ExtProtoInfo()};
       epi.Variadic = func->isVarArg();
@@ -68,13 +142,23 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     } break;
 
     case llvm::Type::PointerTyID: {
+      auto derived{ditype ? llvm::cast<llvm::DIDerivedType>(ditype) : nullptr};
+      auto elem_ditype{derived ? derived->getBaseType() : nullptr};
       auto ptr{llvm::cast<llvm::PointerType>(type)};
-      result = ast_ctx.getPointerType(GetQualType(ptr->getElementType()));
+      auto elem_type{GetQualType(ptr->getElementType(), elem_ditype)};
+      if (derived && !elem_ditype) {
+        result = ast_ctx.VoidPtrTy;
+      } else {
+        result = ast_ctx.getPointerType(elem_type);
+      }
     } break;
 
     case llvm::Type::ArrayTyID: {
+      auto derived{ditype ? llvm::cast<llvm::DICompositeType>(ditype)
+                          : nullptr};
+      auto elem_type{derived ? derived->getBaseType() : nullptr};
       auto arr{llvm::cast<llvm::ArrayType>(type)};
-      auto elm{GetQualType(arr->getElementType())};
+      auto elm{GetQualType(arr->getElementType(), elem_type)};
       result = GetConstantArrayType(ast_ctx, elm, arr->getNumElements());
     } break;
 
@@ -84,6 +168,16 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
       if (!decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
         auto strct{llvm::cast<llvm::StructType>(type)};
+        std::vector<llvm::DIType *> fields_ditype{strct->getNumElements()};
+        if (ditype) {
+          auto strct_ditype{llvm::cast<llvm::DICompositeType>(ditype)};
+          auto di_elems{strct_ditype->getElements()};
+          if (di_elems.size() == fields_ditype.size()) {
+            for (auto i{0U}; i < di_elems.size(); ++i) {
+              fields_ditype[i] = llvm::cast<llvm::DIType>(di_elems[i]);
+            }
+          }
+        }
         auto sname{strct->isLiteral() ? ("literal_struct_" +
                                          std::to_string(num_literal_structs++))
                                       : strct->getName().str()};
@@ -95,7 +189,8 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
         decl = sdecl = ast.CreateStructDecl(tudecl, sname);
         // Add fields to the C struct
         for (auto ecnt{0U}; ecnt < strct->getNumElements(); ++ecnt) {
-          auto etype{GetQualType(strct->getElementType(ecnt))};
+          auto etype{
+              GetQualType(strct->getElementType(ecnt), fields_ditype[ecnt])};
           auto fname{"field" + std::to_string(ecnt)};
           sdecl->addDecl(ast.CreateFieldDecl(sdecl, etype, fname));
         }
@@ -116,7 +211,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     default: {
       if (type->isVectorTy()) {
         auto vtype{llvm::cast<llvm::VectorType>(type)};
-        auto etype{GetQualType(vtype->getElementType())};
+        auto etype{GetQualType(vtype->getElementType(), ditype)};
         auto ecnt{GetNumElements(vtype)};
         auto vkind{clang::VectorType::GenericVector};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
@@ -401,7 +496,8 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     name = "gvar" + std::to_string(GetNumDecls<clang::VarDecl>(tudecl));
   }
   // Create a variable declaration
-  var = ast.CreateVarDecl(tudecl, GetQualType(type), name);
+  var = ast.CreateVarDecl(
+      tudecl, GetQualType(type, dic.GetIRToDITypeMap()[&gvar]), name);
   // Add to translation unit
   tudecl->addDecl(var);
   // Create an initalizer literal
@@ -423,13 +519,24 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   // Get parent function declaration
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
+  llvm::DIType *ditype{nullptr};
+  auto difunctype{dic.GetIRFuncToDITypeMap()[func]};
+  if (difunctype) {
+    auto ditype_array{difunctype->getTypeArray()};
+    auto functype{func->getFunctionType()};
+    if (ditype_array.size() ==
+        functype->getNumParams() + functype->isVarArg() + 1) {
+      ditype = ditype_array[arg.getArgNo() + 1];
+    }
+  }
+
   auto argtype{arg.getType()};
   if (arg.hasByValAttr()) {
     auto byval{arg.getAttribute(llvm::Attribute::ByVal)};
     argtype = byval.getValueAsType();
   }
   // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, GetQualType(argtype), name);
+  parm = ast.CreateParamDecl(fdecl, GetQualType(argtype, ditype), name);
 }
 
 // This function fixes function types for those functions that have arguments
@@ -475,7 +582,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto type{GetQualType(GetFixedFunctionType(func))};
+  auto ftype{GetFixedFunctionType(func)};
+  auto type{GetQualType(ftype, dic.GetIRFuncToDITypeMap()[&func])};
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
   tudecl->addDecl(decl);
@@ -696,7 +804,10 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     // (`varname_addr` being a common name used by clang for variables used as
     // storage for parameters e.g. a parameter named "foo" has a corresponding
     // local variable named "foo_addr").
-    var = ast.CreateVarDecl(fdecl, GetQualType(inst.getAllocatedType()), name);
+    var = ast.CreateVarDecl(
+        fdecl,
+        GetQualType(inst.getAllocatedType(), dic.GetIRToDITypeMap()[&inst]),
+        name);
     fdecl->addDecl(var);
   }
 
@@ -714,6 +825,13 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   auto lhs{GetOperandExpr(inst.getPointerOperand())};
   // Get the operand we're assigning from
   auto rhs{GetOperandExpr(inst.getValueOperand())};
+  if (auto unop = clang::dyn_cast<clang::UnaryOperator>(rhs)) {
+    if (unop->getOpcode() == clang::UO_Deref &&
+        unop->getSubExpr()->getType() == ast_ctx.VoidPtrTy) {
+      rhs = ast.CreateDeref(
+          ast.CreateCStyleCast(lhs->getType(), unop->getSubExpr()));
+    }
+  }
   // Create the assignemnt itself
   assign = ast.CreateAssign(ast.CreateDeref(lhs), rhs);
 }
@@ -752,8 +870,8 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto rhs{GetOperandExpr(inst.getOperand(1))};
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *operand, bool sign) {
-    auto type{ast_ctx.getIntTypeForBitwidth(
-        ast_ctx.getTypeSize(operand->getType()), sign)};
+    auto type{ast.GetIntTypeForBitWidth(ast_ctx.getTypeSize(operand->getType()),
+                                        sign)};
     return ast.CreateCStyleCast(type, operand);
   }};
   // Where the magic happens
@@ -837,7 +955,7 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *op, bool sign) {
     auto ot{op->getType()};
-    auto rt{ast_ctx.getIntTypeForBitwidth(ast_ctx.getTypeSize(ot), sign)};
+    auto rt{ast.GetIntTypeForBitWidth(ast_ctx.getTypeSize(ot), sign)};
     return rt == ot ? op : ast.CreateCStyleCast(rt, op);
   }};
   // Cast operands for signed predicates
@@ -908,17 +1026,17 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     case llvm::CastInst::Trunc: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
       auto sign{operand->getType()->isSignedIntegerType()};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
+      type = ast.GetIntTypeForBitWidth(bitwidth, sign);
     } break;
 
     case llvm::CastInst::ZExt: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/0U);
+      type = ast.GetIntTypeForBitWidth(bitwidth, /*signed=*/0U);
     } break;
 
     case llvm::CastInst::SExt: {
       auto bitwidth{ast_ctx.getTypeSize(type)};
-      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1U);
+      type = ast.GetIntTypeForBitWidth(bitwidth, /*signed=*/1U);
     } break;
 
     case llvm::CastInst::AddrSpaceCast:

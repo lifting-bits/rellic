@@ -22,12 +22,15 @@
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/Compat/ASTContext.h"
+#include "rellic/AST/DebugInfoCollector.h"
 
 namespace rellic {
 
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+using DIToTypedefMap =
+    std::unordered_map<llvm::DIDerivedType *, clang::TypedefNameDecl *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
@@ -38,11 +41,14 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;
+  DIToTypedefMap typedef_decls;
   IRToStmtMap stmts;
+  DebugInfoCollector &dic;
   ArgToTempMap temp_decls;
   size_t num_literal_structs = 0;
 
   clang::Expr *GetOperandExpr(llvm::Value *val);
+  clang::QualType GetQualType(llvm::Type *type, llvm::DIType *ditype);
   clang::QualType GetQualType(llvm::Type *type);
 
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
@@ -50,7 +56,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit);
+  IRToASTVisitor(clang::ASTUnit &unit, DebugInfoCollector &dic);
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);

@@ -27,6 +27,7 @@ class ASTBuilder {
  public:
   ASTBuilder(clang::ASTUnit &unit);
   // Type helpers
+  clang::QualType GetIntTypeForBitWidth(unsigned size, unsigned sign);
   clang::QualType GetLeastIntTypeForBitWidth(unsigned size, unsigned sign);
   clang::QualType GetLeastRealTypeForBitWidth(unsigned size);
   // Literals
@@ -257,6 +258,16 @@ class ASTBuilder {
   clang::BreakStmt *CreateBreak();
   // Return
   clang::ReturnStmt *CreateReturn(clang::Expr *retval = nullptr);
+  // Typedef declaration
+  clang::TypedefDecl *CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                        clang::IdentifierInfo *id,
+                                        clang::QualType type);
+
+  clang::TypedefDecl *CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                        std::string name,
+                                        clang::QualType type) {
+    return CreateTypedefDecl(decl_ctx, CreateIdentifier(name), type);
+  }
 };
 
 }  // namespace rellic

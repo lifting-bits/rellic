@@ -101,6 +101,7 @@ class DeclTokenizer : public clang::DeclVisitor<DeclTokenizer> {
   void VisitTranslationUnitDecl(clang::TranslationUnitDecl *decl);
   void VisitFieldDecl(clang::FieldDecl *decl);
   void VisitRecordDecl(clang::RecordDecl *decl);
+  void VisitTypedefDecl(clang::TypedefDecl *decl);
 };
 
 class StmtTokenizer : public clang::StmtVisitor<StmtTokenizer> {

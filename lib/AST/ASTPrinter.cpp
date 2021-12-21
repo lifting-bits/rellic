@@ -531,6 +531,26 @@ void DeclTokenizer::VisitRecordDecl(clang::RecordDecl *rdecl) {
   }
 }
 
+void DeclTokenizer::VisitTypedefDecl(clang::TypedefDecl *decl) {
+  auto &policy{unit.getASTContext().getPrintingPolicy()};
+  if (!policy.SuppressSpecifiers) {
+    out.push_back(Token::CreateMisc("typedef"));
+    Space();
+
+    if (decl->isModulePrivate()) {
+      out.push_back(Token::CreateMisc("__module_private__ "));
+    }
+  }
+  clang::QualType type = decl->getTypeSourceInfo()->getType();
+
+  std::string buf{""};
+  llvm::raw_string_ostream ss(buf);
+  type.print(ss, policy, decl->getName(), indent_level);
+
+  out.push_back(Token::CreateDecl(decl, ss.str()));
+  PrintAttributes(decl);
+}
+
 void StmtTokenizer::Space() { SpaceImpl(out); }
 void StmtTokenizer::Indent() { IndentImpl(out, indent_level); }
 void StmtTokenizer::Newline() { NewlineImpl(out); }

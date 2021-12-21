@@ -55,6 +55,10 @@ std::string LLVMThingToString(llvm::Type *thing) {
   return DoLLVMThingToString(thing);
 }
 
+std::string LLVMThingToString(llvm::DIType *thing) {
+  return DoLLVMThingToString(thing);
+}
+
 // Try to verify a module.
 bool VerifyModule(llvm::Module *module) {
   std::string error;

@@ -17,12 +17,14 @@
 namespace rellic {
 
 using IRToNameMap = std::unordered_map<llvm::Value *, std::string>;
-using IRToScopeMap = std::unordered_map<llvm::Value *, llvm::DILocalScope *>;
+using IRToScopeMap = std::unordered_map<llvm::Value *, llvm::DIScope *>;
 using IRToDITypeMap = std::unordered_map<llvm::Value *, llvm::DIType *>;
 using IRTypeToDITypeMap = std::unordered_map<llvm::Type *, llvm::DIType *>;
 using IRFuncToDITypeMap =
     std::unordered_map<llvm::Function *, llvm::DISubroutineType *>;
 using IRArgToDITypeMap = std::unordered_map<llvm::Argument *, llvm::DIType *>;
+using IRFuncTypeToDIRetTypeMap =
+    std::unordered_map<llvm::FunctionType *, llvm::DIType *>;
 
 class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
  private:
@@ -32,6 +34,7 @@ class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
   IRTypeToDITypeMap types;
   IRFuncToDITypeMap funcs;
   IRArgToDITypeMap args;
+  IRFuncTypeToDIRetTypeMap ret_types;
 
   void WalkType(llvm::Type *type, llvm::DIType *ditype);
 
@@ -42,11 +45,13 @@ class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
   IRTypeToDITypeMap &GetIRTypeToDITypeMap() { return types; }
   IRFuncToDITypeMap &GetIRFuncToDITypeMap() { return funcs; }
   IRArgToDITypeMap &GetIRArgToDITypeMap() { return args; }
+  IRFuncTypeToDIRetTypeMap &GetIRFuncTypeToDIRetTypeMap() { return ret_types; }
 
   void visitDbgDeclareInst(llvm::DbgDeclareInst &inst);
   void visitInstruction(llvm::Instruction &inst);
 
   void visitFunction(llvm::Function &func);
+  void visitModule(llvm::Module &module);
 };
 
 }  // namespace rellic

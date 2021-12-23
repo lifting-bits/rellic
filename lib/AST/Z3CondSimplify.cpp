@@ -24,6 +24,7 @@ Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit)
 
 clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
   auto z_expr{z_gen->GetOrCreateZ3Expr(c_expr)};
+  z_expr = z_gen->Z3BoolCast(z_expr);
   z3::goal goal(*z_ctx);
   goal.add(z_expr);
   // Apply on `simplifier` on condition

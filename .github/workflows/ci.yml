@@ -75,7 +75,7 @@ jobs:
 
       - name: Test the DEB package
         run: |
-          rellic-decomp-${{ matrix.llvm }}.0 --version
+          rellic-decomp --version
 
       - name: Run Integration Tests (AnghaBench 1K, LLVM 12)
         if: ${{ matrix.llvm == '12' && matrix.image.tag == '20.04' }}
@@ -84,7 +84,7 @@ jobs:
           apt-get install -y clang-${{ matrix.llvm }}
           python3 -m pip install -r external/lifting-tools-ci/requirements.txt
           scripts/test-angha-1k.sh \
-            --rellic-cmd "rellic-decomp-${{ matrix.llvm }}.0"
+            --rellic-cmd "rellic-decomp"
 
       - name: Store the DEB package
         uses: actions/upload-artifact@v1

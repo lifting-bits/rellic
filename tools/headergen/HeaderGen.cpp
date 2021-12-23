@@ -18,7 +18,7 @@
 #include "rellic/AST/StructGenerator.h"
 #include "rellic/AST/SubprogramGenerator.h"
 #include "rellic/BC/Util.h"
-#include "rellic/Version/Version.h"
+#include "rellic/Version.h"
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR

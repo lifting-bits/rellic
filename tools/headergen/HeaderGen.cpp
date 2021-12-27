@@ -5,40 +5,30 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
-
+#include <clang/AST/ASTContext.h>
 #include <clang/Tooling/Tooling.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <llvm/Support/Host.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/Support/raw_ostream.h>
 
-#include <fstream>
 #include <iostream>
-#include <streambuf>
 
-#include "rellic/AST/CXXToCDecl.h"
-#include "rellic/Version/Version.h"
+#include "rellic/AST/DebugInfoCollector.h"
+#include "rellic/AST/StructGenerator.h"
+#include "rellic/AST/SubprogramGenerator.h"
+#include "rellic/BC/Util.h"
+#include "rellic/Version.h"
 
 #ifndef LLVM_VERSION_STRING
 #define LLVM_VERSION_STRING LLVM_VERSION_MAJOR << "." << LLVM_VERSION_MINOR
 #endif
 
-DEFINE_string(input, "", "Input header file.");
+DEFINE_string(input, "", "Input file.");
 DEFINE_string(output, "", "Output file.");
+DEFINE_bool(generate_prototypes, true, "Generate function prototypes.");
 
 DECLARE_bool(version);
-
-namespace {
-
-static std::string ReadFile(std::string path) {
-  auto err_or_buf = llvm::MemoryBuffer::getFile(path);
-  if (!err_or_buf) {
-    auto msg = err_or_buf.getError().message();
-    LOG(FATAL) << "Failed to read input file: " << msg;
-  }
-  return err_or_buf.get()->getBuffer().str();
-}
-
-}  // namespace
 
 static void SetVersion(void) {
   std::stringstream version;
@@ -74,7 +64,7 @@ int main(int argc, char* argv[]) {
   usage << std::endl
         << std::endl
         << "  " << argv[0] << " \\" << std::endl
-        << "    --input INPUT_HEADER_FILE \\" << std::endl
+        << "    --input INPUT_FILE \\" << std::endl
         << "    --output OUTPUT_FILE \\" << std::endl
         << std::endl
 
@@ -89,7 +79,7 @@ int main(int argc, char* argv[]) {
   google::ParseCommandLineFlags(&argc, &argv, true);
 
   LOG_IF(ERROR, FLAGS_input.empty())
-      << "Must specify the path to an input header file.";
+      << "Must specify the path to an input file.";
 
   LOG_IF(ERROR, FLAGS_output.empty())
       << "Must specify the path to an output file.";
@@ -99,27 +89,30 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
+  auto llvm_ctx{std::make_unique<llvm::LLVMContext>()};
+  auto module{rellic::LoadModuleFromFile(llvm_ctx.get(), FLAGS_input)};
+  auto dic{std::make_unique<rellic::DebugInfoCollector>()};
+  dic->visit(module);
+  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
+                                module->getTargetTriple()};
+  auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
+  rellic::StructGenerator strctgen(*ast_unit);
+  rellic::SubprogramGenerator subgen(*ast_unit, strctgen);
+  auto types{dic->GetTypes()};
+  strctgen.GenerateDecls(types.begin(), types.end());
+
+  if (FLAGS_generate_prototypes) {
+    for (auto func : dic->GetSubprograms()) {
+      subgen.VisitSubprogram(func);
+    }
+  }
+
   std::error_code ec;
   // FIXME(surovic): Figure out if the fix below works.
   // llvm::raw_fd_ostream output(FLAGS_output, ec, llvm::sys::fs::F_Text);
   llvm::raw_fd_ostream output(FLAGS_output, ec);
+  ast_unit->getASTContext().getTranslationUnitDecl()->print(output);
   CHECK(!ec) << "Failed to create output file: " << ec.message();
-  // Read a CXX AST from our input file
-  auto cxx_ast_unit =
-      clang::tooling::buildASTFromCode(ReadFile(FLAGS_input), FLAGS_input);
-  // Exit if AST generation has failed
-  if (cxx_ast_unit->getDiagnostics().hasErrorOccurred()) {
-    return EXIT_FAILURE;
-  }
-  // Run our visitor on the CXX AST
-  std::vector<std::string> args{"-target", llvm::sys::getDefaultTargetTriple()};
-  auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
-  auto& c_ast_ctx = ast_unit->getASTContext();
-  rellic::CXXToCDeclVisitor visitor(*ast_unit);
-  // cxx_ast_unit->getASTContext().getTranslationUnitDecl()->dump();
-  visitor.TraverseDecl(c_ast_ctx.getTranslationUnitDecl());
-  // Print output
-  c_ast_ctx.getTranslationUnitDecl()->print(output);
 
   google::ShutDownCommandLineFlags();
   google::ShutdownGoogleLogging();

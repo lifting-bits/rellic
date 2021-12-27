@@ -13,6 +13,8 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace rellic {
 
@@ -32,6 +34,8 @@ class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
   IRTypeToDITypeMap types;
   IRFuncToDITypeMap funcs;
   IRArgToDITypeMap args;
+  std::unordered_set<llvm::DIType *> type_set;
+  std::vector<llvm::DISubprogram *> subprograms;
 
   void WalkType(llvm::Type *type, llvm::DIType *ditype);
 
@@ -42,6 +46,8 @@ class DebugInfoCollector : public llvm::InstVisitor<DebugInfoCollector> {
   IRTypeToDITypeMap &GetIRTypeToDITypeMap() { return types; }
   IRFuncToDITypeMap &GetIRFuncToDITypeMap() { return funcs; }
   IRArgToDITypeMap &GetIRArgToDITypeMap() { return args; }
+  std::unordered_set<llvm::DIType *> &GetTypes() { return type_set; }
+  std::vector<llvm::DISubprogram *> &GetSubprograms() { return subprograms; }
 
   void visitDbgDeclareInst(llvm::DbgDeclareInst &inst);
   void visitInstruction(llvm::Instruction &inst);

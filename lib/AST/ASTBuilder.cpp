@@ -212,10 +212,11 @@ clang::IdentifierInfo *ASTBuilder::CreateIdentifier(std::string name) {
 
 clang::VarDecl *ASTBuilder::CreateVarDecl(clang::DeclContext *decl_ctx,
                                           clang::QualType type,
-                                          clang::IdentifierInfo *id) {
+                                          clang::IdentifierInfo *id,
+                                          clang::StorageClass storage_class) {
   return clang::VarDecl::Create(
       ctx, decl_ctx, clang::SourceLocation(), clang::SourceLocation(), id, type,
-      ctx.getTrivialTypeSourceInfo(type), clang::SC_None);
+      ctx.getTrivialTypeSourceInfo(type), storage_class);
 }
 
 clang::FunctionDecl *ASTBuilder::CreateFunctionDecl(
@@ -243,6 +244,22 @@ clang::RecordDecl *ASTBuilder::CreateStructDecl(clang::DeclContext *decl_ctx,
                                    clang::SourceLocation(), id, prev_decl);
 }
 
+clang::RecordDecl *ASTBuilder::CreateUnionDecl(clang::DeclContext *decl_ctx,
+                                               clang::IdentifierInfo *id,
+                                               clang::RecordDecl *prev_decl) {
+  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Union, decl_ctx,
+                                   clang::SourceLocation(),
+                                   clang::SourceLocation(), id, prev_decl);
+}
+
+clang::EnumDecl *ASTBuilder::CreateEnumDecl(clang::DeclContext *decl_ctx,
+                                            clang::IdentifierInfo *id,
+                                            clang::EnumDecl *prev_decl) {
+  return clang::EnumDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+                                 clang::SourceLocation(), id, prev_decl, false,
+                                 false, false);
+}
+
 clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
                                               clang::QualType type,
                                               clang::IdentifierInfo *id) {
@@ -252,6 +269,27 @@ clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
       clang::ICIS_NoInit, clang::SourceLocation(),
       clang::AccessSpecifier::AS_none,
       /*PrevDecl=*/nullptr);
+}
+
+clang::FieldDecl *ASTBuilder::CreateFieldDecl(clang::RecordDecl *record,
+                                              clang::QualType type,
+                                              clang::IdentifierInfo *id,
+                                              unsigned bitwidth) {
+  auto bw{clang::IntegerLiteral::Create(ctx, llvm::APInt(32, bitwidth),
+                                        ctx.IntTy, clang::SourceLocation())};
+  return sema.CheckFieldDecl(clang::DeclarationName(id), type,
+                             ctx.getTrivialTypeSourceInfo(type), record,
+                             clang::SourceLocation(), /*Mutable=*/false, bw,
+                             clang::ICIS_NoInit, clang::SourceLocation(),
+                             clang::AccessSpecifier::AS_none,
+                             /*PrevDecl=*/nullptr);
+}
+
+clang::EnumConstantDecl *ASTBuilder::CreateEnumConstantDecl(
+    clang::EnumDecl *e, clang::IdentifierInfo *id, clang::Expr *expr,
+    clang::EnumConstantDecl *previousConstant) {
+  return sema.CheckEnumConstant(e, previousConstant, clang::SourceLocation(),
+                                id, expr);
 }
 
 clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {
@@ -440,6 +478,14 @@ clang::ReturnStmt *ASTBuilder::CreateReturn(clang::Expr *retval) {
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::ReturnStmt>();
   return CreateReturnStmt(ctx, retval);
+}
+
+clang::TypedefDecl *ASTBuilder::CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                                  clang::IdentifierInfo *id,
+                                                  clang::QualType type) {
+  return clang::TypedefDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
+                                    clang::SourceLocation(), id,
+                                    ctx.getTrivialTypeSourceInfo(type));
 }
 
 }  // namespace rellic

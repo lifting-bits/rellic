@@ -17,11 +17,11 @@ clang::QualType GetConstantArrayType(clang::ASTContext &ast_ctx,
                                      const uint64_t arr_size) {
 #if LLVM_VERSION_NUMBER >= LLVM_VERSION(10, 0)
   return ast_ctx.getConstantArrayType(
-      elm_type, llvm::APInt(32, arr_size), nullptr,
+      elm_type, llvm::APInt(64, arr_size), nullptr,
       clang::ArrayType::ArraySizeModifier::Normal, 0);
 #else
   return ast_ctx.getConstantArrayType(
-      elm_type, llvm::APInt(32, arr_size),
+      elm_type, llvm::APInt(64, arr_size),
       clang::ArrayType::ArraySizeModifier::Normal, 0);
 #endif
 }

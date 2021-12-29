@@ -25,6 +25,8 @@ add_library(${PROJECT_NAME} STATIC
   
   BC/Util.cpp
   BC/Compat/Value.cpp
+
+  Decompiler.cpp
 )
 
 #define the RellicVersion project

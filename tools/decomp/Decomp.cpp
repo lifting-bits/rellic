@@ -15,7 +15,6 @@
 #include <iostream>
 #include <system_error>
 
-#include "rellic/AST/ASTPrinter.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Decompiler.h"
 #include "rellic/Version.h"
@@ -26,7 +25,6 @@
 
 DEFINE_string(input, "", "Input LLVM bitcode file.");
 DEFINE_string(output, "", "Output file.");
-DEFINE_bool(emit_json, false, "Emit JSON token file.");
 DEFINE_bool(disable_z3, false, "Disable Z3 based AST tranformations.");
 DEFINE_bool(remove_phi_nodes, false,
             "Remove PHINodes from input bitcode before decompilation.");
@@ -50,84 +48,6 @@ static llvm::Optional<llvm::APInt> GetPCMetadata(llvm::Value* value) {
   auto& cop{pc->getOperand(0U)};
   auto cval{llvm::cast<llvm::ConstantAsMetadata>(cop)->getValue()};
   return llvm::cast<llvm::ConstantInt>(cval)->getValue();
-}
-
-using TokenList = std::list<rellic::Token>;
-
-static void PrintJSON(llvm::raw_ostream& os, TokenList& tokens,
-                      rellic::StmtToIRMap& provenance) {
-  llvm::json::Array json_out;
-  for (auto tok : tokens) {
-    llvm::json::Object json_tok;
-    switch (tok.GetKind()) {
-      case rellic::TokenKind::Stmt: {
-        auto it{provenance.find(tok.GetStmt())};
-        if (it != provenance.end()) {
-          auto pc{GetPCMetadata(it->second)};
-          if (pc.hasValue()) {
-            llvm::SmallString<64U> str("");
-            pc->toStringUnsigned(str);
-            json_tok["address"] = str;
-          }
-        }
-        json_tok["text"] = tok.GetString();
-      } break;
-
-      case rellic::TokenKind::Decl:
-      case rellic::TokenKind::Type:
-      case rellic::TokenKind::Misc:
-        json_tok["text"] = tok.GetString();
-        break;
-
-      case rellic::TokenKind::Space:
-        json_tok["text"] = " ";
-        break;
-
-      case rellic::TokenKind::Newline:
-        json_tok["text"] = "\n";
-        break;
-
-      case rellic::TokenKind::Indent:
-        json_tok["text"] = "    ";
-        break;
-
-      default:
-        LOG(FATAL) << "Unknown token type!";
-        break;
-    }
-    json_out.push_back(std::move(json_tok));
-  }
-
-  os << llvm::json::Value(std::move(json_out)) << "\n";
-}
-
-static void PrintC(llvm::raw_ostream& os, TokenList& tokens) {
-  for (auto tok : tokens) {
-    switch (tok.GetKind()) {
-      case rellic::TokenKind::Stmt:
-      case rellic::TokenKind::Decl:
-      case rellic::TokenKind::Type:
-      case rellic::TokenKind::Misc:
-        os << tok.GetString();
-        break;
-
-      case rellic::TokenKind::Space:
-        os << ' ';
-        break;
-
-      case rellic::TokenKind::Newline:
-        os << '\n';
-        break;
-
-      case rellic::TokenKind::Indent:
-        os << "    ";
-        break;
-
-      default:
-        LOG(FATAL) << "Unknown token type!";
-        break;
-    }
-  }
 }
 }  // namespace
 
@@ -206,16 +126,8 @@ int main(int argc, char* argv[]) {
 
   auto result{rellic::Decompile(std::move(module), opts)};
   if (result.Succeeded()) {
-    std::list<rellic::Token> tokens;
     auto value{result.TakeValue()};
-    rellic::DeclTokenizer(tokens, *value.ast)
-        .Visit(value.ast->getASTContext().getTranslationUnitDecl());
-
-    if (FLAGS_emit_json) {
-      PrintJSON(output, tokens, value.stmt_provenance_map);
-    }
-
-    PrintC(output, tokens);
+    value.ast->getASTContext().getTranslationUnitDecl()->print(output);
   } else {
     LOG(FATAL) << result.TakeError().message;
   }

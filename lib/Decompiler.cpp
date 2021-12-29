@@ -20,7 +20,6 @@
 
 #include <memory>
 
-#include "rellic/AST/ASTPrinter.h"
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/DebugInfoCollector.h"

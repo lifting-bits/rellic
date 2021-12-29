@@ -85,7 +85,24 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 # Create some sample bitcode or your own
 clang-12 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
-./rellic-build/tools/rellic-decomp-12.0 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+./rellic-build/tools/rellic-decomp --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+```
+
+### On macOS
+
+Make sure to have the latest release of cxx-common for LLVM 12. Then, build with
+
+```shell
+cmake \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DVCPKG_ROOT=/path/to/vcpkg \
+  -DVCPKG_TARGET_TRIPLET=x64-osx-rel \
+  -DRELLIC_ENABLE_TESTING=OFF \
+  -DCMAKE_C_COMPILER=`which clang` \
+  -DCMAKE_CXX_COMPILER=`which clang++` \
+  /path/to/rellic
+
+make -j8
 ```
 
 ### Docker image

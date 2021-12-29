@@ -60,13 +60,15 @@ class ASTBuilder {
   // Identifiers
   clang::IdentifierInfo *CreateIdentifier(std::string name);
   // Variable declaration
-  clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx,
-                                clang::QualType type,
-                                clang::IdentifierInfo *id);
+  clang::VarDecl *CreateVarDecl(
+      clang::DeclContext *decl_ctx, clang::QualType type,
+      clang::IdentifierInfo *id,
+      clang::StorageClass storage_class = clang::SC_None);
 
-  clang::VarDecl *CreateVarDecl(clang::DeclContext *decl_ctx,
-                                clang::QualType type, std::string name) {
-    return CreateVarDecl(decl_ctx, type, CreateIdentifier(name));
+  clang::VarDecl *CreateVarDecl(
+      clang::DeclContext *decl_ctx, clang::QualType type, std::string name,
+      clang::StorageClass storage_class = clang::SC_None) {
+    return CreateVarDecl(decl_ctx, type, CreateIdentifier(name), storage_class);
   }
   // Function declaration
   clang::FunctionDecl *CreateFunctionDecl(clang::DeclContext *decl_ctx,
@@ -97,6 +99,26 @@ class ASTBuilder {
                                       clang::RecordDecl *prev_decl = nullptr) {
     return CreateStructDecl(decl_ctx, CreateIdentifier(name), prev_decl);
   }
+  // Union declaration
+  clang::RecordDecl *CreateUnionDecl(clang::DeclContext *decl_ctx,
+                                     clang::IdentifierInfo *id,
+                                     clang::RecordDecl *prev_decl = nullptr);
+
+  clang::RecordDecl *CreateUnionDecl(clang::DeclContext *decl_ctx,
+                                     std::string name,
+                                     clang::RecordDecl *prev_decl = nullptr) {
+    return CreateUnionDecl(decl_ctx, CreateIdentifier(name), prev_decl);
+  }
+  // Enum declaration
+  clang::EnumDecl *CreateEnumDecl(clang::DeclContext *decl_ctx,
+                                  clang::IdentifierInfo *id,
+                                  clang::EnumDecl *prev_decl = nullptr);
+
+  clang::EnumDecl *CreateEnumDecl(clang::DeclContext *decl_ctx,
+                                  std::string name,
+                                  clang::EnumDecl *prev_decl = nullptr) {
+    return CreateEnumDecl(decl_ctx, CreateIdentifier(name), prev_decl);
+  }
   // Structure field declaration
   clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
                                     clang::QualType type,
@@ -105,6 +127,27 @@ class ASTBuilder {
   clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
                                     clang::QualType type, std::string name) {
     return CreateFieldDecl(record, type, CreateIdentifier(name));
+  }
+  clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
+                                    clang::QualType type,
+                                    clang::IdentifierInfo *id,
+                                    unsigned bitwidth);
+
+  clang::FieldDecl *CreateFieldDecl(clang::RecordDecl *record,
+                                    clang::QualType type, std::string name,
+                                    unsigned bitwidth) {
+    return CreateFieldDecl(record, type, CreateIdentifier(name), bitwidth);
+  }
+  // Enum constant declaration
+  clang::EnumConstantDecl *CreateEnumConstantDecl(
+      clang::EnumDecl *e, clang::IdentifierInfo *id, clang::Expr *expr,
+      clang::EnumConstantDecl *previousConstant = nullptr);
+
+  clang::EnumConstantDecl *CreateEnumConstantDecl(
+      clang::EnumDecl *e, std::string name, clang::Expr *expr,
+      clang::EnumConstantDecl *previousConstant = nullptr) {
+    return CreateEnumConstantDecl(e, CreateIdentifier(name), expr,
+                                  previousConstant);
   }
   // Declaration statement
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);
@@ -257,6 +300,16 @@ class ASTBuilder {
   clang::BreakStmt *CreateBreak();
   // Return
   clang::ReturnStmt *CreateReturn(clang::Expr *retval = nullptr);
+  // Typedef declaration
+  clang::TypedefDecl *CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                        clang::IdentifierInfo *id,
+                                        clang::QualType type);
+
+  clang::TypedefDecl *CreateTypedefDecl(clang::DeclContext *decl_ctx,
+                                        std::string name,
+                                        clang::QualType type) {
+    return CreateTypedefDecl(decl_ctx, CreateIdentifier(name), type);
+  }
 };
 
 }  // namespace rellic

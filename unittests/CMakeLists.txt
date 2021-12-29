@@ -2,19 +2,19 @@
 # rellic-unittest
 #
 
-set(RELLIC_UNITTEST ${PROJECT_NAME}-unittest-${RELLIC_LLVM_VERSION})
+set(RELLIC_UNITTEST ${PROJECT_NAME}-unittest)
 
 add_executable(${RELLIC_UNITTEST}
   AST/ASTBuilder.cpp
+  AST/StructGenerator.cpp
   AST/Util.cpp
   AST/Z3ConvVisitor.cpp
   UnitTest.cpp
 )
 
-add_project_properties(${RELLIC_UNITTEST})
-
 target_link_libraries(${RELLIC_UNITTEST} PRIVATE
-    ${PROJECT_NAME}
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
     thirdparty_doctest
 )
 

@@ -12,6 +12,8 @@
 #include <doctest/doctest.h>
 
 std::unique_ptr<clang::ASTUnit> GetASTUnit(const char *code = "");
+std::unique_ptr<clang::ASTUnit> GetASTUnit(
+    const char *code, const std::vector<std::string> &args);
 
 template <typename T>
 T *GetDecl(clang::DeclContext *decl_ctx, const std::string &name) {

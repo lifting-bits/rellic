@@ -24,6 +24,7 @@ namespace rellic {
 // Serialize an LLVM object into a string.
 std::string LLVMThingToString(llvm::Value *thing);
 std::string LLVMThingToString(llvm::Type *thing);
+std::string LLVMThingToString(llvm::DIType *thing);
 
 // Try to verify a module.
 bool VerifyModule(llvm::Module *module);

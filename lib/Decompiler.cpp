@@ -35,7 +35,6 @@
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
-#include "rellic/Version/Version.h"
 
 namespace {
 

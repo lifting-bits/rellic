@@ -8,44 +8,23 @@
 
 #pragma once
 
-#include <glog/logging.h>
-
-#include <new>
 #include <stdexcept>
-#include <utility>
+#include <variant>
 
 namespace rellic {
 
 template <typename ValueType, typename ErrorType>
 class Result final {
  private:
-  static constexpr auto kMaxAlign = alignof(ValueType) > alignof(ErrorType)
-                                        ? alignof(ValueType)
-                                        : alignof(ErrorType);
-
-  static constexpr auto kMaxSize = sizeof(ValueType) > sizeof(ErrorType)
-                                       ? sizeof(ValueType)
-                                       : sizeof(ErrorType);
-
-  alignas(kMaxAlign) uint8_t data[kMaxSize];
-  ValueType *value{nullptr};
-  ErrorType *error{nullptr};
   bool destroyed{true};
   mutable bool checked{false};
+  std::variant<ValueType, ErrorType> data;
 
  public:
   Result(void);
-  ~Result(void) {
-    if (value) {
-      value->~ValueType();
-    } else if (error) {
-      error->~ErrorType();
-    }
-  }
+  ~Result(void) = default;
 
   bool Succeeded(void) const;
-
-  inline bool Failed(void) const { return !Succeeded(); }
 
   const ErrorType &Error(void) const;
   ErrorType TakeError(void);
@@ -55,11 +34,11 @@ class Result final {
 
   const ValueType *operator->(void) const;
 
-  Result(const ValueType &value) noexcept;
-  Result(ValueType &&value) noexcept;
+  Result(const ValueType &value);
+  Result(ValueType &&value): destroyed(false), data(std::move(value)) {}
 
-  Result(const ErrorType &error) noexcept;
-  Result(ErrorType &&error) noexcept;
+  Result(const ErrorType &error);
+  Result(ErrorType &&error):  destroyed(false), data(std::move(error)) {}
 
   Result(Result &&other) noexcept;
   Result &operator=(Result &&other) noexcept;
@@ -77,14 +56,15 @@ class Result final {
 template <typename ValueType, typename ErrorType>
 Result<ValueType, ErrorType>::Result(void) {
   checked = true;
-  error = new (data) ErrorType;
+  data = ErrorType();
 }
 
 template <typename ValueType, typename ErrorType>
 bool Result<ValueType, ErrorType>::Succeeded(void) const {
   VerifyState();
+
   checked = true;
-  return value != nullptr;
+  return std::holds_alternative<ValueType>(data);
 }
 
 template <typename ValueType, typename ErrorType>
@@ -92,7 +72,8 @@ const ErrorType &Result<ValueType, ErrorType>::Error(void) const {
   VerifyState();
   VerifyChecked();
   VerifyFailed();
-  return *error;
+
+  return std::get<ErrorType>(data);
 }
 
 template <typename ValueType, typename ErrorType>
@@ -100,8 +81,11 @@ ErrorType Result<ValueType, ErrorType>::TakeError(void) {
   VerifyState();
   VerifyChecked();
   VerifyFailed();
+
+  auto error = std::move(std::get<ErrorType>(data));
   destroyed = true;
-  return std::move(*error);
+
+  return error;
 }
 
 template <typename ValueType, typename ErrorType>
@@ -109,7 +93,8 @@ const ValueType &Result<ValueType, ErrorType>::Value(void) const {
   VerifyState();
   VerifyChecked();
   VerifySucceeded();
-  return std::move(*value);
+
+  return std::get<ValueType>(data);
 }
 
 template <typename ValueType, typename ErrorType>
@@ -117,8 +102,11 @@ ValueType Result<ValueType, ErrorType>::TakeValue(void) {
   VerifyState();
   VerifyChecked();
   VerifySucceeded();
+
+  auto value = std::move(std::get<ValueType>(data));
   destroyed = true;
-  return std::move(*value);
+
+  return value;
 }
 
 template <typename ValueType, typename ErrorType>
@@ -127,56 +115,30 @@ const ValueType *Result<ValueType, ErrorType>::operator->(void) const {
 }
 
 template <typename ValueType, typename ErrorType>
-Result<ValueType, ErrorType>::Result(const ValueType &value_) noexcept
-    : value(new (data) ValueType(value_)) {
+Result<ValueType, ErrorType>::Result(const ValueType &value) {
+  data = value;
   destroyed = false;
 }
 
-template <typename ValueType, typename ErrorType>
-Result<ValueType, ErrorType>::Result(ValueType &&value_) noexcept
-    : value(new (data) ValueType(std::forward<ValueType>(value_))) {
-  destroyed = false;
-}
 
 template <typename ValueType, typename ErrorType>
-Result<ValueType, ErrorType>::Result(const ErrorType &error_) noexcept
-    : error(new (data) ErrorType(error_)) {
-  destroyed = false;
-}
-
-template <typename ValueType, typename ErrorType>
-Result<ValueType, ErrorType>::Result(ErrorType &&error_) noexcept
-    : error(new (data) ErrorType(std::forward<ErrorType>(error_))) {
+Result<ValueType, ErrorType>::Result(const ErrorType &error) {
+  data = error;
   destroyed = false;
 }
 
 template <typename ValueType, typename ErrorType>
 Result<ValueType, ErrorType>::Result(Result &&other) noexcept {
-  if (other.error) {
-    error = new (data) ErrorType(*(other.error));
-  } else if (other.value) {
-    value = new (data) ValueType(*(other.value));
-  }
+  data = std::exchange(other.data, ErrorType());
   checked = std::exchange(other.checked, true);
   destroyed = std::exchange(other.destroyed, false);
 }
 
 template <typename ValueType, typename ErrorType>
-Result<ValueType, ErrorType> &Result<ValueType, ErrorType>::operator=(
-    Result &&other) noexcept {
+Result<ValueType, ErrorType> &
+Result<ValueType, ErrorType>::operator=(Result &&other) noexcept {
   if (this != &other) {
-    if (error) {
-      error->~ErrorType();
-    } else if (value) {
-      value->~ValueType();
-    }
-
-    if (other.error) {
-      error = new (data) ErrorType(std::move(*(other.error)));
-    } else if (other.value) {
-      value = new (data) ValueType(std::move(*(other.value)));
-    }
-
+    data = std::exchange(other.data, ErrorType());
     checked = std::exchange(other.checked, true);
     destroyed = std::exchange(other.destroyed, false);
   }
@@ -186,27 +148,42 @@ Result<ValueType, ErrorType> &Result<ValueType, ErrorType>::operator=(
 
 template <typename ValueType, typename ErrorType>
 void Result<ValueType, ErrorType>::VerifyState(void) const {
-  CHECK(!destroyed)
-      << "The Result<ValueType, ErrorType> object no longer contains its "
-         "internal data because it has been moved with TakeError/TakeValue";
+  if (!destroyed) {
+    return;
+  }
+
+  throw std::logic_error(
+      "The Result<ValueType, ErrorType> object no longer contains its internal data because it has been moved with TakeError/TakeValue");
 }
 
 template <typename ValueType, typename ErrorType>
 void Result<ValueType, ErrorType>::VerifyChecked(void) const {
-  CHECK(checked)
-      << "The Result<ValueType, ErrorType> object was not checked for success";
+  if (checked) {
+    return;
+  }
+
+  throw std::logic_error(
+      "The Result<ValueType, ErrorType> object was not checked for success");
 }
 
 template <typename ValueType, typename ErrorType>
 void Result<ValueType, ErrorType>::VerifySucceeded(void) const {
-  CHECK(value != nullptr)
-      << "The Result<ValueType, ErrorType> object has not succeeded";
+  if (std::holds_alternative<ValueType>(data)) {
+    return;
+  }
+
+  throw std::logic_error(
+      "The Result<ValueType, ErrorType> object has not succeeded");
 }
 
 template <typename ValueType, typename ErrorType>
 void Result<ValueType, ErrorType>::VerifyFailed(void) const {
-  CHECK(error != nullptr)
-      << "The Result<ValueType, ErrorType> object has not failed";
+  if (std::holds_alternative<ErrorType>(data)) {
+    return;
+  }
+
+  throw std::logic_error(
+      "The Result<ValueType, ErrorType> object has not failed");
 }
 
 }  // namespace rellic

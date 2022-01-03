@@ -32,6 +32,7 @@ struct DecompilationResult {
 };
 
 struct DecompilationError {
+  std::unique_ptr<llvm::Module> module;
   std::unique_ptr<clang::ASTUnit> ast;
   std::string message;
 };

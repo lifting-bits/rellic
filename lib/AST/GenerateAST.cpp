@@ -21,6 +21,7 @@
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/BC/Util.h"
+#include "rellic/Exception.h"
 
 namespace rellic {
 
@@ -149,15 +150,15 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
     case llvm::Instruction::Resume:
     case llvm::Instruction::CatchSwitch:
     case llvm::Instruction::CatchRet:
-    case llvm::Instruction::CleanupRet:
-      LOG(FATAL) << "Exception terminator '" << term->getOpcodeName()
-                 << "' is not supported yet";
-      break;
+    case llvm::Instruction::CleanupRet: {
+      THROW() << "Exception terminator '" << term->getOpcodeName()
+              << "' is not supported yet";
+    } break;
     // Unknown
-    default:
-      LOG(FATAL) << "Unsupported terminator instruction: "
-                 << term->getOpcodeName();
-      break;
+    default: {
+      THROW() << "Unsupported terminator instruction: "
+              << term->getOpcodeName();
+    } break;
   }
   return result;
 }

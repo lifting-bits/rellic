@@ -62,7 +62,7 @@ macro(main)
       -Wno-variadic-macros -Wno-return-type-c-linkage
       -Wno-c99-extensions -Wno-ignored-attributes -Wno-unused-local-typedef
       -Wno-unknown-pragmas -Wno-unknown-warning-option -fPIC
-      -fno-omit-frame-pointer -fvisibility-inlines-hidden -fno-exceptions
+      -fno-omit-frame-pointer -fvisibility-inlines-hidden
       -fno-asynchronous-unwind-tables
     )
 

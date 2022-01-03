@@ -19,6 +19,7 @@
 #include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
+#include "rellic/Exception.h"
 
 namespace rellic {
 
@@ -121,12 +122,12 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
         auto vkind{clang::VectorType::GenericVector};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
       } else {
-        LOG(FATAL) << "Unknown LLVM Type: " << LLVMThingToString(type);
+        THROW() << "Unknown LLVM Type: " << LLVMThingToString(type);
       }
     } break;
   }
 
-  CHECK(!result.isNull()) << "Unknown LLVM Type";
+  { CHECK_THROW(!result.isNull()) << "Unknown LLVM Type"; }
 
   return result;
 }
@@ -182,7 +183,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
         result = ast.CreateUndefInteger(c_type);
       } else {
-        LOG(FATAL) << "Unsupported integer constant";
+        THROW() << "Unsupported integer constant";
       }
     } break;
     // Pointers
@@ -192,7 +193,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
         result = ast.CreateUndefPointer(c_type);
       } else {
-        LOG(FATAL) << "Unsupported pointer constant";
+        THROW() << "Unsupported pointer constant";
       }
     } break;
     // Arrays
@@ -218,8 +219,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       if (l_type->isVectorTy()) {
         result = ast.CreateCompoundLit(c_type, CreateInitListLiteral());
       } else {
-        LOG(FATAL) << "Unknown LLVM constant type: "
-                   << LLVMThingToString(l_type);
+        THROW() << "Unknown LLVM constant type: " << LLVMThingToString(l_type);
       }
     } break;
   }
@@ -356,7 +356,7 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
     return stmt;
   }
 
-  LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
+  { THROW() << "Unsupported value type: " << LLVMThingToString(val); }
 
   return stmt;
 }
@@ -376,7 +376,7 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
   } else if (auto inst = llvm::dyn_cast<llvm::AllocaInst>(val)) {
     visitAllocaInst(*inst);
   } else {
-    LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
+    THROW() << "Unsupported value type: " << LLVMThingToString(val);
   }
 
   return decl;
@@ -613,8 +613,8 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
           base = ast.CreateArraySub(base, GetOperandExpr(idx));
           indexed_type = l_elm_ty;
         } else {
-          LOG(FATAL) << "Indexing an unknown type: "
-                     << LLVMThingToString(indexed_type);
+          THROW() << "Indexing an unknown type: "
+                  << LLVMThingToString(indexed_type);
         }
       } break;
     }
@@ -657,7 +657,7 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
       } break;
 
       default:
-        LOG(FATAL) << "Indexing an unknown aggregate type";
+        THROW() << "Indexing an unknown aggregate type";
         break;
     }
   }
@@ -820,7 +820,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     default:
-      LOG(FATAL) << "Unknown BinaryOperator: " << inst.getOpcodeName();
+      THROW() << "Unknown BinaryOperator: " << inst.getOpcodeName();
       break;
   }
 }
@@ -886,9 +886,9 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       cmp = ast.CreateNE(lhs, rhs);
       break;
 
-    default:
-      LOG(FATAL) << "Unknown CmpInst predicate: " << inst.getOpcodeName();
-      break;
+    default: {
+      THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
+    } break;
   }
 }
 
@@ -941,9 +941,9 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     case llvm::CastInst::FPTrunc:
       break;
 
-    default:
-      LOG(FATAL) << "Unknown CastInst cast type";
-      break;
+    default: {
+      THROW() << "Unknown CastInst cast type";
+    } break;
   }
   // Create cast
   cast = ast.CreateCStyleCast(type, operand);
@@ -975,8 +975,8 @@ void IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
 
 void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
   DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
-  LOG(FATAL) << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
-                "before decompiling.";
+  THROW() << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
+             "before decompiling.";
 }
 
 }  // namespace rellic

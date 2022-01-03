@@ -15,6 +15,7 @@
 
 #include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/AST/Compat/Stmt.h"
+#include "rellic/Exception.h"
 
 namespace rellic {
 
@@ -72,7 +73,7 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
     return CExprPrecedence::CondOp;
   }
 
-  LOG(FATAL) << "Unknown clang::Expr";
+  { THROW() << "Unknown clang::Expr"; }
 
   return 0U;
 }
@@ -90,11 +91,15 @@ clang::QualType ASTBuilder::GetLeastIntTypeForBitWidth(unsigned size,
   }
   auto &ti{ctx.getTargetInfo()};
   auto target_type{ti.getLeastIntTypeByWidth(size, sign)};
-  CHECK(target_type != clang::TargetInfo::IntType::NoInt)
-      << "Failed to infer clang::TargetInfo::IntType for bitwidth: " << size;
+  {
+    CHECK_THROW(target_type != clang::TargetInfo::IntType::NoInt)
+        << "Failed to infer clang::TargetInfo::IntType for bitwidth: " << size;
+  }
   result = ctx.getIntTypeForBitwidth(ti.getTypeWidth(target_type), sign);
-  CHECK(!result.isNull()) << "Failed to infer clang::QualType for bitwidth: "
-                          << size;
+  {
+    CHECK_THROW(!result.isNull())
+        << "Failed to infer clang::QualType for bitwidth: " << size;
+  }
   return result;
 }
 
@@ -116,7 +121,7 @@ clang::QualType ASTBuilder::GetLeastRealTypeForBitWidth(unsigned size) {
     return ctx.LongDoubleTy;
   }
 
-  LOG(FATAL) << "Failed to infer real clang::QualType for bitwidth: " << size;
+  { THROW() << "Failed to infer real clang::QualType for bitwidth: " << size; }
 
   return clang::QualType();
 }
@@ -178,7 +183,7 @@ clang::StringLiteral *ASTBuilder::CreateStrLit(std::string val) {
 clang::FloatingLiteral *ASTBuilder::CreateFPLit(llvm::APFloat val) {
   auto size{llvm::APFloat::getSizeInBits(val.getSemantics())};
   auto type{GetLeastRealTypeForBitWidth(size)};
-  CHECK(!type.isNull()) << "Unable to infer type for given value.";
+  { CHECK_THROW(!type.isNull()) << "Unable to infer type for given value."; }
   return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
                                         clang::SourceLocation());
 }

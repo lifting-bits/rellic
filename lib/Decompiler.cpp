@@ -34,6 +34,7 @@
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
+#include "rellic/Exception.h"
 
 namespace {
 
@@ -87,125 +88,132 @@ static void UpdateProvenanceMap(rellic::StmtToIRMap& provenance,
 namespace rellic {
 Result<DecompilationResult, DecompilationError> Decompile(
     std::unique_ptr<llvm::Module> module, DecompilationOptions options) {
-  if (options.remove_phi_nodes) {
-    RemovePHINodes(*module);
+  try {
+    if (options.remove_phi_nodes) {
+      RemovePHINodes(*module);
+    }
+
+    if (options.lower_switches) {
+      LowerSwitches(*module);
+    }
+
+    InitOptPasses();
+    rellic::DebugInfoCollector dic;
+    dic.visit(*module);
+
+    std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
+                                  module->getTargetTriple()};
+    auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
+
+    llvm::legacy::PassManager pm_ast;
+    rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
+    rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
+    rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
+        *ast_unit, dic.GetIRToNameMap(), gr->GetIRToValDeclMap())};
+    rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
+        *ast_unit, dic.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
+    pm_ast.add(gr);
+    pm_ast.add(dse);
+    pm_ast.add(ldr);
+    pm_ast.add(sfr);
+    pm_ast.run(*module);
+
+    // TODO(surovic): Add llvm::Value* -> clang::Decl* map
+    // Especially for llvm::Argument* and llvm::Function*.
+    StmtToIRMap stmt_provenance;
+
+    InitProvenanceMap(stmt_provenance, gr->GetIRToStmtMap());
+    UpdateProvenanceMap(stmt_provenance, dse->GetStmtSubMap());
+
+    rellic::Z3CondSimplify* zcs{new rellic::Z3CondSimplify(*ast_unit)};
+    rellic::NestedCondProp* ncp{new rellic::NestedCondProp(*ast_unit)};
+    rellic::NestedScopeCombine* nsc{new rellic::NestedScopeCombine(*ast_unit)};
+    rellic::CondBasedRefine* cbr{new rellic::CondBasedRefine(*ast_unit)};
+    rellic::ReachBasedRefine* rbr{new rellic::ReachBasedRefine(*ast_unit)};
+
+    llvm::legacy::PassManager pm_cbr;
+    if (!options.disable_z3) {
+      // Simplifier to use during condition-based refinement
+      zcs->SetZ3Simplifier(
+          // Simplify boolean structure with AIGs
+          z3::tactic(zcs->GetZ3Context(), "aig") &
+          // Cheap local simplifier
+          z3::tactic(zcs->GetZ3Context(), "simplify"));
+      pm_cbr.add(zcs);
+      pm_cbr.add(ncp);
+    }
+
+    pm_cbr.add(nsc);
+
+    if (!options.disable_z3) {
+      pm_cbr.add(cbr);
+      pm_cbr.add(rbr);
+    }
+
+    while (pm_cbr.run(*module)) {
+      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, cbr->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, rbr->GetStmtSubMap());
+    }
+
+    rellic::LoopRefine* lr{new rellic::LoopRefine(*ast_unit)};
+    nsc = new rellic::NestedScopeCombine(*ast_unit);
+
+    llvm::legacy::PassManager pm_loop;
+    pm_loop.add(lr);
+    pm_loop.add(nsc);
+    while (pm_loop.run(*module)) {
+      UpdateProvenanceMap(stmt_provenance, lr->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
+    }
+
+    llvm::legacy::PassManager pm_scope;
+    if (!options.disable_z3) {
+      // Simplifier to use during final refinement
+      zcs = new rellic::Z3CondSimplify(*ast_unit);
+      ncp = new rellic::NestedCondProp(*ast_unit);
+      zcs->SetZ3Simplifier(
+          // Simplify boolean structure with AIGs
+          z3::tactic(zcs->GetZ3Context(), "aig") &
+          // Cheap simplification
+          z3::tactic(zcs->GetZ3Context(), "simplify") &
+          // Propagate bounds over bit-vectors
+          z3::tactic(zcs->GetZ3Context(), "propagate-bv-bounds") &
+          // Contextual simplification
+          z3::tactic(zcs->GetZ3Context(), "ctx-simplify"));
+      pm_scope.add(zcs);
+      pm_scope.add(ncp);
+    }
+
+    nsc = new rellic::NestedScopeCombine(*ast_unit);
+
+    pm_scope.add(nsc);
+    while (pm_scope.run(*module)) {
+      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
+    }
+
+    llvm::legacy::PassManager pm_expr;
+    rellic::ExprCombine* ec{new rellic::ExprCombine(*ast_unit)};
+    pm_expr.add(ec);
+    while (pm_expr.run(*module)) {
+      UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap());
+    }
+
+    DecompilationResult result{};
+    result.ast = std::move(ast_unit);
+    result.module = std::move(module);
+    result.stmt_provenance_map = stmt_provenance;
+
+    return Result<DecompilationResult, DecompilationError>(std::move(result));
+  } catch (Exception& ex) {
+    DecompilationError error{};
+    error.message = ex.what();
+    error.module = std::move(module);
+    return Result<DecompilationResult, DecompilationError>(std::move(error));
   }
-
-  if (options.lower_switches) {
-    LowerSwitches(*module);
-  }
-
-  InitOptPasses();
-  rellic::DebugInfoCollector dic;
-  dic.visit(*module);
-
-  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
-                                module->getTargetTriple()};
-  auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
-
-  llvm::legacy::PassManager pm_ast;
-  rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
-  rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
-  rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
-      *ast_unit, dic.GetIRToNameMap(), gr->GetIRToValDeclMap())};
-  rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
-      *ast_unit, dic.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
-  pm_ast.add(gr);
-  pm_ast.add(dse);
-  pm_ast.add(ldr);
-  pm_ast.add(sfr);
-  pm_ast.run(*module);
-
-  // TODO(surovic): Add llvm::Value* -> clang::Decl* map
-  // Especially for llvm::Argument* and llvm::Function*.
-  StmtToIRMap stmt_provenance;
-
-  InitProvenanceMap(stmt_provenance, gr->GetIRToStmtMap());
-  UpdateProvenanceMap(stmt_provenance, dse->GetStmtSubMap());
-
-  rellic::Z3CondSimplify* zcs{new rellic::Z3CondSimplify(*ast_unit)};
-  rellic::NestedCondProp* ncp{new rellic::NestedCondProp(*ast_unit)};
-  rellic::NestedScopeCombine* nsc{new rellic::NestedScopeCombine(*ast_unit)};
-  rellic::CondBasedRefine* cbr{new rellic::CondBasedRefine(*ast_unit)};
-  rellic::ReachBasedRefine* rbr{new rellic::ReachBasedRefine(*ast_unit)};
-
-  llvm::legacy::PassManager pm_cbr;
-  if (!options.disable_z3) {
-    // Simplifier to use during condition-based refinement
-    zcs->SetZ3Simplifier(
-        // Simplify boolean structure with AIGs
-        z3::tactic(zcs->GetZ3Context(), "aig") &
-        // Cheap local simplifier
-        z3::tactic(zcs->GetZ3Context(), "simplify"));
-    pm_cbr.add(zcs);
-    pm_cbr.add(ncp);
-  }
-
-  pm_cbr.add(nsc);
-
-  if (!options.disable_z3) {
-    pm_cbr.add(cbr);
-    pm_cbr.add(rbr);
-  }
-
-  while (pm_cbr.run(*module)) {
-    UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap());
-    UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap());
-    UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
-    UpdateProvenanceMap(stmt_provenance, cbr->GetStmtSubMap());
-    UpdateProvenanceMap(stmt_provenance, rbr->GetStmtSubMap());
-  }
-
-  rellic::LoopRefine* lr{new rellic::LoopRefine(*ast_unit)};
-  nsc = new rellic::NestedScopeCombine(*ast_unit);
-
-  llvm::legacy::PassManager pm_loop;
-  pm_loop.add(lr);
-  pm_loop.add(nsc);
-  while (pm_loop.run(*module)) {
-    UpdateProvenanceMap(stmt_provenance, lr->GetStmtSubMap());
-    UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
-  }
-
-  llvm::legacy::PassManager pm_scope;
-  if (!options.disable_z3) {
-    // Simplifier to use during final refinement
-    zcs = new rellic::Z3CondSimplify(*ast_unit);
-    ncp = new rellic::NestedCondProp(*ast_unit);
-    zcs->SetZ3Simplifier(
-        // Simplify boolean structure with AIGs
-        z3::tactic(zcs->GetZ3Context(), "aig") &
-        // Cheap simplification
-        z3::tactic(zcs->GetZ3Context(), "simplify") &
-        // Propagate bounds over bit-vectors
-        z3::tactic(zcs->GetZ3Context(), "propagate-bv-bounds") &
-        // Contextual simplification
-        z3::tactic(zcs->GetZ3Context(), "ctx-simplify"));
-    pm_scope.add(zcs);
-    pm_scope.add(ncp);
-  }
-
-  nsc = new rellic::NestedScopeCombine(*ast_unit);
-
-  pm_scope.add(nsc);
-  while (pm_scope.run(*module)) {
-    UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap());
-    UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap());
-    UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
-  }
-
-  llvm::legacy::PassManager pm_expr;
-  rellic::ExprCombine* ec{new rellic::ExprCombine(*ast_unit)};
-  pm_expr.add(ec);
-  while (pm_expr.run(*module)) {
-    UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap());
-  }
-
-  DecompilationResult result{};
-  result.ast = std::move(ast_unit);
-  result.module = std::move(module);
-  result.stmt_provenance_map = stmt_provenance;
-
-  return Result<DecompilationResult, DecompilationError>(std::move(result));
 }
 }  // namespace rellic

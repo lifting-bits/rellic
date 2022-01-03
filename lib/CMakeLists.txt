@@ -112,8 +112,6 @@ set(BC_SOURCES
 
 set(BC_COMPAT_SOURCES
   BC/Compat/Value.cpp
-
-  Decompiler.cpp
 )
 
 add_library("${PROJECT_NAME}" STATIC
@@ -122,6 +120,9 @@ add_library("${PROJECT_NAME}" STATIC
   ${AST_COMPAT_SOURCES}
   ${BC_SOURCES}
   ${BC_COMPAT_SOURCES}
+
+  Decompiler.cpp
+  Exception.cpp
   
   "${POST_CONFIGURE_FILE}"  # Version.cpp
 )

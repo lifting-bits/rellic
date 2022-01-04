@@ -18,6 +18,9 @@
 
 namespace rellic {
 using StmtToIRMap = std::unordered_map<clang::Stmt*, llvm::Value*>;
+using DeclToIRMap = std::unordered_map<clang::ValueDecl*, llvm::Value*>;
+using IRToStmtMap = std::unordered_map<llvm::Value*, clang::Stmt*>;
+using IRToDeclMap = std::unordered_map<llvm::Value*, clang::ValueDecl*>;
 
 struct DecompilationOptions {
   bool lower_switches = false;
@@ -29,6 +32,9 @@ struct DecompilationResult {
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<clang::ASTUnit> ast;
   StmtToIRMap stmt_provenance_map;
+  IRToStmtMap value_to_stmt_map;
+  DeclToIRMap decl_provenance_map;
+  IRToDeclMap value_to_decl_map;
 };
 
 struct DecompilationError {

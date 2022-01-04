@@ -207,6 +207,15 @@ Result<DecompilationResult, DecompilationError> Decompile(
     result.ast = std::move(ast_unit);
     result.module = std::move(module);
     result.stmt_provenance_map = stmt_provenance;
+    result.value_to_decl_map = gr->GetIRToValDeclMap();
+
+    for (auto kvp : result.value_to_decl_map) {
+      result.decl_provenance_map[kvp.second] = kvp.first;
+    }
+
+    for (auto kvp : result.stmt_provenance_map) {
+      result.value_to_stmt_map[kvp.second] = kvp.first;
+    }
 
     return Result<DecompilationResult, DecompilationError>(std::move(result));
   } catch (Exception& ex) {

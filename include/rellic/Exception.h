@@ -10,7 +10,7 @@
 
 #include <sstream>
 #include <stdexcept>
-#include <string>
+#include <utility>
 
 namespace rellic {
 class Exception : public std::runtime_error {
@@ -22,24 +22,22 @@ class Exception : public std::runtime_error {
 template <typename T = Exception>
 class StreamThrower {
   std::stringstream stream;
-  bool triggered;
+  bool triggered, moved = false;
 
  public:
-  StreamThrower(bool cond = true) : triggered(cond) {}
+  StreamThrower(bool cond = true, std::stringstream ss = std::stringstream())
+      : stream(std::move(ss)), triggered(cond) {}
   ~StreamThrower() noexcept(false) {
-    if (triggered) {
+    if (triggered && !moved) {
       throw T(stream.str());
     }
   }
 
   template <typename V>
-  std::ostream& operator<<(V& s) {
-    return stream << s;
-  }
-
-  template <typename V>
-  std::ostream& operator<<(V&& s) {
-    return stream << s;
+  StreamThrower<T> operator<<(V&& s) {
+    moved = true;
+    stream << std::forward<V>(s);
+    return StreamThrower<T>(triggered, std::move(stream));
   }
 };
 }  // namespace rellic

@@ -150,15 +150,15 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
     case llvm::Instruction::Resume:
     case llvm::Instruction::CatchSwitch:
     case llvm::Instruction::CatchRet:
-    case llvm::Instruction::CleanupRet: {
+    case llvm::Instruction::CleanupRet:
       THROW() << "Exception terminator '" << term->getOpcodeName()
               << "' is not supported yet";
-    } break;
+      break;
     // Unknown
-    default: {
+    default:
       THROW() << "Unsupported terminator instruction: "
               << term->getOpcodeName();
-    } break;
+      break;
   }
   return result;
 }

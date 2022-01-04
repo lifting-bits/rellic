@@ -127,7 +127,7 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
     } break;
   }
 
-  { CHECK_THROW(!result.isNull()) << "Unknown LLVM Type"; }
+  CHECK_THROW(!result.isNull()) << "Unknown LLVM Type";
 
   return result;
 }
@@ -356,7 +356,7 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
     return stmt;
   }
 
-  { THROW() << "Unsupported value type: " << LLVMThingToString(val); }
+  THROW() << "Unsupported value type: " << LLVMThingToString(val);
 
   return stmt;
 }

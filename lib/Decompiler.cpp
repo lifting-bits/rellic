@@ -38,6 +38,32 @@
 
 namespace {
 
+static void CopyMetadataTo(llvm::Value* src, llvm::Value* dst) {
+  if (src == dst) {
+    return;
+  }
+  llvm::Instruction *src_inst = llvm::dyn_cast_or_null<llvm::Instruction>(src),
+                    *dst_inst = llvm::dyn_cast_or_null<llvm::Instruction>(dst);
+  if (!src_inst || !dst_inst) {
+    return;
+  }
+
+  llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u> mds;
+  src_inst->getAllMetadataOtherThanDebugLoc(mds);
+  for (auto [id, node] : mds) {
+    switch (id) {
+      case llvm::LLVMContext::MD_tbaa:
+      case llvm::LLVMContext::MD_tbaa_struct:
+      case llvm::LLVMContext::MD_noalias:
+      case llvm::LLVMContext::MD_alias_scope:
+        break;
+      default:
+        dst_inst->setMetadata(id, node);
+        break;
+    }
+  }
+}
+
 static void RemovePHINodes(llvm::Module& module) {
   std::vector<llvm::PHINode*> work_list;
   for (auto& func : module) {
@@ -48,7 +74,8 @@ static void RemovePHINodes(llvm::Module& module) {
     }
   }
   for (auto phi : work_list) {
-    DemotePHIToStack(phi);
+    auto new_alloca{DemotePHIToStack(phi)};
+    CopyMetadataTo(phi, new_alloca);
   }
 }
 

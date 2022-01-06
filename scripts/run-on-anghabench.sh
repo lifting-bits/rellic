@@ -66,7 +66,7 @@ echo "Saving output to $(pwd)/build.log"
     # Run the benchmark
     tool_run_scripts/rellic.py \
         --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [rellic: ${RELLIC_BRANCH}]" \
-        --rellic rellic-decomp-${LLVM_VERSION}.0 \
+        --rellic rellic-decomp \
         --input-dir $(pwd)/bitcode \
         --output-dir $(pwd)/decompiled \
         --slack-notify

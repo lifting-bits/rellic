@@ -623,6 +623,14 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   ref = ast.CreateAddrOf(base);
 }
 
+void IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
+  THROW() << "Instruction not supported: " << LLVMThingToString(&inst);
+}
+
+void IRToASTVisitor::visitBranchInst(llvm::BranchInst &inst) {
+  DLOG(INFO) << "visitBranchInst ignored: " << LLVMThingToString(&inst);
+}
+
 void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
   DLOG(INFO) << "visitExtractValueInst: " << LLVMThingToString(&inst);
   auto &ref{stmts[&inst]};

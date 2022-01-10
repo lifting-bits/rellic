@@ -78,6 +78,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   void visitFreezeInst(llvm::FreezeInst &inst);
   void visitPHINode(llvm::PHINode &inst);
   void visitBranchInst(llvm::BranchInst &inst);
+  void visitUnreachableInst(llvm::UnreachableInst &inst);
   void visitInstruction(llvm::Instruction &inst);
 };
 

@@ -6,15 +6,15 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include <llvm/IR/Instructions.h>
 #define GOOGLE_STRIP_LOG 1
-
-#include "rellic/AST/IRToASTVisitor.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include <iterator>
 
+#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/BC/Compat/DerivedTypes.h"
 #include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Compat/Value.h"
@@ -629,6 +629,10 @@ void IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
 
 void IRToASTVisitor::visitBranchInst(llvm::BranchInst &inst) {
   DLOG(INFO) << "visitBranchInst ignored: " << LLVMThingToString(&inst);
+}
+
+void IRToASTVisitor::visitUnreachableInst(llvm::UnreachableInst &inst) {
+  DLOG(INFO) << "visitUnreachableInst ignored:" << LLVMThingToString(&inst);
 }
 
 void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {

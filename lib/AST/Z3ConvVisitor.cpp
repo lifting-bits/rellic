@@ -629,7 +629,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
   // Conditionally cast operands to a bitvector
   auto CondBoolToBVCast{[this, &lhs, &rhs]() {
     if (lhs.is_bool()) {
-      CHECK(rhs.is_bv());
+      CHECK(rhs.is_bv() || rhs.is_bool());
       lhs = Z3BoolToBVCast(lhs);
     }
     if (rhs.is_bool()) {

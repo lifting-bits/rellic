@@ -347,15 +347,7 @@ ExprCombine::ExprCombine(clang::ASTUnit &u)
     : ModulePass(ExprCombine::ID), unit(u) {}
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
-  std::vector<std::unique_ptr<InferenceRule>> pointer_rules;
-
-  pointer_rules.emplace_back(new CStyleZeroToPtrCastElimRule);
-
-  auto sub_ptr{ApplyFirstMatchingRule(unit, cast, pointer_rules)};
-  if (sub_ptr != cast) {
-    substitutions[cast] = sub_ptr;
-    return true;
-  }
+  // TODO(frabert): Re-enable nullptr casts simplification
 
   clang::Expr::EvalResult result;
   auto &ctx{unit.getASTContext()};

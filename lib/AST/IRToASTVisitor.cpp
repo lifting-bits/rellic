@@ -725,6 +725,10 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   // Get the operand we're assigning to
   auto lhs{GetOperandExpr(inst.getPointerOperand())};
   // Get the operand we're assigning from
+  if (auto undef = llvm::dyn_cast<llvm::UndefValue>(inst.getValueOperand())) {
+    DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
+    return;
+  }
   auto rhs{GetOperandExpr(inst.getValueOperand())};
   // Create the assignemnt itself
   assign = ast.CreateAssign(ast.CreateDeref(lhs), rhs);

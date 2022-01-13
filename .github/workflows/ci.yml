@@ -68,7 +68,7 @@ jobs:
           export INSTALL_DIR=${GITHUB_WORKSPACE}/${INSTALL_DIR_PART}
           scripts/build-preset.sh debug
         env:
-          VCPKG_ROOT_PART: ../pre-built-llvm-${{ matrix.llvm }}/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm_${{ matrix.llvm }}_amd64
+          VCPKG_ROOT_PART: ../pre-built-llvm-${{ matrix.llvm }}/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
           INSTALL_DIR_PART: ../rellic-install
 
       - name: Locate the packages

@@ -53,12 +53,23 @@ jobs:
         run: |
           ./scripts/build.sh --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" --llvm-version ${{ matrix.llvm }}
           cmake --build rellic-build --target install
+
       - name: Tests
         shell: bash
         working-directory: rellic-build
         run: |
           # Test with CMake provided test
           env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test
+
+      - name: Build with CMake Presets
+        shell: bash
+        run: |
+          export VCPKG_ROOT=${GITHUB_WORKSPACE}/${VCPKG_ROOT_PART}
+          export INSTALL_DIR=${GITHUB_WORKSPACE}/${INSTALL_DIR_PART}
+          scripts/build-preset.sh debug
+        env:
+          VCPKG_ROOT_PART: ../pre-built-llvm-${{ matrix.llvm }}/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
+          INSTALL_DIR_PART: ../rellic-install
 
       - name: Locate the packages
         id: package_names

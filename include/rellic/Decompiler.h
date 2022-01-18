@@ -17,11 +17,6 @@
 #include "Result.h"
 
 namespace rellic {
-using StmtToIRMap = std::unordered_map<clang::Stmt*, llvm::Value*>;
-using DeclToIRMap = std::unordered_map<clang::ValueDecl*, llvm::Value*>;
-using IRToStmtMap = std::unordered_map<llvm::Value*, clang::Stmt*>;
-using IRToDeclMap = std::unordered_map<llvm::Value*, clang::ValueDecl*>;
-
 struct DecompilationOptions {
   bool lower_switches = false;
   bool remove_phi_nodes = false;
@@ -29,6 +24,11 @@ struct DecompilationOptions {
 };
 
 struct DecompilationResult {
+  using StmtToIRMap = std::unordered_map<clang::Stmt*, const llvm::Value*>;
+  using DeclToIRMap = std::unordered_map<clang::ValueDecl*, const llvm::Value*>;
+  using IRToStmtMap = std::unordered_map<llvm::Value*, const clang::Stmt*>;
+  using IRToDeclMap = std::unordered_map<llvm::Value*, const clang::ValueDecl*>;
+
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<clang::ASTUnit> ast;
   StmtToIRMap stmt_provenance_map;

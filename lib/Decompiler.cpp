@@ -36,6 +36,8 @@
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
+using StmtToIRMap = std::unordered_map<clang::Stmt*, llvm::Value*>;
+
 namespace {
 
 static void CopyMetadataTo(llvm::Value* src, llvm::Value* dst) {
@@ -91,7 +93,7 @@ static void InitOptPasses(void) {
   initializeAnalysis(pr);
 }
 
-static void InitProvenanceMap(rellic::StmtToIRMap& provenance,
+static void InitProvenanceMap(StmtToIRMap& provenance,
                               rellic::IRToStmtMap& init) {
   for (auto& item : init) {
     if (item.second) {
@@ -100,7 +102,7 @@ static void InitProvenanceMap(rellic::StmtToIRMap& provenance,
   }
 }
 
-static void UpdateProvenanceMap(rellic::StmtToIRMap& provenance,
+static void UpdateProvenanceMap(StmtToIRMap& provenance,
                                 rellic::StmtSubMap& substitutions) {
   for (auto& sub : substitutions) {
     auto it{provenance.find(sub.first)};
@@ -111,6 +113,18 @@ static void UpdateProvenanceMap(rellic::StmtToIRMap& provenance,
   }
 }
 };  // namespace
+
+template <typename TKey, typename TValue>
+static void CopyMap(const std::unordered_map<TKey*, TValue*>& from,
+                    std::unordered_map<TKey*, const TValue*>& to,
+                    std::unordered_map<TValue*, const TKey*>& inverse) {
+  for (auto [key, value] : from) {
+    if (value) {
+      to[key] = value;
+      inverse[value] = key;
+    }
+  }
+}
 
 namespace rellic {
 Result<DecompilationResult, DecompilationError> Decompile(
@@ -233,16 +247,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
     DecompilationResult result{};
     result.ast = std::move(ast_unit);
     result.module = std::move(module);
-    result.stmt_provenance_map = stmt_provenance;
-    result.value_to_decl_map = gr->GetIRToValDeclMap();
-
-    for (auto kvp : result.value_to_decl_map) {
-      result.decl_provenance_map[kvp.second] = kvp.first;
-    }
-
-    for (auto kvp : result.stmt_provenance_map) {
-      result.value_to_stmt_map[kvp.second] = kvp.first;
-    }
+    CopyMap(stmt_provenance, result.stmt_provenance_map,
+            result.value_to_stmt_map);
+    CopyMap(gr->GetIRToValDeclMap(), result.value_to_decl_map,
+            result.decl_provenance_map);
 
     return Result<DecompilationResult, DecompilationError>(std::move(result));
   } catch (Exception& ex) {

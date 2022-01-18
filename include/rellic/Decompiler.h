@@ -24,10 +24,14 @@ struct DecompilationOptions {
 };
 
 struct DecompilationResult {
-  using StmtToIRMap = std::unordered_map<clang::Stmt*, const llvm::Value*>;
-  using DeclToIRMap = std::unordered_map<clang::ValueDecl*, const llvm::Value*>;
-  using IRToStmtMap = std::unordered_map<llvm::Value*, const clang::Stmt*>;
-  using IRToDeclMap = std::unordered_map<llvm::Value*, const clang::ValueDecl*>;
+  using StmtToIRMap =
+      std::unordered_map<const clang::Stmt*, const llvm::Value*>;
+  using DeclToIRMap =
+      std::unordered_map<const clang::ValueDecl*, const llvm::Value*>;
+  using IRToStmtMap =
+      std::unordered_map<const llvm::Value*, const clang::Stmt*>;
+  using IRToDeclMap =
+      std::unordered_map<const llvm::Value*, const clang::ValueDecl*>;
 
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<clang::ASTUnit> ast;

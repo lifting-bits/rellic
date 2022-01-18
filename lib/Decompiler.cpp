@@ -116,8 +116,8 @@ static void UpdateProvenanceMap(StmtToIRMap& provenance,
 
 template <typename TKey, typename TValue>
 static void CopyMap(const std::unordered_map<TKey*, TValue*>& from,
-                    std::unordered_map<TKey*, const TValue*>& to,
-                    std::unordered_map<TValue*, const TKey*>& inverse) {
+                    std::unordered_map<const TKey*, const TValue*>& to,
+                    std::unordered_map<const TValue*, const TKey*>& inverse) {
   for (auto [key, value] : from) {
     if (value) {
       to[key] = value;

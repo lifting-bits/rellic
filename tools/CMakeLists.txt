@@ -44,6 +44,28 @@ target_link_libraries(${RELLIC_HEADERGEN}
 
 set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 
+#
+# rellic-xref
+#
+
+set(RELLIC_XREF "${PROJECT_NAME}-xref")
+
+add_executable(${RELLIC_XREF}
+  "xref/AsmWriter.cpp"
+  "xref/DeclPrinter.cpp"
+  "xref/StmtPrinter.cpp"
+  "xref/Xref.cpp"
+)
+
+target_link_libraries(${RELLIC_XREF}
+  PRIVATE
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
+)
+
+set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
+
 if(RELLIC_ENABLE_INSTALL)
   
   install(

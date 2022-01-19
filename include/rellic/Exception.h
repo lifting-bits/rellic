@@ -42,6 +42,8 @@ class StreamThrower {
 };
 }  // namespace rellic
 
-#define THROW() ::rellic::StreamThrower<::rellic::Exception>(true)
-#define THROW_IF(cond) ::rellic::StreamThrower<::rellic::Exception>((cond))
+#define THROW_IF(cond)                                 \
+  ::rellic::StreamThrower<::rellic::Exception>((cond)) \
+      << __FILE__ << ':' << __LINE__ << ' '
+#define THROW() THROW_IF(true)
 #define CHECK_THROW(cond) THROW_IF(!(cond)) << "Check failed: " #cond " "

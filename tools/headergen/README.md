@@ -4,7 +4,7 @@
 This utility generates C code that describes the layout of data structures as defined by the DWARF metadata contained inside of LLVM modules.
 
 ## Why would I use it?
-`rellic-headergen` is be useful when needing to "flatten" the layout of C++ code for example, which can contain classes and complex inheritance relations. The output is valid C code that matches the memory layout of the original C++.
+`rellic-headergen` is useful when needing to "flatten" the layout of C++ code for example, which can contain classes and complex inheritance relations. The output is valid C code that matches the memory layout of the original C++.
 
 ## How do I use it?
 After compiling `rellic`, you can use `rellic-headergen` like so:

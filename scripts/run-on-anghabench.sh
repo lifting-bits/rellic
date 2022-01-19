@@ -14,6 +14,9 @@ echo "Saving output to $(pwd)/build.log"
     apt-get update
     apt-get install -yqq s3cmd pixz curl git python3 python3-pip xz-utils cmake ninja-build clang-${LLVM_VERSION}
     python3 -m pip install requests
+    #install new cmake
+    curl -LO https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-linux-x86_64.sh
+    sh ./cmake-3.22.1-linux-x86_64.sh --skip-license --prefix=/usr
 } &>> build.log
 
 {
@@ -63,7 +66,7 @@ echo "Saving output to $(pwd)/build.log"
     # Run the benchmark
     tool_run_scripts/rellic.py \
         --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [rellic: ${RELLIC_BRANCH}]" \
-        --rellic rellic-decomp-${LLVM_VERSION}.0 \
+        --rellic rellic-decomp \
         --input-dir $(pwd)/bitcode \
         --output-dir $(pwd)/decompiled \
         --slack-notify

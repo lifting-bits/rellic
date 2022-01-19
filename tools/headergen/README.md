@@ -43,11 +43,13 @@ void force(Car *c) {
   c->Drive(10.0);
 }
 ```
+
 using clang and then running `rellic-headergen`
 ```sh
 $ clang++ -std=c++17 -O0 -gfull -emit-llvm -c test.cpp -o test.bc
 $ rellic-headergen --input test.bc --output /dev/stderr
 ```
+
 produces the following C code
 ```c
 struct Car_0;

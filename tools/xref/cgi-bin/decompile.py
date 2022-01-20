@@ -22,7 +22,7 @@ if fileitem.file:
         input=fileitem.file.read(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        timeout=1)
+        timeout=5)
     sys.stdout.buffer.write(res.stdout)
     sys.stdout.flush()
 else:

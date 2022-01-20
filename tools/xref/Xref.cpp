@@ -31,6 +31,7 @@ DEFINE_bool(remove_phi_nodes, false,
             "Remove PHINodes from input bitcode before decompilation.");
 DEFINE_bool(lower_switch, false,
             "Remove SwitchInst by lowering them to branches.");
+DEFINE_bool(output_http, false, "Outputs HTTP headers (useful for CGI)");
 
 DECLARE_bool(version);
 
@@ -127,6 +128,10 @@ int main(int argc, char *argv[]) {
 
   auto result{rellic::Decompile(std::move(module), opts)};
   if (result.Succeeded()) {
+    if (FLAGS_output_http) {
+      output << "Content-Type: text/html\nStatus: 200\n\n";
+    }
+
     auto value{result.TakeValue()};
     auto &context{value.ast->getASTContext()};
     output << R"html(<!DOCTYPE html>
@@ -149,8 +154,9 @@ int main(int argc, char *argv[]) {
         border: 1px solid grey;
         margin: 0.5em;
         padding: 0.5em;
-        max-width: 80em;
+        max-width: 45vw;
         overflow-x: auto;
+        height: 95vh;
     }
     </style>
 </head>
@@ -189,6 +195,9 @@ int main(int argc, char *argv[]) {
 </body>
 </html>)html";
   } else {
+    if (FLAGS_output_http) {
+      output << "Content-Type: text/plain\nStatus: 500\n\n";
+    }
     LOG(FATAL) << result.TakeError().message;
   }
 

@@ -152,11 +152,12 @@ target_include_directories("${PROJECT_NAME}"
 )
 
 if(RELLIC_ENABLE_INSTALL)
+  include(GNUInstallDirs)
   install(
     DIRECTORY
       "${include_dir}"
     DESTINATION
-      "include")
+      ${CMAKE_INSTALL_INCLUDEDIR})
   
   
   install(
@@ -166,12 +167,12 @@ if(RELLIC_ENABLE_INSTALL)
       "${PROJECT_NAME}Targets"
     RUNTIME
       DESTINATION
-        "bin"
+        ${CMAKE_INSTALL_BINDIR}
     LIBRARY
       DESTINATION
-        "lib"
+        ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE
       DESTINATION
-        "lib"
+        ${CMAKE_INSTALL_LIBDIR}
   )
 endif(RELLIC_ENABLE_INSTALL)

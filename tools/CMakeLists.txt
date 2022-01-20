@@ -72,11 +72,28 @@ if(RELLIC_ENABLE_INSTALL)
     TARGETS
       ${RELLIC_DECOMP}
       ${RELLIC_HEADERGEN}
+      ${RELLIC_XREF}
     EXPORT
       "${PROJECT_NAME}Targets"
     RUNTIME
       DESTINATION
-        "bin"
+        ${CMAKE_INSTALL_BINDIR}
+  )
+
+  install(
+    FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/cgi-bin/decompile.py"
+    DESTINATION
+      "lib/cgi-bin"
+    PERMISSIONS
+      WORLD_EXECUTE
+  )
+
+  install(
+    FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/index.html"
+    DESTINATION
+      "var/www/html"
   )
   
   #

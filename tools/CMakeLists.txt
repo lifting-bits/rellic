@@ -81,12 +81,10 @@ if(RELLIC_ENABLE_INSTALL)
   )
 
   install(
-    FILES
+    PROGRAMS
       "${CMAKE_CURRENT_SOURCE_DIR}/xref/cgi-bin/decompile.py"
     DESTINATION
       "lib/cgi-bin"
-    PERMISSIONS
-      WORLD_EXECUTE
   )
 
   install(

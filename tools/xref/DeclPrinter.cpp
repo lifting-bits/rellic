@@ -663,19 +663,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
                                Context, Indentation);
       for (unsigned i = 0, e = D->getNumParams(); i != e; ++i) {
         if (i) POut << ", ";
-        auto pdecl{D->getParamDecl(i)};
-        POut << "<span class=\"param-decl\" data-addr=\"";
-        POut.write_hex((unsigned long long)pdecl);
-        POut << '"';
-        auto provenance{DeclProvenance.find(pdecl)};
-        if (provenance != DeclProvenance.end()) {
-          POut << " data-provenance=\"";
-          POut.write_hex((unsigned long long)provenance->second);
-          POut << '"';
-        }
-        POut << '>';
-        ParamPrinter.VisitParmVarDecl(pdecl);
-        POut << "</span>";
+        ParamPrinter.Visit(D->getParamDecl(i));
       }
 
       if (FT->isVariadic()) {
@@ -773,7 +761,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         Indentation += Policy.Indentation;
         for (unsigned i = 0, e = D->getNumParams(); i != e; ++i) {
           Indent();
-          ParamPrinter.VisitParmVarDecl(D->getParamDecl(i));
+          ParamPrinter.Visit(D->getParamDecl(i));
           Out << ";\n";
         }
         Indentation -= Policy.Indentation;

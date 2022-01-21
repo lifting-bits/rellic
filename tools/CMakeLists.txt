@@ -54,6 +54,7 @@ add_executable(${RELLIC_XREF}
   "xref/AsmWriter.cpp"
   "xref/DeclPrinter.cpp"
   "xref/StmtPrinter.cpp"
+  "xref/TypePrinter.cpp"
   "xref/Xref.cpp"
 )
 

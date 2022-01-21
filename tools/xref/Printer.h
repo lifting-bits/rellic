@@ -12,6 +12,7 @@
 #include <clang/AST/Decl.h>
 #include <clang/AST/PrettyPrinter.h>
 #include <clang/AST/Stmt.h>
+#include <clang/AST/Type.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_ostream.h>
 
@@ -22,7 +23,14 @@ void PrintDecl(clang::Decl* Decl,
                const rellic::DecompilationResult::StmtToIRMap& StmtProvenance,
                const clang::PrintingPolicy& Policy, int Indentation,
                llvm::raw_ostream& Out);
+void PrintDeclGroup(
+    clang::Decl** Begin,
+    const rellic::DecompilationResult::DeclToIRMap& DeclProvenance,
+    const rellic::DecompilationResult::StmtToIRMap& StmtProvenance,
+    unsigned NumDecls, llvm::raw_ostream& Out,
+    const clang::PrintingPolicy& Policy, unsigned Indentation);
 void PrintStmt(clang::Stmt* Stmt,
+               const rellic::DecompilationResult::DeclToIRMap& DeclProvenance,
                const rellic::DecompilationResult::StmtToIRMap& StmtProvenance,
                llvm::raw_ostream& Out, const clang::PrintingPolicy& Policy,
                int Indentation = 0, const clang::ASTContext* Context = nullptr,
@@ -34,3 +42,23 @@ void PrintModule(const llvm::Module* Module,
                  llvm::AssemblyAnnotationWriter* AAW = nullptr,
                  bool ShouldPreserveUseListOrder = false,
                  bool IsForDebug = false);
+void PrintType(clang::QualType Type,
+               const rellic::DecompilationResult::DeclToIRMap& DeclProvenance,
+               const rellic::DecompilationResult::StmtToIRMap& StmtProvenance,
+               llvm::raw_ostream& Out, const clang::PrintingPolicy& Policy,
+               const llvm::Twine& PlaceHolder = llvm::Twine(),
+               unsigned Indentation = 0);
+std::string GetQualTypeAsString(
+    clang::QualType Type, const clang::PrintingPolicy& Policy,
+    const rellic::DecompilationResult::DeclToIRMap& DeclProvenance,
+    const rellic::DecompilationResult::StmtToIRMap& StmtProvenance);
+std::string GetTypeAsString(
+    const clang::Type* Ty, const clang::PrintingPolicy& Policy,
+    const rellic::DecompilationResult::DeclToIRMap& DeclProvenance,
+    const rellic::DecompilationResult::StmtToIRMap& StmtProvenance);
+void PrintQualifiers(const clang::Qualifiers& Qualifiers, llvm::raw_ostream& OS,
+                     const clang::PrintingPolicy& Policy,
+                     bool appendSpaceIfNonEmpty = false);
+std::string GetQualifiersAsString(const clang::Qualifiers& Qualifiers);
+std::string GetQualifiersAsString(const clang::Qualifiers& Qualifiers,
+                                  const clang::PrintingPolicy& Policy);

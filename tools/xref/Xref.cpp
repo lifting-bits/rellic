@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
     auto value{result.TakeValue()};
     auto &context{value.ast->getASTContext()};
     if (FLAGS_standalone_html) {
-    output << R"html(<!DOCTYPE html>
+      output << R"html(<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -161,15 +161,31 @@ int main(int argc, char *argv[]) {
         overflow-x: auto;
         height: 95vh;
     }
+
+    .clang.keyword {
+        color: blue;
+    }
+
+    .clang.typename {
+        color: purple;
+    }
+
+    .clang.string-literal, .clang.character-literal {
+        color: maroon;
+    }
+
+    .clang.number {
+        color: darkcyan;
+    }
     </style>
 </head>
 <body>)html";
     }
-    output << "<pre>";
+    output << "<pre id=\"rellic-decompiled\">";
     PrintDecl(context.getTranslationUnitDecl(), value.decl_provenance_map,
               value.stmt_provenance_map, context.getPrintingPolicy(), 0,
               output);
-    output << "</pre><pre>";
+    output << "</pre><pre id=\"rellic-llvm-module\">";
     PrintModule(value.module.get(), value.value_to_decl_map,
                 value.value_to_stmt_map, output);
     output << "</pre>\n";

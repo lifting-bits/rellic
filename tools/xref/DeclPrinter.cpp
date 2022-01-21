@@ -197,11 +197,12 @@ static QualType getDeclType(Decl *D) {
   return QualType();
 }
 
-void printGroup(Decl **Begin,
-                const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-                const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-                unsigned NumDecls, raw_ostream &Out,
-                const PrintingPolicy &Policy, unsigned Indentation) {
+void PrintDeclGroup(
+    Decl **Begin,
+    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
+    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
+    unsigned NumDecls, raw_ostream &Out, const PrintingPolicy &Policy,
+    unsigned Indentation) {
   if (NumDecls == 1) {
     PrintDecl(*Begin, DeclProvenance, StmtProvenance, Policy, Indentation, Out);
     return;
@@ -245,7 +246,7 @@ void DeclPrinter::prettyPrintAttributes(Decl *D) {
       switch (A->getKind()) {
 #define ATTR(X)
 #define PRAGMA_SPELLING_ATTR(X) case attr::X:
-#include "clang/Basic/AttrList.inc"
+#include <clang/Basic/AttrList.inc>
         break;
         default:
           A->printPretty(Out, Policy);
@@ -264,7 +265,7 @@ void DeclPrinter::prettyPrintPragmas(Decl *D) {
       switch (A->getKind()) {
 #define ATTR(X)
 #define PRAGMA_SPELLING_ATTR(X) case attr::X:
-#include "clang/Basic/AttrList.inc"
+#include <clang/Basic/AttrList.inc>
         A->printPretty(Out, Policy);
         Indent();
         break;
@@ -283,13 +284,14 @@ void DeclPrinter::printDeclType(QualType T, StringRef DeclName, bool Pack) {
     Pack = true;
     T = PET->getPattern();
   }
-  T.print(Out, Policy, (Pack ? "..." : "") + DeclName, Indentation);
+  PrintType(T, DeclProvenance, StmtProvenance, Out, Policy,
+            (Pack ? "..." : "") + DeclName, Indentation);
 }
 
 void DeclPrinter::ProcessDeclGroup(SmallVectorImpl<Decl *> &Decls) {
   this->Indent();
-  printGroup(Decls.data(), DeclProvenance, StmtProvenance, Decls.size(), Out,
-             Policy, Indentation);
+  PrintDeclGroup(Decls.data(), DeclProvenance, StmtProvenance, Decls.size(),
+                 Out, Policy, Indentation);
   Out << ";\n";
   Decls.clear();
 }
@@ -318,7 +320,8 @@ void DeclPrinter::PrintConstructorInitializers(CXXConstructorDecl *CDecl,
       FieldDecl *FD = BMInitializer->getAnyMember();
       Out << *FD;
     } else {
-      Out << QualType(BMInitializer->getBaseClass(), 0).getAsString(Policy);
+      Out << GetQualTypeAsString(QualType(BMInitializer->getBaseClass(), 0),
+                                 Policy, DeclProvenance, StmtProvenance);
     }
 
     Out << "(";
@@ -345,14 +348,16 @@ void DeclPrinter::PrintConstructorInitializers(CXXConstructorDecl *CDecl,
         SimpleInit = Init;
 
       if (SimpleInit)
-        PrintStmt(SimpleInit, StmtProvenance, Out, Policy, Indentation);
+        PrintStmt(SimpleInit, DeclProvenance, StmtProvenance, Out, Policy,
+                  Indentation);
       else {
         for (unsigned I = 0; I != NumArgs; ++I) {
           assert(Args[I] != nullptr && "Expected non-null Expr");
           if (isa<CXXDefaultArgExpr>(Args[I])) break;
 
           if (I) Out << ", ";
-          PrintStmt(Args[I], StmtProvenance, Out, Policy, Indentation);
+          PrintStmt(Args[I], DeclProvenance, StmtProvenance, Out, Policy,
+                    Indentation);
         }
       }
     }
@@ -476,7 +481,8 @@ void DeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
     // Declare target attribute is special one, natural spelling for the pragma
     // assumes "ending" construct so print it here.
     if (D->hasAttr<OMPDeclareTargetDeclAttr>())
-      Out << "#pragma omp end declare target\n";
+      Out << "<span class=\"clang preprocessor\">#pragma</span> omp end "
+             "declare target\n";
   }
 
   if (!Decls.empty()) ProcessDeclGroup(Decls);
@@ -490,37 +496,45 @@ void DeclPrinter::VisitTranslationUnitDecl(TranslationUnitDecl *D) {
 
 void DeclPrinter::VisitTypedefDecl(TypedefDecl *D) {
   if (!Policy.SuppressSpecifiers) {
-    Out << "typedef ";
+    Out << "<span class=\"clang keyword\">typedef</span> ";
 
-    if (D->isModulePrivate()) Out << "__module_private__ ";
+    if (D->isModulePrivate())
+      Out << "<span class=\"clang keyword\">__module_private__</span> ";
   }
   QualType Ty = D->getTypeSourceInfo()->getType();
-  Ty.print(Out, Policy, D->getName(), Indentation);
+  PrintType(Ty, DeclProvenance, StmtProvenance, Out, Policy, D->getName(),
+            Indentation);
   prettyPrintAttributes(D);
 }
 
 void DeclPrinter::VisitTypeAliasDecl(TypeAliasDecl *D) {
-  Out << "using " << *D;
+  Out << "<span class=\"clang keyword\">using</span> " << *D;
   prettyPrintAttributes(D);
-  Out << " = " << D->getTypeSourceInfo()->getType().getAsString(Policy);
+  Out << " = "
+      << GetQualTypeAsString(D->getTypeSourceInfo()->getType(), Policy,
+                             DeclProvenance, StmtProvenance);
 }
 
 void DeclPrinter::VisitEnumDecl(EnumDecl *D) {
   if (!Policy.SuppressSpecifiers && D->isModulePrivate())
-    Out << "__module_private__ ";
-  Out << "enum";
+    Out << "<span class=\"clang keyword\">__module_private__</span> ";
+  Out << "<span class=\"clang keyword\">enum</span>";
   if (D->isScoped()) {
     if (D->isScopedUsingClassTag())
-      Out << " class";
+      Out << " <span class=\"clang keyword\">class</span>";
     else
-      Out << " struct";
+      Out << " <span class=\"clang keyword\">struct</span>";
   }
 
   prettyPrintAttributes(D);
 
-  if (D->getDeclName()) Out << ' ' << D->getDeclName();
+  if (D->getDeclName())
+    Out << " <span class=\"clang typename\">" << D->getDeclName() << "</span>";
 
-  if (D->isFixed()) Out << " : " << D->getIntegerType().stream(Policy);
+  if (D->isFixed()) {
+    Out << " : ";
+    PrintType(D->getIntegerType(), DeclProvenance, StmtProvenance, Out, Policy);
+  }
 
   if (D->isCompleteDefinition()) {
     Out << " {\n";
@@ -531,12 +545,13 @@ void DeclPrinter::VisitEnumDecl(EnumDecl *D) {
 
 void DeclPrinter::VisitRecordDecl(RecordDecl *D) {
   if (!Policy.SuppressSpecifiers && D->isModulePrivate())
-    Out << "__module_private__ ";
-  Out << D->getKindName();
+    Out << "<span class=\"clang keyword\">__module_private__</span> ";
+  Out << "<span class=\"clang keyword\">" << D->getKindName() << "</span>";
 
   prettyPrintAttributes(D);
 
-  if (D->getIdentifier()) Out << ' ' << *D;
+  if (D->getIdentifier())
+    Out << " <span class=\"clang typename\">" << *D << "</span>";
 
   if (D->isCompleteDefinition()) {
     Out << " {\n";
@@ -546,23 +561,26 @@ void DeclPrinter::VisitRecordDecl(RecordDecl *D) {
 }
 
 void DeclPrinter::VisitEnumConstantDecl(EnumConstantDecl *D) {
-  Out << *D;
+  Out << "<span class=\"clang enum-constant\">" << *D << "</span>";
   prettyPrintAttributes(D);
   if (Expr *Init = D->getInitExpr()) {
     Out << " = ";
-    PrintStmt(Init, StmtProvenance, Out, Policy, Indentation, &Context);
+    PrintStmt(Init, DeclProvenance, StmtProvenance, Out, Policy, Indentation,
+              &Context);
   }
 }
 
 static void printExplicitSpecifier(
     ExplicitSpecifier ES,
+    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
     const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
     llvm::raw_ostream &Out, PrintingPolicy &Policy, unsigned Indentation) {
-  std::string Proto = "explicit";
+  std::string Proto = "<span class=\"clang keyword\">explicit</span>";
   llvm::raw_string_ostream EOut(Proto);
   if (ES.getExpr()) {
     EOut << "(";
-    PrintStmt(ES.getExpr(), StmtProvenance, Out, Policy, Indentation);
+    PrintStmt(ES.getExpr(), DeclProvenance, StmtProvenance, Out, Policy,
+              Indentation);
     EOut << ")";
   }
   EOut << " ";
@@ -576,7 +594,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     prettyPrintPragmas(D);
 
   if (D->isFunctionTemplateSpecialization())
-    Out << "template&lt;&gt; ";
+    Out << "<span class=\"clang keyword\">template</span>&lt;&gt; ";
   else if (!D->getDescribedFunctionTemplate()) {
     for (unsigned I = 0, NumTemplateParams = D->getNumTemplateParameterLists();
          I < NumTemplateParams; ++I)
@@ -591,29 +609,33 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       case SC_None:
         break;
       case SC_Extern:
-        Out << "extern ";
+        Out << "<span class=\"clang keyword\">extern</span> ";
         break;
       case SC_Static:
-        Out << "static ";
+        Out << "<span class=\"clang keyword\">static</span> ";
         break;
       case SC_PrivateExtern:
-        Out << "__private_extern__ ";
+        Out << "<span class=\"clang keyword\">__private_extern__</span> ";
         break;
       case SC_Auto:
       case SC_Register:
         llvm_unreachable("invalid for functions");
     }
 
-    if (D->isInlineSpecified()) Out << "inline ";
-    if (D->isVirtualAsWritten()) Out << "virtual ";
-    if (D->isModulePrivate()) Out << "__module_private__ ";
+    if (D->isInlineSpecified())
+      Out << "<span class=\"clang keyword\">inline</span> ";
+    if (D->isVirtualAsWritten())
+      Out << "<span class=\"clang keyword\">virtual</span> ";
+    if (D->isModulePrivate())
+      Out << "<span class=\"clang keyword\">__module_private__</span> ";
     if (D->isConstexprSpecified() && !D->isExplicitlyDefaulted())
-      Out << "constexpr ";
-    if (D->isConsteval()) Out << "consteval ";
+      Out << "<span class=\"clang keyword\">constexpr</span> ";
+    if (D->isConsteval())
+      Out << "<span class=\"clang keyword\">consteval</span> ";
     ExplicitSpecifier ExplicitSpec = ExplicitSpecifier::getFromDecl(D);
     if (ExplicitSpec.isSpecified())
-      printExplicitSpecifier(ExplicitSpec, StmtProvenance, Out, Policy,
-                             Indentation);
+      printExplicitSpecifier(ExplicitSpec, DeclProvenance, StmtProvenance, Out,
+                             Policy, Indentation);
   }
 
   PrintingPolicy SubPolicy(Policy);
@@ -680,9 +702,11 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     Proto += ")";
 
     if (FT) {
-      if (FT->isConst()) Proto += " const";
-      if (FT->isVolatile()) Proto += " volatile";
-      if (FT->isRestrict()) Proto += " restrict";
+      if (FT->isConst()) Proto += " <span class=\"clang keyword\">const</span>";
+      if (FT->isVolatile())
+        Proto += " <span class=\"clang keyword\">volatile</span>";
+      if (FT->isRestrict())
+        Proto += " <span class=\"clang keyword\">restrict</span>";
 
       switch (FT->getRefQualifier()) {
         case RQ_None:
@@ -697,23 +721,24 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     }
 
     if (FT && FT->hasDynamicExceptionSpec()) {
-      Proto += " throw(";
+      Proto += " <span class=\"clang keyword\">throw</span>(";
       if (FT->getExceptionSpecType() == EST_MSAny)
         Proto += "...";
       else
         for (unsigned I = 0, N = FT->getNumExceptions(); I != N; ++I) {
           if (I) Proto += ", ";
 
-          Proto += FT->getExceptionType(I).getAsString(SubPolicy);
+          Proto += GetQualTypeAsString(FT->getExceptionType(I), SubPolicy,
+                                       DeclProvenance, StmtProvenance);
         }
       Proto += ")";
     } else if (FT && isNoexceptExceptionSpec(FT->getExceptionSpecType())) {
-      Proto += " noexcept";
+      Proto += " <span class=\"clang keyword\">noexcept</span>";
       if (isComputedNoexcept(FT->getExceptionSpecType())) {
         Proto += "(";
         llvm::raw_string_ostream EOut(Proto);
-        PrintStmt(FT->getNoexceptExpr(), StmtProvenance, EOut, SubPolicy,
-                  Indentation);
+        PrintStmt(FT->getNoexceptExpr(), DeclProvenance, StmtProvenance, EOut,
+                  SubPolicy, Indentation);
         EOut.flush();
         Proto += EOut.str();
         Proto += ")";
@@ -724,22 +749,23 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       if (!Policy.TerseOutput) PrintConstructorInitializers(CDecl, Proto);
     } else if (!ConversionDecl && !isa<CXXDestructorDecl>(D)) {
       if (FT && FT->hasTrailingReturn()) {
-        if (!GuideDecl) Out << "auto ";
+        if (!GuideDecl) Out << "<span class=\"clang keyword\">auto</span> ";
         Out << Proto << " -&gt; ";
         Proto.clear();
       }
-      AFT->getReturnType().print(Out, Policy, Proto);
+      PrintType(AFT->getReturnType(), DeclProvenance, StmtProvenance, Out,
+                Policy, Proto);
       Proto.clear();
     }
     Out << Proto;
 
     if (Expr *TrailingRequiresClause = D->getTrailingRequiresClause()) {
-      Out << " requires ";
-      PrintStmt(TrailingRequiresClause, StmtProvenance, Out, SubPolicy,
-                Indentation);
+      Out << " <span class=\"clang keyword\">requires</span> ";
+      PrintStmt(TrailingRequiresClause, DeclProvenance, StmtProvenance, Out,
+                SubPolicy, Indentation);
     }
   } else {
-    Ty.print(Out, Policy, Proto);
+    PrintType(Ty, DeclProvenance, StmtProvenance, Out, Policy, Proto);
   }
 
   prettyPrintAttributes(D);
@@ -747,9 +773,9 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   if (D->isPure())
     Out << " = 0";
   else if (D->isDeletedAsWritten())
-    Out << " = delete";
+    Out << " = <span class=\"clang keyword\">delete</span>";
   else if (D->isExplicitlyDefaulted())
-    Out << " = default";
+    Out << " = <span class=\"clang keyword\">default</span>";
   else if (D->doesThisDeclarationHaveABody()) {
     if (!Policy.TerseOutput) {
       if (!D->hasPrototype() && D->getNumParams()) {
@@ -769,7 +795,8 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         Out << ' ';
 
       if (D->getBody())
-        PrintStmt(D->getBody(), StmtProvenance, Out, SubPolicy, Indentation);
+        PrintStmt(D->getBody(), DeclProvenance, StmtProvenance, Out, SubPolicy,
+                  Indentation);
     } else {
       if (!Policy.TerseOutput && isa<CXXConstructorDecl>(*D)) Out << " {}";
     }
@@ -781,35 +808,39 @@ void DeclPrinter::VisitFriendDecl(FriendDecl *D) {
     unsigned NumTPLists = D->getFriendTypeNumTemplateParameterLists();
     for (unsigned i = 0; i < NumTPLists; ++i)
       printTemplateParameters(D->getFriendTypeTemplateParameterList(i));
-    Out << "friend ";
-    Out << " " << TSI->getType().getAsString(Policy);
+    Out << "<span class=\"clang keyword\">friend</span> ";
+    Out << " "
+        << GetQualTypeAsString(TSI->getType(), Policy, DeclProvenance,
+                               StmtProvenance);
   } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D->getFriendDecl())) {
-    Out << "friend ";
+    Out << "<span class=\"clang keyword\">friend</span> ";
     VisitFunctionDecl(FD);
   } else if (FunctionTemplateDecl *FTD =
                  dyn_cast<FunctionTemplateDecl>(D->getFriendDecl())) {
-    Out << "friend ";
+    Out << "<span class=\"clang keyword\">friend</span> ";
     VisitFunctionTemplateDecl(FTD);
   } else if (ClassTemplateDecl *CTD =
                  dyn_cast<ClassTemplateDecl>(D->getFriendDecl())) {
-    Out << "friend ";
+    Out << "<span class=\"clang keyword\">friend</span> ";
     VisitRedeclarableTemplateDecl(CTD);
   }
 }
 
 void DeclPrinter::VisitFieldDecl(FieldDecl *D) {
   // FIXME: add printing of pragma attributes if required.
-  if (!Policy.SuppressSpecifiers && D->isMutable()) Out << "mutable ";
+  if (!Policy.SuppressSpecifiers && D->isMutable())
+    Out << "<span class=\"clang keyword\">mutable</span> ";
   if (!Policy.SuppressSpecifiers && D->isModulePrivate())
-    Out << "__module_private__ ";
+    Out << "<span class=\"clang keyword\">__module_private__</span> ";
 
-  Out << D->getASTContext()
-             .getUnqualifiedObjCPointerType(D->getType())
-             .stream(Policy, D->getName(), Indentation);
+  PrintType(D->getASTContext().getUnqualifiedObjCPointerType(D->getType()),
+            DeclProvenance, StmtProvenance, Out, Policy, D->getName(),
+            Indentation);
 
   if (D->isBitField()) {
     Out << " : ";
-    PrintStmt(D->getBitWidth(), StmtProvenance, Out, Policy, Indentation);
+    PrintStmt(D->getBitWidth(), DeclProvenance, StmtProvenance, Out, Policy,
+              Indentation);
   }
 
   Expr *Init = D->getInClassInitializer();
@@ -818,7 +849,7 @@ void DeclPrinter::VisitFieldDecl(FieldDecl *D) {
       Out << " ";
     else
       Out << " = ";
-    PrintStmt(Init, StmtProvenance, Out, Policy, Indentation);
+    PrintStmt(Init, DeclProvenance, StmtProvenance, Out, Policy, Indentation);
   }
   prettyPrintAttributes(D);
 }
@@ -842,20 +873,21 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
       case TSCS_unspecified:
         break;
       case TSCS___thread:
-        Out << "__thread ";
+        Out << "<span class=\"clang keyword\">__thread</span> ";
         break;
       case TSCS__Thread_local:
-        Out << "_Thread_local ";
+        Out << "<span class=\"clang keyword\">_Thread_local</span> ";
         break;
       case TSCS_thread_local:
-        Out << "thread_local ";
+        Out << "<span class=\"clang keyword\">thread_local</span> ";
         break;
     }
 
-    if (D->isModulePrivate()) Out << "__module_private__ ";
+    if (D->isModulePrivate())
+      Out << "<span class=\"clang keyword\">__module_private__</span> ";
 
     if (D->isConstexpr()) {
-      Out << "constexpr ";
+      Out << "<span class=\"clang keyword\">constexpr</span> ";
       T.removeLocalConst();
     }
   }
@@ -881,7 +913,8 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
       PrintingPolicy SubPolicy(Policy);
       SubPolicy.SuppressSpecifiers = false;
       SubPolicy.IncludeTagDefinition = false;
-      PrintStmt(Init, StmtProvenance, Out, SubPolicy, Indentation);
+      PrintStmt(Init, DeclProvenance, StmtProvenance, Out, SubPolicy,
+                Indentation);
       if ((D->getInitStyle() == VarDecl::CallInit) && !isa<ParenListExpr>(Init))
         Out << ")";
     }
@@ -892,21 +925,24 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
 void DeclPrinter::VisitParmVarDecl(ParmVarDecl *D) { VisitVarDecl(D); }
 
 void DeclPrinter::VisitFileScopeAsmDecl(FileScopeAsmDecl *D) {
-  Out << "__asm (";
-  PrintStmt(D->getAsmString(), StmtProvenance, Out, Policy, Indentation);
+  Out << "<span class=\"clang keyword\">__asm</span> (";
+  PrintStmt(D->getAsmString(), DeclProvenance, StmtProvenance, Out, Policy,
+            Indentation);
   Out << ")";
 }
 
 void DeclPrinter::VisitImportDecl(ImportDecl *D) {
-  Out << "@import " << D->getImportedModule()->getFullModuleName() << ";\n";
+  Out << "<span class=\"clang keyword objective-c\">@import</span> "
+      << D->getImportedModule()->getFullModuleName() << ";\n";
 }
 
 void DeclPrinter::VisitStaticAssertDecl(StaticAssertDecl *D) {
-  Out << "static_assert(";
-  PrintStmt(D->getAssertExpr(), StmtProvenance, Out, Policy, Indentation);
+  Out << "<span class=\"clang keyword\">static_assert</span>(";
+  PrintStmt(D->getAssertExpr(), DeclProvenance, StmtProvenance, Out, Policy,
+            Indentation);
   if (StringLiteral *SL = D->getMessage()) {
     Out << ", ";
-    PrintStmt(SL, StmtProvenance, Out, Policy, Indentation);
+    PrintStmt(SL, DeclProvenance, StmtProvenance, Out, Policy, Indentation);
   }
   Out << ")";
 }
@@ -915,10 +951,11 @@ void DeclPrinter::VisitStaticAssertDecl(StaticAssertDecl *D) {
 // C++ declarations
 //----------------------------------------------------------------------------
 void DeclPrinter::VisitNamespaceDecl(NamespaceDecl *D) {
-  if (D->isInline()) Out << "inline ";
+  if (D->isInline()) Out << "<span class=\"clang keyword\">inline</span> ";
 
-  Out << "namespace ";
-  if (D->getDeclName()) Out << D->getDeclName() << ' ';
+  Out << "<span class=\"clang keyword\">namespace</span> ";
+  if (D->getDeclName())
+    Out << "<span class=\"clang namespace\">" << D->getDeclName() << "</span> ";
   Out << "{\n";
 
   VisitDeclContext(D);
@@ -926,13 +963,14 @@ void DeclPrinter::VisitNamespaceDecl(NamespaceDecl *D) {
 }
 
 void DeclPrinter::VisitUsingDirectiveDecl(UsingDirectiveDecl *D) {
-  Out << "using namespace ";
+  Out << "<span class=\"clang keyword\">using</span> <span class=\"clang "
+         "keyword\">namespace</span> ";
   if (D->getQualifier()) D->getQualifier()->print(Out, Policy);
   Out << *D->getNominatedNamespaceAsWritten();
 }
 
 void DeclPrinter::VisitNamespaceAliasDecl(NamespaceAliasDecl *D) {
-  Out << "namespace " << *D << " = ";
+  Out << "<span class=\"clang keyword\">namespace</span> " << *D << " = ";
   if (D->getQualifier()) D->getQualifier()->print(Out, Policy);
   Out << *D->getAliasedNamespace();
 }
@@ -942,8 +980,8 @@ void DeclPrinter::VisitEmptyDecl(EmptyDecl *D) { prettyPrintAttributes(D); }
 void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
   // FIXME: add printing of pragma attributes if required.
   if (!Policy.SuppressSpecifiers && D->isModulePrivate())
-    Out << "__module_private__ ";
-  Out << D->getKindName();
+    Out << "<span class=\"clang keyword\">__module_private__</span> ";
+  Out << "<span class=\"clang keyword\">" << D->getKindName() << "</span>";
 
   prettyPrintAttributes(D);
 
@@ -970,14 +1008,16 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
            Base != BaseEnd; ++Base) {
         if (Base != D->bases_begin()) Out << ", ";
 
-        if (Base->isVirtual()) Out << "virtual ";
+        if (Base->isVirtual())
+          Out << "<span class=\"clang keyword\">virtual</span> ";
 
         AccessSpecifier AS = Base->getAccessSpecifierAsWritten();
         if (AS != AS_none) {
           Print(AS);
           Out << " ";
         }
-        Out << Base->getType().getAsString(Policy);
+        Out << GetQualTypeAsString(Base->getType(), Policy, DeclProvenance,
+                                   StmtProvenance);
 
         if (Base->isPackExpansion()) Out << "...";
       }
@@ -1005,7 +1045,7 @@ void DeclPrinter::VisitLinkageSpecDecl(LinkageSpecDecl *D) {
     l = "C++";
   }
 
-  Out << "extern \"" << l << "\" ";
+  Out << "<span class=\"clang keyword\">extern</span> \"" << l << "\" ";
   if (D->hasBraces()) {
     Out << "{\n";
     VisitDeclContext(D);
@@ -1018,7 +1058,7 @@ void DeclPrinter::printTemplateParameters(const TemplateParameterList *Params,
                                           bool OmitTemplateKW) {
   assert(Params);
 
-  if (!OmitTemplateKW) Out << "template ";
+  if (!OmitTemplateKW) Out << "<span class=\"clang keyword\">template</span> ";
   Out << "&lt;";
 
   bool NeedComma = false;
@@ -1067,7 +1107,7 @@ void DeclPrinter::VisitTemplateDecl(const TemplateDecl *D) {
 
   if (const TemplateTemplateParmDecl *TTP =
           dyn_cast<TemplateTemplateParmDecl>(D)) {
-    Out << "class";
+    Out << "<span class=\"clang keyword\">class</span>";
 
     if (TTP->isParameterPack())
       Out << " ...";
@@ -1078,9 +1118,10 @@ void DeclPrinter::VisitTemplateDecl(const TemplateDecl *D) {
   } else if (auto *TD = D->getTemplatedDecl())
     Visit(TD);
   else if (const auto *Concept = dyn_cast<ConceptDecl>(D)) {
-    Out << "concept " << Concept->getName() << " = ";
-    PrintStmt(Concept->getConstraintExpr(), StmtProvenance, Out, Policy,
-              Indentation);
+    Out << "<span class=\"clang keyword\">concept</span> " << Concept->getName()
+        << " = ";
+    PrintStmt(Concept->getConstraintExpr(), DeclProvenance, StmtProvenance, Out,
+              Policy, Indentation);
     Out << ";";
   }
 }
@@ -1097,7 +1138,8 @@ void DeclPrinter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   // Declare target attribute is special one, natural spelling for the pragma
   // assumes "ending" construct so print it here.
   if (D->getTemplatedDecl()->hasAttr<OMPDeclareTargetDeclAttr>())
-    Out << "#pragma omp end declare target\n";
+    Out << "<span class=\"clang preprocessor\">#pragma</span> omp end declare "
+           "target\n";
 
   // Never print "instantiations" for deduction guides (they don't really
   // have them).
@@ -1131,7 +1173,7 @@ void DeclPrinter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
 
 void DeclPrinter::VisitClassTemplateSpecializationDecl(
     ClassTemplateSpecializationDecl *D) {
-  Out << "template&lt;&gt; ";
+  Out << "<span class=\"clang keyword\">template</span>&lt;&gt; ";
   VisitCXXRecordDecl(D);
 }
 
@@ -1149,18 +1191,25 @@ void DeclPrinter::PrintObjCMethodType(ASTContext &Ctx,
                                       Decl::ObjCDeclQualifier Quals,
                                       QualType T) {
   Out << '(';
-  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_In) Out << "in ";
-  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Inout) Out << "inout ";
-  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Out) Out << "out ";
-  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Bycopy) Out << "bycopy ";
-  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Byref) Out << "byref ";
-  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Oneway) Out << "oneway ";
+  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_In)
+    Out << "<span class=\"clang keyword\">in</span> ";
+  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Inout)
+    Out << "<span class=\"clang keyword\">inout</span> ";
+  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Out)
+    Out << "<span class=\"clang keyword\">out</span> ";
+  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Bycopy)
+    Out << "<span class=\"clang keyword\">bycopy</span> ";
+  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Byref)
+    Out << "<span class=\"clang keyword\">byref</span> ";
+  if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_Oneway)
+    Out << "<span class=\"clang keyword\">oneway</span> ";
   if (Quals & Decl::ObjCDeclQualifier::OBJC_TQ_CSNullability) {
     if (auto nullability = AttributedType::stripOuterNullability(T))
       Out << getNullabilitySpelling(*nullability, true) << ' ';
   }
 
-  Out << Ctx.getUnqualifiedObjCPointerType(T).getAsString(Policy);
+  Out << GetQualTypeAsString(Ctx.getUnqualifiedObjCPointerType(T), Policy,
+                             DeclProvenance, StmtProvenance);
   Out << ')';
 }
 
@@ -1179,18 +1228,20 @@ void DeclPrinter::PrintObjCTypeParams(ObjCTypeParamList *Params) {
         break;
 
       case ObjCTypeParamVariance::Covariant:
-        Out << "__covariant ";
+        Out << "<span class=\"clang keyword\">__covariant</span> ";
         break;
 
       case ObjCTypeParamVariance::Contravariant:
-        Out << "__contravariant ";
+        Out << "<span class=\"clang keyword\">__contravariant</span> ";
         break;
     }
 
     Out << Param->getDeclName();
 
     if (Param->hasExplicitBound()) {
-      Out << " : " << Param->getUnderlyingType().getAsString(Policy);
+      Out << " : "
+          << GetQualTypeAsString(Param->getUnderlyingType(), Policy,
+                                 DeclProvenance, StmtProvenance);
     }
   }
   Out << "&gt;";
@@ -1227,7 +1278,8 @@ void DeclPrinter::VisitObjCMethodDecl(ObjCMethodDecl *OMD) {
 
   if (OMD->getBody() && !Policy.TerseOutput) {
     Out << ' ';
-    PrintStmt(OMD->getBody(), StmtProvenance, Out, Policy, Indentation);
+    PrintStmt(OMD->getBody(), DeclProvenance, StmtProvenance, Out, Policy,
+              Indentation);
   } else if (Policy.PolishForDeclaration)
     Out << ';';
 }
@@ -1238,18 +1290,21 @@ void DeclPrinter::VisitObjCImplementationDecl(ObjCImplementationDecl *OID) {
 
   bool eolnOut = false;
   if (SID)
-    Out << "@implementation " << I << " : " << *SID;
+    Out << "<span class=\"clang keyword objective-c\">@implementation</span> "
+        << I << " : " << *SID;
   else
-    Out << "@implementation " << I;
+    Out << "<span class=\"clang keyword objective-c\">@implementation</span> "
+        << I;
 
   if (OID->ivar_size() > 0) {
     Out << "{\n";
     eolnOut = true;
     Indentation += Policy.Indentation;
     for (const auto *I : OID->ivars()) {
-      Indent() << I->getASTContext()
-                      .getUnqualifiedObjCPointerType(I->getType())
-                      .getAsString(Policy)
+      Indent() << GetQualTypeAsString(
+                      I->getASTContext().getUnqualifiedObjCPointerType(
+                          I->getType()),
+                      Policy, DeclProvenance, StmtProvenance)
                << ' ' << *I << ";\n";
     }
     Indentation -= Policy.Indentation;
@@ -1260,7 +1315,7 @@ void DeclPrinter::VisitObjCImplementationDecl(ObjCImplementationDecl *OID) {
   }
   VisitDeclContext(OID, false);
   if (!eolnOut) Out << "\n";
-  Out << "@end";
+  Out << "<span class=\"clang keyword objective-c\">@end</span>";
 }
 
 void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
@@ -1268,7 +1323,7 @@ void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
   ObjCInterfaceDecl *SID = OID->getSuperClass();
 
   if (!OID->isThisDeclarationADefinition()) {
-    Out << "@class " << I;
+    Out << "<span class=\"clang keyword objective-c\">@class</span> " << I;
 
     if (auto TypeParams = OID->getTypeParamListAsWritten()) {
       PrintObjCTypeParams(TypeParams);
@@ -1278,14 +1333,16 @@ void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
     return;
   }
   bool eolnOut = false;
-  Out << "@interface " << I;
+  Out << "<span class=\"clang keyword objective-c\">@interface</span> " << I;
 
   if (auto TypeParams = OID->getTypeParamListAsWritten()) {
     PrintObjCTypeParams(TypeParams);
   }
 
   if (SID)
-    Out << " : " << QualType(OID->getSuperClassType(), 0).getAsString(Policy);
+    Out << " : "
+        << GetQualTypeAsString(QualType(OID->getSuperClassType(), 0), Policy,
+                               DeclProvenance, StmtProvenance);
 
   // Protocols?
   const ObjCList<ObjCProtocolDecl> &Protocols = OID->getReferencedProtocols();
@@ -1302,9 +1359,10 @@ void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
     eolnOut = true;
     Indentation += Policy.Indentation;
     for (const auto *I : OID->ivars()) {
-      Indent() << I->getASTContext()
-                      .getUnqualifiedObjCPointerType(I->getType())
-                      .getAsString(Policy)
+      Indent() << GetQualTypeAsString(
+                      I->getASTContext().getUnqualifiedObjCPointerType(
+                          I->getType()),
+                      Policy, DeclProvenance, StmtProvenance)
                << ' ' << *I << ";\n";
     }
     Indentation -= Policy.Indentation;
@@ -1316,32 +1374,35 @@ void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
 
   VisitDeclContext(OID, false);
   if (!eolnOut) Out << "\n";
-  Out << "@end";
+  Out << "<span class=\"clang keyword objective-c\">@end</span>";
   // FIXME: implement the rest...
 }
 
 void DeclPrinter::VisitObjCProtocolDecl(ObjCProtocolDecl *PID) {
   if (!PID->isThisDeclarationADefinition()) {
-    Out << "@protocol " << *PID << ";\n";
+    Out << "<span class=\"clang keyword objective-c\">@protocol</span> " << *PID
+        << ";\n";
     return;
   }
   // Protocols?
   const ObjCList<ObjCProtocolDecl> &Protocols = PID->getReferencedProtocols();
   if (!Protocols.empty()) {
-    Out << "@protocol " << *PID;
+    Out << "<span class=\"clang keyword objective-c\">@protocol</span> "
+        << *PID;
     for (ObjCList<ObjCProtocolDecl>::iterator I = Protocols.begin(),
                                               E = Protocols.end();
          I != E; ++I)
       Out << (I == Protocols.begin() ? "&lt;" : ",") << **I;
     Out << "&gt;\n";
   } else
-    Out << "@protocol " << *PID << '\n';
+    Out << "<span class=\"clang keyword objective-c\">@protocol</span> " << *PID
+        << '\n';
   VisitDeclContext(PID, false);
-  Out << "@end";
+  Out << "<span class=\"clang keyword objective-c\">@end</span>";
 }
 
 void DeclPrinter::VisitObjCCategoryImplDecl(ObjCCategoryImplDecl *PID) {
-  Out << "@implementation ";
+  Out << "<span class=\"clang keyword objective-c\">@implementation</span> ";
   if (const auto *CID = PID->getClassInterface())
     Out << *CID;
   else
@@ -1349,7 +1410,7 @@ void DeclPrinter::VisitObjCCategoryImplDecl(ObjCCategoryImplDecl *PID) {
   Out << '(' << *PID << ")\n";
 
   VisitDeclContext(PID, false);
-  Out << "@end";
+  Out << "<span class=\"clang keyword objective-c\">@end</span>";
   // FIXME: implement the rest...
 }
 
@@ -1367,23 +1428,25 @@ void DeclPrinter::VisitObjCCategoryDecl(ObjCCategoryDecl *PID) {
     Out << "{\n";
     Indentation += Policy.Indentation;
     for (const auto *I : PID->ivars())
-      Indent() << I->getASTContext()
-                      .getUnqualifiedObjCPointerType(I->getType())
-                      .getAsString(Policy)
+      Indent() << GetQualTypeAsString(
+                      I->getASTContext().getUnqualifiedObjCPointerType(
+                          I->getType()),
+                      Policy, DeclProvenance, StmtProvenance)
                << ' ' << *I << ";\n";
     Indentation -= Policy.Indentation;
     Out << "}\n";
   }
 
   VisitDeclContext(PID, false);
-  Out << "@end";
+  Out << "<span class=\"clang keyword objective-c\">@end</span>";
 
   // FIXME: implement the rest...
 }
 
 void DeclPrinter::VisitObjCCompatibleAliasDecl(ObjCCompatibleAliasDecl *AID) {
-  Out << "@compatibility_alias " << *AID << ' ' << *AID->getClassInterface()
-      << ";\n";
+  Out << "<span class=\"clang keyword "
+         "objective-c\">@compatibility_alias</span> "
+      << *AID << ' ' << *AID->getClassInterface() << ";\n";
 }
 
 /// PrintObjCPropertyDecl - print a property declaration.
@@ -1397,80 +1460,92 @@ void DeclPrinter::VisitObjCCompatibleAliasDecl(ObjCCompatibleAliasDecl *AID) {
 /// - nullability
 void DeclPrinter::VisitObjCPropertyDecl(ObjCPropertyDecl *PDecl) {
   if (PDecl->getPropertyImplementation() == ObjCPropertyDecl::Required)
-    Out << "@required\n";
+    Out << "<span class=\"clang keyword objective-c\">@required</span>\n";
   else if (PDecl->getPropertyImplementation() == ObjCPropertyDecl::Optional)
-    Out << "@optional\n";
+    Out << "<span class=\"clang keyword objective-c\">@optional</span>\n";
 
   QualType T = PDecl->getType();
 
-  Out << "@property";
+  Out << "<span class=\"clang keyword objective-c\">@property</span>";
   if (PDecl->getPropertyAttributes() != ObjCPropertyAttribute::kind_noattr) {
     bool first = true;
     Out << "(";
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_class) {
-      Out << (first ? "" : ", ") << "class";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">class</span>";
       first = false;
     }
 
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_direct) {
-      Out << (first ? "" : ", ") << "direct";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">direct</span>";
       first = false;
     }
 
     if (PDecl->getPropertyAttributes() &
         ObjCPropertyAttribute::kind_nonatomic) {
-      Out << (first ? "" : ", ") << "nonatomic";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">nonatomic</span>";
       first = false;
     }
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_atomic) {
-      Out << (first ? "" : ", ") << "atomic";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">atomic</span>";
       first = false;
     }
 
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_assign) {
-      Out << (first ? "" : ", ") << "assign";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">assign</span>";
       first = false;
     }
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_retain) {
-      Out << (first ? "" : ", ") << "retain";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">retain</span>";
       first = false;
     }
 
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_strong) {
-      Out << (first ? "" : ", ") << "strong";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">strong</span>";
       first = false;
     }
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_copy) {
-      Out << (first ? "" : ", ") << "copy";
+      Out << (first ? "" : ", ") << "<span class=\"clang keyword\">copy</span>";
       first = false;
     }
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_weak) {
-      Out << (first ? "" : ", ") << "weak";
+      Out << (first ? "" : ", ") << "<span class=\"clang keyword\">weak</span>";
       first = false;
     }
     if (PDecl->getPropertyAttributes() &
         ObjCPropertyAttribute::kind_unsafe_unretained) {
-      Out << (first ? "" : ", ") << "unsafe_unretained";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">unsafe_unretained</span>";
       first = false;
     }
 
     if (PDecl->getPropertyAttributes() &
         ObjCPropertyAttribute::kind_readwrite) {
-      Out << (first ? "" : ", ") << "readwrite";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">readwrite</span>";
       first = false;
     }
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_readonly) {
-      Out << (first ? "" : ", ") << "readonly";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">readonly</span>";
       first = false;
     }
 
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_getter) {
-      Out << (first ? "" : ", ") << "getter = ";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">getter</span> = ";
       PDecl->getGetterName().print(Out);
       first = false;
     }
     if (PDecl->getPropertyAttributes() & ObjCPropertyAttribute::kind_setter) {
-      Out << (first ? "" : ", ") << "setter = ";
+      Out << (first ? "" : ", ")
+          << "<span class=\"clang keyword\">setter</span> = ";
       PDecl->getSetterName().print(Out);
       first = false;
     }
@@ -1481,7 +1556,8 @@ void DeclPrinter::VisitObjCPropertyDecl(ObjCPropertyDecl *PDecl) {
         if (*nullability == NullabilityKind::Unspecified &&
             (PDecl->getPropertyAttributes() &
              ObjCPropertyAttribute::kind_null_resettable)) {
-          Out << (first ? "" : ", ") << "null_resettable";
+          Out << (first ? "" : ", ")
+              << "<span class=\"clang keyword\">null_resettable</span>";
         } else {
           Out << (first ? "" : ", ")
               << getNullabilitySpelling(*nullability, true);
@@ -1493,9 +1569,9 @@ void DeclPrinter::VisitObjCPropertyDecl(ObjCPropertyDecl *PDecl) {
     (void)first;  // Silence dead store warning due to idiomatic code.
     Out << ")";
   }
-  std::string TypeStr =
-      PDecl->getASTContext().getUnqualifiedObjCPointerType(T).getAsString(
-          Policy);
+  std::string TypeStr = GetQualTypeAsString(
+      PDecl->getASTContext().getUnqualifiedObjCPointerType(T), Policy,
+      DeclProvenance, StmtProvenance);
   Out << ' ' << TypeStr;
   if (!StringRef(TypeStr).endswith("*")) Out << ' ';
   Out << *PDecl;
@@ -1504,16 +1580,17 @@ void DeclPrinter::VisitObjCPropertyDecl(ObjCPropertyDecl *PDecl) {
 
 void DeclPrinter::VisitObjCPropertyImplDecl(ObjCPropertyImplDecl *PID) {
   if (PID->getPropertyImplementation() == ObjCPropertyImplDecl::Synthesize)
-    Out << "@synthesize ";
+    Out << "<span class=\"clang keyword objective-c\">@synthesize</span> ";
   else
-    Out << "@dynamic ";
+    Out << "<span class=\"clang keyword objective-c\">@dynamic</span> ";
   Out << *PID->getPropertyDecl();
   if (PID->getPropertyIvarDecl()) Out << '=' << *PID->getPropertyIvarDecl();
 }
 
 void DeclPrinter::VisitUsingDecl(UsingDecl *D) {
-  if (!D->isAccessDeclaration()) Out << "using ";
-  if (D->hasTypename()) Out << "typename ";
+  if (!D->isAccessDeclaration())
+    Out << "<span class=\"clang keyword\">using</span> ";
+  if (D->hasTypename()) Out << "<span class=\"clang keyword\">typename</span> ";
   D->getQualifier()->print(Out, Policy);
 
   // Use the correct record name when the using declaration is used for
@@ -1531,13 +1608,15 @@ void DeclPrinter::VisitUsingDecl(UsingDecl *D) {
 
 void DeclPrinter::VisitUnresolvedUsingTypenameDecl(
     UnresolvedUsingTypenameDecl *D) {
-  Out << "using typename ";
+  Out << "<span class=\"clang keyword\">using</span> <span class=\"clang "
+         "keyword\">typename</span> ";
   D->getQualifier()->print(Out, Policy);
   Out << D->getDeclName();
 }
 
 void DeclPrinter::VisitUnresolvedUsingValueDecl(UnresolvedUsingValueDecl *D) {
-  if (!D->isAccessDeclaration()) Out << "using ";
+  if (!D->isAccessDeclaration())
+    Out << "<span class=\"clang keyword\">using</span> ";
   D->getQualifier()->print(Out, Policy);
   Out << D->getDeclName();
 }
@@ -1547,7 +1626,7 @@ void DeclPrinter::VisitUsingShadowDecl(UsingShadowDecl *D) {
 }
 
 void DeclPrinter::VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D) {
-  Out << "#pragma omp threadprivate";
+  Out << "<span class=\"clang preprocessor\">#pragma</span> omp threadprivate";
   if (!D->varlist_empty()) {
     for (OMPThreadPrivateDecl::varlist_iterator I = D->varlist_begin(),
                                                 E = D->varlist_end();
@@ -1561,7 +1640,7 @@ void DeclPrinter::VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D) {
 }
 
 void DeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
-  Out << "#pragma omp allocate";
+  Out << "<span class=\"clang preprocessor\">#pragma</span> omp allocate";
   if (!D->varlist_empty()) {
     for (OMPAllocateDecl::varlist_iterator I = D->varlist_begin(),
                                            E = D->varlist_end();
@@ -1580,7 +1659,7 @@ void DeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
 }
 
 void DeclPrinter::VisitOMPRequiresDecl(OMPRequiresDecl *D) {
-  Out << "#pragma omp requires ";
+  Out << "<span class=\"clang preprocessor\">#pragma</span> omp requires ";
   if (!D->clauselist_empty()) {
     OMPClausePrinter Printer(Out, Policy);
     for (auto I = D->clauselist_begin(), E = D->clauselist_end(); I != E; ++I)
@@ -1590,7 +1669,8 @@ void DeclPrinter::VisitOMPRequiresDecl(OMPRequiresDecl *D) {
 
 void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
   if (!D->isInvalidDecl()) {
-    Out << "#pragma omp declare reduction (";
+    Out << "<span class=\"clang preprocessor\">#pragma</span> omp declare "
+           "reduction (";
     if (D->getDeclName().getNameKind() == DeclarationName::CXXOperatorName) {
       const char *OpName =
           getOperatorSpelling(D->getDeclName().getCXXOverloadedOperator());
@@ -1601,9 +1681,9 @@ void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
       D->printName(Out);
     }
     Out << " : ";
-    D->getType().print(Out, Policy);
+    PrintType(D->getType(), DeclProvenance, StmtProvenance, Out, Policy);
     Out << " : ";
-    PrintStmt(D->getCombiner(), StmtProvenance, Out, Policy, 0);
+    PrintStmt(D->getCombiner(), DeclProvenance, StmtProvenance, Out, Policy, 0);
     Out << ")";
     if (auto *Init = D->getInitializer()) {
       Out << " initializer(";
@@ -1617,7 +1697,7 @@ void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
         case OMPDeclareReductionDecl::CallInit:
           break;
       }
-      PrintStmt(Init, StmtProvenance, Out, Policy, 0);
+      PrintStmt(Init, DeclProvenance, StmtProvenance, Out, Policy, 0);
       if (D->getInitializerKind() == OMPDeclareReductionDecl::DirectInit)
         Out << ")";
       Out << ")";
@@ -1627,10 +1707,11 @@ void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
 
 void DeclPrinter::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
   if (!D->isInvalidDecl()) {
-    Out << "#pragma omp declare mapper (";
+    Out << "<span class=\"clang preprocessor\">#pragma</span> omp declare "
+           "mapper (";
     D->printName(Out);
     Out << " : ";
-    D->getType().print(Out, Policy);
+    PrintType(D->getType(), DeclProvenance, StmtProvenance, Out, Policy);
     Out << " ";
     Out << D->getVarName();
     Out << ")";
@@ -1645,16 +1726,17 @@ void DeclPrinter::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
 }
 
 void DeclPrinter::VisitOMPCapturedExprDecl(OMPCapturedExprDecl *D) {
-  PrintStmt(D->getInit(), StmtProvenance, Out, Policy, Indentation);
+  PrintStmt(D->getInit(), DeclProvenance, StmtProvenance, Out, Policy,
+            Indentation);
 }
 
 void DeclPrinter::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *TTP) {
   if (const TypeConstraint *TC = TTP->getTypeConstraint())
     TC->print(Out, Policy);
   else if (TTP->wasDeclaredWithTypename())
-    Out << "typename";
+    Out << "<span class=\"clang keyword\">typename</span>";
   else
-    Out << "class";
+    Out << "<span class=\"clang keyword\">class</span>";
 
   if (TTP->isParameterPack())
     Out << " ...";
@@ -1665,7 +1747,8 @@ void DeclPrinter::VisitTemplateTypeParmDecl(const TemplateTypeParmDecl *TTP) {
 
   if (TTP->hasDefaultArgument()) {
     Out << " = ";
-    Out << TTP->getDefaultArgument().getAsString(Policy);
+    Out << GetQualTypeAsString(TTP->getDefaultArgument(), Policy,
+                               DeclProvenance, StmtProvenance);
   }
 }
 
@@ -1677,7 +1760,7 @@ void DeclPrinter::VisitNonTypeTemplateParmDecl(
 
   if (NTTP->hasDefaultArgument()) {
     Out << " = ";
-    PrintStmt(NTTP->getDefaultArgument(), StmtProvenance, Out, Policy,
-              Indentation);
+    PrintStmt(NTTP->getDefaultArgument(), DeclProvenance, StmtProvenance, Out,
+              Policy, Indentation);
   }
 }

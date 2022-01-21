@@ -688,10 +688,10 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         case RQ_None:
           break;
         case RQ_LValue:
-          Proto += " &";
+          Proto += " &amp;";
           break;
         case RQ_RValue:
-          Proto += " &&";
+          Proto += " &amp;&amp;";
           break;
       }
     }

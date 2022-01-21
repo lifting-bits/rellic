@@ -21,6 +21,13 @@
 #include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/BC/Util.h"
 
+static std::string MakeValid(std::string name, unsigned id) {
+  if (name == "") {
+    name = "anon";
+  }
+  return name + "_" + std::to_string(id);
+}
+
 namespace rellic {
 clang::QualType StructGenerator::BuildType(llvm::DIType* t, int sizeHint) {
   VLOG(2) << "BuildType: " << rellic::LLVMThingToString(t);
@@ -159,7 +166,7 @@ void StructGenerator::DefineNonPackedStruct(
   for (auto& field : fields) {
     auto type{
         BuildType(field.type->getBaseType(), field.type->getSizeInBits())};
-    auto name{field.type->getName().str() + std::to_string(field_count++)};
+    auto name{MakeValid(field.type->getName().str(), field_count++)};
     clang::FieldDecl* fdecl;
     if (field.type->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
       fdecl = ast.CreateFieldDecl(decl, type, name);
@@ -229,12 +236,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
       decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, info));
     }
 
-    std::string name{elem.type->getName().str()};
-    if (name == "") {
-      name = "anon";
-    }
-    name = name + "_" + std::to_string(field_count++);
-
+    std::string name{MakeValid(elem.type->getName().str(), field_count++)};
     auto type{BuildType(elem.type->getBaseType(), elem.type->getSizeInBits())};
     CHECK(!type.isNull());
     FieldInfo field{};
@@ -355,9 +357,9 @@ clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
       auto& tdef_decl{typedef_decls[d]};
       if (!tdef_decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
+        auto name{MakeValid(d->getName().str(), decl_count++)};
         tdef_decl = ast.CreateTypedefDecl(
-            tudecl, d->getName().str() + "_" + std::to_string(decl_count++),
-            BuildType(d->getBaseType(), sizeHint));
+            tudecl, name, BuildType(d->getBaseType(), sizeHint));
         tudecl->addDecl(tdef_decl);
       }
       return ast_ctx.getTypedefType(tdef_decl);
@@ -466,12 +468,7 @@ clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
     auto i{0U};
     for (auto elem : t->getElements()) {
       if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-        auto elem_name{enumerator->getName().str()};
-        if (elem_name == "") {
-          elem_name = "anon";
-        }
-        elem_name += "_" + std::to_string(i++);
-
+        auto elem_name{MakeValid(enumerator->getName().str(), i++)};
         auto cdecl{ast.CreateEnumConstantDecl(
             decl, elem_name, ast.CreateIntLit(enumerator->getValue()))};
         decl->addDecl(cdecl);
@@ -489,11 +486,7 @@ clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
     auto i{0U};
     for (auto elem : t->getElements()) {
       if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-        auto elem_name{enumerator->getName().str()};
-        if (elem_name == "") {
-          elem_name = "anon";
-        }
-        elem_name += "_" + std::to_string(i++);
+        auto elem_name{MakeValid(enumerator->getName().str(), i++)};
         auto vdecl{
             ast.CreateVarDecl(tudecl, type, elem_name, clang::SC_Static)};
         vdecl->setInit(ast.CreateIntLit(enumerator->getValue()));
@@ -524,11 +517,7 @@ clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
 }
 
 std::string StructGenerator::GetUniqueName(llvm::DICompositeType* t) {
-  std::string name{t->getName().str()};
-  if (name == "") {
-    name = "anon";
-  }
-  name += "_" + std::to_string(decl_count++);
+  std::string name{MakeValid(t->getName().str(), decl_count++)};
   return name;
 }
 

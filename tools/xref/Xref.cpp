@@ -32,6 +32,8 @@ DEFINE_bool(remove_phi_nodes, false,
 DEFINE_bool(lower_switch, false,
             "Remove SwitchInst by lowering them to branches.");
 DEFINE_bool(output_http, false, "Outputs HTTP headers (useful for CGI)");
+DEFINE_bool(standalone_html, true,
+            "Whether to output a full HTML page or only content");
 
 DECLARE_bool(version);
 
@@ -134,6 +136,7 @@ int main(int argc, char *argv[]) {
 
     auto value{result.TakeValue()};
     auto &context{value.ast->getASTContext()};
+    if (FLAGS_standalone_html) {
     output << R"html(<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -160,16 +163,17 @@ int main(int argc, char *argv[]) {
     }
     </style>
 </head>
-<body>
-<pre>)html";
+<body>)html";
+    }
+    output << "<pre>";
     PrintDecl(context.getTranslationUnitDecl(), value.decl_provenance_map,
               value.stmt_provenance_map, context.getPrintingPolicy(), 0,
               output);
-    output << "</pre><br><pre>";
+    output << "</pre><pre>";
     PrintModule(value.module.get(), value.value_to_decl_map,
                 value.value_to_stmt_map, output);
-    output << R"html(</pre>
-<script>
+    output << "</pre>\n";
+    output << R"html(<script>
     const spans = document.querySelectorAll('[data-provenance]')
 
     for (let span of spans) {

@@ -149,6 +149,13 @@ void DeclPrinter::Visit(Decl *D) {
       Out.write_hex((unsigned long long)provenance->second);
       Out << '"';
     }
+  } else if (auto type = dyn_cast<TypeDecl>(D)) {
+    auto provenance{TypeProvenance.find(type)};
+    if (provenance != TypeProvenance.end()) {
+      Out << " data-provenance=\"";
+      Out.write_hex((unsigned long long)provenance->second);
+      Out << '"';
+    }
   }
 
   Out << '>';

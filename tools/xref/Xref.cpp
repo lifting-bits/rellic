@@ -155,6 +155,10 @@ int main(int argc, char *argv[]) {
         background-color: rgba(0, 0, 0, 0.1);
     }
 
+    .hover-sameaddr {
+        text-decoration: underline green wavy;
+    }
+
     body {
         display: flex;
         flex-wrap: wrap;
@@ -197,24 +201,34 @@ int main(int argc, char *argv[]) {
                 value.value_to_stmt_map, value.type_to_decl_map, output);
     output << "</pre>\n";
     output << R"html(<script>
-    const spans = document.querySelectorAll('[data-provenance]')
+    const spans = document.querySelectorAll('[data-provenance],[data-addr]')
 
     for (let span of spans) {
         span.addEventListener('mouseover', e => {
             e.stopImmediatePropagation()
             span.classList.add('hover')
             const provenanceAddr = span.dataset.provenance
+            const addr = span.dataset.addr
             const provenanceSpans = document.querySelectorAll(`[data-addr='${provenanceAddr}']`)
             for (let prov of provenanceSpans) {
                 prov.classList.add('hover')
+            }
+
+            const addrSpans = document.querySelectorAll(`[data-addr='${addr}']`)
+            if(addrSpans.length > 1) {
+                for (let a of addrSpans) {
+                    a.classList.add('hover-sameaddr')
+                }
             }
         })
         span.addEventListener('mouseleave', e => {
             span.classList.remove('hover')
             const provenanceAddr = span.dataset.provenance
-            const provenanceSpans = document.querySelectorAll(`[data-addr='${provenanceAddr}']`)
+            const addr = span.dataset.addr
+            const provenanceSpans = document.querySelectorAll(`[data-addr='${provenanceAddr}'],[data-addr='${addr}']`)
             for (let prov of provenanceSpans) {
                 prov.classList.remove('hover')
+                prov.classList.remove('hover-sameaddr')
             }
         })
     }

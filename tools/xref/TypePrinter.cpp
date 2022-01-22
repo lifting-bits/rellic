@@ -1241,6 +1241,17 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
     return;
   }
 
+  OS << "<span class=\"clang type\" data-addr=\"";
+  OS.write_hex((unsigned long long)D);
+  OS << '"';
+  auto provenance{TypeProvenance.find(D)};
+  if (provenance != TypeProvenance.end()) {
+    OS << " data-provenance=\"";
+    OS.write_hex((unsigned long long)provenance->second);
+    OS << '"';
+  }
+  OS << '>';
+
   bool HasKindDecoration = false;
 
   // We don't print tags unless this is an elaborated type.
@@ -1316,6 +1327,7 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
         OS, Args, Policy,
         Spec->getSpecializedTemplate()->getTemplateParameters());
   }
+  OS << "</span>";
 
   spaceBeforePlaceHolder(OS);
 }

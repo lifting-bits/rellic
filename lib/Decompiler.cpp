@@ -251,6 +251,8 @@ Result<DecompilationResult, DecompilationError> Decompile(
             result.value_to_stmt_map);
     CopyMap(gr->GetIRToValDeclMap(), result.value_to_decl_map,
             result.decl_provenance_map);
+    CopyMap(gr->GetIRToTypeDeclMap(), result.type_to_decl_map,
+            result.type_provenance_map);
 
     return Result<DecompilationResult, DecompilationError>(std::move(result));
   } catch (Exception& ex) {

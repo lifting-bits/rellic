@@ -28,10 +28,14 @@ struct DecompilationResult {
       std::unordered_map<const clang::Stmt*, const llvm::Value*>;
   using DeclToIRMap =
       std::unordered_map<const clang::ValueDecl*, const llvm::Value*>;
+  using TypeDeclToIRMap =
+      std::unordered_map<const clang::TypeDecl*, const llvm::Type*>;
   using IRToStmtMap =
       std::unordered_map<const llvm::Value*, const clang::Stmt*>;
   using IRToDeclMap =
       std::unordered_map<const llvm::Value*, const clang::ValueDecl*>;
+  using IRToTypeDeclMap =
+      std::unordered_map<const llvm::Type*, const clang::TypeDecl*>;
 
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<clang::ASTUnit> ast;
@@ -39,6 +43,8 @@ struct DecompilationResult {
   IRToStmtMap value_to_stmt_map;
   DeclToIRMap decl_provenance_map;
   IRToDeclMap value_to_decl_map;
+  TypeDeclToIRMap type_provenance_map;
+  IRToTypeDeclMap type_to_decl_map;
 };
 
 struct DecompilationError {

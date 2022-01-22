@@ -183,11 +183,11 @@ int main(int argc, char *argv[]) {
     }
     output << "<pre id=\"rellic-decompiled\">";
     PrintDecl(context.getTranslationUnitDecl(), value.decl_provenance_map,
-              value.stmt_provenance_map, context.getPrintingPolicy(), 0,
-              output);
+              value.stmt_provenance_map, value.type_provenance_map,
+              context.getPrintingPolicy(), 0, output);
     output << "</pre><pre id=\"rellic-llvm-module\">";
     PrintModule(value.module.get(), value.value_to_decl_map,
-                value.value_to_stmt_map, output);
+                value.value_to_stmt_map, value.type_to_decl_map, output);
     output << "</pre>\n";
     output << R"html(<script>
     const spans = document.querySelectorAll('[data-provenance]')

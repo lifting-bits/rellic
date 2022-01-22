@@ -568,7 +568,10 @@ namespace {
 
 class TypePrinting {
  public:
-  TypePrinting(const Module *M = nullptr) : DeferredM(M) {}
+  TypePrinting(
+      const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance,
+      const Module *M = nullptr)
+      : DeferredM(M), TypeProvenance(TypeProvenance) {}
 
   TypePrinting(const TypePrinting &) = delete;
   TypePrinting &operator=(const TypePrinting &) = delete;
@@ -597,6 +600,7 @@ class TypePrinting {
   DenseMap<StructType *, unsigned> Type2Number;
 
   std::vector<StructType *> NumberedTypes;
+  const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance;
 };
 
 }  // end anonymous namespace
@@ -657,49 +661,59 @@ void TypePrinting::incorporateTypes() {
 /// Write the specified type to the specified raw_ostream, making use of type
 /// names or up references to shorten the type name where possible.
 void TypePrinting::print(Type *Ty, raw_ostream &OS) {
+  OS << "<span class=\"type\" data-addr=\"";
+  OS.write_hex((unsigned long long)Ty);
+  OS << '"';
+  auto provenance{TypeProvenance.find(Ty)};
+  if (provenance != TypeProvenance.end()) {
+    OS << " data-provenance=\"";
+    OS.write_hex((unsigned long long)provenance->second);
+    OS << '"';
+  }
+  OS << '>';
   switch (Ty->getTypeID()) {
     case Type::VoidTyID:
       OS << "void";
-      return;
+      break;
     case Type::HalfTyID:
       OS << "half";
-      return;
+      break;
     case Type::BFloatTyID:
       OS << "bfloat";
-      return;
+      break;
     case Type::FloatTyID:
       OS << "float";
-      return;
+      break;
     case Type::DoubleTyID:
       OS << "double";
-      return;
+      break;
     case Type::X86_FP80TyID:
       OS << "x86_fp80";
-      return;
+      break;
     case Type::FP128TyID:
       OS << "fp128";
-      return;
+      break;
     case Type::PPC_FP128TyID:
       OS << "ppc_fp128";
-      return;
+      break;
     case Type::LabelTyID:
       OS << "label";
-      return;
+      break;
     case Type::MetadataTyID:
       OS << "metadata";
-      return;
+      break;
     case Type::X86_MMXTyID:
       OS << "x86_mmx";
-      return;
+      break;
     case Type::X86_AMXTyID:
       OS << "x86_amx";
-      return;
+      break;
     case Type::TokenTyID:
       OS << "token";
-      return;
+      break;
     case Type::IntegerTyID:
       OS << 'i' << cast<IntegerType>(Ty)->getBitWidth();
-      return;
+      break;
 
     case Type::FunctionTyID: {
       FunctionType *FTy = cast<FunctionType>(Ty);
@@ -716,15 +730,20 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
         OS << "...";
       }
       OS << ')';
-      return;
+      break;
     }
     case Type::StructTyID: {
       StructType *STy = cast<StructType>(Ty);
 
-      if (STy->isLiteral()) return printStructBody(STy, OS);
+      if (STy->isLiteral()) {
+        printStructBody(STy, OS);
+        break;
+      }
 
-      if (!STy->getName().empty())
-        return PrintLLVMName(OS, STy->getName(), LocalPrefix);
+      if (!STy->getName().empty()) {
+        PrintLLVMName(OS, STy->getName(), LocalPrefix);
+        break;
+      }
 
       incorporateTypes();
       const auto I = Type2Number.find(STy);
@@ -732,7 +751,7 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
         OS << '%' << I->second;
       else  // Not enumerated, print the hex address.
         OS << "%\"type " << STy << '\"';
-      return;
+      break;
     }
     case Type::PointerTyID: {
       PointerType *PTy = cast<PointerType>(Ty);
@@ -740,14 +759,14 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
       if (unsigned AddressSpace = PTy->getAddressSpace())
         OS << " addrspace(" << AddressSpace << ')';
       OS << '*';
-      return;
+      break;
     }
     case Type::ArrayTyID: {
       ArrayType *ATy = cast<ArrayType>(Ty);
       OS << '[' << ATy->getNumElements() << " x ";
       print(ATy->getElementType(), OS);
       OS << ']';
-      return;
+      break;
     }
     case Type::FixedVectorTyID:
     case Type::ScalableVectorTyID: {
@@ -758,10 +777,13 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
       OS << EC.getKnownMinValue() << " x ";
       print(PTy->getElementType(), OS);
       OS << "&gt;";
-      return;
+      break;
     }
+    default:
+      llvm_unreachable("Invalid TypeID");
+      break;
   }
-  llvm_unreachable("Invalid TypeID");
+  OS << "</span>";
 }
 
 void TypePrinting::printStructBody(StructType *STy, raw_ostream &OS) {
@@ -2228,21 +2250,24 @@ class AssemblyWriter {
   DenseMap<const GlobalValueSummary *, GlobalValue::GUID> SummaryToGUIDMap;
   const rellic::DecompilationResult::IRToDeclMap &DeclProvenance;
   const rellic::DecompilationResult::IRToStmtMap &StmtProvenance;
+  const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance;
 
  public:
   /// Construct an AssemblyWriter with an external SlotTracker
-  AssemblyWriter(formatted_raw_ostream &o,
-                 const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
-                 const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
-                 SlotTracker &Mac, const Module *M,
-                 AssemblyAnnotationWriter *AAW, bool IsForDebug,
-                 bool ShouldPreserveUseListOrder = false);
+  AssemblyWriter(
+      formatted_raw_ostream &o,
+      const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
+      const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
+      const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance,
+      SlotTracker &Mac, const Module *M, AssemblyAnnotationWriter *AAW,
+      bool IsForDebug, bool ShouldPreserveUseListOrder = false);
 
-  AssemblyWriter(formatted_raw_ostream &o,
-                 const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
-                 const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
-                 SlotTracker &Mac, const ModuleSummaryIndex *Index,
-                 bool IsForDebug);
+  AssemblyWriter(
+      formatted_raw_ostream &o,
+      const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
+      const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
+      const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance,
+      SlotTracker &Mac, const ModuleSummaryIndex *Index, bool IsForDebug);
 
   void printMDNodeBody(const MDNode *MD);
   void printNamedMDNode(const NamedMDNode *NMD);
@@ -2318,17 +2343,19 @@ AssemblyWriter::AssemblyWriter(
     formatted_raw_ostream &o,
     const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
     const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
+    const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance,
     SlotTracker &Mac, const Module *M, AssemblyAnnotationWriter *AAW,
     bool IsForDebug, bool ShouldPreserveUseListOrder)
     : Out(o),
       TheModule(M),
       Machine(Mac),
-      TypePrinter(M),
+      TypePrinter(TypeProvenance, M),
       AnnotationWriter(AAW),
       IsForDebug(IsForDebug),
       ShouldPreserveUseListOrder(ShouldPreserveUseListOrder),
       DeclProvenance(DeclProvenance),
-      StmtProvenance(StmtProvenance) {
+      StmtProvenance(StmtProvenance),
+      TypeProvenance(TypeProvenance) {
   if (!TheModule) return;
   for (const GlobalObject &GO : TheModule->global_objects())
     if (const Comdat *C = GO.getComdat()) Comdats.insert(C);
@@ -2338,15 +2365,17 @@ AssemblyWriter::AssemblyWriter(
     formatted_raw_ostream &o,
     const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
     const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
+    const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance,
     SlotTracker &Mac, const ModuleSummaryIndex *Index, bool IsForDebug)
     : Out(o),
       TheIndex(Index),
       Machine(Mac),
-      TypePrinter(/*Module=*/nullptr),
+      TypePrinter(TypeProvenance, /*Module=*/nullptr),
       IsForDebug(IsForDebug),
       ShouldPreserveUseListOrder(false),
       DeclProvenance(DeclProvenance),
-      StmtProvenance(StmtProvenance) {}
+      StmtProvenance(StmtProvenance),
+      TypeProvenance(TypeProvenance) {}
 
 void AssemblyWriter::writeOperand(const Value *Operand, bool PrintType) {
   Out << "<span class=\"operand\" data-addr=\"";
@@ -3303,23 +3332,46 @@ void AssemblyWriter::printTypeIdentities() {
   // Emit all numbered types.
   auto &NumberedTypes = TypePrinter.getNumberedTypes();
   for (unsigned I = 0, E = NumberedTypes.size(); I != E; ++I) {
+    auto type{NumberedTypes[I]};
+    Out << "<span class=\"type\" data-addr=\"";
+    Out.write_hex((unsigned long long)type);
+    Out << '"';
+    auto provenance{TypeProvenance.find(type)};
+    if (provenance != TypeProvenance.end()) {
+      Out << " data-provenance=\"";
+      Out.write_hex((unsigned long long)provenance->second);
+      Out << '"';
+    }
+    Out << '>';
+
     Out << '%' << I << " = type ";
 
     // Make sure we print out at least one level of the type structure, so
     // that we do not get %2 = type %2
-    TypePrinter.printStructBody(NumberedTypes[I], Out);
-    Out << '\n';
+    TypePrinter.printStructBody(type, Out);
+    Out << "</span>\n";
   }
 
   auto &NamedTypes = TypePrinter.getNamedTypes();
   for (unsigned I = 0, E = NamedTypes.size(); I != E; ++I) {
-    PrintLLVMName(Out, NamedTypes[I]->getName(), LocalPrefix);
+    auto type{NamedTypes[I]};
+    Out << "<span class=\"type\" data-addr=\"";
+    Out.write_hex((unsigned long long)type);
+    Out << '"';
+    auto provenance{TypeProvenance.find(type)};
+    if (provenance != TypeProvenance.end()) {
+      Out << " data-provenance=\"";
+      Out.write_hex((unsigned long long)provenance->second);
+      Out << '"';
+    }
+    Out << '>';
+    PrintLLVMName(Out, type->getName(), LocalPrefix);
     Out << " = type ";
 
     // Make sure we print out at least one level of the type structure, so
     // that we do not get %FILE = type %FILE
-    TypePrinter.printStructBody(NamedTypes[I], Out);
-    Out << '\n';
+    TypePrinter.printStructBody(type, Out);
+    Out << "</span>\n";
   }
 }
 
@@ -4151,15 +4203,17 @@ void AssemblyWriter::printUseLists(const Function *F) {
   }
 }
 
-void PrintModule(const Module *Mod,
-                 const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
-                 const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
-                 raw_ostream &ROS, AssemblyAnnotationWriter *AAW,
-                 bool ShouldPreserveUseListOrder, bool IsForDebug) {
+void PrintModule(
+    const Module *Mod,
+    const rellic::DecompilationResult::IRToDeclMap &DeclProvenance,
+    const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
+    const rellic::DecompilationResult::IRToTypeDeclMap &TypeProvenance,
+    raw_ostream &ROS, AssemblyAnnotationWriter *AAW,
+    bool ShouldPreserveUseListOrder, bool IsForDebug) {
   SlotTracker SlotTable(Mod);
   formatted_raw_ostream OS(ROS);
-  AssemblyWriter W(OS, DeclProvenance, StmtProvenance, SlotTable, Mod, AAW,
-                   IsForDebug, ShouldPreserveUseListOrder);
+  AssemblyWriter W(OS, DeclProvenance, StmtProvenance, TypeProvenance,
+                   SlotTable, Mod, AAW, IsForDebug, ShouldPreserveUseListOrder);
   W.printModule(Mod);
 }
 

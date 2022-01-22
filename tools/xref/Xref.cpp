@@ -137,12 +137,19 @@ int main(int argc, char *argv[]) {
     auto value{result.TakeValue()};
     auto &context{value.ast->getASTContext()};
     if (FLAGS_standalone_html) {
+      auto vs = rellic::Version::GetVersionString();
+      if (0 == vs.size()) {
+        vs = rellic::Version::GetCommitHash();
+      }
+
       output << R"html(<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rellic-xref )html"
+             << vs << R"html(">
     <style>
     .hover {
         background-color: rgba(0, 0, 0, 0.1);

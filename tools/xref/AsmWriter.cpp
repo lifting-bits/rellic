@@ -512,6 +512,7 @@ enum PrefixType {
 /// (if the string only contains simple characters) or is surrounded with ""'s
 /// (if it has special chars in it). Print it out.
 static void PrintLLVMName(raw_ostream &OS, StringRef Name, PrefixType Prefix) {
+  OS << "<span class=\"llvm name\">";
   switch (Prefix) {
     case NoPrefix:
       break;
@@ -528,6 +529,7 @@ static void PrintLLVMName(raw_ostream &OS, StringRef Name, PrefixType Prefix) {
       break;
   }
   printLLVMNameWithoutPrefix(OS, Name);
+  OS << "</span>";
 }
 
 /// Turn the specified name into an 'LLVM name', which is either prefixed with %
@@ -540,13 +542,14 @@ static void PrintLLVMName(raw_ostream &OS, const Value *V) {
 
 static void PrintShuffleMask(raw_ostream &Out, Type *Ty, ArrayRef<int> Mask) {
   Out << ", &lt;";
-  if (isa<ScalableVectorType>(Ty)) Out << "vscale x ";
-  Out << Mask.size() << " x i32&gt; ";
+  if (isa<ScalableVectorType>(Ty))
+    Out << "<span class=\"llvm keyword\">vscale</span> x ";
+  Out << Mask.size() << " x <span class=\"llvm keyword\">i32</span>&gt; ";
   bool FirstElt = true;
   if (all_of(Mask, [](int Elt) { return Elt == 0; })) {
-    Out << "zeroinitializer";
+    Out << "<span class=\"llvm keyword\">zeroinitializer</span>";
   } else if (all_of(Mask, [](int Elt) { return Elt == UndefMaskElem; })) {
-    Out << "undef";
+    Out << "<span class=\"llvm keyword\">undef</span>";
   } else {
     Out << "&lt;";
     for (int Elt : Mask) {
@@ -554,9 +557,9 @@ static void PrintShuffleMask(raw_ostream &Out, Type *Ty, ArrayRef<int> Mask) {
         FirstElt = false;
       else
         Out << ", ";
-      Out << "i32 ";
+      Out << "<span class=\"llvm keyword\">i32</span> ";
       if (Elt == UndefMaskElem)
-        Out << "undef";
+        Out << "<span class=\"llvm keyword\">undef</span>";
       else
         Out << Elt;
     }
@@ -673,46 +676,47 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
   OS << '>';
   switch (Ty->getTypeID()) {
     case Type::VoidTyID:
-      OS << "void";
+      OS << "<span class=\"llvm keyword\">void</span>";
       break;
     case Type::HalfTyID:
-      OS << "half";
+      OS << "<span class=\"llvm keyword\">half</span>";
       break;
     case Type::BFloatTyID:
-      OS << "bfloat";
+      OS << "<span class=\"llvm keyword\">bfloat</span>";
       break;
     case Type::FloatTyID:
-      OS << "float";
+      OS << "<span class=\"llvm keyword\">float</span>";
       break;
     case Type::DoubleTyID:
-      OS << "double";
+      OS << "<span class=\"llvm keyword\">double</span>";
       break;
     case Type::X86_FP80TyID:
-      OS << "x86_fp80";
+      OS << "<span class=\"llvm keyword\">x86_fp80</span>";
       break;
     case Type::FP128TyID:
-      OS << "fp128";
+      OS << "<span class=\"llvm keyword\">fp128</span>";
       break;
     case Type::PPC_FP128TyID:
-      OS << "ppc_fp128";
+      OS << "<span class=\"llvm keyword\">ppc_fp128</span>";
       break;
     case Type::LabelTyID:
-      OS << "label";
+      OS << "<span class=\"llvm keyword\">label</span>";
       break;
     case Type::MetadataTyID:
-      OS << "metadata";
+      OS << "<span class=\"llvm keyword\">metadata</span>";
       break;
     case Type::X86_MMXTyID:
-      OS << "x86_mmx";
+      OS << "<span class=\"llvm keyword\">x86_mmx</span>";
       break;
     case Type::X86_AMXTyID:
-      OS << "x86_amx";
+      OS << "<span class=\"llvm keyword\">x86_amx</span>";
       break;
     case Type::TokenTyID:
-      OS << "token";
+      OS << "<span class=\"llvm keyword\">token</span>";
       break;
     case Type::IntegerTyID:
-      OS << 'i' << cast<IntegerType>(Ty)->getBitWidth();
+      OS << "<span class=\"llvm keyword\">i"
+         << cast<IntegerType>(Ty)->getBitWidth() << "</span>";
       break;
 
     case Type::FunctionTyID: {
@@ -734,14 +738,17 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     }
     case Type::StructTyID: {
       StructType *STy = cast<StructType>(Ty);
+      OS << "<span class=\"llvm typename\">";
 
       if (STy->isLiteral()) {
         printStructBody(STy, OS);
+        OS << "</span>";
         break;
       }
 
       if (!STy->getName().empty()) {
         PrintLLVMName(OS, STy->getName(), LocalPrefix);
+        OS << "</span>";
         break;
       }
 
@@ -751,13 +758,15 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
         OS << '%' << I->second;
       else  // Not enumerated, print the hex address.
         OS << "%\"type " << STy << '\"';
+      OS << "</span>";
       break;
     }
     case Type::PointerTyID: {
       PointerType *PTy = cast<PointerType>(Ty);
       print(PTy->getElementType(), OS);
       if (unsigned AddressSpace = PTy->getAddressSpace())
-        OS << " addrspace(" << AddressSpace << ')';
+        OS << " <span class=\"llvm keyword\">addrspace</span>(" << AddressSpace
+           << ')';
       OS << '*';
       break;
     }
@@ -773,7 +782,8 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
       VectorType *PTy = cast<VectorType>(Ty);
       ElementCount EC = PTy->getElementCount();
       OS << "&lt;";
-      if (EC.isScalable()) OS << "vscale x ";
+      if (EC.isScalable())
+        OS << "<span class=\"llvm keyword\">vscale</span> x ";
       OS << EC.getKnownMinValue() << " x ";
       print(PTy->getElementType(), OS);
       OS << "&gt;";
@@ -788,7 +798,7 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
 
 void TypePrinting::printStructBody(StructType *STy, raw_ostream &OS) {
   if (STy->isOpaque()) {
-    OS << "opaque";
+    OS << "<span class=\"llvm keyword\">opaque</span>";
     return;
   }
 
@@ -1022,27 +1032,35 @@ static void WriteOptimizationInfo(raw_ostream &Out, const User *U) {
   if (const FPMathOperator *FPO = dyn_cast<const FPMathOperator>(U)) {
     // 'Fast' is an abbreviation for all fast-math-flags.
     if (FPO->isFast())
-      Out << " fast";
+      Out << " <span class=\"llvm keyword\">fast</span>";
     else {
-      if (FPO->hasAllowReassoc()) Out << " reassoc";
-      if (FPO->hasNoNaNs()) Out << " nnan";
-      if (FPO->hasNoInfs()) Out << " ninf";
-      if (FPO->hasNoSignedZeros()) Out << " nsz";
-      if (FPO->hasAllowReciprocal()) Out << " arcp";
-      if (FPO->hasAllowContract()) Out << " contract";
-      if (FPO->hasApproxFunc()) Out << " afn";
+      if (FPO->hasAllowReassoc())
+        Out << " <span class=\"llvm keyword\">reassoc</span>";
+      if (FPO->hasNoNaNs()) Out << " <span class=\"llvm keyword\">nnan</span>";
+      if (FPO->hasNoInfs()) Out << " <span class=\"llvm keyword\">ninf</span>";
+      if (FPO->hasNoSignedZeros())
+        Out << " <span class=\"llvm keyword\">nsz</span>";
+      if (FPO->hasAllowReciprocal())
+        Out << " <span class=\"llvm keyword\">arcp</span>";
+      if (FPO->hasAllowContract())
+        Out << " <span class=\"llvm keyword\">contract</span>";
+      if (FPO->hasApproxFunc())
+        Out << " <span class=\"llvm keyword\">afn</span>";
     }
   }
 
   if (const OverflowingBinaryOperator *OBO =
           dyn_cast<OverflowingBinaryOperator>(U)) {
-    if (OBO->hasNoUnsignedWrap()) Out << " nuw";
-    if (OBO->hasNoSignedWrap()) Out << " nsw";
+    if (OBO->hasNoUnsignedWrap())
+      Out << " <span class=\"llvm keyword\">nuw</span>";
+    if (OBO->hasNoSignedWrap())
+      Out << " <span class=\"llvm keyword\">nsw</span>";
   } else if (const PossiblyExactOperator *Div =
                  dyn_cast<PossiblyExactOperator>(U)) {
-    if (Div->isExact()) Out << " exact";
+    if (Div->isExact()) Out << " <span class=\"llvm keyword\">exact</span>";
   } else if (const GEPOperator *GEP = dyn_cast<GEPOperator>(U)) {
-    if (GEP->isInBounds()) Out << " inbounds";
+    if (GEP->isInBounds())
+      Out << " <span class=\"llvm keyword\">inbounds</span>";
   }
 }
 
@@ -1051,10 +1069,12 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                                   SlotTracker *Machine, const Module *Context) {
   if (const ConstantInt *CI = dyn_cast<ConstantInt>(CV)) {
     if (CI->getType()->isIntegerTy(1)) {
-      Out << (CI->getZExtValue() ? "true" : "false");
+      Out << "<span class=\"llvm keyword\">"
+          << (CI->getZExtValue() ? "true" : "false") << "</span>";
       return;
     }
-    Out << CI->getValue();
+    Out << "<span class=\"llvm number integer\">" << CI->getValue()
+        << "</span>";
     return;
   }
 
@@ -1084,7 +1104,8 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                "[-+]?[0-9] regex does not match!");
         // Reparse stringized version!
         if (APFloat(APFloat::IEEEdouble(), StrVal).convertToDouble() == Val) {
-          Out << StrVal;
+          Out << "<span class=\"llvm number floating-point\">" << StrVal
+              << "</span>";
           return;
         }
       }
@@ -1109,14 +1130,16 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                                  &Payload);
         }
       }
-      Out << format_hex(apf.bitcastToAPInt().getZExtValue(), 0, /*Upper=*/true);
+      Out << "<span class=\"llvm number floating-point\">"
+          << format_hex(apf.bitcastToAPInt().getZExtValue(), 0, /*Upper=*/true)
+          << "</span>";
       return;
     }
 
     // Either half, bfloat or some form of long double.
     // These appear as a magic letter identifying the type, then a
     // fixed number of hex digits.
-    Out << "0x";
+    Out << "<span class=\"llvm number floating-point\">0x";
     APInt API = APF.bitcastToAPInt();
     if (&APF.getSemantics() == &APFloat::x87DoubleExtended()) {
       Out << 'K';
@@ -1147,16 +1170,17 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                                   /*Upper=*/true);
     } else
       llvm_unreachable("Unsupported floating point type");
+    Out << "</span>";
     return;
   }
 
   if (isa<ConstantAggregateZero>(CV)) {
-    Out << "zeroinitializer";
+    Out << "<span class=\"llvm keyword\">zeroinitializer</span>";
     return;
   }
 
   if (const BlockAddress *BA = dyn_cast<BlockAddress>(CV)) {
-    Out << "blockaddress(";
+    Out << "<span class=\"llvm keyword\">blockaddress</span>(";
     WriteAsOperandInternal(Out, BA->getFunction(), &TypePrinter, Machine,
                            Context);
     Out << ", ";
@@ -1167,7 +1191,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
   }
 
   if (const auto *Equiv = dyn_cast<DSOLocalEquivalent>(CV)) {
-    Out << "dso_local_equivalent ";
+    Out << "<span class=\"llvm keyword\">dso_local_equivalent</span> ";
     WriteAsOperandInternal(Out, Equiv->getGlobalValue(), &TypePrinter, Machine,
                            Context);
     return;
@@ -1195,9 +1219,9 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     // As a special case, print the array as a string if it is an array of
     // i8 with ConstantInt values.
     if (CA->isString()) {
-      Out << "c\"";
+      Out << "<span class=\"llvm string-literal\">c\"";
       printEscapedString(CA->getAsString(), Out);
-      Out << '"';
+      Out << "\"</span>";
       return;
     }
 
@@ -1266,22 +1290,22 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
   }
 
   if (isa<ConstantPointerNull>(CV)) {
-    Out << "null";
+    Out << "<span class=\"llvm keyword\">null</span>";
     return;
   }
 
   if (isa<ConstantTokenNone>(CV)) {
-    Out << "none";
+    Out << "<span class=\"llvm keyword\">none</span>";
     return;
   }
 
   if (isa<PoisonValue>(CV)) {
-    Out << "poison";
+    Out << "<span class=\"llvm keyword\">poison</span>";
     return;
   }
 
   if (isa<UndefValue>(CV)) {
-    Out << "undef";
+    Out << "<span class=\"llvm keyword\">undef</span>";
     return;
   }
 
@@ -1305,7 +1329,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     for (User::const_op_iterator OI = CE->op_begin(); OI != CE->op_end();
          ++OI) {
       if (InRangeOp && unsigned(OI - CE->op_begin()) == *InRangeOp)
-        Out << "inrange ";
+        Out << "<span class=\"llvm keyword\">inrange</span> ";
       TypePrinter.print((*OI)->getType(), Out);
       Out << ' ';
       WriteAsOperandInternal(Out, *OI, &TypePrinter, Machine, Context);
@@ -1319,7 +1343,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
     }
 
     if (CE->isCast()) {
-      Out << " to ";
+      Out << " <span class=\"llvm keyword\">to</span> ";
       TypePrinter.print(CE->getType(), Out);
     }
 
@@ -1340,7 +1364,7 @@ static void writeMDTuple(raw_ostream &Out, const MDTuple *Node,
   for (unsigned mi = 0, me = Node->getNumOperands(); mi != me; ++mi) {
     const Metadata *MD = Node->getOperand(mi);
     if (!MD)
-      Out << "null";
+      Out << "<span class=\"llvm keyword\">null</span>";
     else if (auto *MDV = dyn_cast<ValueAsMetadata>(MD)) {
       Value *V = MDV->getValue();
       TypePrinter->print(V->getType(), Out);
@@ -2124,16 +2148,19 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Value *V,
   }
 
   if (const InlineAsm *IA = dyn_cast<InlineAsm>(V)) {
-    Out << "asm ";
-    if (IA->hasSideEffects()) Out << "sideeffect ";
-    if (IA->isAlignStack()) Out << "alignstack ";
+    Out << "<span class=\"llvm keyword\">asm</span> ";
+    if (IA->hasSideEffects())
+      Out << "<span class=\"llvm keyword\">sideeffect</span> ";
+    if (IA->isAlignStack())
+      Out << "<span class=\"llvm keyword\">alignstack</span> ";
     // We don't emit the AD_ATT dialect as it's the assumed default.
-    if (IA->getDialect() == InlineAsm::AD_Intel) Out << "inteldialect ";
-    Out << '"';
+    if (IA->getDialect() == InlineAsm::AD_Intel)
+      Out << "<span class=\"llvm keyword\">inteldialect</span> ";
+    Out << "<span class=\"llvm string-literal\">\"";
     printEscapedString(IA->getAsmString(), Out);
-    Out << "\", \"";
+    Out << "\"</span>, <span class=\"llvm string-literal\">\"";
     printEscapedString(IA->getConstraintString(), Out);
-    Out << '"';
+    Out << "\"</span>";
     return;
   }
 
@@ -2177,7 +2204,7 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Value *V,
   }
 
   if (Slot != -1)
-    Out << Prefix << Slot;
+    Out << "<span class=\"llvm name\">" << Prefix << Slot << "</span>";
   else
     Out << "&lt;badref&gt;";
 }
@@ -2214,9 +2241,9 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
   }
 
   if (const MDString *MDS = dyn_cast<MDString>(MD)) {
-    Out << "!\"";
+    Out << "<span class=\"llvm string-literal\">!\"";
     printEscapedString(MDS->getString(), Out);
-    Out << '"';
+    Out << "\"</span>";
     return;
   }
 
@@ -2404,7 +2431,7 @@ void AssemblyWriter::writeSyncScope(const LLVMContext &Context,
     default: {
       if (SSNs.empty()) Context.getSyncScopeNames(SSNs);
 
-      Out << " syncscope(\"";
+      Out << " <span class=\"llvm keyword\">syncscope</span>(\"";
       printEscapedString(SSNs[SSID], Out);
       Out << "\")";
       break;
@@ -2469,9 +2496,9 @@ void AssemblyWriter::writeOperandBundles(const CallBase *Call) {
     if (!FirstBundle) Out << ", ";
     FirstBundle = false;
 
-    Out << '"';
+    Out << "<span class=\"llvm string-literal\">\"";
     printEscapedString(BU.getTagName(), Out);
-    Out << '"';
+    Out << "\"</span>";
 
     Out << '(';
 
@@ -2500,18 +2527,22 @@ void AssemblyWriter::printModule(const Module *M) {
       // Don't print the ID if it will start a new line (which would
       // require a comment char before it).
       M->getModuleIdentifier().find('\n') == std::string::npos)
-    Out << "; ModuleID = '" << M->getModuleIdentifier() << "'\n";
+    Out << "<span class=\"llvm comment\">; ModuleID = '"
+        << M->getModuleIdentifier() << "'</span>\n";
 
   if (!M->getSourceFileName().empty()) {
-    Out << "source_filename = \"";
+    Out << "source_filename = <span class=\"llvm string-literal\">\"";
     printEscapedString(M->getSourceFileName(), Out);
-    Out << "\"\n";
+    Out << "\"</span>\n";
   }
 
   const std::string &DL = M->getDataLayoutStr();
-  if (!DL.empty()) Out << "target datalayout = \"" << DL << "\"\n";
+  if (!DL.empty())
+    Out << "target datalayout = <span class=\"llvm string-literal\">\"" << DL
+        << "\"</span>\n";
   if (!M->getTargetTriple().empty())
-    Out << "target triple = \"" << M->getTargetTriple() << "\"\n";
+    Out << "target triple = <span class=\"llvm string-literal\">\""
+        << M->getTargetTriple() << "\"</span>\n";
 
   if (!M->getModuleInlineAsm().empty()) {
     Out << '\n';
@@ -2524,9 +2555,9 @@ void AssemblyWriter::printModule(const Module *M) {
 
       // We found a newline, print the portion of the asm string from the
       // last newline up to this newline.
-      Out << "module asm \"";
+      Out << "module asm <span class=\"llvm string-literal\">\"";
       printEscapedString(Front, Out);
-      Out << "\"\n";
+      Out << "\"</span>\n";
     } while (!Asm.empty());
   }
 
@@ -2605,9 +2636,9 @@ void AssemblyWriter::printModuleSummaryIndex() {
   unsigned i = 0;
   for (auto &ModPair : moduleVec) {
     Out << "^" << i++ << " = module: (";
-    Out << "path: \"";
+    Out << "path: <span class=\"llvm string-literal\">\"";
     printEscapedString(ModPair.first, Out);
-    Out << "\", hash: (";
+    Out << "\"</span>, hash: (";
     FieldSeparator FS;
     for (auto Hash : ModPair.second) Out << FS << Hash;
     Out << "))\n";
@@ -2632,18 +2663,22 @@ void AssemblyWriter::printModuleSummaryIndex() {
   for (auto TidIter = TheIndex->typeIds().begin();
        TidIter != TheIndex->typeIds().end(); TidIter++) {
     Out << "^" << Machine.getTypeIdSlot(TidIter->second.first)
-        << " = typeid: (name: \"" << TidIter->second.first << "\"";
+        << " = typeid: (name: <span class=\"llvm string-literal\">\""
+        << TidIter->second.first << "\"</span>";
     printTypeIdSummary(TidIter->second.second);
-    Out << ") ; guid = " << TidIter->first << "\n";
+    Out << ") <span class=\"llvm comment\">; guid = " << TidIter->first
+        << "</span>\n";
   }
 
   // Print the TypeIdCompatibleVtableMap entries.
   for (auto &TId : TheIndex->typeIdCompatibleVtableMap()) {
     auto GUID = GlobalValue::getGUID(TId.first);
     Out << "^" << Machine.getGUIDSlot(GUID)
-        << " = typeidCompatibleVTable: (name: \"" << TId.first << "\"";
+        << " = typeidCompatibleVTable: (name: <span class=\"llvm "
+           "string-literal\">\""
+        << TId.first << "\"</span>";
     printTypeIdCompatibleVtableSummary(TId.second);
-    Out << ") ; guid = " << GUID << "\n";
+    Out << ") <span class=\"llvm comment\">; guid = " << GUID << "</span>\n";
   }
 
   // Don't emit flags when it's not really needed (value is zero by default).
@@ -2841,27 +2876,27 @@ void AssemblyWriter::printGlobalVarSummary(const GlobalVarSummary *GS) {
 static std::string getLinkageName(GlobalValue::LinkageTypes LT) {
   switch (LT) {
     case GlobalValue::ExternalLinkage:
-      return "external";
+      return "<span class=\"llvm keyword\">external</span>";
     case GlobalValue::PrivateLinkage:
-      return "private";
+      return "<span class=\"llvm keyword\">private</span>";
     case GlobalValue::InternalLinkage:
-      return "internal";
+      return "<span class=\"llvm keyword\">internal</span>";
     case GlobalValue::LinkOnceAnyLinkage:
-      return "linkonce";
+      return "<span class=\"llvm keyword\">linkonce</span>";
     case GlobalValue::LinkOnceODRLinkage:
-      return "linkonce_odr";
+      return "<span class=\"llvm keyword\">linkonce_odr</span>";
     case GlobalValue::WeakAnyLinkage:
-      return "weak";
+      return "<span class=\"llvm keyword\">weak</span>";
     case GlobalValue::WeakODRLinkage:
-      return "weak_odr";
+      return "<span class=\"llvm keyword\">weak_odr</span>";
     case GlobalValue::CommonLinkage:
-      return "common";
+      return "<span class=\"llvm keyword\">common</span>";
     case GlobalValue::AppendingLinkage:
-      return "appending";
+      return "<span class=\"llvm keyword\">appending</span>";
     case GlobalValue::ExternalWeakLinkage:
-      return "extern_weak";
+      return "<span class=\"llvm keyword\">extern_weak</span>";
     case GlobalValue::AvailableExternallyLinkage:
-      return "available_externally";
+      return "<span class=\"llvm keyword\">available_externally</span>";
   }
   llvm_unreachable("invalid linkage");
 }
@@ -3088,7 +3123,9 @@ void AssemblyWriter::printSummaryInfo(unsigned Slot, const ValueInfo &VI) {
     Out << ")";
   }
   Out << ")";
-  if (!VI.name().empty()) Out << " ; guid = " << VI.getGUID();
+  if (!VI.name().empty())
+    Out << " <span class=\"llvm comment\">; guid = " << VI.getGUID()
+        << "</span>";
   Out << "\n";
 }
 
@@ -3143,17 +3180,18 @@ static void PrintVisibility(GlobalValue::VisibilityTypes Vis,
     case GlobalValue::DefaultVisibility:
       break;
     case GlobalValue::HiddenVisibility:
-      Out << "hidden ";
+      Out << "<span class=\"llvm keyword\">hidden</span> ";
       break;
     case GlobalValue::ProtectedVisibility:
-      Out << "protected ";
+      Out << "<span class=\"llvm keyword\">protected</span> ";
       break;
   }
 }
 
 static void PrintDSOLocation(const GlobalValue &GV,
                              formatted_raw_ostream &Out) {
-  if (GV.isDSOLocal() && !GV.isImplicitDSOLocal()) Out << "dso_local ";
+  if (GV.isDSOLocal() && !GV.isImplicitDSOLocal())
+    Out << "<span class=\"llvm keyword\">dso_local</span> ";
 }
 
 static void PrintDLLStorageClass(GlobalValue::DLLStorageClassTypes SCT,
@@ -3162,10 +3200,10 @@ static void PrintDLLStorageClass(GlobalValue::DLLStorageClassTypes SCT,
     case GlobalValue::DefaultStorageClass:
       break;
     case GlobalValue::DLLImportStorageClass:
-      Out << "dllimport ";
+      Out << "<span class=\"llvm keyword\">dllimport</span> ";
       break;
     case GlobalValue::DLLExportStorageClass:
-      Out << "dllexport ";
+      Out << "<span class=\"llvm keyword\">dllexport</span> ";
       break;
   }
 }
@@ -3176,16 +3214,19 @@ static void PrintThreadLocalModel(GlobalVariable::ThreadLocalMode TLM,
     case GlobalVariable::NotThreadLocal:
       break;
     case GlobalVariable::GeneralDynamicTLSModel:
-      Out << "thread_local ";
+      Out << "<span class=\"llvm keyword\">thread_local</span> ";
       break;
     case GlobalVariable::LocalDynamicTLSModel:
-      Out << "thread_local(localdynamic) ";
+      Out << "<span class=\"llvm keyword\">thread_local</span>(<span "
+             "class=\"llvm keyword\">localdynamic</span>) ";
       break;
     case GlobalVariable::InitialExecTLSModel:
-      Out << "thread_local(initialexec) ";
+      Out << "<span class=\"llvm keyword\">thread_local</span>(<span "
+             "class=\"llvm keyword\">initialexec</span>) ";
       break;
     case GlobalVariable::LocalExecTLSModel:
-      Out << "thread_local(localexec) ";
+      Out << "<span class=\"llvm keyword\">thread_local</span>(<span "
+             "class=\"llvm keyword\">localexec</span>) ";
       break;
   }
 }
@@ -3195,9 +3236,9 @@ static StringRef getUnnamedAddrEncoding(GlobalVariable::UnnamedAddr UA) {
     case GlobalVariable::UnnamedAddr::None:
       return "";
     case GlobalVariable::UnnamedAddr::Local:
-      return "local_unnamed_addr";
+      return "<span class=\"llvm keyword\">local_unnamed_addr</span>";
     case GlobalVariable::UnnamedAddr::Global:
-      return "unnamed_addr";
+      return "<span class=\"llvm keyword\">unnamed_addr</span>";
   }
   llvm_unreachable("Unknown UnnamedAddr");
 }
@@ -3208,7 +3249,7 @@ static void maybePrintComdat(formatted_raw_ostream &Out,
   if (!C) return;
 
   if (isa<GlobalVariable>(GO)) Out << ',';
-  Out << " comdat";
+  Out << " <span class=\"llvm keyword\">comdat</span>";
 
   if (GO.getName() == C->getName()) return;
 
@@ -3223,7 +3264,8 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
   Out << '"';
   printProvenance(GV, DeclProvenance, StmtProvenance, Out);
   Out << '>';
-  if (GV->isMaterializable()) Out << "; Materializable\n";
+  if (GV->isMaterializable())
+    Out << "<span class=\"llvm comment\">; Materializable</span>\n";
 
   WriteAsOperandInternal(Out, GV, &TypePrinter, &Machine, GV->getParent());
   Out << " = ";
@@ -3239,9 +3281,12 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
   if (!UA.empty()) Out << UA << ' ';
 
   if (unsigned AddressSpace = GV->getType()->getAddressSpace())
-    Out << "addrspace(" << AddressSpace << ") ";
-  if (GV->isExternallyInitialized()) Out << "externally_initialized ";
-  Out << (GV->isConstant() ? "constant " : "global ");
+    Out << "<span class=\"llvm keyword\">addrspace</span>(" << AddressSpace
+        << ") ";
+  if (GV->isExternallyInitialized())
+    Out << "<span class=\"llvm keyword\">externally_initialized</span> ";
+  Out << (GV->isConstant() ? "<span class=\"llvm keyword\">constant</span> "
+                           : "<span class=\"llvm keyword\">global</span> ");
   TypePrinter.print(GV->getValueType(), Out);
 
   if (GV->hasInitializer()) {
@@ -3250,18 +3295,21 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
   }
 
   if (GV->hasSection()) {
-    Out << ", section \"";
+    Out << ", <span class=\"llvm keyword\">section</span> <span class=\"llvm "
+           "string-literal\">\"";
     printEscapedString(GV->getSection(), Out);
-    Out << '"';
+    Out << "\"</span>";
   }
   if (GV->hasPartition()) {
-    Out << ", partition \"";
+    Out << ", <span class=\"llvm keyword\">partition</span> <span class=\"llvm "
+           "string-literal\">\"";
     printEscapedString(GV->getPartition(), Out);
-    Out << '"';
+    Out << "\"</span>";
   }
 
   maybePrintComdat(Out, *GV);
-  if (GV->getAlignment()) Out << ", align " << GV->getAlignment();
+  if (GV->getAlignment())
+    Out << ", <span class=\"llvm keyword\">align</span> " << GV->getAlignment();
 
   SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
   GV->getAllMetadata(MDs);
@@ -3271,8 +3319,9 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
   if (Attrs.hasAttributes())
     Out << " #" << Machine.getAttributeGroupSlot(Attrs);
 
+  Out << "<span class=\"llvm comment\">";
   printInfoComment(*GV);
-  Out << "</span>";
+  Out << "</span></span>";
 }
 
 void AssemblyWriter::printIndirectSymbol(const GlobalIndirectSymbol *GIS) {
@@ -3281,7 +3330,8 @@ void AssemblyWriter::printIndirectSymbol(const GlobalIndirectSymbol *GIS) {
   Out << '"';
   printProvenance(GIS, DeclProvenance, StmtProvenance, Out);
   Out << '>';
-  if (GIS->isMaterializable()) Out << "; Materializable\n";
+  if (GIS->isMaterializable())
+    Out << "<span class=\"llvm comment\">; Materializable</span>\n";
 
   WriteAsOperandInternal(Out, GIS, &TypePrinter, &Machine, GIS->getParent());
   Out << " = ";
@@ -3295,9 +3345,9 @@ void AssemblyWriter::printIndirectSymbol(const GlobalIndirectSymbol *GIS) {
   if (!UA.empty()) Out << UA << ' ';
 
   if (isa<GlobalAlias>(GIS))
-    Out << "alias ";
+    Out << "<span class=\"llvm keyword\">alias</span> ";
   else if (isa<GlobalIFunc>(GIS))
-    Out << "ifunc ";
+    Out << "<span class=\"llvm keyword\">ifunc</span> ";
   else
     llvm_unreachable("Not an alias or ifunc!");
 
@@ -3315,13 +3365,15 @@ void AssemblyWriter::printIndirectSymbol(const GlobalIndirectSymbol *GIS) {
   }
 
   if (GIS->hasPartition()) {
-    Out << ", partition \"";
+    Out << ", <span class=\"llvm keyword\">partition</span> <span class=\"llvm "
+           "string-literal\">\"";
     printEscapedString(GIS->getPartition(), Out);
-    Out << '"';
+    Out << "\"</span>";
   }
 
+  Out << "<span class=\"llvm comment\">";
   printInfoComment(*GIS);
-  Out << "</span>\n";
+  Out << "</span></span>\n";
 }
 
 void AssemblyWriter::printTypeIdentities() {
@@ -3344,7 +3396,8 @@ void AssemblyWriter::printTypeIdentities() {
     }
     Out << '>';
 
-    Out << '%' << I << " = type ";
+    Out << "<span class=\"llvm typename\">%" << I
+        << "</span> = <span class=\"llvm keyword\">type</span> ";
 
     // Make sure we print out at least one level of the type structure, so
     // that we do not get %2 = type %2
@@ -3364,9 +3417,9 @@ void AssemblyWriter::printTypeIdentities() {
       Out.write_hex((unsigned long long)provenance->second);
       Out << '"';
     }
-    Out << '>';
+    Out << "><span class=\"llvm typename\">";
     PrintLLVMName(Out, type->getName(), LocalPrefix);
-    Out << " = type ";
+    Out << "</span> = <span class=\"llvm keyword\">type</span> ";
 
     // Make sure we print out at least one level of the type structure, so
     // that we do not get %FILE = type %FILE
@@ -3384,7 +3437,8 @@ void AssemblyWriter::printFunction(const Function *F) {
   Out << '>';
   if (AnnotationWriter) AnnotationWriter->emitFunctionAnnot(F, Out);
 
-  if (F->isMaterializable()) Out << "; Materializable\n";
+  if (F->isMaterializable())
+    Out << "<span class=\"llvm comment\">; Materializable</span>\n";
 
   const AttributeList &Attrs = F->getAttributes();
   if (Attrs.hasAttributes(AttributeList::FunctionIndex)) {
@@ -3398,19 +3452,21 @@ void AssemblyWriter::printFunction(const Function *F) {
       }
     }
 
-    if (!AttrStr.empty()) Out << "; Function Attrs: " << AttrStr << '\n';
+    if (!AttrStr.empty())
+      Out << "<span class=\"llvm comment\">; Function Attrs: " << AttrStr
+          << "</span>\n";
   }
 
   Machine.incorporateFunction(F);
 
   if (F->isDeclaration()) {
-    Out << "declare";
+    Out << "<span class=\"llvm keyword\">declare</span>";
     SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
     F->getAllMetadata(MDs);
     printMetadataAttachments(MDs, " ");
     Out << ' ';
   } else
-    Out << "define ";
+    Out << "<span class=\"llvm keyword\">define</span> ";
 
   Out << getLinkageNameWithSpace(F->getLinkage());
   PrintDSOLocation(*F, Out);
@@ -3469,32 +3525,39 @@ void AssemblyWriter::printFunction(const Function *F) {
   const Module *Mod = F->getParent();
   if (F->getAddressSpace() != 0 || !Mod ||
       Mod->getDataLayout().getProgramAddressSpace() != 0)
-    Out << " addrspace(" << F->getAddressSpace() << ")";
+    Out << " <span class=\"llvm keyword\">addrspace</span>("
+        << F->getAddressSpace() << ")";
   if (Attrs.hasAttributes(AttributeList::FunctionIndex))
     Out << " #" << Machine.getAttributeGroupSlot(Attrs.getFnAttributes());
   if (F->hasSection()) {
-    Out << " section \"";
+    Out << " <span class=\"llvm keyword\">section</span> <span class=\"llvm "
+           "string-literal\">\"";
     printEscapedString(F->getSection(), Out);
-    Out << '"';
+    Out << "\"</span>";
   }
   if (F->hasPartition()) {
-    Out << " partition \"";
+    Out << " <span class=\"llvm keyword\">partition</span> <span class=\"llvm "
+           "string-literal\">\"";
     printEscapedString(F->getPartition(), Out);
-    Out << '"';
+    Out << "\"</span>";
   }
   maybePrintComdat(Out, *F);
-  if (F->getAlignment()) Out << " align " << F->getAlignment();
-  if (F->hasGC()) Out << " gc \"" << F->getGC() << '"';
+  if (F->getAlignment())
+    Out << " <span class=\"llvm keyword\">align</span> " << F->getAlignment();
+  if (F->hasGC())
+    Out << " <span class=\"llvm keyword\">gc</span> <span class=\"llvm "
+           "string-literal\">\""
+        << F->getGC() << "\"</span>";
   if (F->hasPrefixData()) {
-    Out << " prefix ";
+    Out << " <span class=\"llvm keyword\">prefix</span> ";
     writeOperand(F->getPrefixData(), true);
   }
   if (F->hasPrologueData()) {
-    Out << " prologue ";
+    Out << " <span class=\"llvm keyword\">prologue</span> ";
     writeOperand(F->getPrologueData(), true);
   }
   if (F->hasPersonalityFn()) {
-    Out << " personality ";
+    Out << " <span class=\"llvm keyword\">personality</span> ";
     writeOperand(F->getPersonalityFn(), /*PrintType=*/true);
   }
 
@@ -3543,7 +3606,7 @@ void AssemblyWriter::printArgument(const Argument *Arg, AttributeSet Attrs) {
   } else {
     int Slot = Machine.getLocalSlot(Arg);
     assert(Slot != -1 && "expect argument in function here");
-    Out << " %" << Slot;
+    Out << " <span class=\"llvm name\">%" << Slot << "</span>";
   }
   Out << "</span>";
 }
@@ -3573,7 +3636,7 @@ void AssemblyWriter::printBasicBlock(const BasicBlock *BB) {
   if (!IsEntryBlock) {
     // Output predecessors for the block.
     Out.PadToColumn(50);
-    Out << ";";
+    Out << "<span class=\"llvm comment\">;";
     const_pred_iterator PI = pred_begin(BB), PE = pred_end(BB);
 
     if (PI == PE) {
@@ -3588,7 +3651,7 @@ void AssemblyWriter::printBasicBlock(const BasicBlock *BB) {
     }
   }
 
-  Out << '\n';
+  Out << "</span>\n";
 
   if (AnnotationWriter) AnnotationWriter->emitBasicBlockStartAnnot(BB, Out);
 
@@ -3670,11 +3733,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 
   if (const CallInst *CI = dyn_cast<CallInst>(&I)) {
     if (CI->isMustTailCall())
-      Out << "musttail ";
+      Out << "<span class=\"llvm keyword\">musttail</span> ";
     else if (CI->isTailCall())
-      Out << "tail ";
+      Out << "<span class=\"llvm keyword\">tail</span> ";
     else if (CI->isNoTailCall())
-      Out << "notail ";
+      Out << "<span class=\"llvm keyword\">notail</span> ";
   }
 
   // Print out the opcode...
@@ -3683,17 +3746,17 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
   // If this is an atomic load or store, print out the atomic marker.
   if ((isa<LoadInst>(I) && cast<LoadInst>(I).isAtomic()) ||
       (isa<StoreInst>(I) && cast<StoreInst>(I).isAtomic()))
-    Out << " atomic";
+    Out << " <span class=\"llvm keyword\">atomic</span>";
 
   if (isa<AtomicCmpXchgInst>(I) && cast<AtomicCmpXchgInst>(I).isWeak())
-    Out << " weak";
+    Out << " <span class=\"llvm keyword\">weak</span>";
 
   // If this is a volatile operation, print out the volatile marker.
   if ((isa<LoadInst>(I) && cast<LoadInst>(I).isVolatile()) ||
       (isa<StoreInst>(I) && cast<StoreInst>(I).isVolatile()) ||
       (isa<AtomicCmpXchgInst>(I) && cast<AtomicCmpXchgInst>(I).isVolatile()) ||
       (isa<AtomicRMWInst>(I) && cast<AtomicRMWInst>(I).isVolatile()))
-    Out << " volatile";
+    Out << " <span class=\"llvm keyword\">volatile</span>";
 
   // Print out optimization information.
   WriteOptimizationInfo(Out, &I);
@@ -3812,22 +3875,22 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     }
     Out << ']';
   } else if (isa<ReturnInst>(I) && !Operand) {
-    Out << " void";
+    Out << " <span class=\"llvm keyword\">void</span>";
   } else if (const auto *CRI = dyn_cast<CatchReturnInst>(&I)) {
-    Out << " from ";
+    Out << " <span class=\"llvm keyword\">from</span> ";
     writeOperand(CRI->getOperand(0), /*PrintType=*/false);
 
-    Out << " to ";
+    Out << " <span class=\"llvm keyword\">to</span> ";
     writeOperand(CRI->getOperand(1), /*PrintType=*/true);
   } else if (const auto *CRI = dyn_cast<CleanupReturnInst>(&I)) {
-    Out << " from ";
+    Out << " <span class=\"llvm keyword\">from</span> ";
     writeOperand(CRI->getOperand(0), /*PrintType=*/false);
 
-    Out << " unwind ";
+    Out << " <span class=\"llvm keyword\">unwind</span> ";
     if (CRI->hasUnwindDest())
       writeOperand(CRI->getOperand(1), /*PrintType=*/true);
     else
-      Out << "to caller";
+      Out << "<span class=\"llvm keyword\">to caller</span>";
   } else if (const CallInst *CI = dyn_cast<CallInst>(&I)) {
     // Print the calling convention being used.
     if (CI->getCallingConv() != CallingConv::C) {
@@ -3912,7 +3975,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 
     Out << "\n          to ";
     writeOperand(II->getNormalDest(), true);
-    Out << " unwind ";
+    Out << " <span class=\"llvm keyword\">unwind</span> ";
     writeOperand(II->getUnwindDest(), true);
   } else if (const CallBrInst *CBI = dyn_cast<CallBrInst>(&I)) {
     Operand = CBI->getCalledOperand();
@@ -3959,8 +4022,10 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Out << ']';
   } else if (const AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
     Out << ' ';
-    if (AI->isUsedWithInAlloca()) Out << "inalloca ";
-    if (AI->isSwiftError()) Out << "swifterror ";
+    if (AI->isUsedWithInAlloca())
+      Out << "<span class=\"llvm keyword\">inalloca</span> ";
+    if (AI->isSwiftError())
+      Out << "<span class=\"llvm keyword\">swifterror</span> ";
     TypePrinter.print(AI->getAllocatedType(), Out);
 
     // Explicitly write the array size if the code is broken, if it's an array
@@ -3973,19 +4038,21 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
       writeOperand(AI->getArraySize(), true);
     }
     if (AI->getAlignment()) {
-      Out << ", align " << AI->getAlignment();
+      Out << ", <span class=\"llvm keyword\">align</span> "
+          << AI->getAlignment();
     }
 
     unsigned AddrSpace = AI->getType()->getAddressSpace();
     if (AddrSpace != 0) {
-      Out << ", addrspace(" << AddrSpace << ')';
+      Out << ", <span class=\"llvm keyword\">addrspace</span>(" << AddrSpace
+          << ')';
     }
   } else if (isa<CastInst>(I)) {
     if (Operand) {
       Out << ' ';
       writeOperand(Operand, true);  // Work with broken code
     }
-    Out << " to ";
+    Out << " <span class=\"llvm keyword\">to</span> ";
     TypePrinter.print(I.getType(), Out);
   } else if (isa<VAArgInst>(I)) {
     if (Operand) {
@@ -4043,11 +4110,15 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
   if (const LoadInst *LI = dyn_cast<LoadInst>(&I)) {
     if (LI->isAtomic())
       writeAtomic(LI->getContext(), LI->getOrdering(), LI->getSyncScopeID());
-    if (LI->getAlignment()) Out << ", align " << LI->getAlignment();
+    if (LI->getAlignment())
+      Out << ", <span class=\"llvm keyword\">align</span> "
+          << LI->getAlignment();
   } else if (const StoreInst *SI = dyn_cast<StoreInst>(&I)) {
     if (SI->isAtomic())
       writeAtomic(SI->getContext(), SI->getOrdering(), SI->getSyncScopeID());
-    if (SI->getAlignment()) Out << ", align " << SI->getAlignment();
+    if (SI->getAlignment())
+      Out << ", <span class=\"llvm keyword\">align</span> "
+          << SI->getAlignment();
   } else if (const AtomicCmpXchgInst *CXI = dyn_cast<AtomicCmpXchgInst>(&I)) {
     writeAtomicCmpXchg(CXI->getContext(), CXI->getSuccessOrdering(),
                        CXI->getFailureOrdering(), CXI->getSyncScopeID());
@@ -4066,8 +4137,9 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
   printMetadataAttachments(InstMD, ", ");
 
   // Print a nice comment.
+  Out << "<span class=\"llvm comment\">";
   printInfoComment(I);
-  Out << "</span>";
+  Out << "</span></span>";
 }
 
 void AssemblyWriter::printMetadataAttachments(
@@ -4114,7 +4186,8 @@ void AssemblyWriter::printMDNodeBody(const MDNode *Node) {
 
 void AssemblyWriter::writeAttribute(const Attribute &Attr, bool InAttrGroup) {
   if (!Attr.isTypeAttribute()) {
-    Out << Attr.getAsString(InAttrGroup);
+    Out << "<span class=\"llvm keyword\">" << Attr.getAsString(InAttrGroup)
+        << "</span>";
     return;
   }
 
@@ -4125,13 +4198,13 @@ void AssemblyWriter::writeAttribute(const Attribute &Attr, bool InAttrGroup) {
          "unexpected type attr");
 
   if (Attr.hasAttribute(Attribute::ByVal)) {
-    Out << "byval";
+    Out << "<span class=\"llvm keyword\">byval</span>";
   } else if (Attr.hasAttribute(Attribute::StructRet)) {
-    Out << "sret";
+    Out << "<span class=\"llvm keyword\">sret</span>";
   } else if (Attr.hasAttribute(Attribute::ByRef)) {
-    Out << "byref";
+    Out << "<span class=\"llvm keyword\">byref</span>";
   } else {
-    Out << "preallocated";
+    Out << "<span class=\"llvm keyword\">preallocated</span>";
   }
 
   if (Type *Ty = Attr.getValueAsType()) {
@@ -4168,7 +4241,7 @@ void AssemblyWriter::printUseListOrder(const UseListOrder &Order) {
   bool IsInFunction = Machine.getFunction();
   if (IsInFunction) Out << "  ";
 
-  Out << "uselistorder";
+  Out << "<span class=\"llvm keyword\">uselistorder</span>";
   if (const BasicBlock *BB =
           IsInFunction ? nullptr : dyn_cast<BasicBlock>(Order.V)) {
     Out << "_bb ";
@@ -4196,7 +4269,7 @@ void AssemblyWriter::printUseLists(const Function *F) {
     // Nothing to do.
     return;
 
-  Out << "\n; uselistorder directives\n";
+  Out << "\n<span class=\"llvm comment\">; uselistorder directives</span>\n";
   while (hasMore()) {
     printUseListOrder(UseListOrders.back());
     UseListOrders.pop_back();
@@ -4220,7 +4293,8 @@ void PrintModule(
 static void PrintComdat(const Comdat *Com, raw_ostream &ROS,
                         bool /*IsForDebug*/) {
   PrintLLVMName(ROS, Com->getName(), ComdatPrefix);
-  ROS << " = comdat ";
+  ROS << " = <span class=\"llvm keyword\">comdat</span> <span class=\"llvm "
+         "keyword\">";
 
   switch (Com->getSelectionKind()) {
     case Comdat::Any:
@@ -4240,7 +4314,7 @@ static void PrintComdat(const Comdat *Com, raw_ostream &ROS,
       break;
   }
 
-  ROS << '\n';
+  ROS << "</span>\n";
 }
 
 void AssemblyWriter::printComdat(const Comdat *C) {

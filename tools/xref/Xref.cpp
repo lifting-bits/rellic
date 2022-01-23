@@ -173,20 +173,24 @@ int main(int argc, char *argv[]) {
         height: 95vh;
     }
 
-    .clang.keyword {
+    .clang.keyword, .llvm.keyword {
         color: blue;
     }
 
-    .clang.typename {
+    .clang.typename, .llvm.typename {
         color: purple;
     }
 
-    .clang.string-literal, .clang.character-literal {
+    .clang.string-literal, .clang.character-literal, .llvm.string-literal {
         color: maroon;
     }
 
-    .clang.number {
+    .clang.number, .llvm.number {
         color: darkcyan;
+    }
+
+    .llvm.comment {
+        color: green;
     }
     </style>
 </head>

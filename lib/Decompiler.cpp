@@ -40,6 +40,23 @@ using StmtToIRMap = std::unordered_map<clang::Stmt*, llvm::Value*>;
 
 namespace {
 
+static void CloneMetadataInto(
+    llvm::Instruction* dst,
+    const llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u>& mds) {
+  for (auto [id, node] : mds) {
+    switch (id) {
+      case llvm::LLVMContext::MD_tbaa:
+      case llvm::LLVMContext::MD_tbaa_struct:
+      case llvm::LLVMContext::MD_noalias:
+      case llvm::LLVMContext::MD_alias_scope:
+        break;
+      default:
+        dst->setMetadata(id, node);
+        break;
+    }
+  }
+}
+
 static void CopyMetadataTo(llvm::Value* src, llvm::Value* dst) {
   if (src == dst) {
     return;
@@ -52,18 +69,7 @@ static void CopyMetadataTo(llvm::Value* src, llvm::Value* dst) {
 
   llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u> mds;
   src_inst->getAllMetadataOtherThanDebugLoc(mds);
-  for (auto [id, node] : mds) {
-    switch (id) {
-      case llvm::LLVMContext::MD_tbaa:
-      case llvm::LLVMContext::MD_tbaa_struct:
-      case llvm::LLVMContext::MD_noalias:
-      case llvm::LLVMContext::MD_alias_scope:
-        break;
-      default:
-        dst_inst->setMetadata(id, node);
-        break;
-    }
-  }
+  CloneMetadataInto(dst_inst, mds);
 }
 
 static void RemovePHINodes(llvm::Module& module) {
@@ -76,8 +82,10 @@ static void RemovePHINodes(llvm::Module& module) {
     }
   }
   for (auto phi : work_list) {
-    auto new_alloca{DemotePHIToStack(phi)};
-    CopyMetadataTo(phi, new_alloca);
+    llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u> mds;
+    phi->getAllMetadataOtherThanDebugLoc(mds);
+    llvm::AllocaInst* new_alloca = DemotePHIToStack(phi);
+    CloneMetadataInto(new_alloca, mds);
   }
 }
 

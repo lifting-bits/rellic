@@ -12,7 +12,9 @@ include("cmake/options.cmake")
 include("cmake/vcpkg_helper.cmake")
 
 project(rellic)
-
+set(CMAKE_CXX_VISIBILITY_PRESET hidden) 
+set(CMAKE_C_VISIBILITY_PRESET hidden) 
+set (VISIBILITY_INLINES_HIDDEN YES)
 include("cmake/settings.cmake")
 include("cmake/llvm.cmake")
 include(GNUInstallDirs)

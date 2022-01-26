@@ -114,6 +114,7 @@ set(BC_COMPAT_SOURCES
   BC/Compat/Value.cpp
 )
 
+
 add_library("${PROJECT_NAME}" STATIC
   ${public_HEADERS}
   ${AST_SOURCES}
@@ -125,6 +126,13 @@ add_library("${PROJECT_NAME}" STATIC
   Exception.cpp
   
   "${POST_CONFIGURE_FILE}"  # Version.cpp
+)
+
+
+set_target_properties(
+  "${PROJECT_NAME}" PROPERTIES
+    VISIBILITY_INLINES_HIDDEN YES
+    CXX_VISIBILITY_PRESET hidden
 )
 
 #link version information

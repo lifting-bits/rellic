@@ -79,7 +79,9 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
     dst.push_back(z3_ctx->bool_val(true));
     auto sub = child_expr.substitute(src, dst).simplify();
     if (!z3::eq(child_expr, sub)) {
-      ifstmt->setCond(z3_gen->GetOrCreateCExpr(sub));
+      auto new_cond{z3_gen->GetOrCreateCExpr(sub)};
+      substitutions[ifstmt->getCond()] = new_cond;
+      ifstmt->setCond(new_cond);
       changed = true;
     }
   }

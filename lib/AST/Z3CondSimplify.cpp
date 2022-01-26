@@ -35,17 +35,23 @@ clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
 }
 
 bool Z3CondSimplify::VisitIfStmt(clang::IfStmt *stmt) {
-  stmt->setCond(SimplifyCExpr(stmt->getCond()));
+  auto new_cond{SimplifyCExpr(stmt->getCond())};
+  substitutions[stmt->getCond()] = new_cond;
+  stmt->setCond(new_cond);
   return true;
 }
 
 bool Z3CondSimplify::VisitWhileStmt(clang::WhileStmt *loop) {
-  loop->setCond(SimplifyCExpr(loop->getCond()));
+  auto new_cond{SimplifyCExpr(loop->getCond())};
+  substitutions[loop->getCond()] = new_cond;
+  loop->setCond(new_cond);
   return true;
 }
 
 bool Z3CondSimplify::VisitDoStmt(clang::DoStmt *loop) {
-  loop->setCond(SimplifyCExpr(loop->getCond()));
+  auto new_cond{SimplifyCExpr(loop->getCond())};
+  substitutions[loop->getCond()] = new_cond;
+  loop->setCond(new_cond);
   return true;
 }
 

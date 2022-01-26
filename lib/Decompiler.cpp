@@ -84,7 +84,7 @@ static void RemovePHINodes(llvm::Module& module) {
   for (auto phi : work_list) {
     llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u> mds;
     phi->getAllMetadataOtherThanDebugLoc(mds);
-    llvm::AllocaInst* new_alloca = DemotePHIToStack(phi);
+    auto new_alloca{DemotePHIToStack(phi)};
     CloneMetadataInto(new_alloca, mds);
   }
 }
@@ -96,7 +96,7 @@ static void LowerSwitches(llvm::Module& module) {
 }
 
 static void InitOptPasses(void) {
-  auto& pr = *llvm::PassRegistry::getPassRegistry();
+  auto& pr{*llvm::PassRegistry::getPassRegistry()};
   initializeCore(pr);
   initializeAnalysis(pr);
 }

@@ -104,7 +104,8 @@ static void UpdateProvenanceMap(rellic::StmtToIRMap& provenance,
                                 rellic::ExprSubMap& expr_substitutions) {
   for (auto& sub : substitutions) {
     auto range{provenance.equal_range(sub.first)};
-    for (auto it{range.first}; it != range.second; ++it) {
+    for (auto it{range.first}; it != range.second && it != provenance.end();
+         ++it) {
       provenance.insert({sub.second, it->second});
     }
     provenance.erase(sub.first);
@@ -112,7 +113,8 @@ static void UpdateProvenanceMap(rellic::StmtToIRMap& provenance,
 
   for (auto& sub : expr_substitutions) {
     auto range{provenance.equal_range(sub.first)};
-    for (auto it{range.first}; it != range.second; ++it) {
+    for (auto it{range.first}; it != range.second && it != provenance.end();
+         ++it) {
       provenance.insert({sub.second, it->second});
     }
     provenance.erase(sub.first);

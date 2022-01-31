@@ -103,24 +103,33 @@ static void printProvenance(
     const rellic::DecompilationResult::IRToStmtMap &StmtProvenance,
     formatted_raw_ostream &Out) {
   if (Value) {
+    std::vector<unsigned long long> provs{};
     {
-      auto provenance{DeclProvenance.find(Value)};
-      if (provenance != DeclProvenance.end()) {
-        Out << " data-provenance=\"";
-        Out.write_hex((unsigned long long)provenance->second);
-        Out << '"';
-        return;
+      auto range{DeclProvenance.equal_range(Value)};
+      for (auto it{range.first};
+           it != range.second && it != DeclProvenance.end(); ++it) {
+        provs.emplace_back((unsigned long long)it->second);
       }
     }
     {
-      auto provenance{StmtProvenance.find(Value)};
-      if (provenance != StmtProvenance.end()) {
-        Out << " data-provenance=\"";
-        Out.write_hex((unsigned long long)provenance->second);
-        Out << '"';
-        return;
+      auto range{StmtProvenance.equal_range(Value)};
+      for (auto it{range.first};
+           it != range.second && it != StmtProvenance.end(); ++it) {
+        provs.emplace_back((unsigned long long)it->second);
       }
     }
+
+    if (!provs.size()) {
+      return;
+    }
+
+    Out << " data-provenance=\"";
+    for (auto i{0U}; i < provs.size() - 1; ++i) {
+      Out.write_hex(provs[i]);
+      Out << ',';
+    }
+    Out.write_hex(provs.back());
+    Out << '"';
   }
 }
 

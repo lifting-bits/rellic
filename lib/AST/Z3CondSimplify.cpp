@@ -31,7 +31,9 @@ clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
   auto app{simplifier(goal)};
   CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
   auto z_result{app[0].as_expr()};
-  return z_gen->GetOrCreateCExpr(z_result);
+  auto result{z_gen->GetOrCreateCExpr(z_result)};
+  expr_substitutions[c_expr] = result;
+  return result;
 }
 
 bool Z3CondSimplify::VisitIfStmt(clang::IfStmt *stmt) {

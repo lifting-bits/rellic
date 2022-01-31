@@ -213,9 +213,11 @@ int main(int argc, char *argv[]) {
             span.classList.add('hover')
             const provenanceAddr = span.dataset.provenance
             const addr = span.dataset.addr
-            const provenanceSpans = document.querySelectorAll(`[data-addr='${provenanceAddr}']`)
-            for (let prov of provenanceSpans) {
-                prov.classList.add('hover')
+            for(let split of provenanceAddr.split(',')) {
+              const provenanceSpans = document.querySelectorAll(`[data-addr='${split}']`)
+              for (let prov of provenanceSpans) {
+                  prov.classList.add('hover')
+              }
             }
 
             const addrSpans = document.querySelectorAll(`[data-addr='${addr}']`)
@@ -229,10 +231,12 @@ int main(int argc, char *argv[]) {
             span.classList.remove('hover')
             const provenanceAddr = span.dataset.provenance
             const addr = span.dataset.addr
-            const provenanceSpans = document.querySelectorAll(`[data-addr='${provenanceAddr}'],[data-addr='${addr}']`)
-            for (let prov of provenanceSpans) {
-                prov.classList.remove('hover')
-                prov.classList.remove('hover-sameaddr')
+            for(let split of provenanceAddr.split(',')) {
+              const provenanceSpans = document.querySelectorAll(`[data-addr='${split}'],[data-addr='${addr}']`)
+              for (let prov of provenanceSpans) {
+                  prov.classList.remove('hover')
+                  prov.classList.remove('hover-sameaddr')
+              }
             }
         })
     }

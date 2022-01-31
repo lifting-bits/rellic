@@ -23,6 +23,14 @@
 
 namespace rellic {
 
+static void CopyProvenance(clang::Stmt *from, clang::Stmt *to,
+                           StmtToIRMap &map) {
+  auto range{map.equal_range(from)};
+  for (auto it{range.first}; it != range.second && it != map.end(); ++it) {
+    map.insert({to, it->second});
+  }
+}
+
 IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
     : ast_ctx(unit.getASTContext()), ast(unit) {}
 
@@ -242,7 +250,9 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
 
   auto CreateRef{[this, &val] {
     auto decl{GetOrCreateDecl(val)};
-    return ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl));
+    auto ref{ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl))};
+    provenance.insert({ref, val});
+    return ref;
   }};
   // Operand is a constant value
   if (llvm::isa<llvm::ConstantExpr>(val) ||
@@ -332,32 +342,23 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
   if (stmt) {
     return stmt;
   }
-  // ConstantExpr
+
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
     auto inst{cexpr->getAsInstruction()};
     stmt = GetOrCreateStmt(inst);
     stmts.erase(inst);
     DeleteValue(inst);
-    return stmt;
-  }
-  // ConstantAggregate
-  if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {
+  } else if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {
     stmt = CreateLiteralExpr(caggr);
-    return stmt;
-  }
-  // ConstantData
-  if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
+  } else if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
     stmt = CreateLiteralExpr(cdata);
-    return stmt;
-  }
-  // Instruction
-  if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
+  } else if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
     visit(inst);
-    return stmt;
+  } else {
+    THROW() << "Unsupported value type: " << LLVMThingToString(val);
   }
 
-  THROW() << "Unsupported value type: " << LLVMThingToString(val);
-
+  provenance.insert({stmt, val});
   return stmt;
 }
 
@@ -532,6 +533,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto opnd{GetOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
       opnd = ast.CreateDeref(opnd);
+      provenance.insert({opnd, arg});
     }
     args.push_back(opnd);
   }
@@ -731,7 +733,9 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   }
   auto rhs{GetOperandExpr(inst.getValueOperand())};
   // Create the assignemnt itself
-  assign = ast.CreateAssign(ast.CreateDeref(lhs), rhs);
+  auto deref{ast.CreateDeref(lhs)};
+  CopyProvenance(lhs, deref, provenance);
+  assign = ast.CreateAssign(deref, rhs);
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {

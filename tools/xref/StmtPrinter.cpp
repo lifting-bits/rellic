@@ -166,11 +166,23 @@ class StmtPrinter : public StmtVisitor<StmtPrinter> {
       OS << "<span class=\"stmt\" data-addr=\"";
       OS.write_hex((unsigned long long)S);
       OS << '"';
-      auto provenance{StmtProvenance.find(S)};
-      if (provenance != StmtProvenance.end()) {
-        OS << " data-provenance=\"";
-        OS.write_hex((unsigned long long)provenance->second);
-        OS << '"';
+      {
+        auto range{StmtProvenance.equal_range(S)};
+        std::vector<unsigned long long> provs{};
+        for (auto it{range.first};
+             it != range.second && it != StmtProvenance.end(); it++) {
+          provs.emplace_back((unsigned long long)it->second);
+        }
+
+        if (provs.size()) {
+          OS << " data-provenance=\"";
+          for (auto i{0U}; i < provs.size() - 1; ++i) {
+            OS.write_hex(provs[i]);
+            OS << ',';
+          }
+          OS.write_hex(provs.back());
+          OS << '"';
+        }
       }
       OS << ">";
       StmtVisitor<StmtPrinter>::Visit(S);

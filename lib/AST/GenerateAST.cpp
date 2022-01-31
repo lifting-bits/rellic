@@ -25,6 +25,14 @@
 
 namespace rellic {
 
+static void CopyProvenance(clang::Stmt *from, clang::Stmt *to,
+                           StmtToIRMap &map) {
+  auto range{map.equal_range(from)};
+  for (auto it{range.first}; it != range.second && it != map.end(); ++it) {
+    map.insert({to, it->second});
+  }
+}
+
 namespace {
 
 using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
@@ -138,7 +146,9 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
             ast_gen.GetOrCreateStmt(br->getCondition()));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
-          result = ast.CreateLNot(result);
+          auto tmp{ast.CreateLNot(result)};
+          CopyProvenance(result, tmp, GetStmtToIRMap());
+          result = tmp;
         }
       }
     } break;
@@ -165,6 +175,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
 
 clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   auto &cond = reaching_conds[block];
+  auto &prov{GetStmtToIRMap()};
   if (cond) {
     return cond;
   }
@@ -183,11 +194,20 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
         conj_cond = pred_cond;
       } else {
         conj_cond = ast.CreateLAnd(pred_cond, edge_cond);
+        CopyProvenance(pred_cond, conj_cond, prov);
+        CopyProvenance(edge_cond, conj_cond, prov);
       }
       // Append `conj_cond` to reaching conditions of other
       // predecessors via an `||`. Use `conj_cond` if there
       // is no `cond` yet.
-      cond = cond ? ast.CreateLOr(cond, conj_cond) : conj_cond;
+      if (cond) {
+        auto new_cond{ast.CreateLOr(cond, conj_cond)};
+        CopyProvenance(cond, new_cond, prov);
+        CopyProvenance(conj_cond, new_cond, prov);
+        cond = new_cond;
+      } else {
+        cond = conj_cond;
+      }
     }
   }
   // Create `if(1)` in case we still don't have a reaching condition
@@ -324,8 +344,11 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto from = edge.first;
     auto to = edge.second;
     // Create edge condition
-    auto cond =
-        ast.CreateLAnd(GetOrCreateReachingCond(from), CreateEdgeCond(from, to));
+    auto and_lhs{GetOrCreateReachingCond(from)};
+    auto and_rhs{CreateEdgeCond(from, to)};
+    auto cond = ast.CreateLAnd(and_lhs, and_rhs);
+    CopyProvenance(and_lhs, cond, GetStmtToIRMap());
+    CopyProvenance(and_rhs, cond, GetStmtToIRMap());
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());

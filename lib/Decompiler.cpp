@@ -36,8 +36,6 @@
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
-using StmtToIRMap = std::unordered_map<clang::Stmt*, llvm::Value*>;
-
 namespace {
 
 static void CloneMetadataInto(
@@ -101,23 +99,23 @@ static void InitOptPasses(void) {
   initializeAnalysis(pr);
 }
 
-static void InitProvenanceMap(StmtToIRMap& provenance,
-                              rellic::IRToStmtMap& init) {
-  for (auto& item : init) {
-    if (item.second) {
-      provenance[item.second] = item.first;
-    }
-  }
-}
-
-static void UpdateProvenanceMap(StmtToIRMap& provenance,
-                                rellic::StmtSubMap& substitutions) {
+static void UpdateProvenanceMap(rellic::StmtToIRMap& provenance,
+                                rellic::StmtSubMap& substitutions,
+                                rellic::ExprSubMap& expr_substitutions) {
   for (auto& sub : substitutions) {
-    auto it{provenance.find(sub.first)};
-    if (it != provenance.end()) {
-      provenance[sub.second] = it->second;
-      provenance.erase(it);
+    auto range{provenance.equal_range(sub.first)};
+    for (auto it{range.first}; it != range.second; ++it) {
+      provenance.insert({sub.second, it->second});
     }
+    provenance.erase(sub.first);
+  }
+
+  for (auto& sub : expr_substitutions) {
+    auto range{provenance.equal_range(sub.first)};
+    for (auto it{range.first}; it != range.second; ++it) {
+      provenance.insert({sub.second, it->second});
+    }
+    provenance.erase(sub.first);
   }
 }
 };  // namespace
@@ -130,6 +128,19 @@ static void CopyMap(const std::unordered_map<TKey*, TValue*>& from,
     if (value) {
       to[key] = value;
       inverse[value] = key;
+    }
+  }
+}
+
+template <typename TKey, typename TValue>
+static void CopyMap(
+    const std::unordered_multimap<TKey*, TValue*>& from,
+    std::unordered_multimap<const TKey*, const TValue*>& to,
+    std::unordered_multimap<const TValue*, const TKey*>& inverse) {
+  for (auto [key, value] : from) {
+    if (value) {
+      to.insert({key, value});
+      inverse.insert({value, key});
     }
   }
 }
@@ -169,10 +180,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
-    StmtToIRMap stmt_provenance;
+    auto& stmt_provenance{gr->GetStmtToIRMap()};
 
-    InitProvenanceMap(stmt_provenance, gr->GetIRToStmtMap());
-    UpdateProvenanceMap(stmt_provenance, dse->GetStmtSubMap());
+    UpdateProvenanceMap(stmt_provenance, dse->GetStmtSubMap(),
+                        dse->GetExprSubMap());
 
     rellic::Z3CondSimplify* zcs{new rellic::Z3CondSimplify(*ast_unit)};
     rellic::NestedCondProp* ncp{new rellic::NestedCondProp(*ast_unit)};
@@ -200,11 +211,16 @@ Result<DecompilationResult, DecompilationError> Decompile(
     }
 
     while (pm_cbr.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap());
-      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap());
-      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
-      UpdateProvenanceMap(stmt_provenance, cbr->GetStmtSubMap());
-      UpdateProvenanceMap(stmt_provenance, rbr->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap(),
+                          zcs->GetExprSubMap());
+      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap(),
+                          ncp->GetExprSubMap());
+      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap(),
+                          nsc->GetExprSubMap());
+      UpdateProvenanceMap(stmt_provenance, cbr->GetStmtSubMap(),
+                          cbr->GetExprSubMap());
+      UpdateProvenanceMap(stmt_provenance, rbr->GetStmtSubMap(),
+                          rbr->GetExprSubMap());
     }
 
     rellic::LoopRefine* lr{new rellic::LoopRefine(*ast_unit)};
@@ -214,8 +230,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
     pm_loop.add(lr);
     pm_loop.add(nsc);
     while (pm_loop.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, lr->GetStmtSubMap());
-      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, lr->GetStmtSubMap(),
+                          lr->GetExprSubMap());
+      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap(),
+                          nsc->GetExprSubMap());
     }
 
     llvm::legacy::PassManager pm_scope;
@@ -240,16 +258,20 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     pm_scope.add(nsc);
     while (pm_scope.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap());
-      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap());
-      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap(),
+                          zcs->GetExprSubMap());
+      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap(),
+                          ncp->GetExprSubMap());
+      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap(),
+                          nsc->GetExprSubMap());
     }
 
     llvm::legacy::PassManager pm_expr;
     rellic::ExprCombine* ec{new rellic::ExprCombine(*ast_unit)};
     pm_expr.add(ec);
     while (pm_expr.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap());
+      UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap(),
+                          ec->GetExprSubMap());
     }
 
     DecompilationResult result{};

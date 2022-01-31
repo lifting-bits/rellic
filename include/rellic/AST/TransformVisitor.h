@@ -15,11 +15,13 @@
 namespace rellic {
 
 using StmtSubMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
+using ExprSubMap = std::unordered_map<clang::Expr *, clang::Stmt *>;
 
 template <typename Derived>
 class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
  protected:
   StmtSubMap substitutions;
+  ExprSubMap expr_substitutions;
   bool changed;
 
   bool ReplaceChildren(clang::Stmt *stmt, StmtSubMap &repl_map) {
@@ -45,6 +47,7 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
   }
 
   StmtSubMap &GetStmtSubMap() { return substitutions; }
+  ExprSubMap &GetExprSubMap() { return expr_substitutions; }
 
   bool VisitFunctionDecl(clang::FunctionDecl *fdecl) {
     // DLOG(INFO) << "VisitFunctionDecl";

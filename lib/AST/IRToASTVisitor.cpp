@@ -556,6 +556,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
     auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
     auto var{ast.CreateVarDecl(fdecl, callexpr->getType(), name)};
+    value_decls[&inst] = var;
     fdecl->addDecl(var);
     callstmt = ast.CreateAssign(ast.CreateDeclRef(var), callexpr);
   } else {
@@ -858,7 +859,13 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto IntSignCast{[this](clang::Expr *op, bool sign) {
     auto ot{op->getType()};
     auto rt{ast_ctx.getIntTypeForBitwidth(ast_ctx.getTypeSize(ot), sign)};
-    return rt == ot ? op : ast.CreateCStyleCast(rt, op);
+    if (rt == ot) {
+      return op;
+    } else {
+      auto cast{ast.CreateCStyleCast(rt, op)};
+      CopyProvenance(op, cast, provenance);
+      return (clang::Expr *)cast;
+    }
   }};
   // Cast operands for signed predicates
   if (inst.isSigned()) {
@@ -910,6 +917,8 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
     } break;
   }
+  CopyProvenance(lhs, cmp, provenance);
+  CopyProvenance(rhs, cmp, provenance);
 }
 
 void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {

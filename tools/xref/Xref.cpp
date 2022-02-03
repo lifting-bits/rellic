@@ -282,6 +282,7 @@ int main(int argc, char *argv[]) {
             span.classList.add('hover')
             const provenanceAddr = span.dataset.provenance
             const addr = span.dataset.addr
+            if(!provenanceAddr) { return; }
             for(let split of provenanceAddr.split(',')) {
               const provenanceSpans = document.querySelectorAll(`[data-addr='${split}']`)
               for (let prov of provenanceSpans) {
@@ -300,6 +301,7 @@ int main(int argc, char *argv[]) {
             span.classList.remove('hover')
             const provenanceAddr = span.dataset.provenance
             const addr = span.dataset.addr
+            if(!provenanceAddr) { return; }
             for(let split of provenanceAddr.split(',')) {
               const provenanceSpans = document.querySelectorAll(`[data-addr='${split}'],[data-addr='${addr}']`)
               for (let prov of provenanceSpans) {

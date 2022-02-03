@@ -262,8 +262,15 @@ int main(int argc, char *argv[]) {
         color: green;
     }
     </style>
+    <script>
+    function hideDbgIntrinsics() {
+      const spans = Array.from(document.querySelectorAll('.instruction')).filter(x => x.innerText.indexOf('@llvm.dbg') >= 0)
+      spans.forEach(x => x.style.display = 'none')
+    }
+    </script>
 </head>
-<body>)html";
+<body>
+<button onclick="hideDbgIntrinsics()">Hide debug intrinsics</button>)html";
     }
     output << "<pre id=\"rellic-decompiled\">";
     PrintDecl(context.getTranslationUnitDecl(), value.decl_provenance_map,

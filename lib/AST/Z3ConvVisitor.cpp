@@ -1072,12 +1072,21 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       break;
 
     case Z3_OP_SLEQ:
+    case Z3_OP_ULEQ:
     case Z3_OP_FPA_LE:
       c_op = ast.CreateLE(lhs, rhs);
       break;
 
+    case Z3_OP_SLT:
+    case Z3_OP_ULT:
     case Z3_OP_FPA_LT:
       c_op = ast.CreateLT(lhs, rhs);
+      break;
+
+    case Z3_OP_SGT:
+    case Z3_OP_UGT:
+    case Z3_OP_FPA_GT:
+      c_op = ast.CreateGT(lhs, rhs);
       break;
 
     case Z3_OP_BADD:
@@ -1123,6 +1132,10 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
     case Z3_OP_BSREM:
     case Z3_OP_BSREM_I:
       c_op = ast.CreateRem(lhs, rhs);
+      break;
+
+    case Z3_OP_DISTINCT:
+      c_op = ast.CreateNE(lhs, rhs);
       break;
 
     // Unknowns

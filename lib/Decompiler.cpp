@@ -175,7 +175,9 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
         *ast_unit, dic.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
     pm_ast.add(gr);
-    pm_ast.add(dse);
+    if (options.dead_stmt_elimination) {
+      pm_ast.add(dse);
+    }
     pm_ast.add(ldr);
     pm_ast.add(sfr);
     pm_ast.run(*module);
@@ -196,20 +198,30 @@ Result<DecompilationResult, DecompilationError> Decompile(
     llvm::legacy::PassManager pm_cbr;
     if (!options.disable_z3) {
       // Simplifier to use during condition-based refinement
-      zcs->SetZ3Simplifier(
-          // Simplify boolean structure with AIGs
-          z3::tactic(zcs->GetZ3Context(), "aig") &
-          // Cheap local simplifier
-          z3::tactic(zcs->GetZ3Context(), "simplify"));
-      pm_cbr.add(zcs);
-      pm_cbr.add(ncp);
+      z3::tactic tactic{zcs->GetZ3Context(), "skip"};
+      for (auto name : options.condition_based_refinement.z3_tactics) {
+        tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
+      }
+      zcs->SetZ3Simplifier(tactic);
+      if (options.condition_based_refinement.z3_cond_simplify) {
+        pm_cbr.add(zcs);
+      }
+      if (options.condition_based_refinement.nested_cond_propagate) {
+        pm_cbr.add(ncp);
+      }
     }
 
-    pm_cbr.add(nsc);
+    if (options.condition_based_refinement.nested_scope_combine) {
+      pm_cbr.add(nsc);
+    }
 
     if (!options.disable_z3) {
-      pm_cbr.add(cbr);
-      pm_cbr.add(rbr);
+      if (options.condition_based_refinement.cond_base_refine) {
+        pm_cbr.add(cbr);
+      }
+      if (options.condition_based_refinement.reach_based_refine) {
+        pm_cbr.add(rbr);
+      }
     }
 
     while (pm_cbr.run(*module)) {
@@ -229,8 +241,12 @@ Result<DecompilationResult, DecompilationError> Decompile(
     nsc = new rellic::NestedScopeCombine(*ast_unit);
 
     llvm::legacy::PassManager pm_loop;
-    pm_loop.add(lr);
-    pm_loop.add(nsc);
+    if (options.loop_refinement.loop_refine) {
+      pm_loop.add(lr);
+    }
+    if (options.loop_refinement.nested_scope_combine) {
+      pm_loop.add(nsc);
+    }
     while (pm_loop.run(*module)) {
       UpdateProvenanceMap(stmt_provenance, lr->GetStmtSubMap(),
                           lr->GetExprSubMap());
@@ -243,22 +259,24 @@ Result<DecompilationResult, DecompilationError> Decompile(
       // Simplifier to use during final refinement
       zcs = new rellic::Z3CondSimplify(*ast_unit);
       ncp = new rellic::NestedCondProp(*ast_unit);
-      zcs->SetZ3Simplifier(
-          // Simplify boolean structure with AIGs
-          z3::tactic(zcs->GetZ3Context(), "aig") &
-          // Cheap simplification
-          z3::tactic(zcs->GetZ3Context(), "simplify") &
-          // Propagate bounds over bit-vectors
-          z3::tactic(zcs->GetZ3Context(), "propagate-bv-bounds") &
-          // Contextual simplification
-          z3::tactic(zcs->GetZ3Context(), "ctx-simplify"));
-      pm_scope.add(zcs);
-      pm_scope.add(ncp);
+      z3::tactic tactic{zcs->GetZ3Context(), "skip"};
+      for (auto name : options.scope_refinement.z3_tactics) {
+        tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
+      }
+      zcs->SetZ3Simplifier(tactic);
+      if (options.scope_refinement.z3_cond_simplify) {
+        pm_scope.add(zcs);
+      }
+      if (options.scope_refinement.nested_cond_propagate) {
+        pm_scope.add(ncp);
+      }
     }
 
     nsc = new rellic::NestedScopeCombine(*ast_unit);
 
-    pm_scope.add(nsc);
+    if (options.scope_refinement.nested_scope_combine) {
+      pm_scope.add(nsc);
+    }
     while (pm_scope.run(*module)) {
       UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap(),
                           zcs->GetExprSubMap());
@@ -270,7 +288,9 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     llvm::legacy::PassManager pm_expr;
     rellic::ExprCombine* ec{new rellic::ExprCombine(*ast_unit)};
-    pm_expr.add(ec);
+    if (options.expression_combine) {
+      pm_expr.add(ec);
+    }
     while (pm_expr.run(*module)) {
       UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap(),
                           ec->GetExprSubMap());

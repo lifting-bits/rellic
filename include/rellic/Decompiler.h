@@ -21,6 +21,27 @@ struct DecompilationOptions {
   bool lower_switches = false;
   bool remove_phi_nodes = false;
   bool disable_z3 = false;
+  bool dead_stmt_elimination = true;
+  struct {
+    bool z3_cond_simplify = true;
+    std::vector<std::string> z3_tactics{"aig", "simplify"};
+    bool nested_cond_propagate = true;
+    bool nested_scope_combine = true;
+    bool cond_base_refine = true;
+    bool reach_based_refine = true;
+  } condition_based_refinement;
+  struct {
+    bool loop_refine = true;
+    bool nested_scope_combine = true;
+  } loop_refinement;
+  struct {
+    bool z3_cond_simplify = true;
+    std::vector<std::string> z3_tactics{"aig", "simplify",
+                                        "propagate-bv-bounds", "ctx-simplify"};
+    bool nested_cond_propagate = true;
+    bool nested_scope_combine = true;
+  } scope_refinement;
+  bool expression_combine = true;
 };
 
 struct DecompilationResult {

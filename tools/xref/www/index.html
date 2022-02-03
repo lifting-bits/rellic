@@ -13,25 +13,23 @@
             margin: 0;
             padding: 0;
             font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
         }
 
         .first-row {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 10vh;
+            overflow: auto;
+            resize: vertical;
+            padding: 0.5em;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
         }
 
         .second-row {
-            position: absolute;
-            top: 10vh;
-            left: 0;
-            right: 0;
-            bottom: 0;
-        }
-
-        .second-row iframe {
             display: block;
             width: 100%;
             height: 100%;
@@ -44,11 +42,194 @@
     <form class="first-row" action="cgi-bin/decompile.py" method="POST" enctype="multipart/form-data" target="upload">
         <input type="file" id="myFile" name="filename" accept=".ll,.bc">
         <input type="submit">
+        <details>
+            <summary>Advanced options</summary>
+            <div class="options">
+                <fieldset>
+                    <legend>Passes</legend>
+                    <select name="passes" multiple>
+                        <option value="enable_dse" selected>Dead statement elimination</option>
+                        <optgroup label="Condition-based refinement phase">
+                            <option value="enable_cbr_zcs" selected>Z3 condition simplification</option>
+                            <option value="enable_cbr_ncp" selected>Nested condition propagation</option>
+                            <option value="enable_cbr" selected>Condition-based refinement</option>
+                            <option value="enable_cbr_rbr" selected>Reach-based refinement</option>
+                        </optgroup>
+                        <optgroup label="Loop refinement phase">
+                            <option value="enable_lr" selected>Loop refinement</option>
+                            <option value="enable_lr_nsc" selected>Nested scope combination</option>
+                        </optgroup>
+                        <optgroup label="Scope refinement phase">
+                            <option value="enable_sr_zcs" selected>Z3 condition simplification</option>
+                            <option value="enable_sr_ncp" selected>Nested condition propagation</option>
+                            <option value="enable_sr_nsc" selected>Nested scope combination</option>
+                        </optgroup>
+                        <option value="enable_ec" selected>Expression combination</option>
+                    </select>
+                </fieldset>
+                <fieldset>
+                    <legend>Condition-based refinement Z3 tactics</legend>
+                    <select name="cbr_tactics" multiple>
+                        <option>qfnia</option>
+                        <option>qflra</option>
+                        <option>qfbv</option>
+                        <option>qfufnra</option>
+                        <option>qflia</option>
+                        <option>qfnra</option>
+                        <option>add-bounds</option>
+                        <option>diff-neq</option>
+                        <option>lia2pb</option>
+                        <option>nla2bv</option>
+                        <option>purify-arith</option>
+                        <option>fix-dl-var</option>
+                        <option>recover-01</option>
+                        <option>factor</option>
+                        <option>lia2card</option>
+                        <option>degree-shift</option>
+                        <option>normalize-bounds</option>
+                        <option>card2bv</option>
+                        <option>pb2bv</option>
+                        <option>propagate-ineqs</option>
+                        <option>fm</option>
+                        <option>eq2bv</option>
+                        <option>elim01</option>
+                        <option>distribute-forall</option>
+                        <option>der</option>
+                        <option>snf</option>
+                        <option>nnf</option>
+                        <option>solve-eqs</option>
+                        <option>ctx-simplify</option>
+                        <option>tseitin-cnf</option>
+                        <option>tseitin-cnf-core</option>
+                        <option>occf</option>
+                        <option>pb-preprocess</option>
+                        <option>elim-term-ite</option>
+                        <option>blast-term-ite</option>
+                        <option>propagate-values</option>
+                        <option>split-clause</option>
+                        <option>symmetry-reduce</option>
+                        <option selected>simplify</option>
+                        <option>elim-and</option>
+                        <option>cofactor-term-ite</option>
+                        <option>elim-uncnstr</option>
+                        <option>reduce-args</option>
+                        <option>skip</option>
+                        <option>fail</option>
+                        <option>fail-if-undecided</option>
+                        <option>bit-blast</option>
+                        <option>bv1-blast</option>
+                        <option>max-bv-sharing</option>
+                        <option>reduce-bv-size</option>
+                        <option>qfnra-nlsat</option>
+                        <option>nlsat</option>
+                        <option>sat</option>
+                        <option>sat-preprocess</option>
+                        <option>smt</option>
+                        <option>ctx-solver-simplify</option>
+                        <option>unit-subsume-simplify</option>
+                        <option selected>aig</option>
+                        <option>horn</option>
+                        <option>horn-simplify</option>
+                        <option>qe</option>
+                        <option>qe-light</option>
+                        <option>vsubst</option>
+                        <option>qe-sat</option>
+                        <option>nl-purify</option>
+                        <option>bv</option>
+                        <option>ufbv</option>
+                        <option>macro-finder</option>
+                        <option>quasi-macros</option>
+                        <option>qffp</option>
+                        <option>qffpbv</option>
+                        <option>fpa2bv</option>
+                        <option>qfbv-sls</option>
+                        <option>subpaving</option>
+                    </select>
+                </fieldset>
+                <fieldset>
+                    <legend>Scope refinement Z3 tactics</legend>
+                    <select name="sr_tactics" multiple>
+                        <option>qfnia</option>
+                        <option>qflra</option>
+                        <option>qfbv</option>
+                        <option>qfufnra</option>
+                        <option>qflia</option>
+                        <option>qfnra</option>
+                        <option>add-bounds</option>
+                        <option>diff-neq</option>
+                        <option>lia2pb</option>
+                        <option>nla2bv</option>
+                        <option>purify-arith</option>
+                        <option>fix-dl-var</option>
+                        <option>recover-01</option>
+                        <option>factor</option>
+                        <option>lia2card</option>
+                        <option>degree-shift</option>
+                        <option>normalize-bounds</option>
+                        <option>card2bv</option>
+                        <option>pb2bv</option>
+                        <option>propagate-ineqs</option>
+                        <option>fm</option>
+                        <option>eq2bv</option>
+                        <option>elim01</option>
+                        <option>distribute-forall</option>
+                        <option>der</option>
+                        <option>snf</option>
+                        <option>nnf</option>
+                        <option>solve-eqs</option>
+                        <option>ctx-simplify</option>
+                        <option>tseitin-cnf</option>
+                        <option>tseitin-cnf-core</option>
+                        <option>occf</option>
+                        <option>pb-preprocess</option>
+                        <option>elim-term-ite</option>
+                        <option>blast-term-ite</option>
+                        <option>propagate-values</option>
+                        <option>split-clause</option>
+                        <option>symmetry-reduce</option>
+                        <option selected>simplify</option>
+                        <option>elim-and</option>
+                        <option>cofactor-term-ite</option>
+                        <option>elim-uncnstr</option>
+                        <option>reduce-args</option>
+                        <option>skip</option>
+                        <option>fail</option>
+                        <option>fail-if-undecided</option>
+                        <option>bit-blast</option>
+                        <option>bv1-blast</option>
+                        <option>max-bv-sharing</option>
+                        <option>reduce-bv-size</option>
+                        <option>qfnra-nlsat</option>
+                        <option>nlsat</option>
+                        <option>sat</option>
+                        <option>sat-preprocess</option>
+                        <option>smt</option>
+                        <option>ctx-solver-simplify</option>
+                        <option>unit-subsume-simplify</option>
+                        <option selected>aig</option>
+                        <option>horn</option>
+                        <option>horn-simplify</option>
+                        <option>qe</option>
+                        <option>qe-light</option>
+                        <option>vsubst</option>
+                        <option>qe-sat</option>
+                        <option>nl-purify</option>
+                        <option>bv</option>
+                        <option>ufbv</option>
+                        <option>macro-finder</option>
+                        <option>quasi-macros</option>
+                        <option>qffp</option>
+                        <option>qffpbv</option>
+                        <option>fpa2bv</option>
+                        <option>qfbv-sls</option>
+                        <option>subpaving</option>
+                    </select>
+                </fieldset>
+            </div>
+        </details>
     </form>
-    <div class="second-row">
-        <iframe name="upload">
-        </iframe>
-    </div>
+    <iframe name="upload" class="second-row">
+    </iframe>
 </body>
 
 </html>

@@ -37,6 +37,56 @@ DEFINE_bool(standalone_html, true,
 
 DECLARE_bool(version);
 
+DEFINE_bool(enable_dse, false, "Enable dead statement elimination");
+
+DEFINE_bool(enable_cbr_zcs, false,
+            "Enable Z3 condition simplification in condition-based refinement");
+DEFINE_string(cbr_zcs_tactics, "aig,simplify",
+              "Comma-separated list of tactics for use in Z3 condition "
+              "simplification during condition-based refinement");
+DEFINE_bool(
+    enable_cbr_ncp, false,
+    "Enable nested condition propagation in condition-based refinement");
+DEFINE_bool(enable_cbr, false, "Enable condition-based refinement");
+DEFINE_bool(enable_cbr_rbr, false,
+            "Enable reach-based refinement during condition-based refinement");
+
+DEFINE_bool(enable_lr, false, "Enable loop refinement");
+DEFINE_bool(enable_lr_nsc, false,
+            "Enable nested scope combination in loop refinement");
+
+DEFINE_bool(enable_sr_zcs, false,
+            "Enable Z3 condition simplification in scope refinement");
+DEFINE_string(sr_zcs_tactics, "aig,simplify,propagate-bv-bounds,ctx-simplify",
+              "Comma-separated list of tactics for use in Z3 condition "
+              "simplification during scope refinement");
+DEFINE_bool(enable_sr_ncp, false,
+            "Enable nested condition propagation in scope refinement");
+DEFINE_bool(enable_sr_nsc, false,
+            "Enable nested scope combination in scope refinement");
+
+DEFINE_bool(enable_ec, false, "Enable expression combination");
+
+static std::vector<std::string> SplitString(std::string &s, char separator) {
+  std::string current{s};
+  std::vector<std::string> result;
+  while (true) {
+    if (current.empty()) {
+      return result;
+    }
+    auto next_sep{current.find(separator)};
+    if (next_sep == std::string::npos) {
+      result.push_back(current);
+      return result;
+    }
+    auto elem{current.substr(0, next_sep)};
+    if (!elem.empty()) {
+      result.push_back(elem);
+    }
+    current = current.substr(next_sep + 1, std::string::npos);
+  }
+}
+
 namespace {
 static llvm::Optional<llvm::APInt> GetPCMetadata(llvm::Value *value) {
   auto inst{llvm::dyn_cast<llvm::Instruction>(value)};
@@ -127,6 +177,25 @@ int main(int argc, char *argv[]) {
   opts.disable_z3 = FLAGS_disable_z3;
   opts.lower_switches = FLAGS_lower_switch;
   opts.remove_phi_nodes = FLAGS_remove_phi_nodes;
+
+  opts.dead_stmt_elimination = FLAGS_enable_dse;
+
+  opts.condition_based_refinement.z3_cond_simplify = FLAGS_enable_cbr_zcs;
+  opts.condition_based_refinement.z3_tactics =
+      SplitString(FLAGS_cbr_zcs_tactics, ',');
+  opts.condition_based_refinement.nested_cond_propagate = FLAGS_enable_cbr_ncp;
+  opts.condition_based_refinement.cond_base_refine = FLAGS_enable_cbr;
+  opts.condition_based_refinement.reach_based_refine = FLAGS_enable_cbr_rbr;
+
+  opts.loop_refinement.loop_refine = FLAGS_enable_lr;
+  opts.loop_refinement.nested_scope_combine = FLAGS_enable_lr_nsc;
+
+  opts.scope_refinement.z3_cond_simplify = FLAGS_enable_sr_zcs;
+  opts.scope_refinement.z3_tactics = SplitString(FLAGS_sr_zcs_tactics, ',');
+  opts.scope_refinement.nested_cond_propagate = FLAGS_enable_sr_ncp;
+  opts.scope_refinement.nested_scope_combine = FLAGS_enable_sr_nsc;
+
+  opts.expression_combine = FLAGS_enable_ec;
 
   auto result{rellic::Decompile(std::move(module), opts)};
   if (result.Succeeded()) {

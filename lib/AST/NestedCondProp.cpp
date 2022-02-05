@@ -71,8 +71,11 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // and remove it from `cond` if it's present.
   auto iter = parent_conds.find(ifstmt);
   if (iter != parent_conds.end()) {
-    auto child_expr = z3_gen->GetOrCreateZ3Expr(ifstmt->getCond()).simplify();
-    auto parent_expr = z3_gen->GetOrCreateZ3Expr(iter->second).simplify();
+    auto child_expr =
+        z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(ifstmt->getCond()))
+            .simplify();
+    auto parent_expr =
+        z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(iter->second)).simplify();
     z3::expr_vector src(*z3_ctx);
     z3::expr_vector dst(*z3_ctx);
     src.push_back(parent_expr);

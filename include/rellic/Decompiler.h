@@ -25,7 +25,7 @@ struct DecompilationOptions {
   struct {
     bool expression_normalize = true;
     bool z3_cond_simplify = true;
-    std::vector<std::string> z3_tactics{"aig", "simplify"};
+    std::vector<std::string> z3_tactics{"sat"};
     bool nested_cond_propagate = true;
     bool nested_scope_combine = true;
     bool cond_base_refine = true;
@@ -39,8 +39,7 @@ struct DecompilationOptions {
   struct {
     bool expression_normalize = true;
     bool z3_cond_simplify = true;
-    std::vector<std::string> z3_tactics{"aig", "simplify",
-                                        "propagate-bv-bounds", "ctx-simplify"};
+    std::vector<std::string> z3_tactics{"sat"};
     bool nested_cond_propagate = true;
     bool nested_scope_combine = true;
   } scope_refinement;

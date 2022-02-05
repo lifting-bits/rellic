@@ -12,6 +12,7 @@
 #include <llvm/Pass.h>
 #include <z3++.h>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 #include "rellic/AST/Z3ConvVisitor.h"
@@ -22,6 +23,7 @@ class Z3CondSimplify : public llvm::ModulePass,
                        public TransformVisitor<Z3CondSimplify> {
  private:
   clang::ASTContext *ast_ctx;
+  ASTBuilder ast;
 
   std::unique_ptr<z3::context> z_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z_gen;

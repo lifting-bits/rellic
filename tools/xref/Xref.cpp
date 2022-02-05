@@ -43,7 +43,7 @@ DEFINE_bool(enable_cbr_en, false,
             "Enable expression normalization in condition-based refinement");
 DEFINE_bool(enable_cbr_zcs, false,
             "Enable Z3 condition simplification in condition-based refinement");
-DEFINE_string(cbr_zcs_tactics, "aig,simplify",
+DEFINE_string(cbr_zcs_tactics, "sat",
               "Comma-separated list of tactics for use in Z3 condition "
               "simplification during condition-based refinement");
 DEFINE_bool(
@@ -63,7 +63,7 @@ DEFINE_bool(enable_sr_en, false,
             "Enable expression normalization in scope refinement");
 DEFINE_bool(enable_sr_zcs, false,
             "Enable Z3 condition simplification in scope refinement");
-DEFINE_string(sr_zcs_tactics, "aig,simplify,propagate-bv-bounds,ctx-simplify",
+DEFINE_string(sr_zcs_tactics, "sat",
               "Comma-separated list of tactics for use in Z3 condition "
               "simplification during scope refinement");
 DEFINE_bool(enable_sr_ncp, false,

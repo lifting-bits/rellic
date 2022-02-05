@@ -39,6 +39,8 @@ DECLARE_bool(version);
 
 DEFINE_bool(enable_dse, false, "Enable dead statement elimination");
 
+DEFINE_bool(enable_cbr_en, false,
+            "Enable expression normalization in condition-based refinement");
 DEFINE_bool(enable_cbr_zcs, false,
             "Enable Z3 condition simplification in condition-based refinement");
 DEFINE_string(cbr_zcs_tactics, "aig,simplify",
@@ -51,10 +53,14 @@ DEFINE_bool(enable_cbr, false, "Enable condition-based refinement");
 DEFINE_bool(enable_cbr_rbr, false,
             "Enable reach-based refinement during condition-based refinement");
 
+DEFINE_bool(enable_lr_en, false,
+            "Enable expression normalization in loop refinement");
 DEFINE_bool(enable_lr, false, "Enable loop refinement");
 DEFINE_bool(enable_lr_nsc, false,
             "Enable nested scope combination in loop refinement");
 
+DEFINE_bool(enable_sr_en, false,
+            "Enable expression normalization in scope refinement");
 DEFINE_bool(enable_sr_zcs, false,
             "Enable Z3 condition simplification in scope refinement");
 DEFINE_string(sr_zcs_tactics, "aig,simplify,propagate-bv-bounds,ctx-simplify",
@@ -66,6 +72,7 @@ DEFINE_bool(enable_sr_nsc, false,
             "Enable nested scope combination in scope refinement");
 
 DEFINE_bool(enable_ec, false, "Enable expression combination");
+DEFINE_bool(enable_en, false, "Enable expression normalization");
 
 static std::vector<std::string> SplitString(std::string &s, char separator) {
   std::string current{s};
@@ -180,6 +187,7 @@ int main(int argc, char *argv[]) {
 
   opts.dead_stmt_elimination = FLAGS_enable_dse;
 
+  opts.condition_based_refinement.expression_normalize = FLAGS_enable_cbr_en;
   opts.condition_based_refinement.z3_cond_simplify = FLAGS_enable_cbr_zcs;
   opts.condition_based_refinement.z3_tactics =
       SplitString(FLAGS_cbr_zcs_tactics, ',');
@@ -187,14 +195,17 @@ int main(int argc, char *argv[]) {
   opts.condition_based_refinement.cond_base_refine = FLAGS_enable_cbr;
   opts.condition_based_refinement.reach_based_refine = FLAGS_enable_cbr_rbr;
 
+  opts.loop_refinement.expression_normalize = FLAGS_enable_lr_en;
   opts.loop_refinement.loop_refine = FLAGS_enable_lr;
   opts.loop_refinement.nested_scope_combine = FLAGS_enable_lr_nsc;
 
+  opts.scope_refinement.expression_normalize = FLAGS_enable_sr_en;
   opts.scope_refinement.z3_cond_simplify = FLAGS_enable_sr_zcs;
   opts.scope_refinement.z3_tactics = SplitString(FLAGS_sr_zcs_tactics, ',');
   opts.scope_refinement.nested_cond_propagate = FLAGS_enable_sr_ncp;
   opts.scope_refinement.nested_scope_combine = FLAGS_enable_sr_nsc;
 
+  opts.expression_normalize = FLAGS_enable_en;
   opts.expression_combine = FLAGS_enable_ec;
 
   auto result{rellic::Decompile(std::move(module), opts)};

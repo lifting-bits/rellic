@@ -50,20 +50,24 @@
                     <select name="passes" multiple>
                         <option value="enable_dse" selected>Dead statement elimination</option>
                         <optgroup label="Condition-based refinement phase">
+                            <option value="enable_cbr_en" selected>Expression normalization</option>
                             <option value="enable_cbr_zcs" selected>Z3 condition simplification</option>
                             <option value="enable_cbr_ncp" selected>Nested condition propagation</option>
                             <option value="enable_cbr" selected>Condition-based refinement</option>
                             <option value="enable_cbr_rbr" selected>Reach-based refinement</option>
                         </optgroup>
                         <optgroup label="Loop refinement phase">
+                            <option value="enable_lr_en" selected>Expression normalization</option>
                             <option value="enable_lr" selected>Loop refinement</option>
                             <option value="enable_lr_nsc" selected>Nested scope combination</option>
                         </optgroup>
                         <optgroup label="Scope refinement phase">
+                            <option value="enable_sr_en" selected>Expression normalization</option>
                             <option value="enable_sr_zcs" selected>Z3 condition simplification</option>
                             <option value="enable_sr_ncp" selected>Nested condition propagation</option>
                             <option value="enable_sr_nsc" selected>Nested scope combination</option>
                         </optgroup>
+                        <option value="enable_en" selected>Expression normalization</option>
                         <option value="enable_ec" selected>Expression combination</option>
                     </select>
                 </fieldset>

@@ -30,6 +30,7 @@
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
+#include "rellic/AST/NormalizeCond.h"
 #include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
@@ -189,6 +190,8 @@ Result<DecompilationResult, DecompilationError> Decompile(
     UpdateProvenanceMap(stmt_provenance, dse->GetStmtSubMap(),
                         dse->GetExprSubMap());
 
+    llvm::legacy::PassManager pm_cnf;
+    rellic::NormalizeCond* nc{new rellic::NormalizeCond(*ast_unit)};
     rellic::Z3CondSimplify* zcs{new rellic::Z3CondSimplify(*ast_unit)};
     rellic::NestedCondProp* ncp{new rellic::NestedCondProp(*ast_unit)};
     rellic::NestedScopeCombine* nsc{new rellic::NestedScopeCombine(*ast_unit)};
@@ -196,6 +199,9 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::ReachBasedRefine* rbr{new rellic::ReachBasedRefine(*ast_unit)};
 
     llvm::legacy::PassManager pm_cbr;
+    if (options.condition_based_refinement.expression_normalize) {
+      pm_cbr.add(nc);
+    }
     if (!options.disable_z3) {
       // Simplifier to use during condition-based refinement
       z3::tactic tactic{zcs->GetZ3Context(), "skip"};
@@ -239,8 +245,12 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     rellic::LoopRefine* lr{new rellic::LoopRefine(*ast_unit)};
     nsc = new rellic::NestedScopeCombine(*ast_unit);
+    nc = new rellic::NormalizeCond(*ast_unit);
 
     llvm::legacy::PassManager pm_loop;
+    if (options.loop_refinement.expression_normalize) {
+      pm_loop.add(nc);
+    }
     if (options.loop_refinement.loop_refine) {
       pm_loop.add(lr);
     }
@@ -255,6 +265,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
     }
 
     llvm::legacy::PassManager pm_scope;
+    nc = new rellic::NormalizeCond(*ast_unit);
+    if (options.scope_refinement.expression_normalize) {
+      pm_scope.add(nc);
+    }
     if (!options.disable_z3) {
       // Simplifier to use during final refinement
       zcs = new rellic::Z3CondSimplify(*ast_unit);
@@ -288,6 +302,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     llvm::legacy::PassManager pm_expr;
     rellic::ExprCombine* ec{new rellic::ExprCombine(*ast_unit)};
+    nc = new rellic::NormalizeCond(*ast_unit);
+    if (options.expression_normalize) {
+      pm_scope.add(nc);
+    }
     if (options.expression_combine) {
       pm_expr.add(ec);
     }

@@ -34,6 +34,7 @@ set(AST_HEADERS
   "${include_dir}/AST/LoopRefine.h"
   "${include_dir}/AST/NestedCondProp.h"
   "${include_dir}/AST/NestedScopeCombine.h"
+  "${include_dir}/AST/NormalizeCond.h"
   "${include_dir}/AST/ReachBasedRefine.h"
   "${include_dir}/AST/StructFieldRenamer.h"
   "${include_dir}/AST/StructGenerator.h"
@@ -97,6 +98,7 @@ set(AST_SOURCES
   AST/LoopRefine.cpp
   AST/NestedCondProp.cpp
   AST/NestedScopeCombine.cpp
+  AST/NormalizeCond.cpp
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp

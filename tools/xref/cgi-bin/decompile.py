@@ -47,11 +47,12 @@ if fileitem.file:
             f"--cbr-zcs-tactics={cbr_tacticts}",
             f"--sr-zcs-tactics={sr_tactics}"]
     args.extend(passes)
+    timeout = form.getvalue("timeout")
     res = subprocess.run(args,
         input=fileitem.file.read(),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        timeout=5)
+        timeout=timeout and float(timeout))
     sys.stdout.buffer.write(res.stdout)
     sys.stdout.flush()
 else:

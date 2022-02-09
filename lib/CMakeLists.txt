@@ -43,6 +43,7 @@ set(AST_HEADERS
   "${include_dir}/AST/Util.h"
   "${include_dir}/AST/Z3CondSimplify.h"
   "${include_dir}/AST/Z3ConvVisitor.h"
+  "${include_dir}/AST/Z3ExprSimplifier.h"
 )
 
 set(AST_COMPAT_HEADERS
@@ -102,6 +103,7 @@ set(AST_SOURCES
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp
+  AST/Z3ExprSimplifier.cpp
   AST/ReachBasedRefine.cpp
   AST/StructFieldRenamer.cpp
   AST/StructGenerator.cpp

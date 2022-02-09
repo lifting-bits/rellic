@@ -191,7 +191,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
       for (auto name : options.condition_based_refinement.z3_tactics) {
         tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
       }
-      zcs->SetZ3Simplifier(tactic);
+      zcs->SetZ3Tactic(tactic);
       if (options.condition_based_refinement.z3_cond_simplify) {
         pm_cbr.add(zcs);
       }
@@ -248,7 +248,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
       for (auto name : options.scope_refinement.z3_tactics) {
         tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
       }
-      zcs->SetZ3Simplifier(tactic);
+      zcs->SetZ3Tactic(tactic);
       if (options.scope_refinement.z3_cond_simplify) {
         pm_scope.add(zcs);
       }

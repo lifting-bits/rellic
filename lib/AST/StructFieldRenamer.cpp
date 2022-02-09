@@ -21,10 +21,12 @@ namespace rellic {
 
 char StructFieldRenamer::ID = 0;
 
-StructFieldRenamer::StructFieldRenamer(clang::ASTUnit &unit,
+StructFieldRenamer::StructFieldRenamer(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        IRTypeToDITypeMap &types,
                                        IRToTypeDeclMap &decls)
     : ModulePass(StructFieldRenamer::ID),
+      TransformVisitor<StructFieldRenamer>(provenance),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       types(types),

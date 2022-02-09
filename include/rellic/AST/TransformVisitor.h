@@ -12,17 +12,34 @@
 
 #include <unordered_map>
 
+#include "rellic/AST/IRToASTVisitor.h"
+
 namespace rellic {
 
 using StmtSubMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
-using ExprSubMap = std::unordered_map<clang::Expr *, clang::Stmt *>;
 
 template <typename Derived>
 class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
+  StmtToIRMap &provenance;
+
  protected:
   StmtSubMap substitutions;
-  ExprSubMap expr_substitutions;
   bool changed;
+
+  void EraseProvenance(clang::Stmt *from) { provenance.erase(from); }
+
+  void CopyProvenance(clang::Stmt *from, clang::Stmt *to) {
+    auto range{provenance.equal_range(from)};
+    for (auto it{range.first}; it != range.second && it != provenance.end();
+         ++it) {
+      provenance.insert({to, it->second});
+    }
+  }
+
+  void CopyProvenanceAndErase(clang::Stmt *from, clang::Stmt *to) {
+    CopyProvenance(from, to);
+    EraseProvenance(from);
+  }
 
   bool ReplaceChildren(clang::Stmt *stmt, StmtSubMap &repl_map) {
     auto change = false;
@@ -30,6 +47,7 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
       auto s_it = repl_map.find(*c_it);
       if (s_it != repl_map.end()) {
         *c_it = s_it->second;
+        CopyProvenanceAndErase(s_it->first, s_it->second);
         change = true;
       }
     }
@@ -37,7 +55,8 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
   }
 
  public:
-  TransformVisitor() : changed(false) {}
+  TransformVisitor(StmtToIRMap &provenance)
+      : provenance(provenance), changed(false) {}
 
   virtual bool shouldTraversePostOrder() { return true; }
 
@@ -45,9 +64,6 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
     changed = false;
     substitutions.clear();
   }
-
-  StmtSubMap &GetStmtSubMap() { return substitutions; }
-  ExprSubMap &GetExprSubMap() { return expr_substitutions; }
 
   bool VisitFunctionDecl(clang::FunctionDecl *fdecl) {
     // DLOG(INFO) << "VisitFunctionDecl";

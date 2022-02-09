@@ -161,8 +161,10 @@ class RDistributiveRule : public InferenceRule {
 
 char NormalizeCond::ID = 0;
 
-NormalizeCond::NormalizeCond(clang::ASTUnit &u)
-    : ModulePass(NormalizeCond::ID), unit(u) {}
+NormalizeCond::NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &u)
+    : ModulePass(NormalizeCond::ID),
+      TransformVisitor<NormalizeCond>(provenance),
+      unit(u) {}
 
 bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;

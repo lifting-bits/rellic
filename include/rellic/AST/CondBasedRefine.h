@@ -38,7 +38,7 @@ class CondBasedRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  CondBasedRefine(clang::ASTUnit &unit);
+  CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 

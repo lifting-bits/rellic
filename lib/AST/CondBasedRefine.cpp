@@ -31,8 +31,9 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char CondBasedRefine::ID = 0;
 
-CondBasedRefine::CondBasedRefine(clang::ASTUnit &unit)
+CondBasedRefine::CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit)
     : ModulePass(CondBasedRefine::ID),
+      TransformVisitor<CondBasedRefine>(provenance),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       z3_ctx(new z3::context()),

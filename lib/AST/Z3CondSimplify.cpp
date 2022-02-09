@@ -18,8 +18,9 @@ namespace rellic {
 
 char Z3CondSimplify::ID = 0;
 
-Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit)
+Z3CondSimplify::Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit)
     : ModulePass(Z3CondSimplify::ID),
+      TransformVisitor<Z3CondSimplify>(provenance),
       ast_ctx(&unit.getASTContext()),
       ast(unit),
       z_ctx(new z3::context()),

@@ -25,7 +25,7 @@ class DeadStmtElim : public llvm::ModulePass,
  public:
   static char ID;
 
-  DeadStmtElim(clang::ASTUnit &unit);
+  DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);

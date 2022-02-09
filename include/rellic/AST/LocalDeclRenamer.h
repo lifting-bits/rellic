@@ -41,8 +41,8 @@ class LocalDeclRenamer : public llvm::ModulePass,
  public:
   static char ID;
 
-  LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
-                   IRToValDeclMap &decls);
+  LocalDeclRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                   IRToNameMap &names, IRToValDeclMap &decls);
 
   bool shouldTraversePostOrder() override;
   bool VisitVarDecl(clang::VarDecl *decl);

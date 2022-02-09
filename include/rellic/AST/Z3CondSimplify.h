@@ -35,7 +35,7 @@ class Z3CondSimplify : public llvm::ModulePass,
  public:
   static char ID;
 
-  Z3CondSimplify(clang::ASTUnit &unit);
+  Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   z3::context &GetZ3Context() { return *z_ctx; }
 

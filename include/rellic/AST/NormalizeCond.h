@@ -24,7 +24,7 @@ class NormalizeCond : public llvm::ModulePass,
  public:
   static char ID;
 
-  NormalizeCond(clang::ASTUnit &unit);
+  NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitUnaryOperator(clang::UnaryOperator *op);
   bool VisitBinaryOperator(clang::BinaryOperator *op);

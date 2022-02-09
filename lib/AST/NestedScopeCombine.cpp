@@ -17,8 +17,10 @@ namespace rellic {
 
 char NestedScopeCombine::ID = 0;
 
-NestedScopeCombine::NestedScopeCombine(clang::ASTUnit &unit)
+NestedScopeCombine::NestedScopeCombine(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit)
     : ModulePass(NestedScopeCombine::ID),
+      TransformVisitor<NestedScopeCombine>(provenance),
       ast(unit),
       ast_ctx(&unit.getASTContext()) {}
 

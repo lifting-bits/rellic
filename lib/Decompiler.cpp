@@ -99,28 +99,6 @@ static void InitOptPasses(void) {
   initializeCore(pr);
   initializeAnalysis(pr);
 }
-
-static void UpdateProvenanceMap(rellic::StmtToIRMap& provenance,
-                                rellic::StmtSubMap& substitutions,
-                                rellic::ExprSubMap& expr_substitutions) {
-  for (auto& sub : substitutions) {
-    auto range{provenance.equal_range(sub.first)};
-    for (auto it{range.first}; it != range.second && it != provenance.end();
-         ++it) {
-      provenance.insert({sub.second, it->second});
-    }
-    provenance.erase(sub.first);
-  }
-
-  for (auto& sub : expr_substitutions) {
-    auto range{provenance.equal_range(sub.first)};
-    for (auto it{range.first}; it != range.second && it != provenance.end();
-         ++it) {
-      provenance.insert({sub.second, it->second});
-    }
-    provenance.erase(sub.first);
-  }
-}
 };  // namespace
 
 template <typename TKey, typename TValue>
@@ -170,11 +148,17 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     llvm::legacy::PassManager pm_ast;
     rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
-    rellic::DeadStmtElim* dse{new rellic::DeadStmtElim(*ast_unit)};
+    // TODO(surovic): Add llvm::Value* -> clang::Decl* map
+    // Especially for llvm::Argument* and llvm::Function*.
+    auto& stmt_provenance{gr->GetStmtToIRMap()};
+    rellic::DeadStmtElim* dse{
+        new rellic::DeadStmtElim(stmt_provenance, *ast_unit)};
     rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
-        *ast_unit, dic.GetIRToNameMap(), gr->GetIRToValDeclMap())};
+        stmt_provenance, *ast_unit, dic.GetIRToNameMap(),
+        gr->GetIRToValDeclMap())};
     rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
-        *ast_unit, dic.GetIRTypeToDITypeMap(), gr->GetIRToTypeDeclMap())};
+        stmt_provenance, *ast_unit, dic.GetIRTypeToDITypeMap(),
+        gr->GetIRToTypeDeclMap())};
     pm_ast.add(gr);
     if (options.dead_stmt_elimination) {
       pm_ast.add(dse);
@@ -183,20 +167,19 @@ Result<DecompilationResult, DecompilationError> Decompile(
     pm_ast.add(sfr);
     pm_ast.run(*module);
 
-    // TODO(surovic): Add llvm::Value* -> clang::Decl* map
-    // Especially for llvm::Argument* and llvm::Function*.
-    auto& stmt_provenance{gr->GetStmtToIRMap()};
-
-    UpdateProvenanceMap(stmt_provenance, dse->GetStmtSubMap(),
-                        dse->GetExprSubMap());
-
     llvm::legacy::PassManager pm_cnf;
-    rellic::NormalizeCond* nc{new rellic::NormalizeCond(*ast_unit)};
-    rellic::Z3CondSimplify* zcs{new rellic::Z3CondSimplify(*ast_unit)};
-    rellic::NestedCondProp* ncp{new rellic::NestedCondProp(*ast_unit)};
-    rellic::NestedScopeCombine* nsc{new rellic::NestedScopeCombine(*ast_unit)};
-    rellic::CondBasedRefine* cbr{new rellic::CondBasedRefine(*ast_unit)};
-    rellic::ReachBasedRefine* rbr{new rellic::ReachBasedRefine(*ast_unit)};
+    rellic::NormalizeCond* nc{
+        new rellic::NormalizeCond(stmt_provenance, *ast_unit)};
+    rellic::Z3CondSimplify* zcs{
+        new rellic::Z3CondSimplify(stmt_provenance, *ast_unit)};
+    rellic::NestedCondProp* ncp{
+        new rellic::NestedCondProp(stmt_provenance, *ast_unit)};
+    rellic::NestedScopeCombine* nsc{
+        new rellic::NestedScopeCombine(stmt_provenance, *ast_unit)};
+    rellic::CondBasedRefine* cbr{
+        new rellic::CondBasedRefine(stmt_provenance, *ast_unit)};
+    rellic::ReachBasedRefine* rbr{
+        new rellic::ReachBasedRefine(stmt_provenance, *ast_unit)};
 
     llvm::legacy::PassManager pm_cbr;
     if (options.condition_based_refinement.expression_normalize) {
@@ -231,21 +214,12 @@ Result<DecompilationResult, DecompilationError> Decompile(
     }
 
     while (pm_cbr.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap(),
-                          zcs->GetExprSubMap());
-      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap(),
-                          ncp->GetExprSubMap());
-      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap(),
-                          nsc->GetExprSubMap());
-      UpdateProvenanceMap(stmt_provenance, cbr->GetStmtSubMap(),
-                          cbr->GetExprSubMap());
-      UpdateProvenanceMap(stmt_provenance, rbr->GetStmtSubMap(),
-                          rbr->GetExprSubMap());
+      ;
     }
 
-    rellic::LoopRefine* lr{new rellic::LoopRefine(*ast_unit)};
-    nsc = new rellic::NestedScopeCombine(*ast_unit);
-    nc = new rellic::NormalizeCond(*ast_unit);
+    rellic::LoopRefine* lr{new rellic::LoopRefine(stmt_provenance, *ast_unit)};
+    nsc = new rellic::NestedScopeCombine(stmt_provenance, *ast_unit);
+    nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
 
     llvm::legacy::PassManager pm_loop;
     if (options.loop_refinement.expression_normalize) {
@@ -258,21 +232,18 @@ Result<DecompilationResult, DecompilationError> Decompile(
       pm_loop.add(nsc);
     }
     while (pm_loop.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, lr->GetStmtSubMap(),
-                          lr->GetExprSubMap());
-      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap(),
-                          nsc->GetExprSubMap());
+      ;
     }
 
     llvm::legacy::PassManager pm_scope;
-    nc = new rellic::NormalizeCond(*ast_unit);
+    nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
     if (options.scope_refinement.expression_normalize) {
       pm_scope.add(nc);
     }
     if (!options.disable_z3) {
+      zcs = new rellic::Z3CondSimplify(stmt_provenance, *ast_unit);
+      ncp = new rellic::NestedCondProp(stmt_provenance, *ast_unit);
       // Simplifier to use during final refinement
-      zcs = new rellic::Z3CondSimplify(*ast_unit);
-      ncp = new rellic::NestedCondProp(*ast_unit);
       z3::tactic tactic{zcs->GetZ3Context(), "skip"};
       for (auto name : options.scope_refinement.z3_tactics) {
         tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
@@ -286,23 +257,19 @@ Result<DecompilationResult, DecompilationError> Decompile(
       }
     }
 
-    nsc = new rellic::NestedScopeCombine(*ast_unit);
+    nsc = new rellic::NestedScopeCombine(stmt_provenance, *ast_unit);
 
     if (options.scope_refinement.nested_scope_combine) {
       pm_scope.add(nsc);
     }
     while (pm_scope.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, zcs->GetStmtSubMap(),
-                          zcs->GetExprSubMap());
-      UpdateProvenanceMap(stmt_provenance, ncp->GetStmtSubMap(),
-                          ncp->GetExprSubMap());
-      UpdateProvenanceMap(stmt_provenance, nsc->GetStmtSubMap(),
-                          nsc->GetExprSubMap());
+      ;
     }
 
     llvm::legacy::PassManager pm_expr;
-    rellic::ExprCombine* ec{new rellic::ExprCombine(*ast_unit)};
-    nc = new rellic::NormalizeCond(*ast_unit);
+    rellic::ExprCombine* ec{
+        new rellic::ExprCombine(stmt_provenance, *ast_unit)};
+    nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
     if (options.expression_normalize) {
       pm_scope.add(nc);
     }
@@ -310,8 +277,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
       pm_expr.add(ec);
     }
     while (pm_expr.run(*module)) {
-      UpdateProvenanceMap(stmt_provenance, ec->GetStmtSubMap(),
-                          ec->GetExprSubMap());
+      ;
     }
 
     DecompilationResult result{};

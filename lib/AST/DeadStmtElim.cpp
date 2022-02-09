@@ -16,8 +16,11 @@ namespace rellic {
 
 char DeadStmtElim::ID = 0;
 
-DeadStmtElim::DeadStmtElim(clang::ASTUnit &unit)
-    : ModulePass(DeadStmtElim::ID), ast(unit), ast_ctx(&unit.getASTContext()) {}
+DeadStmtElim::DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit)
+    : ModulePass(DeadStmtElim::ID),
+      TransformVisitor<DeadStmtElim>(provenance),
+      ast(unit),
+      ast_ctx(&unit.getASTContext()) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";

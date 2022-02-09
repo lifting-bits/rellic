@@ -39,7 +39,7 @@ class ReachBasedRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  ReachBasedRefine(clang::ASTUnit &unit);
+  ReachBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 

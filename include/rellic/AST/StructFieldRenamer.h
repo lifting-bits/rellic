@@ -33,8 +33,8 @@ class StructFieldRenamer : public llvm::ModulePass,
  public:
   static char ID;
 
-  StructFieldRenamer(clang::ASTUnit &unit, IRTypeToDITypeMap &types,
-                     IRToTypeDeclMap &decls);
+  StructFieldRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                     IRTypeToDITypeMap &types, IRToTypeDeclMap &decls);
 
   bool VisitRecordDecl(clang::RecordDecl *decl);
 

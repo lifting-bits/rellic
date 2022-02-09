@@ -343,8 +343,10 @@ class CStyleZeroToPtrCastElimRule : public InferenceRule {
 
 char ExprCombine::ID = 0;
 
-ExprCombine::ExprCombine(clang::ASTUnit &u)
-    : ModulePass(ExprCombine::ID), unit(u) {}
+ExprCombine::ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &u)
+    : ModulePass(ExprCombine::ID),
+      TransformVisitor<ExprCombine>(provenance),
+      unit(u) {}
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   // TODO(frabert): Re-enable nullptr casts simplification

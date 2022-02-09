@@ -31,8 +31,10 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 char ReachBasedRefine::ID = 0;
 
-ReachBasedRefine::ReachBasedRefine(clang::ASTUnit &unit)
+ReachBasedRefine::ReachBasedRefine(StmtToIRMap &provenance,
+                                   clang::ASTUnit &unit)
     : ModulePass(ReachBasedRefine::ID),
+      TransformVisitor<ReachBasedRefine>(provenance),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       z3_ctx(new z3::context()),

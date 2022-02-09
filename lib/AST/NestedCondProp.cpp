@@ -31,8 +31,9 @@ static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
 
 char NestedCondProp::ID = 0;
 
-NestedCondProp::NestedCondProp(clang::ASTUnit &unit)
+NestedCondProp::NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit)
     : ModulePass(NestedCondProp::ID),
+      TransformVisitor<NestedCondProp>(provenance),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       z3_ctx(new z3::context()),
@@ -85,7 +86,6 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
       auto old_cond{ifstmt->getCond()};
       auto new_cond{z3_gen->GetOrCreateCExpr(sub)};
       ifstmt->setCond(new_cond);
-      expr_substitutions[old_cond] = new_cond;
       changed = true;
     }
   }

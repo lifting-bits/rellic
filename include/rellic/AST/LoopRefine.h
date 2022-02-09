@@ -24,7 +24,7 @@ class LoopRefine : public llvm::ModulePass,
  public:
   static char ID;
 
-  LoopRefine(clang::ASTUnit &unit);
+  LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitWhileStmt(clang::WhileStmt *loop);
 

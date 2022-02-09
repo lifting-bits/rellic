@@ -275,8 +275,10 @@ class CondToSeqNegRule : public InferenceRule {
 
 char LoopRefine::ID = 0;
 
-LoopRefine::LoopRefine(clang::ASTUnit &u)
-    : ModulePass(LoopRefine::ID), unit(u) {}
+LoopRefine::LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &u)
+    : ModulePass(LoopRefine::ID),
+      TransformVisitor<LoopRefine>(provenance),
+      unit(u) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";

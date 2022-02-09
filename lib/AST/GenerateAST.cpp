@@ -194,16 +194,12 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
         conj_cond = pred_cond;
       } else {
         conj_cond = ast.CreateLAnd(pred_cond, edge_cond);
-        CopyProvenance(pred_cond, conj_cond, prov);
-        CopyProvenance(edge_cond, conj_cond, prov);
       }
       // Append `conj_cond` to reaching conditions of other
       // predecessors via an `||`. Use `conj_cond` if there
       // is no `cond` yet.
       if (cond) {
         auto new_cond{ast.CreateLOr(cond, conj_cond)};
-        CopyProvenance(cond, new_cond, prov);
-        CopyProvenance(conj_cond, new_cond, prov);
         cond = new_cond;
       } else {
         cond = conj_cond;
@@ -347,8 +343,6 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto and_lhs{GetOrCreateReachingCond(from)};
     auto and_rhs{CreateEdgeCond(from, to)};
     auto cond = ast.CreateLAnd(and_lhs, and_rhs);
-    CopyProvenance(and_lhs, cond, GetStmtToIRMap());
-    CopyProvenance(and_rhs, cond, GetStmtToIRMap());
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());

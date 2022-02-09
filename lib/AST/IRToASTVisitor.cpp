@@ -917,8 +917,6 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
     } break;
   }
-  CopyProvenance(lhs, cmp, provenance);
-  CopyProvenance(rhs, cmp, provenance);
 }
 
 void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {

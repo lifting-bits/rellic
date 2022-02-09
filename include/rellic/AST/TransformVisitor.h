@@ -20,9 +20,8 @@ using StmtSubMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
 
 template <typename Derived>
 class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
-  StmtToIRMap &provenance;
-
  protected:
+  StmtToIRMap &provenance;
   StmtSubMap substitutions;
   bool changed;
 

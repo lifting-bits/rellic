@@ -38,7 +38,8 @@ class ArraySubscriptAddrOfRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto sub = clang::cast<clang::ArraySubscriptExpr>(stmt);
     CHECK(sub == match) << "Substituted ArraySubscriptExpr is not the matched "
@@ -62,7 +63,8 @@ class AddrOfArraySubscriptRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("addr_of");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto addr_of = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(addr_of == match)
@@ -85,7 +87,8 @@ class DerefAddrOfRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("deref");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
@@ -112,7 +115,8 @@ class NegComparisonRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto op = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(op == match)
@@ -137,7 +141,8 @@ class ParenDeclRefExprStripRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::ParenExpr>("paren");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto paren = clang::cast<clang::ParenExpr>(stmt);
     CHECK(paren == match)
@@ -162,7 +167,8 @@ class MemberExprAddrOfRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto arrow{clang::cast<clang::MemberExpr>(stmt)};
     CHECK(arrow == match)
@@ -193,7 +199,8 @@ class MemberExprArraySubRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto dot{clang::cast<clang::MemberExpr>(stmt)};
     CHECK(dot == match)
@@ -223,7 +230,8 @@ class AssignCastedExprRule : public InferenceRule {
     };
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto assign{clang::cast<clang::BinaryOperator>(stmt)};
     CHECK(assign == match)
@@ -258,7 +266,8 @@ class UnsignedToSignedCStyleCastRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
     CHECK(cast == match)
@@ -291,7 +300,8 @@ class TripleCStyleCastElimRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
     CHECK(cast == match)
@@ -329,7 +339,8 @@ class CStyleZeroToPtrCastElimRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
     CHECK(cast == match)
@@ -378,7 +389,7 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   rules.emplace_back(new UnsignedToSignedCStyleCastRule);
   rules.emplace_back(new TripleCStyleCastElimRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, cast, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, cast, rules)};
   if (sub != cast) {
     substitutions[cast] = sub;
   }
@@ -395,7 +406,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DerefAddrOfRule);
   rules.emplace_back(new AddrOfArraySubscriptRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -409,7 +420,7 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
 
   rules.emplace_back(new AssignCastedExprRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -423,7 +434,7 @@ bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 
   rules.emplace_back(new ArraySubscriptAddrOfRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -438,7 +449,7 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   rules.emplace_back(new MemberExprAddrOfRule);
   rules.emplace_back(new MemberExprArraySubRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -452,7 +463,7 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
 
   rules.emplace_back(new ParenDeclRefExprStripRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }

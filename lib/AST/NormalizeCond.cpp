@@ -47,7 +47,8 @@ class DeMorganRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("not");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
@@ -60,6 +61,8 @@ class DeMorganRule : public InferenceRule {
 
     auto new_lhs{ast.CreateLNot(binop->getLHS())};
     auto new_rhs{ast.CreateLNot(binop->getRHS())};
+    CopyProvenance(binop->getLHS(), new_lhs, provenance);
+    CopyProvenance(binop->getRHS(), new_rhs, provenance);
     return ast.CreateBinaryOp(to, new_lhs, new_rhs);
   }
 };
@@ -80,7 +83,8 @@ class AssociativeRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
@@ -110,7 +114,8 @@ class LDistributiveRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
@@ -140,7 +145,8 @@ class RDistributiveRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
@@ -172,7 +178,7 @@ bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DeMorganRule(clang::BO_LAnd, clang::BO_LOr));
   rules.emplace_back(new DeMorganRule(clang::BO_LOr, clang::BO_LAnd));
 
-  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -188,7 +194,7 @@ bool NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
   rules.emplace_back(new LDistributiveRule);
   rules.emplace_back(new RDistributiveRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }

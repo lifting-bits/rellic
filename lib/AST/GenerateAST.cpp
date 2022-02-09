@@ -440,6 +440,7 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
     auto fdefn = ast.CreateFunctionDecl(tudecl, fdecl->getType(),
                                         fdecl->getIdentifier());
     fdefn->setPreviousDecl(fdecl);
+    GetIRToValDeclMap()[&func] = fdefn;
     tudecl->addDecl(fdefn);
     // Set parameters to the same as the previous declaration
     fdefn->setParams(fdecl->parameters());

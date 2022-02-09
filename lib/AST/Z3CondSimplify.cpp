@@ -14,8 +14,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-enum SatValue { Tautology, Contradiction, Unknown };
-
 namespace rellic {
 
 char Z3CondSimplify::ID = 0;
@@ -26,77 +24,73 @@ Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit)
       ast(unit),
       z_ctx(new z3::context()),
       z_gen(new rellic::Z3ConvVisitor(unit, z_ctx.get())),
-      simplifier(*z_ctx, "simplify") {}
+      simplifier(*z_ctx, "sat") {}
 
 clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
-  auto Evaluate = [this](clang::Expr *e) {
-    auto z_expr{z_gen->Z3BoolCast(z_gen->GetOrCreateZ3Expr(e))};
+  auto Prove = [this](z3::expr e) {
     z3::goal goal(*z_ctx);
-    goal.add(z_expr.simplify());
-    auto app = simplifier(goal);
+    goal.add((!e).simplify());
+    auto app{simplifier.apply(goal)};
     CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-    if (app[0].is_decided_unsat()) {
-      return Contradiction;
-    }
-    goal.reset();
-    goal.add(!(z_expr.simplify()));
-    app = simplifier(goal);
-    CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
+    return app[0].is_decided_unsat();
+  };
 
-    if (app[0].is_decided_unsat()) {
-      return Tautology;
-    } else {
-      return Unknown;
-    }
+  auto ToZ3 = [this](clang::Expr *e) {
+    return z_gen->Z3BoolCast(z_gen->GetOrCreateZ3Expr(e));
   };
 
   if (auto binop = clang::dyn_cast<clang::BinaryOperator>(c_expr)) {
     auto lhs{SimplifyCExpr(binop->getLHS())};
     auto rhs{SimplifyCExpr(binop->getRHS())};
 
-    auto lhs_eval{Evaluate(lhs)};
-    auto rhs_eval{Evaluate(rhs)};
+    auto z_lhs{ToZ3(lhs)};
+    auto z_rhs{ToZ3(rhs)};
+
+    auto lhs_proven{Prove(z_lhs)};
+    auto rhs_proven{Prove(z_rhs)};
+    auto not_lhs_proven{Prove(!z_lhs)};
+    auto not_rhs_proven{Prove(!z_rhs)};
 
     switch (binop->getOpcode()) {
       case clang::BO_LAnd:
-        if (lhs_eval == Tautology && rhs_eval == Tautology) {
+        if (lhs_proven && rhs_proven) {
           return ast.CreateTrue();
-        } else if (lhs_eval == Contradiction || rhs_eval == Contradiction) {
+        } else if (not_lhs_proven || not_rhs_proven) {
           return ast.CreateFalse();
-        } else if (lhs_eval == Tautology) {
+        } else if (lhs_proven) {
           return rhs;
-        } else if (rhs_eval == Tautology) {
+        } else if (rhs_proven) {
           return lhs;
         }
       case clang::BO_LOr:
-        if (lhs_eval == Contradiction && rhs_eval == Contradiction) {
+        if (not_lhs_proven && not_rhs_proven) {
           return ast.CreateFalse();
-        } else if (lhs_eval == Tautology || rhs_eval == Tautology) {
+        } else if (lhs_proven || rhs_proven) {
           return ast.CreateTrue();
-        } else if (lhs_eval == Contradiction) {
+        } else if (not_lhs_proven) {
           return rhs;
-        } else if (rhs_eval == Contradiction) {
+        } else if (not_rhs_proven) {
           return lhs;
         }
       default:
         binop->setLHS(lhs);
         binop->setRHS(rhs);
-        auto eval{Evaluate(binop)};
-        if (eval == Tautology) {
+        auto z_binop{ToZ3(binop)};
+        if (Prove(z_binop)) {
           return ast.CreateTrue();
-        } else if (eval == Contradiction) {
+        } else if (Prove(!z_binop)) {
           return ast.CreateFalse();
         }
         break;
     }
   } else if (auto unop = clang::dyn_cast<clang::UnaryOperator>(c_expr)) {
     auto sub{SimplifyCExpr(unop->getSubExpr())};
-    auto eval{Evaluate(sub)};
+    auto z_sub{ToZ3(sub)};
     switch (unop->getOpcode()) {
       case clang::UO_LNot:
-        if (eval == Tautology) {
+        if (Prove(z_sub)) {
           return ast.CreateFalse();
-        } else if (eval == Contradiction) {
+        } else if (Prove(!z_sub)) {
           return ast.CreateTrue();
         }
       default:

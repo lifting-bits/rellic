@@ -398,12 +398,12 @@ void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
 }
 
 bool GenerateAST::runOnModule(llvm::Module &module) {
-  for (auto &var : module.globals()) {
-    ast_gen.VisitGlobalVar(var);
-  }
-
   for (auto &func : module.functions()) {
     ast_gen.VisitFunctionDecl(func);
+  }
+
+  for (auto &var : module.globals()) {
+    ast_gen.VisitGlobalVar(var);
   }
 
   for (auto &func : module.functions()) {

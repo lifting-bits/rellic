@@ -99,6 +99,42 @@ class DerefAddrOfRule : public InferenceRule {
   }
 };
 
+// Matches `*(cond ? &expr1 : &expr2)` and subs it for `cond ? expr1 : expr2`
+class DerefAddrOfConditionalRule : public InferenceRule {
+ public:
+  DerefAddrOfConditionalRule()
+      : InferenceRule(unaryOperator(
+            stmt().bind("deref"), hasOperatorName("*"),
+            has(ignoringParenImpCasts(conditionalOperator(
+                hasTrueExpression(
+                    ignoringParenImpCasts(unaryOperator(hasOperatorName("&")))),
+                hasFalseExpression(ignoringParenImpCasts(
+                    unaryOperator(hasOperatorName("&"))))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) {
+    match = result.Nodes.getNodeAs<clang::UnaryOperator>("deref");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) {
+    auto deref = clang::cast<clang::UnaryOperator>(stmt);
+    CHECK(deref == match)
+        << "Substituted UnaryOperator is not the matched UnaryOperator!";
+    auto subexpr = deref->getSubExpr()->IgnoreParenImpCasts();
+    auto conditional = clang::cast<clang::ConditionalOperator>(subexpr);
+    auto addr_of1 =
+        clang::cast<clang::UnaryOperator>(conditional->getTrueExpr());
+    auto addr_of2 =
+        clang::cast<clang::UnaryOperator>(conditional->getFalseExpr());
+    CopyProvenance(addr_of1, addr_of1->getSubExpr(), provenance);
+    CopyProvenance(addr_of2, addr_of2->getSubExpr(), provenance);
+
+    return ASTBuilder(unit).CreateConditional(
+        conditional->getCond(), addr_of1->getSubExpr(), addr_of2->getSubExpr());
+  }
+};
+
 // Matches `!(comp)` and subs it for `negcomp`
 class NegComparisonRule : public InferenceRule {
  public:
@@ -404,6 +440,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
 
   rules.emplace_back(new NegComparisonRule);
   rules.emplace_back(new DerefAddrOfRule);
+  rules.emplace_back(new DerefAddrOfConditionalRule);
   rules.emplace_back(new AddrOfArraySubscriptRule);
 
   auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};

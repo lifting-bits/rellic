@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/InferenceRule.h"
 
 namespace rellic {
@@ -46,6 +47,7 @@ class ArraySubscriptAddrOfRule : public InferenceRule {
                            "ArraySubscriptExpr!";
     auto paren = clang::cast<clang::ParenExpr>(sub->getBase());
     auto addr_of = clang::cast<clang::UnaryOperator>(paren->getSubExpr());
+    CopyProvenance(addr_of, addr_of->getSubExpr(), provenance);
     return addr_of->getSubExpr();
   }
 };
@@ -71,6 +73,7 @@ class AddrOfArraySubscriptRule : public InferenceRule {
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
     auto subexpr = addr_of->getSubExpr()->IgnoreParenImpCasts();
     auto sub = clang::cast<clang::ArraySubscriptExpr>(subexpr);
+    CopyProvenance(sub, sub->getBase(), provenance);
     return sub->getBase();
   }
 };
@@ -95,6 +98,7 @@ class DerefAddrOfRule : public InferenceRule {
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
     auto subexpr = deref->getSubExpr()->IgnoreParenImpCasts();
     auto addr_of = clang::cast<clang::UnaryOperator>(subexpr);
+    CopyProvenance(addr_of, addr_of->getSubExpr(), provenance);
     return addr_of->getSubExpr();
   }
 };
@@ -214,6 +218,7 @@ class MemberExprAddrOfRule : public InferenceRule {
     auto field{clang::dyn_cast<clang::FieldDecl>(arrow->getMemberDecl())};
     CHECK(field != nullptr)
         << "Substituted MemberExpr is not a structure field access!";
+    CopyProvenance(addr_of, addr_of->getSubExpr(), provenance);
     return ASTBuilder(unit).CreateDot(addr_of->getSubExpr(), field);
   }
 };
@@ -246,6 +251,7 @@ class MemberExprArraySubRule : public InferenceRule {
     auto field{clang::dyn_cast<clang::FieldDecl>(dot->getMemberDecl())};
     CHECK(field != nullptr)
         << "Substituted MemberExpr is not a structure field access!";
+    CopyProvenance(sub, sub->getBase(), provenance);
     return ASTBuilder(unit).CreateArrow(sub->getBase(), field);
   }
 };

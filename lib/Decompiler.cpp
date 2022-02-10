@@ -222,14 +222,14 @@ Result<DecompilationResult, DecompilationError> Decompile(
     nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
 
     llvm::legacy::PassManager pm_loop;
-    if (options.loop_refinement.expression_normalize) {
-      pm_loop.add(nc);
-    }
     if (options.loop_refinement.loop_refine) {
       pm_loop.add(lr);
     }
     if (options.loop_refinement.nested_scope_combine) {
       pm_loop.add(nsc);
+    }
+    if (options.loop_refinement.expression_normalize) {
+      pm_loop.add(nc);
     }
     while (pm_loop.run(*module)) {
       ;
@@ -237,9 +237,6 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     llvm::legacy::PassManager pm_scope;
     nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
-    if (options.scope_refinement.expression_normalize) {
-      pm_scope.add(nc);
-    }
     if (!options.disable_z3) {
       zcs = new rellic::Z3CondSimplify(stmt_provenance, *ast_unit);
       ncp = new rellic::NestedCondProp(stmt_provenance, *ast_unit);
@@ -261,6 +258,9 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     if (options.scope_refinement.nested_scope_combine) {
       pm_scope.add(nsc);
+    }
+    if (options.scope_refinement.expression_normalize) {
+      pm_scope.add(nc);
     }
     while (pm_scope.run(*module)) {
       ;

@@ -23,25 +23,25 @@ struct DecompilationOptions {
   bool disable_z3 = false;
   bool dead_stmt_elimination = true;
   struct {
-    bool expression_normalize = false;
     bool z3_cond_simplify = true;
     std::vector<std::string> z3_tactics{"sat"};
     bool nested_cond_propagate = true;
     bool nested_scope_combine = true;
     bool cond_base_refine = true;
     bool reach_based_refine = true;
+    bool expression_normalize = false;
   } condition_based_refinement;
   struct {
-    bool expression_normalize = false;
     bool loop_refine = true;
     bool nested_scope_combine = true;
+    bool expression_normalize = false;
   } loop_refinement;
   struct {
-    bool expression_normalize = false;
     bool z3_cond_simplify = true;
     std::vector<std::string> z3_tactics{"sat"};
     bool nested_cond_propagate = true;
     bool nested_scope_combine = true;
+    bool expression_normalize = false;
   } scope_refinement;
   bool expression_normalize = false;
   bool expression_combine = true;

@@ -46,7 +46,7 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
       auto s_it = repl_map.find(*c_it);
       if (s_it != repl_map.end()) {
         *c_it = s_it->second;
-        CopyProvenanceAndErase(s_it->first, s_it->second);
+        CopyProvenance(s_it->first, s_it->second);
         change = true;
       }
     }

@@ -25,17 +25,17 @@ Z3CondSimplify::Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit)
       simplifier(new Z3ExprSimplifier(unit)) {}
 
 bool Z3CondSimplify::VisitIfStmt(clang::IfStmt *stmt) {
-  stmt->setCond(simplifier->Simplify(stmt->getCond()));
+  stmt->setCond(simplifier->Simplify(stmt->getCond(), changed));
   return true;
 }
 
 bool Z3CondSimplify::VisitWhileStmt(clang::WhileStmt *loop) {
-  loop->setCond(simplifier->Simplify(loop->getCond()));
+  loop->setCond(simplifier->Simplify(loop->getCond(), changed));
   return true;
 }
 
 bool Z3CondSimplify::VisitDoStmt(clang::DoStmt *loop) {
-  loop->setCond(simplifier->Simplify(loop->getCond()));
+  loop->setCond(simplifier->Simplify(loop->getCond(), changed));
   return true;
 }
 

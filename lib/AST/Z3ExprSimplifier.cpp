@@ -34,10 +34,10 @@ z3::expr Z3ExprSimplifier::ToZ3(clang::Expr* e) {
   return z_gen->Z3BoolCast(z_gen->GetOrCreateZ3Expr(e));
 }
 
-clang::Expr* Z3ExprSimplifier::Simplify(clang::Expr* c_expr) {
+clang::Expr* Z3ExprSimplifier::Simplify(clang::Expr* c_expr, bool& changed) {
   if (auto binop = clang::dyn_cast<clang::BinaryOperator>(c_expr)) {
-    auto lhs{Simplify(binop->getLHS())};
-    auto rhs{Simplify(binop->getRHS())};
+    auto lhs{Simplify(binop->getLHS(), changed)};
+    auto rhs{Simplify(binop->getRHS(), changed)};
 
     auto opcode{binop->getOpcode()};
     if (opcode == clang::BO_LAnd || opcode == clang::BO_LOr) {
@@ -50,22 +50,30 @@ clang::Expr* Z3ExprSimplifier::Simplify(clang::Expr* c_expr) {
       auto not_rhs_proven{Prove(!z_rhs)};
       if (opcode == clang::BO_LAnd) {
         if (lhs_proven && rhs_proven) {
+          changed = true;
           return ast.CreateTrue();
         } else if (not_lhs_proven || not_rhs_proven) {
+          changed = true;
           return ast.CreateFalse();
         } else if (lhs_proven) {
+          changed = true;
           return rhs;
         } else if (rhs_proven) {
+          changed = true;
           return lhs;
         }
       } else {
         if (not_lhs_proven && not_rhs_proven) {
+          changed = true;
           return ast.CreateFalse();
         } else if (lhs_proven || rhs_proven) {
+          changed = true;
           return ast.CreateTrue();
         } else if (not_lhs_proven) {
+          changed = true;
           return rhs;
         } else if (not_rhs_proven) {
+          changed = true;
           return lhs;
         }
       }
@@ -74,24 +82,28 @@ clang::Expr* Z3ExprSimplifier::Simplify(clang::Expr* c_expr) {
       binop->setRHS(rhs);
       auto z_binop{ToZ3(binop)};
       if (Prove(z_binop)) {
+        changed = true;
         return ast.CreateTrue();
       } else if (Prove(!z_binop)) {
+        changed = true;
         return ast.CreateFalse();
       }
     }
   } else if (auto unop = clang::dyn_cast<clang::UnaryOperator>(c_expr)) {
     if (unop->getOpcode() == clang::UO_LNot) {
-      auto sub{Simplify(unop->getSubExpr())};
+      auto sub{Simplify(unop->getSubExpr(), changed)};
       auto z_sub{ToZ3(sub)};
       if (Prove(z_sub)) {
+        changed = true;
         return ast.CreateFalse();
       } else if (Prove(!z_sub)) {
+        changed = true;
         return ast.CreateTrue();
       }
       unop->setSubExpr(sub);
     }
   } else if (auto paren = clang::dyn_cast<clang::ParenExpr>(c_expr)) {
-    auto sub{Simplify(paren->getSubExpr())};
+    auto sub{Simplify(paren->getSubExpr(), changed)};
     paren->setSubExpr(sub);
   }
 

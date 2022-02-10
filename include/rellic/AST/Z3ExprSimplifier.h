@@ -30,6 +30,10 @@ class Z3ExprSimplifier {
 
   void SetZ3Tactic(z3::tactic t) { tactic = t; };
 
-  clang::Expr* Simplify(clang::Expr* e);
+  clang::Expr* Simplify(clang::Expr* e, bool& changed);
+  clang::Expr* Simplify(clang::Expr* e) {
+    bool changed;
+    return Simplify(e, changed);
+  }
 };
 }  // namespace rellic

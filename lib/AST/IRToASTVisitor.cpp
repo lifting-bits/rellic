@@ -36,6 +36,7 @@ IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
+
   clang::QualType result;
   switch (type->getTypeID()) {
     case llvm::Type::VoidTyID:
@@ -97,21 +98,24 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
                                          std::to_string(num_literal_structs++))
                                       : strct->getName().str()};
         if (sname.empty()) {
-          auto num{GetNumDecls<clang::TypeDecl>(tudecl)};
-          sname = "struct" + std::to_string(num);
+          sname = "struct" + std::to_string(num_declared_structs++);
         }
+
         // Create a C struct declaration
         decl = sdecl = ast.CreateStructDecl(tudecl, sname);
+
         // Add fields to the C struct
         for (auto ecnt{0U}; ecnt < strct->getNumElements(); ++ecnt) {
           auto etype{GetQualType(strct->getElementType(ecnt))};
           auto fname{"field" + std::to_string(ecnt)};
           sdecl->addDecl(ast.CreateFieldDecl(sdecl, etype, fname));
         }
+
         // Complete the C struct definition
         sdecl->completeDefinition();
         // Add C struct to translation unit
         tudecl->addDecl(sdecl);
+
       } else {
         sdecl = clang::cast<clang::RecordDecl>(decl);
       }

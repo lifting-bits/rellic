@@ -15,6 +15,11 @@
 namespace rellic {
 
 unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt);
+bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b);
+bool Replace(clang::ASTContext &ctx, clang::Stmt *from, clang::Stmt *to,
+             clang::Stmt **in);
+bool Replace(clang::ASTContext &ctx, clang::Expr *from, clang::Expr *to,
+             clang::Expr **in);
 
 template <typename T>
 size_t GetNumDecls(clang::DeclContext *decl_ctx) {

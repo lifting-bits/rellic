@@ -7,8 +7,5 @@ struct b {
 };
 
 int main(void) {
-	struct b v = {{0}};
-
-	return v.subfield.x;
-
+	struct b a;
 }

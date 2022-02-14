@@ -11,6 +11,9 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <algorithm>
+#include <iterator>
+
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/InferenceRule.h"
 
@@ -51,9 +54,14 @@ class WhileRule : public InferenceRule {
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
     auto comp{clang::cast<clang::CompoundStmt>(loop->getBody())};
-    auto cond{clang::cast<clang::IfStmt>(comp->body_front())->getCond()};
-    std::vector<clang::Stmt *> new_body(comp->body_begin() + 1,
-                                        comp->body_end());
+    auto ifstmt{clang::cast<clang::IfStmt>(comp->body_front())};
+    auto cond{ifstmt->getCond()};
+    std::vector<clang::Stmt *> new_body;
+    if (auto else_stmt = ifstmt->getElse()) {
+      new_body.push_back(else_stmt);
+    }
+    std::copy(comp->body_begin() + 1, comp->body_end(),
+              std::back_inserter(new_body));
     ASTBuilder ast(unit);
     return ast.CreateWhile(ast.CreateLNot(cond),
                            ast.CreateCompoundStmt(new_body));
@@ -85,9 +93,13 @@ class DoWhileRule : public InferenceRule {
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
     auto comp{clang::cast<clang::CompoundStmt>(loop->getBody())};
-    auto cond{clang::cast<clang::IfStmt>(comp->body_back())->getCond()};
+    auto ifstmt{clang::cast<clang::IfStmt>(comp->body_back())};
+    auto cond{ifstmt->getCond()};
     std::vector<clang::Stmt *> new_body(comp->body_begin(),
                                         comp->body_end() - 1);
+    if (auto else_stmt = ifstmt->getElse()) {
+      new_body.push_back(else_stmt);
+    }
     ASTBuilder ast(unit);
     return ast.CreateDo(ast.CreateLNot(cond), ast.CreateCompoundStmt(new_body));
   }
@@ -129,6 +141,9 @@ class NestedDoWhileRule : public InferenceRule {
 
     std::vector<clang::Stmt *> do_body(comp->body_begin(),
                                        comp->body_end() - 1);
+    if (auto else_stmt = cond->getElse()) {
+      do_body.push_back(else_stmt);
+    }
 
     ASTBuilder ast(unit);
     auto do_cond{ast.CreateLNot(cond->getCond())};

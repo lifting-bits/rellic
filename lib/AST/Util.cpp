@@ -22,14 +22,18 @@ unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
   return id.ComputeHash();
 }
 
-bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
-  if (GetHash(ctx, a) != GetHash(ctx, b)) {
+static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
+                         llvm::FoldingSetNodeID &foldingSetA,
+                         llvm::FoldingSetNodeID &foldingSetB) {
+  a->Profile(foldingSetA, ctx, /*Canonical=*/true);
+  b->Profile(foldingSetB, ctx, /*Canonical=*/true);
+
+  if (foldingSetA != foldingSetB) {
     return false;
   }
 
-  if (a->getStmtClass() != b->getStmtClass()) {
-    return false;
-  }
+  CHECK_EQ(a->getStmtClass(), b->getStmtClass())
+      << "Statement classes differ but folding sets don't";
 
   auto child_a{a->child_begin()};
   auto child_b{b->child_begin()};
@@ -40,13 +44,19 @@ bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
       return false;
     } else if (a_end && b_end) {
       return true;
-    } else if (!IsEquivalent(ctx, *child_a, *child_b)) {
+    } else if (!IsEquivalent(ctx, *child_a, *child_b, foldingSetA,
+                             foldingSetB)) {
       return false;
     }
 
     ++child_a;
     ++child_b;
   }
+}
+
+bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
+  llvm::FoldingSetNodeID idA, idB;
+  return IsEquivalent(ctx, a, b, idA, idB);
 }
 
 bool Replace(clang::ASTContext &ctx, clang::Stmt *from, clang::Stmt *to,

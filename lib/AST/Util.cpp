@@ -25,22 +25,25 @@ unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
 static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
                          llvm::FoldingSetNodeID &foldingSetA,
                          llvm::FoldingSetNodeID &foldingSetB) {
+  foldingSetA.clear();
+  foldingSetB.clear();
   a->Profile(foldingSetA, ctx, /*Canonical=*/true);
   b->Profile(foldingSetB, ctx, /*Canonical=*/true);
 
-  if (foldingSetA != foldingSetB) {
-    return false;
+  if (foldingSetA == foldingSetB) {
+    return true;
   }
 
-  CHECK_EQ(a->getStmtClass(), b->getStmtClass())
-      << "Statement classes differ but folding sets don't";
+  if (a->getStmtClass() != b->getStmtClass()) {
+    return false;
+  }
 
   auto child_a{a->child_begin()};
   auto child_b{b->child_begin()};
   while (true) {
     bool a_end{child_a == a->child_end()};
     bool b_end{child_b == b->child_end()};
-    if (a_end ^ b_end) {
+    if (a_end != b_end) {
       return false;
     } else if (a_end && b_end) {
       return true;

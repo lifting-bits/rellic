@@ -20,9 +20,11 @@ namespace rellic {
 
 char LocalDeclRenamer::ID = 0;
 
-LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
+LocalDeclRenamer::LocalDeclRenamer(StmtToIRMap &provenance,
+                                   clang::ASTUnit &unit, IRToNameMap &names,
                                    IRToValDeclMap &decls)
     : ModulePass(LocalDeclRenamer::ID),
+      TransformVisitor<LocalDeclRenamer>(provenance),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       seen_names(1),

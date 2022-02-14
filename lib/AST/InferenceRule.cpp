@@ -8,12 +8,22 @@
 
 #include "rellic/AST/InferenceRule.h"
 
+#include <clang/AST/Stmt.h>
 #include <clang/Frontend/ASTUnit.h>
 
 namespace rellic {
 
+void InferenceRule::CopyProvenance(clang::Stmt *from, clang::Stmt *to,
+                                   StmtToIRMap &provenance) {
+  auto range{provenance.equal_range(from)};
+  for (auto it{range.first}; it != range.second && it != provenance.end();
+       ++it) {
+    provenance.insert({to, it->second});
+  }
+}
+
 clang::Stmt *ApplyFirstMatchingRule(
-    clang::ASTUnit &unit, clang::Stmt *stmt,
+    StmtToIRMap &provenance, clang::ASTUnit &unit, clang::Stmt *stmt,
     std::vector<std::unique_ptr<InferenceRule>> &rules) {
   clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
   clang::ast_matchers::MatchFinder finder(opts);
@@ -26,7 +36,7 @@ clang::Stmt *ApplyFirstMatchingRule(
 
   for (auto &rule : rules) {
     if (*rule) {
-      return rule->GetOrCreateSubstitution(unit, stmt);
+      return rule->GetOrCreateSubstitution(provenance, unit, stmt);
     }
   }
 

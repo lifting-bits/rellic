@@ -22,7 +22,6 @@ set(include_dir "${PROJECT_SOURCE_DIR}/include/${PROJECT_NAME}")
 
 set(AST_HEADERS
   "${include_dir}/AST/ASTBuilder.h"
-  "${include_dir}/AST/ASTPrinter.h"
   "${include_dir}/AST/CXXToCDecl.h"
   "${include_dir}/AST/CondBasedRefine.h"
   "${include_dir}/AST/DeadStmtElim.h"
@@ -35,6 +34,7 @@ set(AST_HEADERS
   "${include_dir}/AST/LoopRefine.h"
   "${include_dir}/AST/NestedCondProp.h"
   "${include_dir}/AST/NestedScopeCombine.h"
+  "${include_dir}/AST/NormalizeCond.h"
   "${include_dir}/AST/ReachBasedRefine.h"
   "${include_dir}/AST/StructFieldRenamer.h"
   "${include_dir}/AST/StructGenerator.h"
@@ -43,6 +43,7 @@ set(AST_HEADERS
   "${include_dir}/AST/Util.h"
   "${include_dir}/AST/Z3CondSimplify.h"
   "${include_dir}/AST/Z3ConvVisitor.h"
+  "${include_dir}/AST/Z3ExprSimplifier.h"
 )
 
 set(AST_COMPAT_HEADERS
@@ -86,7 +87,6 @@ set(AST_COMPAT_SOURCES
 
 set(AST_SOURCES
   AST/ASTBuilder.cpp
-  AST/ASTPrinter.cpp
   AST/CXXToCDecl.cpp
   AST/InferenceRule.cpp
   AST/DeadStmtElim.cpp
@@ -99,9 +99,11 @@ set(AST_SOURCES
   AST/LoopRefine.cpp
   AST/NestedCondProp.cpp
   AST/NestedScopeCombine.cpp
+  AST/NormalizeCond.cpp
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp
+  AST/Z3ExprSimplifier.cpp
   AST/ReachBasedRefine.cpp
   AST/StructFieldRenamer.cpp
   AST/StructGenerator.cpp
@@ -116,14 +118,25 @@ set(BC_COMPAT_SOURCES
   BC/Compat/Value.cpp
 )
 
+
 add_library("${PROJECT_NAME}" STATIC
   ${public_HEADERS}
   ${AST_SOURCES}
   ${AST_COMPAT_SOURCES}
   ${BC_SOURCES}
   ${BC_COMPAT_SOURCES}
+
+  Decompiler.cpp
+  Exception.cpp
   
   "${POST_CONFIGURE_FILE}"  # Version.cpp
+)
+
+
+set_target_properties(
+  "${PROJECT_NAME}" PROPERTIES
+    VISIBILITY_INLINES_HIDDEN YES
+    CXX_VISIBILITY_PRESET hidden
 )
 
 #link version information
@@ -151,11 +164,12 @@ target_include_directories("${PROJECT_NAME}"
 )
 
 if(RELLIC_ENABLE_INSTALL)
+  include(GNUInstallDirs)
   install(
     DIRECTORY
       "${include_dir}"
     DESTINATION
-      "include")
+      ${CMAKE_INSTALL_INCLUDEDIR})
   
   
   install(
@@ -165,12 +179,12 @@ if(RELLIC_ENABLE_INSTALL)
       "${PROJECT_NAME}Targets"
     RUNTIME
       DESTINATION
-        "bin"
+        ${CMAKE_INSTALL_BINDIR}
     LIBRARY
       DESTINATION
-        "lib"
+        ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE
       DESTINATION
-        "lib"
+        ${CMAKE_INSTALL_LIBDIR}
   )
 endif(RELLIC_ENABLE_INSTALL)

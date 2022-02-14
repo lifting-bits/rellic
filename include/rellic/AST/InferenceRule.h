@@ -11,6 +11,8 @@
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
 
+#include "rellic/AST/IRToASTVisitor.h"
+
 namespace clang {
 class ASTUnit;
 }
@@ -22,6 +24,9 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
   clang::ast_matchers::StatementMatcher cond;
   const clang::Stmt *match;
 
+  static void CopyProvenance(clang::Stmt *from, clang::Stmt *to,
+                             StmtToIRMap &provenance);
+
  public:
   InferenceRule(clang::ast_matchers::StatementMatcher matcher)
       : cond(matcher), match(nullptr) {}
@@ -32,12 +37,13 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
     return cond;
   }
 
-  virtual clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  virtual clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                               clang::ASTUnit &unit,
                                                clang::Stmt *stmt) = 0;
 };
 
 clang::Stmt *ApplyFirstMatchingRule(
-    clang::ASTUnit &unit, clang::Stmt *stmt,
+    StmtToIRMap &provenance, clang::ASTUnit &unit, clang::Stmt *stmt,
     std::vector<std::unique_ptr<InferenceRule>> &rules);
 
 }  // namespace rellic

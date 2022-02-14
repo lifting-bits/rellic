@@ -36,7 +36,7 @@ class NestedCondProp : public llvm::ModulePass,
 
   bool shouldTraversePostOrder() override { return false; }
 
-  NestedCondProp(clang::ASTUnit &unit);
+  NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
 

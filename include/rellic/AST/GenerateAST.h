@@ -54,6 +54,7 @@ class GenerateAST : public llvm::ModulePass {
   GenerateAST(clang::ASTUnit &unit);
 
   IRToStmtMap &GetIRToStmtMap() { return ast_gen.GetIRToStmtMap(); }
+  StmtToIRMap &GetStmtToIRMap() { return ast_gen.GetStmtToIRMap(); }
   IRToValDeclMap &GetIRToValDeclMap() { return ast_gen.GetIRToValDeclMap(); }
   IRToTypeDeclMap &GetIRToTypeDeclMap() { return ast_gen.GetIRToTypeDeclMap(); }
 

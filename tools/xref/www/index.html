@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+
+<head lang="en">
+    <title>Rellic</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .first-row {
+            overflow: auto;
+            resize: vertical;
+            padding: 0.5em;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .second-row {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <form class="first-row" action="cgi-bin/decompile.py" method="POST" enctype="multipart/form-data" target="upload">
+        <input type="file" id="myFile" name="filename" accept=".ll,.bc">
+        <input type="submit">
+        <details>
+            <summary>Advanced options</summary>
+            <div class="options">
+                <fieldset>
+                    <legend>Passes</legend>
+                    <select name="passes" multiple>
+                        <option value="enable_dse" selected>Dead statement elimination</option>
+                        <optgroup label="Condition-based refinement phase">
+                            <option value="enable_cbr_zcs" selected>Z3 condition simplification</option>
+                            <option value="enable_cbr_ncp" selected>Nested condition propagation</option>
+                            <option value="enable_cbr" selected>Condition-based refinement</option>
+                            <option value="enable_cbr_rbr" selected>Reach-based refinement</option>
+                            <option value="enable_cbr_en" selected>Expression normalization</option>
+                        </optgroup>
+                        <optgroup label="Loop refinement phase">
+                            <option value="enable_lr" selected>Loop refinement</option>
+                            <option value="enable_lr_nsc" selected>Nested scope combination</option>
+                            <option value="enable_lr_en" selected>Expression normalization</option>
+                        </optgroup>
+                        <optgroup label="Scope refinement phase">
+                            <option value="enable_sr_zcs" selected>Z3 condition simplification</option>
+                            <option value="enable_sr_ncp" selected>Nested condition propagation</option>
+                            <option value="enable_sr_nsc" selected>Nested scope combination</option>
+                            <option value="enable_sr_en" selected>Expression normalization</option>
+                        </optgroup>
+                        <option value="enable_en" selected>Expression normalization</option>
+                        <option value="enable_ec" selected>Expression combination</option>
+                    </select>
+                </fieldset>
+                <fieldset>
+                    <legend>Condition-based refinement Z3 tactics</legend>
+                    <select name="cbr_tactics" multiple>
+                        <option>ackermannize_bv</option>
+                        <option>add-bounds</option>
+                        <option>aig</option>
+                        <option>auflia</option>
+                        <option>auflira</option>
+                        <option>aufnira</option>
+                        <option>bit-blast</option>
+                        <option>blast-term-ite</option>
+                        <option>bv</option>
+                        <option>bv_bound_chk</option>
+                        <option>bv1-blast</option>
+                        <option>bvarray2uf</option>
+                        <option>card2bv</option>
+                        <option>cofactor-term-ite</option>
+                        <option>collect-statistics</option>
+                        <option>ctx-simplify</option>
+                        <option>ctx-solver-simplify</option>
+                        <option>default</option>
+                        <option>degree-shift</option>
+                        <option>der</option>
+                        <option>diff-neq</option>
+                        <option>distribute-forall</option>
+                        <option>dom-simplify</option>
+                        <option>dt2bv</option>
+                        <option>elim-and</option>
+                        <option>elim-small-bv</option>
+                        <option>elim-term-ite</option>
+                        <option>elim-uncnstr</option>
+                        <option>eq2bv</option>
+                        <option>factor</option>
+                        <option>fail</option>
+                        <option>fail-if-undecided</option>
+                        <option>fix-dl-var</option>
+                        <option>fm</option>
+                        <option>fpa2bv</option>
+                        <option>horn</option>
+                        <option>horn-simplify</option>
+                        <option>injectivity</option>
+                        <option>lia</option>
+                        <option>lia2card</option>
+                        <option>lia2pb</option>
+                        <option>lira</option>
+                        <option>lra</option>
+                        <option>macro-finder</option>
+                        <option>max-bv-sharing</option>
+                        <option>nla2bv</option>
+                        <option>nlqsat</option>
+                        <option>nlsat</option>
+                        <option>nnf</option>
+                        <option>normalize-bounds</option>
+                        <option>nra</option>
+                        <option>occf</option>
+                        <option>pb2bv</option>
+                        <option>pb-preprocess</option>
+                        <option>pqffd</option>
+                        <option>propagate-bv-bounds</option>
+                        <option>propagate-bv-bounds-new</option>
+                        <option>propagate-ineqs</option>
+                        <option>propagate-values</option>
+                        <option>psat</option>
+                        <option>psmt</option>
+                        <option>purify-arith</option>
+                        <option>qe</option>
+                        <option>qe_rec</option>
+                        <option>qe2</option>
+                        <option>qe-light</option>
+                        <option>qfaufbv</option>
+                        <option>qfauflia</option>
+                        <option>qfbv</option>
+                        <option>qfbv-sls</option>
+                        <option>qffd</option>
+                        <option>qffp</option>
+                        <option>qffpbv</option>
+                        <option>qffplra</option>
+                        <option>qfidl</option>
+                        <option>qflia</option>
+                        <option>qflra</option>
+                        <option>qfnia</option>
+                        <option>qfnra</option>
+                        <option>qfnra-nlsat</option>
+                        <option>qfuf</option>
+                        <option>qfufbv</option>
+                        <option>qfufbv_ackr</option>
+                        <option>qsat</option>
+                        <option>quasi-macros</option>
+                        <option>recover-01</option>
+                        <option>reduce-args</option>
+                        <option>reduce-bv-size</option>
+                        <option>reduce-invertible</option>
+                        <option selected>sat</option>
+                        <option>sat-preprocess</option>
+                        <option>simplify</option>
+                        <option>skip</option>
+                        <option>smt</option>
+                        <option>smtfd</option>
+                        <option>snf</option>
+                        <option>solve-eqs</option>
+                        <option>solver-subsumption</option>
+                        <option>special-relations</option>
+                        <option>split-clause</option>
+                        <option>subpaving</option>
+                        <option>symmetry-reduce</option>
+                        <option>tseitin-cnf</option>
+                        <option>tseitin-cnf-core</option>
+                        <option>ufbv</option>
+                        <option>ufbv-rewriter</option>
+                        <option>uflra</option>
+                        <option>ufnia</option>
+                        <option>unit-subsume-simplify</option>
+                    </select>
+                </fieldset>
+                <fieldset>
+                    <legend>Scope refinement Z3 tactics</legend>
+                    <select name="sr_tactics" multiple>
+                        <option>ackermannize_bv</option>
+                        <option>add-bounds</option>
+                        <option>aig</option>
+                        <option>auflia</option>
+                        <option>auflira</option>
+                        <option>aufnira</option>
+                        <option>bit-blast</option>
+                        <option>blast-term-ite</option>
+                        <option>bv</option>
+                        <option>bv_bound_chk</option>
+                        <option>bv1-blast</option>
+                        <option>bvarray2uf</option>
+                        <option>card2bv</option>
+                        <option>cofactor-term-ite</option>
+                        <option>collect-statistics</option>
+                        <option>ctx-simplify</option>
+                        <option>ctx-solver-simplify</option>
+                        <option>default</option>
+                        <option>degree-shift</option>
+                        <option>der</option>
+                        <option>diff-neq</option>
+                        <option>distribute-forall</option>
+                        <option>dom-simplify</option>
+                        <option>dt2bv</option>
+                        <option>elim-and</option>
+                        <option>elim-small-bv</option>
+                        <option>elim-term-ite</option>
+                        <option>elim-uncnstr</option>
+                        <option>eq2bv</option>
+                        <option>factor</option>
+                        <option>fail</option>
+                        <option>fail-if-undecided</option>
+                        <option>fix-dl-var</option>
+                        <option>fm</option>
+                        <option>fpa2bv</option>
+                        <option>horn</option>
+                        <option>horn-simplify</option>
+                        <option>injectivity</option>
+                        <option>lia</option>
+                        <option>lia2card</option>
+                        <option>lia2pb</option>
+                        <option>lira</option>
+                        <option>lra</option>
+                        <option>macro-finder</option>
+                        <option>max-bv-sharing</option>
+                        <option>nla2bv</option>
+                        <option>nlqsat</option>
+                        <option>nlsat</option>
+                        <option>nnf</option>
+                        <option>normalize-bounds</option>
+                        <option>nra</option>
+                        <option>occf</option>
+                        <option>pb2bv</option>
+                        <option>pb-preprocess</option>
+                        <option>pqffd</option>
+                        <option>propagate-bv-bounds</option>
+                        <option>propagate-bv-bounds-new</option>
+                        <option>propagate-ineqs</option>
+                        <option>propagate-values</option>
+                        <option>psat</option>
+                        <option>psmt</option>
+                        <option>purify-arith</option>
+                        <option>qe</option>
+                        <option>qe_rec</option>
+                        <option>qe2</option>
+                        <option>qe-light</option>
+                        <option>qfaufbv</option>
+                        <option>qfauflia</option>
+                        <option>qfbv</option>
+                        <option>qfbv-sls</option>
+                        <option>qffd</option>
+                        <option>qffp</option>
+                        <option>qffpbv</option>
+                        <option>qffplra</option>
+                        <option>qfidl</option>
+                        <option>qflia</option>
+                        <option>qflra</option>
+                        <option>qfnia</option>
+                        <option>qfnra</option>
+                        <option>qfnra-nlsat</option>
+                        <option>qfuf</option>
+                        <option>qfufbv</option>
+                        <option>qfufbv_ackr</option>
+                        <option>qsat</option>
+                        <option>quasi-macros</option>
+                        <option>recover-01</option>
+                        <option>reduce-args</option>
+                        <option>reduce-bv-size</option>
+                        <option>reduce-invertible</option>
+                        <option selected>sat</option>
+                        <option>sat-preprocess</option>
+                        <option>simplify</option>
+                        <option>skip</option>
+                        <option>smt</option>
+                        <option>smtfd</option>
+                        <option>snf</option>
+                        <option>solve-eqs</option>
+                        <option>solver-subsumption</option>
+                        <option>special-relations</option>
+                        <option>split-clause</option>
+                        <option>subpaving</option>
+                        <option>symmetry-reduce</option>
+                        <option>tseitin-cnf</option>
+                        <option>tseitin-cnf-core</option>
+                        <option>ufbv</option>
+                        <option>ufbv-rewriter</option>
+                        <option>uflra</option>
+                        <option>ufnia</option>
+                        <option>unit-subsume-simplify</option>
+                    </select>
+                </fieldset>
+                <fieldset>
+                    <legend>Miscellaneous</legend>
+                    <label for="timeout">Timeout in seconds</label>
+                    <input type="number" name="timeout" value="10">
+                </fieldset>
+            </div>
+        </details>
+    </form>
+    <iframe name="upload" class="second-row">
+    </iframe>
+</body>
+
+</html>

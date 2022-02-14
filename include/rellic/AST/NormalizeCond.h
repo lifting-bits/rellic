@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * Copyright (c) 2022-present, Trail of Bits, Inc.
  * All rights reserved.
  *
  * This source code is licensed in accordance with the terms specified in
@@ -16,19 +16,18 @@
 
 namespace rellic {
 
-class DeadStmtElim : public llvm::ModulePass,
-                     public TransformVisitor<DeadStmtElim> {
+class NormalizeCond : public llvm::ModulePass,
+                      public TransformVisitor<NormalizeCond> {
  private:
-  ASTBuilder ast;
-  clang::ASTContext *ast_ctx;
+  clang::ASTUnit &unit;
 
  public:
   static char ID;
 
-  DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
-  bool VisitIfStmt(clang::IfStmt *ifstmt);
-  bool VisitCompoundStmt(clang::CompoundStmt *compound);
+  bool VisitUnaryOperator(clang::UnaryOperator *op);
+  bool VisitBinaryOperator(clang::BinaryOperator *op);
 
   bool runOnModule(llvm::Module &module) override;
 };

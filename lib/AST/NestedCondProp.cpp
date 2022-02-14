@@ -31,8 +31,9 @@ static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
 
 char NestedCondProp::ID = 0;
 
-NestedCondProp::NestedCondProp(clang::ASTUnit &unit)
+NestedCondProp::NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit)
     : ModulePass(NestedCondProp::ID),
+      TransformVisitor<NestedCondProp>(provenance),
       ast(unit),
       ast_ctx(&unit.getASTContext()),
       z3_ctx(new z3::context()),
@@ -71,15 +72,20 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // and remove it from `cond` if it's present.
   auto iter = parent_conds.find(ifstmt);
   if (iter != parent_conds.end()) {
-    auto child_expr = z3_gen->GetOrCreateZ3Expr(ifstmt->getCond()).simplify();
-    auto parent_expr = z3_gen->GetOrCreateZ3Expr(iter->second).simplify();
+    auto child_expr =
+        z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(ifstmt->getCond()))
+            .simplify();
+    auto parent_expr =
+        z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(iter->second)).simplify();
     z3::expr_vector src(*z3_ctx);
     z3::expr_vector dst(*z3_ctx);
     src.push_back(parent_expr);
     dst.push_back(z3_ctx->bool_val(true));
     auto sub = child_expr.substitute(src, dst).simplify();
     if (!z3::eq(child_expr, sub)) {
-      ifstmt->setCond(z3_gen->GetOrCreateCExpr(sub));
+      auto old_cond{ifstmt->getCond()};
+      auto new_cond{z3_gen->GetOrCreateCExpr(sub)};
+      ifstmt->setCond(new_cond);
       changed = true;
     }
   }

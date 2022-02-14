@@ -10,11 +10,11 @@
 
 #include <llvm/IR/Module.h>
 #include <llvm/Pass.h>
-#include <z3++.h>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Z3ConvVisitor.h"
+#include "rellic/AST/Z3ExprSimplifier.h"
 
 namespace rellic {
 
@@ -22,22 +22,16 @@ class Z3CondSimplify : public llvm::ModulePass,
                        public TransformVisitor<Z3CondSimplify> {
  private:
   clang::ASTContext *ast_ctx;
-
-  std::unique_ptr<z3::context> z_ctx;
-  std::unique_ptr<rellic::Z3ConvVisitor> z_gen;
-
-  z3::tactic simplifier;
-
-  clang::Expr *SimplifyCExpr(clang::Expr *c_expr);
+  std::unique_ptr<Z3ExprSimplifier> simplifier;
 
  public:
   static char ID;
 
-  Z3CondSimplify(clang::ASTUnit &unit);
+  Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
-  z3::context &GetZ3Context() { return *z_ctx; }
+  z3::context &GetZ3Context() { return simplifier->GetZ3Context(); }
 
-  void SetZ3Simplifier(z3::tactic tactic) { simplifier = tactic; };
+  void SetZ3Tactic(z3::tactic tactic) { simplifier->SetZ3Tactic(tactic); };
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *loop);

@@ -24,7 +24,7 @@ class ExprCombine : public llvm::ModulePass,
  public:
   static char ID;
 
-  ExprCombine(clang::ASTUnit &unit);
+  ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   bool VisitUnaryOperator(clang::UnaryOperator *op);

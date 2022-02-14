@@ -44,17 +44,55 @@ target_link_libraries(${RELLIC_HEADERGEN}
 
 set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 
+#
+# rellic-xref
+#
+
+set(RELLIC_XREF "${PROJECT_NAME}-xref")
+
+add_executable(${RELLIC_XREF}
+  "xref/AsmWriter.cpp"
+  "xref/DeclPrinter.cpp"
+  "xref/StmtPrinter.cpp"
+  "xref/TypePrinter.cpp"
+  "xref/Xref.cpp"
+)
+
+target_link_libraries(${RELLIC_XREF}
+  PRIVATE
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
+)
+
+set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
+
 if(RELLIC_ENABLE_INSTALL)
   
   install(
     TARGETS
       ${RELLIC_DECOMP}
       ${RELLIC_HEADERGEN}
+      ${RELLIC_XREF}
     EXPORT
       "${PROJECT_NAME}Targets"
     RUNTIME
       DESTINATION
-        "bin"
+        ${CMAKE_INSTALL_BINDIR}
+  )
+
+  install(
+    PROGRAMS
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/cgi-bin/decompile.py"
+    DESTINATION
+      "lib/cgi-bin"
+  )
+
+  install(
+    FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/index.html"
+    DESTINATION
+      "var/www/html"
   )
   
   #

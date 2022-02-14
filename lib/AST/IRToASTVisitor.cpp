@@ -6,27 +6,37 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include <llvm/IR/Instructions.h>
 #define GOOGLE_STRIP_LOG 1
-
-#include "rellic/AST/IRToASTVisitor.h"
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include <iterator>
 
+#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/BC/Compat/DerivedTypes.h"
 #include "rellic/BC/Compat/IntrinsicInst.h"
 #include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
+#include "rellic/Exception.h"
 
 namespace rellic {
+
+static void CopyProvenance(clang::Stmt *from, clang::Stmt *to,
+                           StmtToIRMap &map) {
+  auto range{map.equal_range(from)};
+  for (auto it{range.first}; it != range.second && it != map.end(); ++it) {
+    map.insert({to, it->second});
+  }
+}
 
 IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
     : ast_ctx(unit.getASTContext()), ast(unit) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
+
   clang::QualType result;
   switch (type->getTypeID()) {
     case llvm::Type::VoidTyID:
@@ -88,21 +98,24 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
                                          std::to_string(num_literal_structs++))
                                       : strct->getName().str()};
         if (sname.empty()) {
-          auto num{GetNumDecls<clang::TypeDecl>(tudecl)};
-          sname = "struct" + std::to_string(num);
+          sname = "struct" + std::to_string(num_declared_structs++);
         }
+
         // Create a C struct declaration
         decl = sdecl = ast.CreateStructDecl(tudecl, sname);
+
         // Add fields to the C struct
         for (auto ecnt{0U}; ecnt < strct->getNumElements(); ++ecnt) {
           auto etype{GetQualType(strct->getElementType(ecnt))};
           auto fname{"field" + std::to_string(ecnt)};
           sdecl->addDecl(ast.CreateFieldDecl(sdecl, etype, fname));
         }
+
         // Complete the C struct definition
         sdecl->completeDefinition();
         // Add C struct to translation unit
         tudecl->addDecl(sdecl);
+
       } else {
         sdecl = clang::cast<clang::RecordDecl>(decl);
       }
@@ -121,12 +134,12 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
         auto vkind{clang::VectorType::GenericVector};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
       } else {
-        LOG(FATAL) << "Unknown LLVM Type: " << LLVMThingToString(type);
+        THROW() << "Unknown LLVM Type: " << LLVMThingToString(type);
       }
     } break;
   }
 
-  CHECK(!result.isNull()) << "Unknown LLVM Type";
+  CHECK_THROW(!result.isNull()) << "Unknown LLVM Type";
 
   return result;
 }
@@ -182,7 +195,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
         result = ast.CreateUndefInteger(c_type);
       } else {
-        LOG(FATAL) << "Unsupported integer constant";
+        THROW() << "Unsupported integer constant";
       }
     } break;
     // Pointers
@@ -192,7 +205,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
         result = ast.CreateUndefPointer(c_type);
       } else {
-        LOG(FATAL) << "Unsupported pointer constant";
+        THROW() << "Unsupported pointer constant";
       }
     } break;
     // Arrays
@@ -218,8 +231,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
       if (l_type->isVectorTy()) {
         result = ast.CreateCompoundLit(c_type, CreateInitListLiteral());
       } else {
-        LOG(FATAL) << "Unknown LLVM constant type: "
-                   << LLVMThingToString(l_type);
+        THROW() << "Unknown LLVM constant type: " << LLVMThingToString(l_type);
       }
     } break;
   }
@@ -242,7 +254,9 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
 
   auto CreateRef{[this, &val] {
     auto decl{GetOrCreateDecl(val)};
-    return ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl));
+    auto ref{ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl))};
+    provenance.insert({ref, val});
+    return ref;
   }};
   // Operand is a constant value
   if (llvm::isa<llvm::ConstantExpr>(val) ||
@@ -332,32 +346,23 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
   if (stmt) {
     return stmt;
   }
-  // ConstantExpr
+
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
     auto inst{cexpr->getAsInstruction()};
     stmt = GetOrCreateStmt(inst);
     stmts.erase(inst);
     DeleteValue(inst);
-    return stmt;
-  }
-  // ConstantAggregate
-  if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {
+  } else if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {
     stmt = CreateLiteralExpr(caggr);
-    return stmt;
-  }
-  // ConstantData
-  if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
+  } else if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
     stmt = CreateLiteralExpr(cdata);
-    return stmt;
-  }
-  // Instruction
-  if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
+  } else if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
     visit(inst);
-    return stmt;
+  } else {
+    THROW() << "Unsupported value type: " << LLVMThingToString(val);
   }
 
-  LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
-
+  provenance.insert({stmt, val});
   return stmt;
 }
 
@@ -376,7 +381,7 @@ clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
   } else if (auto inst = llvm::dyn_cast<llvm::AllocaInst>(val)) {
     visitAllocaInst(*inst);
   } else {
-    LOG(FATAL) << "Unsupported value type: " << LLVMThingToString(val);
+    THROW() << "Unsupported value type: " << LLVMThingToString(val);
   }
 
   return decl;
@@ -532,6 +537,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto opnd{GetOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
       opnd = ast.CreateDeref(opnd);
+      provenance.insert({opnd, arg});
     }
     args.push_back(opnd);
   }
@@ -554,6 +560,7 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
     auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
     auto var{ast.CreateVarDecl(fdecl, callexpr->getType(), name)};
+    value_decls[&inst] = var;
     fdecl->addDecl(var);
     callstmt = ast.CreateAssign(ast.CreateDeclRef(var), callexpr);
   } else {
@@ -613,14 +620,26 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
           base = ast.CreateArraySub(base, GetOperandExpr(idx));
           indexed_type = l_elm_ty;
         } else {
-          LOG(FATAL) << "Indexing an unknown type: "
-                     << LLVMThingToString(indexed_type);
+          THROW() << "Indexing an unknown type: "
+                  << LLVMThingToString(indexed_type);
         }
       } break;
     }
   }
 
   ref = ast.CreateAddrOf(base);
+}
+
+void IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
+  THROW() << "Instruction not supported: " << LLVMThingToString(&inst);
+}
+
+void IRToASTVisitor::visitBranchInst(llvm::BranchInst &inst) {
+  DLOG(INFO) << "visitBranchInst ignored: " << LLVMThingToString(&inst);
+}
+
+void IRToASTVisitor::visitUnreachableInst(llvm::UnreachableInst &inst) {
+  DLOG(INFO) << "visitUnreachableInst ignored:" << LLVMThingToString(&inst);
 }
 
 void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
@@ -657,7 +676,7 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
       } break;
 
       default:
-        LOG(FATAL) << "Indexing an unknown aggregate type";
+        THROW() << "Indexing an unknown aggregate type";
         break;
     }
   }
@@ -713,9 +732,15 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   // Get the operand we're assigning to
   auto lhs{GetOperandExpr(inst.getPointerOperand())};
   // Get the operand we're assigning from
+  if (auto undef = llvm::dyn_cast<llvm::UndefValue>(inst.getValueOperand())) {
+    DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
+    return;
+  }
   auto rhs{GetOperandExpr(inst.getValueOperand())};
   // Create the assignemnt itself
-  assign = ast.CreateAssign(ast.CreateDeref(lhs), rhs);
+  auto deref{ast.CreateDeref(lhs)};
+  CopyProvenance(lhs, deref, provenance);
+  assign = ast.CreateAssign(deref, rhs);
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
@@ -820,7 +845,7 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       break;
 
     default:
-      LOG(FATAL) << "Unknown BinaryOperator: " << inst.getOpcodeName();
+      THROW() << "Unknown BinaryOperator: " << inst.getOpcodeName();
       break;
   }
 }
@@ -838,7 +863,13 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   auto IntSignCast{[this](clang::Expr *op, bool sign) {
     auto ot{op->getType()};
     auto rt{ast_ctx.getIntTypeForBitwidth(ast_ctx.getTypeSize(ot), sign)};
-    return rt == ot ? op : ast.CreateCStyleCast(rt, op);
+    if (rt == ot) {
+      return op;
+    } else {
+      auto cast{ast.CreateCStyleCast(rt, op)};
+      CopyProvenance(op, cast, provenance);
+      return (clang::Expr *)cast;
+    }
   }};
   // Cast operands for signed predicates
   if (inst.isSigned()) {
@@ -886,9 +917,9 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       cmp = ast.CreateNE(lhs, rhs);
       break;
 
-    default:
-      LOG(FATAL) << "Unknown CmpInst predicate: " << inst.getOpcodeName();
-      break;
+    default: {
+      THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
+    } break;
   }
 }
 
@@ -941,9 +972,9 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     case llvm::CastInst::FPTrunc:
       break;
 
-    default:
-      LOG(FATAL) << "Unknown CastInst cast type";
-      break;
+    default: {
+      THROW() << "Unknown CastInst cast type";
+    } break;
   }
   // Create cast
   cast = ast.CreateCStyleCast(type, operand);
@@ -975,8 +1006,8 @@ void IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
 
 void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
   DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
-  LOG(FATAL) << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
-                "before decompiling.";
+  THROW() << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
+             "before decompiling.";
 }
 
 }  // namespace rellic

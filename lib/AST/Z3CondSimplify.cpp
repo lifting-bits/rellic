@@ -8,6 +8,9 @@
 
 #include "rellic/AST/Z3CondSimplify.h"
 
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/Expr.h>
+#include <clang/AST/OperationKinds.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -15,37 +18,24 @@ namespace rellic {
 
 char Z3CondSimplify::ID = 0;
 
-Z3CondSimplify::Z3CondSimplify(clang::ASTUnit &unit)
+Z3CondSimplify::Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit)
     : ModulePass(Z3CondSimplify::ID),
+      TransformVisitor<Z3CondSimplify>(provenance),
       ast_ctx(&unit.getASTContext()),
-      z_ctx(new z3::context()),
-      z_gen(new rellic::Z3ConvVisitor(unit, z_ctx.get())),
-      simplifier(*z_ctx, "simplify") {}
-
-clang::Expr *Z3CondSimplify::SimplifyCExpr(clang::Expr *c_expr) {
-  auto z_expr{z_gen->GetOrCreateZ3Expr(c_expr)};
-  z_expr = z_gen->Z3BoolCast(z_expr);
-  z3::goal goal(*z_ctx);
-  goal.add(z_expr);
-  // Apply on `simplifier` on condition
-  auto app{simplifier(goal)};
-  CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-  auto z_result{app[0].as_expr()};
-  return z_gen->GetOrCreateCExpr(z_result);
-}
+      simplifier(new Z3ExprSimplifier(unit)) {}
 
 bool Z3CondSimplify::VisitIfStmt(clang::IfStmt *stmt) {
-  stmt->setCond(SimplifyCExpr(stmt->getCond()));
+  stmt->setCond(simplifier->Simplify(stmt->getCond(), changed));
   return true;
 }
 
 bool Z3CondSimplify::VisitWhileStmt(clang::WhileStmt *loop) {
-  loop->setCond(SimplifyCExpr(loop->getCond()));
+  loop->setCond(simplifier->Simplify(loop->getCond(), changed));
   return true;
 }
 
 bool Z3CondSimplify::VisitDoStmt(clang::DoStmt *loop) {
-  loop->setCond(SimplifyCExpr(loop->getCond()));
+  loop->setCond(simplifier->Simplify(loop->getCond(), changed));
   return true;
 }
 

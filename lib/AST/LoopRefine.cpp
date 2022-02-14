@@ -46,7 +46,8 @@ class WhileRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -63,8 +64,9 @@ class WhileRule : public InferenceRule {
     std::copy(comp->body_begin() + 1, comp->body_end(),
               std::back_inserter(new_body));
     ASTBuilder ast(unit);
-    return ast.CreateWhile(ast.CreateLNot(cond),
-                           ast.CreateCompoundStmt(new_body));
+    auto new_cond{ast.CreateLNot(cond)};
+    CopyProvenance(cond, new_cond, provenance);
+    return ast.CreateWhile(new_cond, ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -85,7 +87,8 @@ class DoWhileRule : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -101,7 +104,9 @@ class DoWhileRule : public InferenceRule {
       new_body.push_back(else_stmt);
     }
     ASTBuilder ast(unit);
-    return ast.CreateDo(ast.CreateLNot(cond), ast.CreateCompoundStmt(new_body));
+    auto cond_inv{ast.CreateLNot(cond)};
+    CopyProvenance(cond, cond_inv, provenance);
+    return ast.CreateDo(cond_inv, ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -130,7 +135,8 @@ class NestedDoWhileRule : public InferenceRule {
     matched = true;
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -147,6 +153,7 @@ class NestedDoWhileRule : public InferenceRule {
 
     ASTBuilder ast(unit);
     auto do_cond{ast.CreateLNot(cond->getCond())};
+    CopyProvenance(cond->getCond(), do_cond, provenance);
     auto do_stmt{ast.CreateDo(do_cond, ast.CreateCompoundStmt(do_body))};
 
     std::vector<clang::Stmt *> while_body({do_stmt, cond->getThen()});
@@ -176,7 +183,8 @@ class LoopToSeq : public InferenceRule {
     }
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
@@ -229,7 +237,8 @@ class CondToSeqRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::WhileStmt>("while");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -263,7 +272,8 @@ class CondToSeqNegRule : public InferenceRule {
     match = result.Nodes.getNodeAs<clang::WhileStmt>("while");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(clang::ASTUnit &unit,
+  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -274,6 +284,7 @@ class CondToSeqNegRule : public InferenceRule {
     auto body{clang::cast<clang::CompoundStmt>(loop->getBody())};
     auto ifstmt{clang::cast<clang::IfStmt>(body->body_front())};
     auto cond{ast.CreateLNot(ifstmt->getCond())};
+    CopyProvenance(ifstmt->getCond(), cond, provenance);
     auto inner_loop{ast.CreateWhile(cond, ifstmt->getElse())};
     std::vector<clang::Stmt *> new_body({inner_loop});
     if (auto comp = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
@@ -290,8 +301,10 @@ class CondToSeqNegRule : public InferenceRule {
 
 char LoopRefine::ID = 0;
 
-LoopRefine::LoopRefine(clang::ASTUnit &u)
-    : ModulePass(LoopRefine::ID), unit(u) {}
+LoopRefine::LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &u)
+    : ModulePass(LoopRefine::ID),
+      TransformVisitor<LoopRefine>(provenance),
+      unit(u) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
@@ -304,7 +317,7 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   rules.emplace_back(new WhileRule);
   rules.emplace_back(new DoWhileRule);
 
-  auto sub{ApplyFirstMatchingRule(unit, loop, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, unit, loop, rules)};
   if (sub != loop) {
     substitutions[loop] = sub;
   }

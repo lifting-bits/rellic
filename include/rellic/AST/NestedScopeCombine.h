@@ -25,7 +25,7 @@ class NestedScopeCombine : public llvm::ModulePass,
  public:
   static char ID;
 
-  NestedScopeCombine(clang::ASTUnit &unit);
+  NestedScopeCombine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);

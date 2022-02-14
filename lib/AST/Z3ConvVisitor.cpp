@@ -15,6 +15,7 @@
 
 #include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/AST/Util.h"
+#include "rellic/Exception.h"
 
 namespace rellic {
 
@@ -252,7 +253,7 @@ clang::Expr *Z3ConvVisitor::CreateLiteralExpr(z3::expr z_expr) {
           semantics = &llvm::APFloat::IEEEquad();
           break;
         default:
-          LOG(FATAL) << "Unknown Z3 floating-point sort!";
+          THROW() << "Unknown Z3 floating-point sort!";
           break;
       }
       z3::expr bv(*z_ctx, Z3_mk_fpa_to_ieee_bv(*z_ctx, z_expr));
@@ -444,7 +445,7 @@ bool Z3ConvVisitor::HandleCastExpr(T *c_cast) {
       break;
 
     default:
-      LOG(FATAL) << "Unsupported cast type: " << c_cast->getCastKindName();
+      THROW() << "Unsupported cast type: " << c_cast->getCastKindName();
       break;
   }
   // Save
@@ -592,8 +593,8 @@ bool Z3ConvVisitor::VisitUnaryOperator(clang::UnaryOperator *c_op) {
     } break;
 
     default:
-      LOG(FATAL) << "Unknown clang::UnaryOperator operation: "
-                 << c_op->getOpcodeStr(c_op->getOpcode()).str();
+      THROW() << "Unknown clang::UnaryOperator operation: "
+              << c_op->getOpcodeStr(c_op->getOpcode()).str();
       break;
   }
   return true;
@@ -628,7 +629,7 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
   // Conditionally cast operands to a bitvector
   auto CondBoolToBVCast{[this, &lhs, &rhs]() {
     if (lhs.is_bool()) {
-      CHECK(rhs.is_bv());
+      CHECK(rhs.is_bv() || rhs.is_bool());
       lhs = Z3BoolToBVCast(lhs);
     }
     if (rhs.is_bool()) {
@@ -722,8 +723,8 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     default:
-      LOG(FATAL) << "Unknown clang::BinaryOperator operation: "
-                 << c_op->getOpcodeStr().str();
+      THROW() << "Unknown clang::BinaryOperator operation: "
+              << c_op->getOpcodeStr().str();
       break;
   }
   return true;
@@ -886,7 +887,7 @@ void Z3ConvVisitor::VisitConstant(z3::expr z_const) {
       break;
     // Unknowns
     default:
-      LOG(FATAL) << "Unknown Z3 constant: " << z_const;
+      THROW() << "Unknown Z3 constant: " << z_const;
       break;
   }
   InsertCExpr(z_const, c_expr);
@@ -1071,12 +1072,21 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       break;
 
     case Z3_OP_SLEQ:
+    case Z3_OP_ULEQ:
     case Z3_OP_FPA_LE:
       c_op = ast.CreateLE(lhs, rhs);
       break;
 
+    case Z3_OP_SLT:
+    case Z3_OP_ULT:
     case Z3_OP_FPA_LT:
       c_op = ast.CreateLT(lhs, rhs);
+      break;
+
+    case Z3_OP_SGT:
+    case Z3_OP_UGT:
+    case Z3_OP_FPA_GT:
+      c_op = ast.CreateGT(lhs, rhs);
       break;
 
     case Z3_OP_BADD:
@@ -1124,6 +1134,10 @@ void Z3ConvVisitor::VisitBinaryApp(z3::expr z_op) {
       c_op = ast.CreateRem(lhs, rhs);
       break;
 
+    case Z3_OP_DISTINCT:
+      c_op = ast.CreateNE(lhs, rhs);
+      break;
+
     // Unknowns
     default:
       LOG(FATAL) << "Unknown Z3 binary operator: " << z_decl.name();
@@ -1165,7 +1179,7 @@ void Z3ConvVisitor::VisitTernaryApp(z3::expr z_op) {
 }
 
 void Z3ConvVisitor::VisitZ3Decl(z3::func_decl z_decl) {
-  LOG(FATAL) << "Unimplemented Z3 declaration visitor!";
+  THROW() << "Unimplemented Z3 declaration visitor!";
   // switch (z_decl.decl_kind()) {
   //   case Z3_OP_UNINTERPRETED:
   //     if (!z_decl.is_const()) {

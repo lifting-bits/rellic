@@ -57,8 +57,8 @@ class WhileRule : public InferenceRule {
     auto ifstmt{clang::cast<clang::IfStmt>(comp->body_front())};
     auto cond{ifstmt->getCond()};
     std::vector<clang::Stmt *> new_body;
-    if (ifstmt->getElse()) {
-      new_body.push_back(ifstmt->getElse());
+    if (auto else_stmt = ifstmt->getElse()) {
+      new_body.push_back(else_stmt);
     }
     std::copy(comp->body_begin() + 1, comp->body_end(),
               std::back_inserter(new_body));
@@ -97,8 +97,8 @@ class DoWhileRule : public InferenceRule {
     auto cond{ifstmt->getCond()};
     std::vector<clang::Stmt *> new_body(comp->body_begin(),
                                         comp->body_end() - 1);
-    if (ifstmt->getElse()) {
-      new_body.push_back(ifstmt->getElse());
+    if (auto else_stmt = ifstmt->getElse()) {
+      new_body.push_back(else_stmt);
     }
     ASTBuilder ast(unit);
     return ast.CreateDo(ast.CreateLNot(cond), ast.CreateCompoundStmt(new_body));
@@ -141,8 +141,8 @@ class NestedDoWhileRule : public InferenceRule {
 
     std::vector<clang::Stmt *> do_body(comp->body_begin(),
                                        comp->body_end() - 1);
-    if (cond->getElse()) {
-      do_body.push_back(cond->getElse());
+    if (auto else_stmt = cond->getElse()) {
+      do_body.push_back(else_stmt);
     }
 
     ASTBuilder ast(unit);

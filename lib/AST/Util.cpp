@@ -59,34 +59,4 @@ bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
   return IsEquivalent(ctx, a, b, idA, idB);
 }
 
-bool Replace(clang::ASTContext &ctx, clang::Stmt *from, clang::Stmt *to,
-             clang::Stmt **in) {
-  if (IsEquivalent(ctx, *in, from)) {
-    *in = to;
-    return true;
-  } else {
-    bool changed{false};
-    for (auto child{(*in)->child_begin()}; child != (*in)->child_end();
-         ++child) {
-      changed |= Replace(ctx, from, to, &*child);
-    }
-    return changed;
-  }
-}
-
-bool Replace(clang::ASTContext &ctx, clang::Expr *from, clang::Expr *to,
-             clang::Expr **in) {
-  if (IsEquivalent(ctx, *in, from)) {
-    *in = to;
-    return true;
-  } else {
-    bool changed{false};
-    for (auto child{(*in)->child_begin()}; child != (*in)->child_end();
-         ++child) {
-      changed |= Replace(ctx, from, to, &*child);
-    }
-    return changed;
-  }
-}
-
 }  // namespace rellic

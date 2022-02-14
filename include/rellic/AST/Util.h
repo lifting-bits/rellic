@@ -16,10 +16,20 @@ namespace rellic {
 
 unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt);
 bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b);
-bool Replace(clang::ASTContext &ctx, clang::Stmt *from, clang::Stmt *to,
-             clang::Stmt **in);
-bool Replace(clang::ASTContext &ctx, clang::Expr *from, clang::Expr *to,
-             clang::Expr **in);
+template <typename TFrom, typename TTo, typename TIn>
+bool Replace(clang::ASTContext &ctx, TFrom *from, TTo *to, TIn **in) {
+  if (IsEquivalent(ctx, *in, from)) {
+    *in = to;
+    return true;
+  } else {
+    bool changed{false};
+    for (auto child{(*in)->child_begin()}; child != (*in)->child_end();
+         ++child) {
+      changed |= Replace(ctx, from, to, &*child);
+    }
+    return changed;
+  }
+}
 
 template <typename T>
 size_t GetNumDecls(clang::DeclContext *decl_ctx) {

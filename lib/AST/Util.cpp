@@ -25,6 +25,14 @@ unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
 static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
                          llvm::FoldingSetNodeID &foldingSetA,
                          llvm::FoldingSetNodeID &foldingSetB) {
+  if (a == b) {
+    return true;
+  }
+
+  if (a->getStmtClass() != b->getStmtClass()) {
+    return false;
+  }
+
   foldingSetA.clear();
   foldingSetB.clear();
   a->Profile(foldingSetA, ctx, /*Canonical=*/true);
@@ -32,10 +40,6 @@ static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
 
   if (foldingSetA == foldingSetB) {
     return true;
-  }
-
-  if (a->getStmtClass() != b->getStmtClass()) {
-    return false;
   }
 
   auto child_a{a->child_begin()};

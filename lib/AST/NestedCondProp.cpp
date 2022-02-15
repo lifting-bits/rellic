@@ -11,7 +11,7 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Z3ConvVisitor.h"
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -72,22 +72,12 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // and remove it from `cond` if it's present.
   auto iter = parent_conds.find(ifstmt);
   if (iter != parent_conds.end()) {
-    auto child_expr =
-        z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(ifstmt->getCond()))
-            .simplify();
-    auto parent_expr =
-        z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(iter->second)).simplify();
-    z3::expr_vector src(*z3_ctx);
-    z3::expr_vector dst(*z3_ctx);
-    src.push_back(parent_expr);
-    dst.push_back(z3_ctx->bool_val(true));
-    auto sub = child_expr.substitute(src, dst).simplify();
-    if (!z3::eq(child_expr, sub)) {
-      auto old_cond{ifstmt->getCond()};
-      auto new_cond{z3_gen->GetOrCreateCExpr(sub)};
-      ifstmt->setCond(new_cond);
-      changed = true;
-    }
+    auto child_expr{ifstmt->getCond()};
+    auto parent_expr{iter->second};
+    changed = Replace(*ast_ctx, /* from */ parent_expr,
+                      /* to */ ast.CreateTrue(), /* in */
+                      &child_expr);
+    ifstmt->setCond(child_expr);
   }
   return true;
 }

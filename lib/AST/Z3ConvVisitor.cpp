@@ -651,61 +651,75 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
 
     case clang::BO_EQ: {
       CondBoolCast();
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs == rhs);
     } break;
 
     case clang::BO_NE:
       CondBoolCast();
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs != rhs);
       break;
 
     case clang::BO_GE:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs >= rhs);
       break;
 
     case clang::BO_GT:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs > rhs);
       break;
 
     case clang::BO_LE:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs <= rhs);
       break;
 
     case clang::BO_LT:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs < rhs);
       break;
 
     case clang::BO_Rem:
+      CondSizeCast();
       InsertZ3Expr(c_op, z3::srem(lhs, rhs));
       break;
 
     case clang::BO_Add:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs + rhs);
       break;
 
     case clang::BO_Sub:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs - rhs);
       break;
 
     case clang::BO_Mul:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs * rhs);
       break;
 
     case clang::BO_Div:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs / rhs);
       break;
 
     case clang::BO_And:
       CondBoolToBVCast();
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs & rhs);
       break;
 
     case clang::BO_Or:
       CondBoolToBVCast();
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs | rhs);
       break;
 
     case clang::BO_Xor:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs ^ rhs);
       break;
 

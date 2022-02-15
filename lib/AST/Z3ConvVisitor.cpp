@@ -651,11 +651,13 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
 
     case clang::BO_EQ: {
       CondBoolCast();
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs == rhs);
     } break;
 
     case clang::BO_NE:
       CondBoolCast();
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs != rhs);
       break;
 
@@ -680,22 +682,27 @@ bool Z3ConvVisitor::VisitBinaryOperator(clang::BinaryOperator *c_op) {
       break;
 
     case clang::BO_Rem:
+      CondSizeCast();
       InsertZ3Expr(c_op, z3::srem(lhs, rhs));
       break;
 
     case clang::BO_Add:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs + rhs);
       break;
 
     case clang::BO_Sub:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs - rhs);
       break;
 
     case clang::BO_Mul:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs * rhs);
       break;
 
     case clang::BO_Div:
+      CondSizeCast();
       InsertZ3Expr(c_op, lhs / rhs);
       break;
 

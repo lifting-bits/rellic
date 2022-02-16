@@ -73,7 +73,7 @@ set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
 
 include(FetchContent)
 FetchContent_Declare(linenoise
-  GIT_REPOSITORY git@github.com:antirez/linenoise.git
+  GIT_REPOSITORY https://github.com/antirez/linenoise.git
   GIT_TAG        97d2850af13c339369093b78abe5265845d78220
 )
 FetchContent_MakeAvailable(linenoise)

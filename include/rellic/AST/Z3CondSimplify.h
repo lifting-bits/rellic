@@ -20,6 +20,10 @@
 
 namespace rellic {
 
+/*
+ * This pass simplifies conditions using Z3 by trying to remove terms that are
+ * trivially true or false
+ */
 class Z3CondSimplify : public llvm::ModulePass,
                        public TransformVisitor<Z3CondSimplify> {
  private:

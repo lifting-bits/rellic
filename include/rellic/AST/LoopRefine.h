@@ -16,6 +16,23 @@
 
 namespace rellic {
 
+/*
+ * This pass transforms unbounded loops with a break in their body into loops
+ * with a condition. For example,
+ *
+ *   while(1U) {
+ *     if(cond) {
+ *       break;
+ *     }
+ *     body;
+ *   }
+ *
+ * becomes
+ *
+ *   while(!cond) {
+ *     body;
+ *   }
+ */
 class LoopRefine : public llvm::ModulePass,
                    public TransformVisitor<LoopRefine> {
  private:

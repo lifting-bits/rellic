@@ -16,6 +16,10 @@
 
 namespace rellic {
 
+/*
+ * This pass performs a number of different trasnformations on expressions,
+ * like turning *&a into a, or !(a == b) into a != b
+ */
 class ExprCombine : public llvm::ModulePass,
                     public TransformVisitor<ExprCombine> {
  private:

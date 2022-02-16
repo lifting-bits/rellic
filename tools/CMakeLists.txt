@@ -67,6 +67,41 @@ target_link_libraries(${RELLIC_XREF}
 
 set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
 
+#
+# rellic-repl
+#
+
+include(FetchContent)
+FetchContent_Declare(linenoise
+  GIT_REPOSITORY https://github.com/antirez/linenoise.git
+  GIT_TAG        97d2850af13c339369093b78abe5265845d78220
+)
+FetchContent_MakeAvailable(linenoise)
+
+add_library(linenoise STATIC
+  "${linenoise_SOURCE_DIR}/linenoise.c"
+)
+target_include_directories(linenoise
+  PUBLIC
+    "${linenoise_SOURCE_DIR}"
+)
+
+set(RELLIC_REPL "${PROJECT_NAME}-repl")
+
+add_executable(${RELLIC_REPL}
+  "repl/Repl.cpp"
+)
+
+target_link_libraries(${RELLIC_REPL}
+  PRIVATE
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
+    linenoise
+)
+
+set(RELLIC_REPL "${RELLIC_REPL}" PARENT_SCOPE)
+
 if(RELLIC_ENABLE_INSTALL)
   
   install(
@@ -74,6 +109,7 @@ if(RELLIC_ENABLE_INSTALL)
       ${RELLIC_DECOMP}
       ${RELLIC_HEADERGEN}
       ${RELLIC_XREF}
+      ${RELLIC_REPL}
     EXPORT
       "${PROJECT_NAME}Targets"
     RUNTIME

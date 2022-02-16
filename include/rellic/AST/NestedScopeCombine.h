@@ -16,6 +16,24 @@
 
 namespace rellic {
 
+/*
+ * This pass combines the bodies of trivially true if statements and compound
+ * statements into the body of their parent's body, and deletes trivially false
+ * if statements. For example,
+ *
+ *   {
+ *     if(1U) {
+ *       body1;
+ *     }
+ *     if(0U) {
+ *       body2;
+ *     }
+ *   }
+ *
+ * becomes
+ *
+ *   body1;
+ */
 class NestedScopeCombine : public llvm::ModulePass,
                            public TransformVisitor<NestedScopeCombine> {
  private:

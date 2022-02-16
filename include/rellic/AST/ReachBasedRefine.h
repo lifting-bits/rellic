@@ -17,6 +17,29 @@
 
 namespace rellic {
 
+/*
+ * This pass restructures a sequence of if statements that have a shape like
+ *
+ *   if(cond1 && !cond2 && !cond3) {
+ *     body1;
+ *   }
+ *   if(cond2 && !cond1 && !cond3) {
+ *     body2;
+ *   }
+ *   if(cond3 && !cond1 && !cond2) {
+ *     body3;
+ *   }
+ *
+ * into
+ *
+ *   if(cond1) {
+ *     body1;
+ *   } else if(cond2) {
+ *     body2;
+ *   } else if(cond3) {
+ *     body3;
+ *   }
+ */
 class ReachBasedRefine : public llvm::ModulePass,
                          public TransformVisitor<ReachBasedRefine> {
  private:

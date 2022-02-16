@@ -16,6 +16,11 @@
 
 namespace rellic {
 
+/*
+ * This pass turns conditions into conjunctive normal form (CNF). Warning: this
+ * has the potential of creating an exponential number of terms, so it's best to
+ * perform this pass after simplification.
+ */
 class NormalizeCond : public llvm::ModulePass,
                       public TransformVisitor<NormalizeCond> {
  private:

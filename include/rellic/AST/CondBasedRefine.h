@@ -17,6 +17,24 @@
 
 namespace rellic {
 
+/*
+ * This pass converts a sequence of if statements shaped like
+ *
+ *   if(cond) {
+ *     body_then;
+ *   }
+ *   if(!cond) {
+ *     body_else;
+ *   }
+ *
+ * into
+ *
+ *   if(cond) {
+ *     body_then;
+ *   } else {
+ *     body_else;
+ *   }
+ */
 class CondBasedRefine : public llvm::ModulePass,
                         public TransformVisitor<CondBasedRefine> {
  private:

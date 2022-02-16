@@ -106,7 +106,7 @@ bool NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
         parent_conds[child] = cond;
       }
     } else {
-      LOG(FATAL) << "Then body must be a clang::CompoundStmt!";
+      LOG(FATAL) << "While body must be a clang::CompoundStmt!";
     }
   }
   // Retrieve a parent `clang::Stmt` condition

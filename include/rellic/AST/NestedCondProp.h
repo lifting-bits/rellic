@@ -29,7 +29,7 @@ class NestedCondProp : public llvm::ModulePass,
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
 
-  std::unordered_map<clang::IfStmt *, clang::Expr *> parent_conds;
+  std::unordered_map<clang::Stmt *, clang::Expr *> parent_conds;
 
  public:
   static char ID;
@@ -39,6 +39,7 @@ class NestedCondProp : public llvm::ModulePass,
   NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
+  bool VisitWhileStmt(clang::WhileStmt *stmt);
 
   bool runOnModule(llvm::Module &module) override;
 };

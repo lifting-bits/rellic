@@ -32,6 +32,13 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   bool is_const = if_const_expr.hasValue();
   if (is_const && if_const_expr->getBoolValue()) {
     substitutions[ifstmt] = ifstmt->getThen();
+  } else if (is_const && !if_const_expr->getBoolValue()) {
+    if (auto else_stmt = ifstmt->getElse()) {
+      substitutions[ifstmt] = else_stmt;
+    } else {
+      std::vector<clang::Stmt *> body;
+      substitutions[ifstmt] = ast.CreateCompoundStmt(body);
+    }
   }
   return true;
 }

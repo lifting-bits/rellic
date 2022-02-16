@@ -39,6 +39,20 @@ NestedCondProp::NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit)
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
 
+static clang::Expr *Negate(rellic::ASTBuilder &ast, clang::Expr *expr) {
+  if (auto binop = clang::dyn_cast<clang::BinaryOperator>(expr)) {
+    if (binop->isComparisonOp()) {
+      auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
+      return ast.CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
+    }
+  } else if (auto unop = clang::dyn_cast<clang::UnaryOperator>(expr)) {
+    if (unop->getOpcode() == clang::UO_LNot) {
+      return unop->getSubExpr();
+    }
+  }
+  return ast.CreateLNot(expr);
+}
+
 bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression
@@ -58,26 +72,52 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
     if (stmt_else) {
       if (auto comp = clang::dyn_cast<clang::CompoundStmt>(stmt_else)) {
         for (auto child : GetIfStmts(comp)) {
-          parent_conds[child] = ast.CreateLNot(cond);
+          parent_conds[child] = Negate(ast, cond);
         }
       } else if (auto elif = clang::dyn_cast<clang::IfStmt>(stmt_else)) {
-        parent_conds[elif] = ast.CreateLNot(cond);
+        parent_conds[elif] = Negate(ast, cond);
       } else {
         LOG(FATAL)
             << "Else branch must be a clang::CompoundStmt or clang::IfStmt!";
       }
     }
   }
-  // Retrieve a parent `clang::IfStmt` condition
+  // Retrieve a parent `clang::Stmt` condition
   // and remove it from `cond` if it's present.
   auto iter = parent_conds.find(ifstmt);
   if (iter != parent_conds.end()) {
     auto child_expr{ifstmt->getCond()};
     auto parent_expr{iter->second};
-    changed = Replace(*ast_ctx, /* from */ parent_expr,
-                      /* to */ ast.CreateTrue(), /* in */
-                      &child_expr);
+    changed = Replace(*ast_ctx, /*from=*/parent_expr,
+                      /*to=*/ast.CreateTrue(), /*in=*/&child_expr);
     ifstmt->setCond(child_expr);
+  }
+  return true;
+}
+
+bool NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
+  auto cond = stmt->getCond();
+  if (!cond->isIntegerConstantExpr(*ast_ctx)) {
+    auto body = stmt->getBody();
+    // `cond` is not a constant expression and we propagate it
+    // to `clang::IfStmt` nodes in its body.
+    if (auto comp = clang::dyn_cast<clang::CompoundStmt>(body)) {
+      for (auto child : GetIfStmts(comp)) {
+        parent_conds[child] = cond;
+      }
+    } else {
+      LOG(FATAL) << "While body must be a clang::CompoundStmt!";
+    }
+  }
+  // Retrieve a parent `clang::Stmt` condition
+  // and remove it from `cond` if it's present.
+  auto iter = parent_conds.find(stmt);
+  if (iter != parent_conds.end()) {
+    auto child_expr{stmt->getCond()};
+    auto parent_expr{iter->second};
+    changed = Replace(*ast_ctx, /*from=*/parent_expr,
+                      /*to=*/ast.CreateTrue(), /*in=*/&child_expr);
+    stmt->setCond(child_expr);
   }
   return true;
 }

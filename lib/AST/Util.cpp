@@ -66,4 +66,11 @@ bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
   return IsEquivalent(ctx, a, b, idA, idB);
 }
 
+void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map) {
+  auto range{map.equal_range(from)};
+  for (auto it{range.first}; it != range.second && it != map.end(); ++it) {
+    map.insert({to, it->second});
+  }
+}
+
 }  // namespace rellic

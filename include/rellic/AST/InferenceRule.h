@@ -24,9 +24,6 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
   clang::ast_matchers::StatementMatcher cond;
   const clang::Stmt *match;
 
-  static void CopyProvenance(clang::Stmt *from, clang::Stmt *to,
-                             StmtToIRMap &provenance);
-
  public:
   InferenceRule(clang::ast_matchers::StatementMatcher matcher)
       : cond(matcher), match(nullptr) {}

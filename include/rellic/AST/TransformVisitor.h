@@ -28,16 +28,7 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
   void EraseProvenance(clang::Stmt *from) { provenance.erase(from); }
 
   void CopyProvenance(clang::Stmt *from, clang::Stmt *to) {
-    auto range{provenance.equal_range(from)};
-    for (auto it{range.first}; it != range.second && it != provenance.end();
-         ++it) {
-      provenance.insert({to, it->second});
-    }
-  }
-
-  void CopyProvenanceAndErase(clang::Stmt *from, clang::Stmt *to) {
-    CopyProvenance(from, to);
-    EraseProvenance(from);
+    ::rellic::CopyProvenance(from, to, provenance);
   }
 
   bool ReplaceChildren(clang::Stmt *stmt, StmtSubMap &repl_map) {

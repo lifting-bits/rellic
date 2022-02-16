@@ -23,14 +23,6 @@
 
 namespace rellic {
 
-static void CopyProvenance(clang::Stmt *from, clang::Stmt *to,
-                           StmtToIRMap &map) {
-  auto range{map.equal_range(from)};
-  for (auto it{range.first}; it != range.second && it != map.end(); ++it) {
-    map.insert({to, it->second});
-  }
-}
-
 IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
     : ast_ctx(unit.getASTContext()), ast(unit) {}
 

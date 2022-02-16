@@ -14,6 +14,7 @@
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/InferenceRule.h"
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 

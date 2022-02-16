@@ -28,7 +28,6 @@ namespace rellic {
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
-using StmtToIRMap = std::unordered_multimap<clang::Stmt *, llvm::Value *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {

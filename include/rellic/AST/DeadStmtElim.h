@@ -16,6 +16,9 @@
 
 namespace rellic {
 
+/*
+ * This pass eliminates statements that have no effect
+ */
 class DeadStmtElim : public llvm::ModulePass,
                      public TransformVisitor<DeadStmtElim> {
  private:

@@ -179,9 +179,7 @@ static void do_help() {
             << "  print module       Prints the LLVM module\n"
             << "  print ast          Prints the C AST\n"
             << "  diff [on/off]      Enables/disables printing the diff "
-               "between before and "
-               "after executing a command\n"
-               "and after executing a command\n"
+               "between before and after executing a command\n"
             << "  clear              Clears the screen\n"
             << "  apply [pass]       Applies preprocessing pass\n"
             << "  decompile          Performs initial decompilation\n"
@@ -383,29 +381,46 @@ static void do_diff(std::istream& is) {
 
 void completion(const char* buf, linenoiseCompletions* lc) {
   std::string line{buf};
+  auto last_space{line.find_last_of(' ')};
+  auto last_fragment{line.substr(last_space + 1)};
   if (std::string("help").find(line) != std::string::npos) {
     linenoiseAddCompletion(lc, "help");
   } else if (buf[0] == 'p') {
     if (line.find("print ") == 0) {
-      linenoiseAddCompletion(lc, "print module");
-      linenoiseAddCompletion(lc, "print ast");
+      for (auto option : {"module", "ast"}) {
+        std::string option_str{option};
+        if (option_str.find(last_fragment) == 0) {
+          linenoiseAddCompletion(
+              lc, (line.substr(0, last_space + 1) + option_str).c_str());
+        }
+      }
     } else {
-      linenoiseAddCompletion(lc, "print ");
+      linenoiseAddCompletion(lc, "print");
     }
   } else if (buf[0] == 'a') {
     if (line.find("apply ") == 0) {
-      linenoiseAddCompletion(lc, "apply remove-phi-nodes");
-      linenoiseAddCompletion(lc, "apply lower-switches");
+      for (auto option : {"remove-phi-nodes", "lower-switches"}) {
+        std::string option_str{option};
+        if (option_str.find(last_fragment) == 0) {
+          linenoiseAddCompletion(
+              lc, (line.substr(0, last_space + 1) + option_str).c_str());
+        }
+      }
     } else {
-      linenoiseAddCompletion(lc, "apply ");
+      linenoiseAddCompletion(lc, "apply");
     }
   } else if (buf[0] == 'd') {
     if (line.find("diff ") == 0) {
-      linenoiseAddCompletion(lc, "diff on");
-      linenoiseAddCompletion(lc, "diff off");
+      for (auto option : {"on", "off"}) {
+        std::string option_str{option};
+        if (option_str.find(last_fragment) == 0) {
+          linenoiseAddCompletion(
+              lc, (line.substr(0, last_space + 1) + option_str).c_str());
+        }
+      }
     } else {
       linenoiseAddCompletion(lc, "decompile");
-      linenoiseAddCompletion(lc, "diff ");
+      linenoiseAddCompletion(lc, "diff");
     }
   } else if (buf[0] == 'q') {
     linenoiseAddCompletion(lc, "quit");
@@ -415,31 +430,27 @@ void completion(const char* buf, linenoiseCompletions* lc) {
     linenoiseAddCompletion(lc, "clear");
   } else if (buf[0] == 'r') {
     if (line.find("run ") == 0) {
-      auto last_space{line.find_last_of(' ')};
-      auto last_fragment{line.substr(last_space + 1)};
       for (auto pass : available_passes) {
         std::string pass_str{pass};
         if (pass_str.find(last_fragment) == 0) {
           linenoiseAddCompletion(
-              lc, (line.substr(0, last_space + 1) + pass_str + ' ').c_str());
+              lc, (line.substr(0, last_space + 1) + pass_str).c_str());
         }
       }
     } else {
-      linenoiseAddCompletion(lc, "run ");
+      linenoiseAddCompletion(lc, "run");
     }
   } else if (buf[0] == 'f') {
     if (line.find("fixpoint ") == 0) {
-      auto last_space{line.find_last_of(' ')};
-      auto last_fragment{line.substr(last_space + 1)};
       for (auto pass : available_passes) {
         std::string pass_str{pass};
         if (pass_str.find(last_fragment) == 0) {
           linenoiseAddCompletion(
-              lc, (line.substr(0, last_space + 1) + pass_str + ' ').c_str());
+              lc, (line.substr(0, last_space + 1) + pass_str).c_str());
         }
       }
     } else {
-      linenoiseAddCompletion(lc, "fixpoint ");
+      linenoiseAddCompletion(lc, "fixpoint");
     }
   }
 }

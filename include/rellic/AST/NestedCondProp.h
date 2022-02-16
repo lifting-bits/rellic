@@ -20,6 +20,24 @@
 
 namespace rellic {
 
+/*
+ * This pass propagates the condition of an outer if or while statement into the
+ * conditions of its inner if statements. For example,
+ *
+ *   if(cond_a) {
+ *     if(cond_a && cond_b) {
+ *       body;
+ *     }
+ *   }
+ *
+ * turns into
+ *
+ *   if(cond_a) {
+ *     if(1U && cond_b) {
+ *       body;
+ *     }
+ *   }
+ */
 class NestedCondProp : public llvm::ModulePass,
                        public TransformVisitor<NestedCondProp> {
  private:

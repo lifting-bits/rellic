@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <llvm/IR/Module.h>
-#include <llvm/Pass.h>
-
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 
 namespace rellic {
@@ -33,19 +29,14 @@ namespace rellic {
  *     body;
  *   }
  */
-class LoopRefine : public llvm::ModulePass,
-                   public TransformVisitor<LoopRefine> {
- private:
-  clang::ASTUnit &unit;
+class LoopRefine : public TransformVisitor<LoopRefine> {
+ protected:
+  void RunImpl() override;
 
  public:
-  static char ID;
-
   LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitWhileStmt(clang::WhileStmt *loop);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

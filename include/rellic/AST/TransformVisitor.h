@@ -12,20 +12,18 @@
 
 #include <unordered_map>
 
-#include "rellic/AST/IRToASTVisitor.h"
+#include "rellic/AST/ASTPass.h"
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 
 using StmtSubMap = std::unordered_map<clang::Stmt *, clang::Stmt *>;
 
 template <typename Derived>
-class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
+class TransformVisitor : public ASTPass,
+                         public clang::RecursiveASTVisitor<Derived> {
  protected:
-  StmtToIRMap &provenance;
   StmtSubMap substitutions;
-  bool changed;
-
-  void EraseProvenance(clang::Stmt *from) { provenance.erase(from); }
 
   void CopyProvenance(clang::Stmt *from, clang::Stmt *to) {
     ::rellic::CopyProvenance(from, to, provenance);
@@ -44,16 +42,13 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
     return change;
   }
 
+  void RunImpl() override { substitutions.clear(); }
+
  public:
-  TransformVisitor(StmtToIRMap &provenance)
-      : provenance(provenance), changed(false) {}
+  TransformVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit)
+      : ASTPass(provenance, unit) {}
 
   virtual bool shouldTraversePostOrder() { return true; }
-
-  void Initialize() {
-    changed = false;
-    substitutions.clear();
-  }
 
   bool VisitFunctionDecl(clang::FunctionDecl *fdecl) {
     // DLOG(INFO) << "VisitFunctionDecl";
@@ -64,13 +59,13 @@ class TransformVisitor : public clang::RecursiveASTVisitor<Derived> {
         changed = true;
       }
     }
-    return true;
+    return !Stopped();
   }
 
   bool VisitStmt(clang::Stmt *stmt) {
     // DLOG(INFO) << "VisitStmt";
     changed |= ReplaceChildren(stmt, substitutions);
-    return true;
+    return !Stopped();
   }
 };
 

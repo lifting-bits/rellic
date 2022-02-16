@@ -13,13 +13,15 @@
 #include <linenoise.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/InitializePasses.h>
 #include <llvm/Pass.h>
+#include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Utils.h>
 #include <llvm/Transforms/Utils/Local.h>
+#include <llvm/Transforms/Utils/LowerSwitch.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -59,8 +61,12 @@ DECLARE_bool(version);
 llvm::LLVMContext llvm_ctx;
 std::unique_ptr<llvm::Module> module{nullptr};
 std::unique_ptr<clang::ASTUnit> ast_unit{nullptr};
-rellic::GenerateAST* gr{nullptr};
-std::unique_ptr<llvm::legacy::PassManager> global_pm{nullptr};
+rellic::StmtToIRMap provenance;
+rellic::IRToTypeDeclMap type_decls;
+rellic::IRToValDeclMap value_decls;
+rellic::IRToStmtMap stmts;
+rellic::ArgToTempMap temp_decls;
+std::unique_ptr<rellic::CompositeASTPass> global_pass{nullptr};
 
 static void SetVersion(void) {
   std::stringstream version;
@@ -93,8 +99,6 @@ static void SetVersion(void) {
 
 static const char* available_passes[] = {"cbr", "dse", "ec",  "lr", "ncp",
                                          "nsc", "nc",  "rbr", "zcs"};
-
-static bool stop = false;
 
 static bool diff = false;
 
@@ -145,32 +149,35 @@ class Diff {
   }
 };
 
-llvm::ModulePass* CreatePass(const std::string& name) {
-  auto& provenance{CHECK_NOTNULL(gr)->GetStmtToIRMap()};
+static std::unique_ptr<rellic::ASTPass> CreatePass(const std::string& name) {
   if (name == "cbr") {
-    return new rellic::CondBasedRefine(provenance, *ast_unit);
+    return std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit);
   } else if (name == "dse") {
-    return new rellic::DeadStmtElim(provenance, *ast_unit);
+    return std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit);
   } else if (name == "ec") {
-    return new rellic::ExprCombine(provenance, *ast_unit);
+    return std::make_unique<rellic::ExprCombine>(provenance, *ast_unit);
   } else if (name == "lr") {
-    return new rellic::LoopRefine(provenance, *ast_unit);
+    return std::make_unique<rellic::LoopRefine>(provenance, *ast_unit);
   } else if (name == "ncp") {
-    return new rellic::NestedCondProp(provenance, *ast_unit);
+    return std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit);
   } else if (name == "nsc") {
-    return new rellic::NestedScopeCombine(provenance, *ast_unit);
+    return std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit);
   } else if (name == "nc") {
-    return new rellic::NormalizeCond(provenance, *ast_unit);
+    return std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit);
   } else if (name == "rbr") {
-    return new rellic::ReachBasedRefine(provenance, *ast_unit);
+    return std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit);
   } else if (name == "zcs") {
-    return new rellic::Z3CondSimplify(provenance, *ast_unit);
+    return std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit);
   } else {
     return nullptr;
   }
 }
 
-static void handle_stop(int signal) { stop = true; }
+static void handle_stop(int signal) {
+  if (global_pass) {
+    global_pass->Stop();
+  }
+}
 
 static void do_help() {
   std::cout << "available commands:\n"
@@ -215,8 +222,9 @@ static void do_load(std::istream& is) {
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module->getTargetTriple()};
   ast_unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
-  global_pm = std::make_unique<llvm::legacy::PassManager>();
-  gr = new rellic::GenerateAST(*ast_unit);
+  global_pass =
+      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
+  provenance.clear();
 
   std::cout << "ok." << std::endl;
 }
@@ -263,9 +271,30 @@ static void do_apply(std::istream& is) {
     std::cout << "ok." << std::endl;
   } else if (what == "lower-switches") {
     Diff d{[](llvm::raw_ostream& os) { module->print(os, nullptr); }};
-    llvm::legacy::PassManager pm;
-    pm.add(llvm::createLowerSwitchPass());
-    pm.run(*module);
+    llvm::PassBuilder pb;
+    llvm::ModulePassManager mpm(false);
+    llvm::ModuleAnalysisManager mam(false);
+    llvm::LoopAnalysisManager lam(false);
+    llvm::CGSCCAnalysisManager cam(false);
+    llvm::FunctionAnalysisManager fam(false);
+
+    pb.registerFunctionAnalyses(fam);
+    pb.registerModuleAnalyses(mam);
+    pb.registerCGSCCAnalyses(cam);
+    pb.registerLoopAnalyses(lam);
+
+    pb.crossRegisterProxies(lam, fam, cam, mam);
+
+    llvm::FunctionPassManager fpm;
+    fpm.addPass(llvm::LowerSwitchPass());
+
+    mpm.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(fpm)));
+    mpm.run(*module, mam);
+
+    mam.clear();
+    fam.clear();
+    cam.clear();
+    lam.clear();
     std::cout << "ok." << std::endl;
   } else {
     std::cout << "error: unknown preprocess pass `" << what << "'."
@@ -277,16 +306,14 @@ static void do_decompile() {
   try {
     rellic::DebugInfoCollector dic;
     dic.visit(*module);
-    auto ldr{new rellic::LocalDeclRenamer(gr->GetStmtToIRMap(), *ast_unit,
-                                          dic.GetIRToNameMap(),
-                                          gr->GetIRToValDeclMap())};
-    auto sfr{new rellic::StructFieldRenamer(gr->GetStmtToIRMap(), *ast_unit,
-                                            dic.GetIRTypeToDITypeMap(),
-                                            gr->GetIRToTypeDeclMap())};
-    global_pm->add(gr);
-    global_pm->add(ldr);
-    global_pm->add(sfr);
-    global_pm->run(*module);
+    rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
+                             value_decls, stmts, temp_decls);
+    rellic::LocalDeclRenamer ldr{provenance, *ast_unit, dic.GetIRToNameMap(),
+                                 value_decls};
+    rellic::StructFieldRenamer sfr{provenance, *ast_unit,
+                                   dic.GetIRTypeToDITypeMap(), type_decls};
+    ldr.Run();
+    sfr.Run();
     std::cout << "ok." << std::endl;
   } catch (rellic::Exception& ex) {
     std::cout << "error: " << ex.what() << std::endl;
@@ -299,12 +326,12 @@ static void do_run(std::istream& is) {
     return;
   }
 
-  llvm::legacy::PassManager pm;
+  rellic::CompositeASTPass comp(provenance, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};
     if (pass) {
-      pm.add(pass);
+      comp.GetPasses().push_back(std::move(pass));
     } else {
       std::cout << "error: unknown pass `" << name << "'." << std::endl;
       return;
@@ -315,7 +342,7 @@ static void do_run(std::istream& is) {
     ast_unit->getASTContext().getTranslationUnitDecl()->print(os, 0, false);
   }};
   try {
-    if (pm.run(*module)) {
+    if (comp.Run()) {
       std::cout << "ok: the passes reported changes." << std::endl;
     } else {
       std::cout << "ok: the passes did not report any change." << std::endl;
@@ -331,12 +358,12 @@ static void do_fixpoint(std::istream& is) {
     return;
   }
 
-  llvm::legacy::PassManager pm;
+  rellic::CompositeASTPass comp(provenance, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};
     if (pass) {
-      pm.add(pass);
+      comp.GetPasses().push_back(std::move(pass));
     } else {
       std::cout << "error: unknown pass `" << name << "'." << std::endl;
       return;
@@ -346,15 +373,14 @@ static void do_fixpoint(std::istream& is) {
   Diff d{[](llvm::raw_ostream& os) {
     ast_unit->getASTContext().getTranslationUnitDecl()->print(os, 0, false);
   }};
-  stop = false;
   unsigned iter_count{0};
   std::cout << "computing fixpoint... press Ctrl-Z to stop " << std::flush;
   try {
-    while (pm.run(*module) && !stop) {
+    while (comp.Run()) {
       std::cout << '.' << std::flush;
       ++iter_count;
     }
-    if (stop) {
+    if (comp.Stopped()) {
       std::cout << "\nstopped.";
     } else {
       std::cout << "\nreached in " << iter_count << " iterations.";

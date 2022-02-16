@@ -23,8 +23,17 @@
 
 namespace rellic {
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit)
-    : ast_ctx(unit.getASTContext()), ast(unit) {}
+IRToASTVisitor::IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                               IRToTypeDeclMap &type_decls,
+                               IRToValDeclMap &value_decls, IRToStmtMap &stmts,
+                               ArgToTempMap &temp_decls)
+    : provenance(provenance),
+      ast_ctx(unit.getASTContext()),
+      ast(unit),
+      type_decls(type_decls),
+      value_decls(value_decls),
+      stmts(stmts),
+      temp_decls(temp_decls) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);

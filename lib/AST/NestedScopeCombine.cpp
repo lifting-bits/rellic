@@ -15,20 +15,15 @@
 
 namespace rellic {
 
-char NestedScopeCombine::ID = 0;
-
 NestedScopeCombine::NestedScopeCombine(StmtToIRMap &provenance,
                                        clang::ASTUnit &unit)
-    : ModulePass(NestedScopeCombine::ID),
-      TransformVisitor<NestedScopeCombine>(provenance),
-      ast(unit),
-      ast_ctx(&unit.getASTContext()) {}
+    : TransformVisitor<NestedScopeCombine>(provenance, unit) {}
 
 bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
-  auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, *ast_ctx);
+  auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, ast_ctx);
   bool is_const = if_const_expr.hasValue();
   if (is_const && if_const_expr->getBoolValue()) {
     substitutions[ifstmt] = ifstmt->getThen();
@@ -40,7 +35,7 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
       substitutions[ifstmt] = ast.CreateCompoundStmt(body);
     }
   }
-  return true;
+  return !Stopped();
 }
 
 bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
@@ -60,14 +55,13 @@ bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
 
-  return true;
+  return !Stopped();
 }
 
-bool NestedScopeCombine::runOnModule(llvm::Module &module) {
+void NestedScopeCombine::RunImpl() {
   LOG(INFO) << "Combining nested scopes";
-  Initialize();
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
-  return changed;
+  TransformVisitor<NestedScopeCombine>::RunImpl();
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

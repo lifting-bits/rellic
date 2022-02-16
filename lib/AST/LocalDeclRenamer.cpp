@@ -18,15 +18,10 @@
 
 namespace rellic {
 
-char LocalDeclRenamer::ID = 0;
-
 LocalDeclRenamer::LocalDeclRenamer(StmtToIRMap &provenance,
                                    clang::ASTUnit &unit, IRToNameMap &names,
                                    IRToValDeclMap &decls)
-    : ModulePass(LocalDeclRenamer::ID),
-      TransformVisitor<LocalDeclRenamer>(provenance),
-      ast(unit),
-      ast_ctx(&unit.getASTContext()),
+    : TransformVisitor<LocalDeclRenamer>(provenance, unit),
       seen_names(1),
       names(names),
       inv_decl(decls) {}
@@ -42,19 +37,19 @@ bool LocalDeclRenamer::IsNameVisible(const std::string &name) {
 
 bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
   if (renamed_decls.find(decl) != renamed_decls.end()) {
-    return true;
+    return !Stopped();
   }
   renamed_decls.insert(decl);
 
   auto val{decls.find(decl)};
   if (val == decls.end()) {
-    return true;
+    return !Stopped();
   }
 
   auto name{names.find(val->second)};
   if (name == names.end()) {
     seen_names.back().insert(decl->getName().str());
-    return true;
+    return !Stopped();
   }
 
   if (!IsNameVisible(name->second)) {
@@ -70,7 +65,7 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
     seen_names.back().insert(new_name);
   }
 
-  return true;
+  return !Stopped();
 }
 
 bool LocalDeclRenamer::TraverseFunctionDecl(clang::FunctionDecl *decl) {
@@ -81,18 +76,16 @@ bool LocalDeclRenamer::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   seen_names.push_back(scope);
   RecursiveASTVisitor<LocalDeclRenamer>::TraverseFunctionDecl(decl);
   seen_names.pop_back();
-  return true;
+  return !Stopped();
 }
 
 bool LocalDeclRenamer::shouldTraversePostOrder() { return false; }
 
-bool LocalDeclRenamer::runOnModule(llvm::Module &module) {
-  Initialize();
+void LocalDeclRenamer::RunImpl() {
   for (auto &pair : inv_decl) {
     decls[pair.second] = pair.first;
   }
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
-  return changed;
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

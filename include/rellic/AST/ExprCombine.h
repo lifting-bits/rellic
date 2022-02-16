@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <llvm/IR/Module.h>
-#include <llvm/Pass.h>
-
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 
 namespace rellic {
@@ -20,14 +16,11 @@ namespace rellic {
  * This pass performs a number of different trasnformations on expressions,
  * like turning *&a into a, or !(a == b) into a != b
  */
-class ExprCombine : public llvm::ModulePass,
-                    public TransformVisitor<ExprCombine> {
- private:
-  clang::ASTUnit &unit;
+class ExprCombine : public TransformVisitor<ExprCombine> {
+ protected:
+  void RunImpl() override;
 
  public:
-  static char ID;
-
   ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
@@ -36,8 +29,6 @@ class ExprCombine : public llvm::ModulePass,
   bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
   bool VisitMemberExpr(clang::MemberExpr *expr);
   bool VisitParenExpr(clang::ParenExpr *paren);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

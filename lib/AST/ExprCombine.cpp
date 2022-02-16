@@ -395,27 +395,22 @@ class CStyleZeroToPtrCastElimRule : public InferenceRule {
 
 }  // namespace
 
-char ExprCombine::ID = 0;
-
 ExprCombine::ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &u)
-    : ModulePass(ExprCombine::ID),
-      TransformVisitor<ExprCombine>(provenance),
-      unit(u) {}
+    : TransformVisitor<ExprCombine>(provenance, u) {}
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   // TODO(frabert): Re-enable nullptr casts simplification
 
   clang::Expr::EvalResult result;
-  auto &ctx{unit.getASTContext()};
-  if (cast->EvaluateAsRValue(result, ctx)) {
+  if (cast->EvaluateAsRValue(result, ast_ctx)) {
     if (result.HasSideEffects || result.HasUndefinedBehavior) {
       return true;
     }
 
     switch (result.Val.getKind()) {
       case clang::APValue::ValueKind::Int: {
-        auto sub{ASTBuilder(unit).CreateAdjustedIntLit(result.Val.getInt())};
-        if (GetHash(ctx, cast) != GetHash(ctx, sub)) {
+        auto sub{ast.CreateAdjustedIntLit(result.Val.getInt())};
+        if (GetHash(ast_ctx, cast) != GetHash(ast_ctx, sub)) {
           substitutions[cast] = sub;
         }
       } break;
@@ -432,7 +427,7 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   rules.emplace_back(new UnsignedToSignedCStyleCastRule);
   rules.emplace_back(new TripleCStyleCastElimRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, cast, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, cast, rules)};
   if (sub != cast) {
     substitutions[cast] = sub;
   }
@@ -450,7 +445,7 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DerefAddrOfConditionalRule);
   rules.emplace_back(new AddrOfArraySubscriptRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -464,7 +459,7 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
 
   rules.emplace_back(new AssignCastedExprRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -478,7 +473,7 @@ bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 
   rules.emplace_back(new ArraySubscriptAddrOfRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -493,7 +488,7 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   rules.emplace_back(new MemberExprAddrOfRule);
   rules.emplace_back(new MemberExprArraySubRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -507,7 +502,7 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
 
   rules.emplace_back(new ParenDeclRefExprStripRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -515,11 +510,10 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
   return true;
 }
 
-bool ExprCombine::runOnModule(llvm::Module &module) {
+void ExprCombine::RunImpl() {
   LOG(INFO) << "Rule-based statement simplification";
-  Initialize();
-  TraverseDecl(unit.getASTContext().getTranslationUnitDecl());
-  return changed;
+  TransformVisitor<ExprCombine>::RunImpl();
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

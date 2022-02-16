@@ -15,6 +15,10 @@
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/LoopInfo.h>
+#include <llvm/Analysis/RegionInfo.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
+#include <llvm/Passes/PassBuilder.h>
 
 #include <algorithm>
 #include <vector>
@@ -368,21 +372,18 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
   return region_stmt;
 }
 
-char GenerateAST::ID = 0;
+llvm::AnalysisKey GenerateAST::Key;
 
-GenerateAST::GenerateAST(clang::ASTUnit &unit)
-    : ModulePass(GenerateAST::ID),
-      ast_ctx(&unit.getASTContext()),
-      ast_gen(unit),
+GenerateAST::GenerateAST(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                         IRToTypeDeclMap &type_decls,
+                         IRToValDeclMap &value_decls, IRToStmtMap &stmts,
+                         ArgToTempMap &temp_decls)
+    : ast_ctx(&unit.getASTContext()),
+      ast_gen(provenance, unit, type_decls, value_decls, stmts, temp_decls),
       ast(unit) {}
 
-void GenerateAST::getAnalysisUsage(llvm::AnalysisUsage &usage) const {
-  usage.addRequired<llvm::DominatorTreeWrapperPass>();
-  usage.addRequired<llvm::RegionInfoPass>();
-  usage.addRequired<llvm::LoopInfoWrapperPass>();
-}
-
-bool GenerateAST::runOnModule(llvm::Module &module) {
+GenerateAST::Result GenerateAST::run(llvm::Module &module,
+                                     llvm::ModuleAnalysisManager &MAM) {
   for (auto &func : module.functions()) {
     ast_gen.VisitFunctionDecl(func);
   }
@@ -391,61 +392,94 @@ bool GenerateAST::runOnModule(llvm::Module &module) {
     ast_gen.VisitGlobalVar(var);
   }
 
-  for (auto &func : module.functions()) {
-    if (func.isDeclaration()) {
-      continue;
-    }
-    // Clear the region statements from previous functions
-    region_stmts.clear();
-    // Get dominator tree
-    domtree = &getAnalysis<llvm::DominatorTreeWrapperPass>(func).getDomTree();
-    // Get single-entry, single-exit regions
-    regions = &getAnalysis<llvm::RegionInfoPass>(func).getRegionInfo();
-    // Get loops
-    loops = &getAnalysis<llvm::LoopInfoWrapperPass>(func).getLoopInfo();
-    // Get a reverse post-order walk for iterating over region blocks in
-    // structurization
-    llvm::ReversePostOrderTraversal<llvm::Function *> rpo(&func);
-    rpo_walk.assign(rpo.begin(), rpo.end());
-    // Recursively walk regions in post-order and structure
-    std::function<void(llvm::Region *)> POWalkSubRegions;
-    POWalkSubRegions = [&](llvm::Region *region) {
-      for (auto &subregion : *region) {
-        POWalkSubRegions(&*subregion);
-      }
-      StructureRegion(region);
-    };
-    // Call the above declared bad boy
-    POWalkSubRegions(regions->getTopLevelRegion());
-    // Get the function declaration AST node for `func`
-    auto fdecl =
-        clang::cast<clang::FunctionDecl>(ast_gen.GetOrCreateDecl(&func));
-    // Create a redeclaration of `fdecl` that will serve as a definition
-    auto tudecl = ast_ctx->getTranslationUnitDecl();
-    auto fdefn = ast.CreateFunctionDecl(tudecl, fdecl->getType(),
-                                        fdecl->getIdentifier());
-    fdefn->setPreviousDecl(fdecl);
-    GetIRToValDeclMap()[&func] = fdefn;
-    tudecl->addDecl(fdefn);
-    // Set parameters to the same as the previous declaration
-    fdefn->setParams(fdecl->parameters());
-    // Create body of the function
-    StmtVec fbody;
-    // Add declarations of local variables
-    for (auto decl : fdecl->decls()) {
-      if (clang::isa<clang::VarDecl>(decl)) {
-        fbody.push_back(ast.CreateDeclStmt(decl));
-      }
-    }
-    // Add statements of the top-level region compound
-    for (auto stmt : region_stmts[regions->getTopLevelRegion()]->body()) {
-      fbody.push_back(stmt);
-    }
-    // Set body to a new compound
-    fdefn->setBody(ast.CreateCompoundStmt(fbody));
+  return llvm::PreservedAnalyses::all();
+}
+
+GenerateAST::Result GenerateAST::run(llvm::Function &func,
+                                     llvm::FunctionAnalysisManager &FAM) {
+  if (func.isDeclaration()) {
+    return llvm::PreservedAnalyses::all();
   }
 
-  return true;
+  // Clear the region statements from previous functions
+  region_stmts.clear();
+  // Get dominator tree
+  domtree = &FAM.getResult<llvm::DominatorTreeAnalysis>(func);
+  // Get single-entry, single-exit regions
+  regions = &FAM.getResult<llvm::RegionInfoAnalysis>(func);
+  // Get loops
+  loops = &FAM.getResult<llvm::LoopAnalysis>(func);
+  // Get a reverse post-order walk for iterating over region blocks in
+  // structurization
+  llvm::ReversePostOrderTraversal<llvm::Function *> rpo(&func);
+  rpo_walk.assign(rpo.begin(), rpo.end());
+  // Recursively walk regions in post-order and structure
+  std::function<void(llvm::Region *)> POWalkSubRegions;
+  POWalkSubRegions = [&](llvm::Region *region) {
+    for (auto &subregion : *region) {
+      POWalkSubRegions(&*subregion);
+    }
+    StructureRegion(region);
+  };
+  // Call the above declared bad boy
+  POWalkSubRegions(regions->getTopLevelRegion());
+  // Get the function declaration AST node for `func`
+  auto fdecl = clang::cast<clang::FunctionDecl>(ast_gen.GetOrCreateDecl(&func));
+  // Create a redeclaration of `fdecl` that will serve as a definition
+  auto tudecl = ast_ctx->getTranslationUnitDecl();
+  auto fdefn =
+      ast.CreateFunctionDecl(tudecl, fdecl->getType(), fdecl->getIdentifier());
+  fdefn->setPreviousDecl(fdecl);
+  GetIRToValDeclMap()[&func] = fdefn;
+  tudecl->addDecl(fdefn);
+  // Set parameters to the same as the previous declaration
+  fdefn->setParams(fdecl->parameters());
+  // Create body of the function
+  StmtVec fbody;
+  // Add declarations of local variables
+  for (auto decl : fdecl->decls()) {
+    if (clang::isa<clang::VarDecl>(decl)) {
+      fbody.push_back(ast.CreateDeclStmt(decl));
+    }
+  }
+  // Add statements of the top-level region compound
+  for (auto stmt : region_stmts[regions->getTopLevelRegion()]->body()) {
+    fbody.push_back(stmt);
+  }
+  // Set body to a new compound
+  fdefn->setBody(ast.CreateCompoundStmt(fbody));
+
+  return llvm::PreservedAnalyses::all();
+}
+
+void GenerateAST::run(llvm::Module &module, StmtToIRMap &provenance,
+                      clang::ASTUnit &unit, IRToTypeDeclMap &type_decls,
+                      IRToValDeclMap &value_decls, IRToStmtMap &stmts,
+                      ArgToTempMap &temp_decls) {
+  llvm::ModulePassManager mpm;
+  llvm::ModuleAnalysisManager mam;
+  llvm::PassBuilder pb;
+  mam.registerPass([&] {
+    return rellic::GenerateAST(provenance, unit, type_decls, value_decls, stmts,
+                               temp_decls);
+  });
+  mpm.addPass(rellic::GenerateAST(provenance, unit, type_decls, value_decls,
+                                  stmts, temp_decls));
+  pb.registerModuleAnalyses(mam);
+  mpm.run(module, mam);
+
+  llvm::FunctionPassManager fpm;
+  llvm::FunctionAnalysisManager fam;
+  fam.registerPass([&] {
+    return rellic::GenerateAST(provenance, unit, type_decls, value_decls, stmts,
+                               temp_decls);
+  });
+  fpm.addPass(rellic::GenerateAST(provenance, unit, type_decls, value_decls,
+                                  stmts, temp_decls));
+  pb.registerFunctionAnalyses(fam);
+  for (auto &func : module.functions()) {
+    fpm.run(func, fam);
+  }
 }
 
 }  // namespace rellic

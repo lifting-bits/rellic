@@ -165,12 +165,8 @@ class RDistributiveRule : public InferenceRule {
 
 }  // namespace
 
-char NormalizeCond::ID = 0;
-
 NormalizeCond::NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &u)
-    : ModulePass(NormalizeCond::ID),
-      TransformVisitor<NormalizeCond>(provenance),
-      unit(u) {}
+    : TransformVisitor<NormalizeCond>(provenance, u) {}
 
 bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
@@ -178,12 +174,12 @@ bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DeMorganRule(clang::BO_LAnd, clang::BO_LOr));
   rules.emplace_back(new DeMorganRule(clang::BO_LOr, clang::BO_LAnd));
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
 
-  return true;
+  return !Stopped();
 }
 
 bool NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
@@ -194,19 +190,18 @@ bool NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
   rules.emplace_back(new LDistributiveRule);
   rules.emplace_back(new RDistributiveRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
 
-  return true;
+  return !Stopped();
 }
 
-bool NormalizeCond::runOnModule(llvm::Module &module) {
+void NormalizeCond::RunImpl() {
   LOG(INFO) << "Conversion into conjunctive normal form";
-  Initialize();
-  TraverseDecl(unit.getASTContext().getTranslationUnitDecl());
-  return changed;
+  TransformVisitor<NormalizeCond>::RunImpl();
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

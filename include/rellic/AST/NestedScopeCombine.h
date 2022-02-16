@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <llvm/IR/Module.h>
-#include <llvm/Pass.h>
-
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 
 namespace rellic {
@@ -34,21 +30,15 @@ namespace rellic {
  *
  *   body1;
  */
-class NestedScopeCombine : public llvm::ModulePass,
-                           public TransformVisitor<NestedScopeCombine> {
- private:
-  ASTBuilder ast;
-  clang::ASTContext *ast_ctx;
+class NestedScopeCombine : public TransformVisitor<NestedScopeCombine> {
+ protected:
+  void RunImpl() override;
 
  public:
-  static char ID;
-
   NestedScopeCombine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

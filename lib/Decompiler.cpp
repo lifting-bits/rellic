@@ -11,12 +11,13 @@
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/IR/InstIterator.h>
-#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/InitializePasses.h>
-#include <llvm/Support/JSON.h>
+#include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Utils.h>
 #include <llvm/Transforms/Utils/Local.h>
+#include <llvm/Transforms/Utils/LowerSwitch.h>
 
 #include <memory>
 
@@ -89,9 +90,30 @@ static void RemovePHINodes(llvm::Module& module) {
 }
 
 static void LowerSwitches(llvm::Module& module) {
-  llvm::legacy::PassManager pm;
-  pm.add(llvm::createLowerSwitchPass());
-  pm.run(module);
+  llvm::PassBuilder pb;
+  llvm::ModulePassManager mpm(false);
+  llvm::ModuleAnalysisManager mam(false);
+  llvm::LoopAnalysisManager lam(false);
+  llvm::CGSCCAnalysisManager cam(false);
+  llvm::FunctionAnalysisManager fam(false);
+
+  pb.registerFunctionAnalyses(fam);
+  pb.registerModuleAnalyses(mam);
+  pb.registerCGSCCAnalyses(cam);
+  pb.registerLoopAnalyses(lam);
+
+  pb.crossRegisterProxies(lam, fam, cam, mam);
+
+  llvm::FunctionPassManager fpm;
+  fpm.addPass(llvm::LowerSwitchPass());
+
+  mpm.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(fpm)));
+  mpm.run(module, mam);
+
+  mam.clear();
+  fam.clear();
+  cam.clear();
+  lam.clear();
 }
 
 static void InitOptPasses(void) {
@@ -146,46 +168,38 @@ Result<DecompilationResult, DecompilationError> Decompile(
                                   module->getTargetTriple()};
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
-    llvm::legacy::PassManager pm_ast;
-    rellic::GenerateAST* gr{new rellic::GenerateAST(*ast_unit)};
+    rellic::StmtToIRMap provenance;
+    rellic::IRToTypeDeclMap type_decls;
+    rellic::IRToValDeclMap value_decls;
+    rellic::IRToStmtMap stmts;
+    rellic::ArgToTempMap temp_decls;
+    rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
+                             value_decls, stmts, temp_decls);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
-    auto& stmt_provenance{gr->GetStmtToIRMap()};
-    rellic::DeadStmtElim* dse{
-        new rellic::DeadStmtElim(stmt_provenance, *ast_unit)};
-    rellic::LocalDeclRenamer* ldr{new rellic::LocalDeclRenamer(
-        stmt_provenance, *ast_unit, dic.GetIRToNameMap(),
-        gr->GetIRToValDeclMap())};
-    rellic::StructFieldRenamer* sfr{new rellic::StructFieldRenamer(
-        stmt_provenance, *ast_unit, dic.GetIRTypeToDITypeMap(),
-        gr->GetIRToTypeDeclMap())};
-    pm_ast.add(gr);
+
+    rellic::CompositeASTPass pass_ast(provenance, *ast_unit);
+    auto& ast_passes{pass_ast.GetPasses()};
+
     if (options.dead_stmt_elimination) {
-      pm_ast.add(dse);
+      ast_passes.push_back(
+          std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit));
     }
-    pm_ast.add(ldr);
-    pm_ast.add(sfr);
-    pm_ast.run(*module);
+    ast_passes.push_back(std::make_unique<rellic::LocalDeclRenamer>(
+        provenance, *ast_unit, dic.GetIRToNameMap(), value_decls));
+    ast_passes.push_back(std::make_unique<rellic::StructFieldRenamer>(
+        provenance, *ast_unit, dic.GetIRTypeToDITypeMap(), type_decls));
+    pass_ast.Run();
 
-    llvm::legacy::PassManager pm_cnf;
-    rellic::NormalizeCond* nc{
-        new rellic::NormalizeCond(stmt_provenance, *ast_unit)};
-    rellic::Z3CondSimplify* zcs{
-        new rellic::Z3CondSimplify(stmt_provenance, *ast_unit)};
-    rellic::NestedCondProp* ncp{
-        new rellic::NestedCondProp(stmt_provenance, *ast_unit)};
-    rellic::NestedScopeCombine* nsc{
-        new rellic::NestedScopeCombine(stmt_provenance, *ast_unit)};
-    rellic::CondBasedRefine* cbr{
-        new rellic::CondBasedRefine(stmt_provenance, *ast_unit)};
-    rellic::ReachBasedRefine* rbr{
-        new rellic::ReachBasedRefine(stmt_provenance, *ast_unit)};
+    rellic::CompositeASTPass pass_cbr(provenance, *ast_unit);
+    auto& cbr_passes{pass_cbr.GetPasses()};
 
-    llvm::legacy::PassManager pm_cbr;
     if (options.condition_based_refinement.expression_normalize) {
-      pm_cbr.add(nc);
+      cbr_passes.push_back(
+          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
     }
     if (!options.disable_z3) {
+      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
       // Simplifier to use during condition-based refinement
       z3::tactic tactic{zcs->GetZ3Context(), "skip"};
       for (auto name : options.condition_based_refinement.z3_tactics) {
@@ -193,102 +207,104 @@ Result<DecompilationResult, DecompilationError> Decompile(
       }
       zcs->SetZ3Tactic(tactic);
       if (options.condition_based_refinement.z3_cond_simplify) {
-        pm_cbr.add(zcs);
+        cbr_passes.push_back(std::move(zcs));
       }
       if (options.condition_based_refinement.nested_cond_propagate) {
-        pm_cbr.add(ncp);
+        cbr_passes.push_back(
+            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
       }
     }
 
     if (options.condition_based_refinement.nested_scope_combine) {
-      pm_cbr.add(nsc);
+      cbr_passes.push_back(
+          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
     }
 
     if (!options.disable_z3) {
       if (options.condition_based_refinement.cond_base_refine) {
-        pm_cbr.add(cbr);
+        cbr_passes.push_back(
+            std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit));
       }
       if (options.condition_based_refinement.reach_based_refine) {
-        pm_cbr.add(rbr);
+        cbr_passes.push_back(
+            std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
       }
     }
 
-    while (pm_cbr.run(*module)) {
+    while (pass_cbr.Run()) {
       ;
     }
 
-    rellic::LoopRefine* lr{new rellic::LoopRefine(stmt_provenance, *ast_unit)};
-    nsc = new rellic::NestedScopeCombine(stmt_provenance, *ast_unit);
-    nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
+    rellic::CompositeASTPass pass_loop{provenance, *ast_unit};
+    auto& loop_passes{pass_loop.GetPasses()};
 
-    llvm::legacy::PassManager pm_loop;
     if (options.loop_refinement.loop_refine) {
-      pm_loop.add(lr);
+      loop_passes.push_back(
+          std::make_unique<rellic::LoopRefine>(provenance, *ast_unit));
     }
     if (options.loop_refinement.nested_scope_combine) {
-      pm_loop.add(nsc);
+      loop_passes.push_back(
+          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
     }
     if (options.loop_refinement.expression_normalize) {
-      pm_loop.add(nc);
+      loop_passes.push_back(
+          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
     }
-    while (pm_loop.run(*module)) {
+    while (pass_loop.Run()) {
       ;
     }
 
-    llvm::legacy::PassManager pm_scope;
-    nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
+    rellic::CompositeASTPass pass_scope{provenance, *ast_unit};
+    auto& scope_passes{pass_scope.GetPasses()};
     if (!options.disable_z3) {
-      zcs = new rellic::Z3CondSimplify(stmt_provenance, *ast_unit);
-      ncp = new rellic::NestedCondProp(stmt_provenance, *ast_unit);
-      // Simplifier to use during final refinement
+      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
+      // Simplifier to use during condition-based refinement
       z3::tactic tactic{zcs->GetZ3Context(), "skip"};
-      for (auto name : options.scope_refinement.z3_tactics) {
+      for (auto name : options.condition_based_refinement.z3_tactics) {
         tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
       }
       zcs->SetZ3Tactic(tactic);
-      if (options.scope_refinement.z3_cond_simplify) {
-        pm_scope.add(zcs);
+      if (options.condition_based_refinement.z3_cond_simplify) {
+        scope_passes.push_back(std::move(zcs));
       }
-      if (options.scope_refinement.nested_cond_propagate) {
-        pm_scope.add(ncp);
+      if (options.condition_based_refinement.nested_cond_propagate) {
+        scope_passes.push_back(
+            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
       }
     }
-
-    nsc = new rellic::NestedScopeCombine(stmt_provenance, *ast_unit);
 
     if (options.scope_refinement.nested_scope_combine) {
-      pm_scope.add(nsc);
+      scope_passes.push_back(
+          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
     }
     if (options.scope_refinement.expression_normalize) {
-      pm_scope.add(nc);
+      scope_passes.push_back(
+          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
     }
-    while (pm_scope.run(*module)) {
+    while (pass_scope.Run()) {
       ;
     }
 
-    llvm::legacy::PassManager pm_expr;
-    rellic::ExprCombine* ec{
-        new rellic::ExprCombine(stmt_provenance, *ast_unit)};
-    nc = new rellic::NormalizeCond(stmt_provenance, *ast_unit);
-    if (options.expression_normalize) {
-      pm_scope.add(nc);
-    }
+    rellic::CompositeASTPass pass_ec{provenance, *ast_unit};
+    auto& ec_passes{pass_ec.GetPasses()};
     if (options.expression_combine) {
-      pm_expr.add(ec);
+      ec_passes.push_back(
+          std::make_unique<rellic::ExprCombine>(provenance, *ast_unit));
     }
-    while (pm_expr.run(*module)) {
+    if (options.expression_normalize) {
+      ec_passes.push_back(
+          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
+    }
+    while (pass_ec.Run()) {
       ;
     }
 
     DecompilationResult result{};
     result.ast = std::move(ast_unit);
     result.module = std::move(module);
-    CopyMap(stmt_provenance, result.stmt_provenance_map,
-            result.value_to_stmt_map);
-    CopyMap(gr->GetIRToValDeclMap(), result.value_to_decl_map,
-            result.decl_provenance_map);
-    CopyMap(gr->GetIRToTypeDeclMap(), result.type_to_decl_map,
-            result.type_provenance_map);
+    CopyMap(provenance, result.stmt_provenance_map, result.value_to_stmt_map);
+    CopyMap(value_decls, result.value_to_decl_map, result.decl_provenance_map);
+    CopyMap(type_decls, result.type_to_decl_map, result.type_provenance_map);
 
     return Result<DecompilationResult, DecompilationError>(std::move(result));
   } catch (Exception& ex) {

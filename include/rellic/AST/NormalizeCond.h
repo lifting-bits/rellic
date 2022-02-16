@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <llvm/IR/Module.h>
-#include <llvm/Pass.h>
-
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 
 namespace rellic {
@@ -21,10 +17,9 @@ namespace rellic {
  * has the potential of creating an exponential number of terms, so it's best to
  * perform this pass after simplification.
  */
-class NormalizeCond : public llvm::ModulePass,
-                      public TransformVisitor<NormalizeCond> {
- private:
-  clang::ASTUnit &unit;
+class NormalizeCond : public TransformVisitor<NormalizeCond> {
+ protected:
+  void RunImpl() override;
 
  public:
   static char ID;
@@ -33,8 +28,6 @@ class NormalizeCond : public llvm::ModulePass,
 
   bool VisitUnaryOperator(clang::UnaryOperator *op);
   bool VisitBinaryOperator(clang::BinaryOperator *op);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

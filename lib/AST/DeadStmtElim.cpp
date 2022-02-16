@@ -14,18 +14,13 @@
 
 namespace rellic {
 
-char DeadStmtElim::ID = 0;
-
 DeadStmtElim::DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : ModulePass(DeadStmtElim::ID),
-      TransformVisitor<DeadStmtElim>(provenance),
-      ast(unit),
-      ast_ctx(&unit.getASTContext()) {}
+    : TransformVisitor<DeadStmtElim>(provenance, unit) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   bool expr_bool_value = false;
-  auto if_const_expr = GetIntegerConstantExprFromIf(ifstmt, *ast_ctx);
+  auto if_const_expr = GetIntegerConstantExprFromIf(ifstmt, ast_ctx);
 
   bool is_const = if_const_expr.hasValue();
   if (is_const) {
@@ -50,7 +45,7 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
     // Add only necessary statements
     if (auto expr = clang::dyn_cast<clang::Expr>(stmt)) {
-      if (expr->HasSideEffects(*ast_ctx)) {
+      if (expr->HasSideEffects(ast_ctx)) {
         new_body.push_back(stmt);
       }
     } else {
@@ -61,14 +56,13 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
   if (changed || new_body.size() < compound->size()) {
     substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
-  return true;
+  return !Stopped();
 }
 
-bool DeadStmtElim::runOnModule(llvm::Module &module) {
+void DeadStmtElim::RunImpl() {
   LOG(INFO) << "Eliminating dead statements";
-  Initialize();
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
-  return changed;
+  TransformVisitor<DeadStmtElim>::RunImpl();
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

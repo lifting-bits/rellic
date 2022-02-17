@@ -29,13 +29,8 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 }  // namespace
 
-char CondBasedRefine::ID = 0;
-
 CondBasedRefine::CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : ModulePass(CondBasedRefine::ID),
-      TransformVisitor<CondBasedRefine>(provenance),
-      ast(unit),
-      ast_ctx(&unit.getASTContext()),
+    : TransformVisitor<CondBasedRefine>(provenance, unit),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
@@ -130,14 +125,13 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
     substitutions[compound] = ast.CreateCompoundStmt(new_body);
   }
-  return true;
+  return !Stopped();
 }
 
-bool CondBasedRefine::runOnModule(llvm::Module &module) {
+void CondBasedRefine::RunImpl() {
   LOG(INFO) << "Condition-based refinement";
-  Initialize();
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
-  return changed;
+  TransformVisitor<CondBasedRefine>::RunImpl();
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

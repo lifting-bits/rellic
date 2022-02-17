@@ -9,12 +9,8 @@
 #pragma once
 
 #include <clang/AST/RecursiveASTVisitor.h>
-#include <llvm/IR/Module.h>
-#include <llvm/Pass.h>
 #include <z3++.h>
 
-#include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
@@ -38,28 +34,23 @@ namespace rellic {
  *     }
  *   }
  */
-class NestedCondProp : public llvm::ModulePass,
-                       public TransformVisitor<NestedCondProp> {
+class NestedCondProp : public TransformVisitor<NestedCondProp> {
  private:
-  ASTBuilder ast;
-  clang::ASTContext *ast_ctx;
-
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
 
   std::unordered_map<clang::Stmt *, clang::Expr *> parent_conds;
 
- public:
-  static char ID;
+ protected:
+  void RunImpl() override;
 
+ public:
   bool shouldTraversePostOrder() override { return false; }
 
   NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *stmt);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

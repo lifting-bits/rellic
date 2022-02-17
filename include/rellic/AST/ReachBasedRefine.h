@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <llvm/IR/Module.h>
-#include <llvm/Pass.h>
-
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
@@ -40,12 +36,8 @@ namespace rellic {
  *     body3;
  *   }
  */
-class ReachBasedRefine : public llvm::ModulePass,
-                         public TransformVisitor<ReachBasedRefine> {
+class ReachBasedRefine : public TransformVisitor<ReachBasedRefine> {
  private:
-  ASTBuilder ast;
-  clang::ASTContext *ast_ctx;
-
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
 
@@ -59,14 +51,13 @@ class ReachBasedRefine : public llvm::ModulePass,
 
   void CreateIfElseStmts(IfStmtVec stmts);
 
- public:
-  static char ID;
+ protected:
+  void RunImpl() override;
 
+ public:
   ReachBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

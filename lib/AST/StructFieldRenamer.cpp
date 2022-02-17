@@ -19,18 +19,11 @@
 
 namespace rellic {
 
-char StructFieldRenamer::ID = 0;
-
 StructFieldRenamer::StructFieldRenamer(StmtToIRMap &provenance,
                                        clang::ASTUnit &unit,
                                        IRTypeToDITypeMap &types,
                                        IRToTypeDeclMap &decls)
-    : ModulePass(StructFieldRenamer::ID),
-      TransformVisitor<StructFieldRenamer>(provenance),
-      ast(unit),
-      ast_ctx(&unit.getASTContext()),
-      types(types),
-      inv_decl(decls) {}
+    : ASTPass(provenance, unit), types(types), inv_decl(decls) {}
 
 bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
   auto type{decls[decl]};
@@ -38,7 +31,7 @@ bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
 
   auto di{types[type]};
   if (!di) {
-    return true;
+    return !Stopped();
   }
 
   auto ditype = llvm::cast<llvm::DICompositeType>(di);
@@ -65,23 +58,23 @@ bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
     if (seen_names.find(name) == seen_names.end()) {
       seen_names.insert(name);
       decl_field->setDeclName(ast.CreateIdentifier(name));
+      changed = true;
     } else {
       auto old_name{decl_field->getName().str()};
       decl_field->setDeclName(ast.CreateIdentifier(name + "_" + old_name));
+      changed = true;
     }
   }
 
-  return true;
+  return !Stopped();
 }
 
-bool StructFieldRenamer::runOnModule(llvm::Module &module) {
+void StructFieldRenamer::RunImpl() {
   LOG(INFO) << "Renaming struct fields";
-  Initialize();
   for (auto &pair : inv_decl) {
     decls[pair.second] = pair.first;
   }
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
-  return changed;
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

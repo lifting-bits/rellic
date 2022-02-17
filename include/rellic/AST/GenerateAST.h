@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <llvm/Analysis/Passes.h>
 #include <llvm/Analysis/RegionInfo.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
 
 #include <unordered_set>
 
@@ -18,8 +18,10 @@
 
 namespace rellic {
 
-class GenerateAST : public llvm::ModulePass {
+class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
  private:
+  friend llvm::AnalysisInfoMixin<GenerateAST>;
+  static llvm::AnalysisKey Key;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor ast_gen;
   rellic::ASTBuilder ast;
@@ -49,17 +51,23 @@ class GenerateAST : public llvm::ModulePass {
   clang::CompoundStmt *StructureRegion(llvm::Region *region);
 
  public:
-  static char ID;
-
-  GenerateAST(clang::ASTUnit &unit);
+  using Result = llvm::PreservedAnalyses;
+  GenerateAST(StmtToIRMap &provenance, clang::ASTUnit &unit,
+              IRToTypeDeclMap &type_decls, IRToValDeclMap &value_decls,
+              IRToStmtMap &stmts, ArgToTempMap &temp_decls);
 
   IRToStmtMap &GetIRToStmtMap() { return ast_gen.GetIRToStmtMap(); }
   StmtToIRMap &GetStmtToIRMap() { return ast_gen.GetStmtToIRMap(); }
   IRToValDeclMap &GetIRToValDeclMap() { return ast_gen.GetIRToValDeclMap(); }
   IRToTypeDeclMap &GetIRToTypeDeclMap() { return ast_gen.GetIRToTypeDeclMap(); }
 
-  void getAnalysisUsage(llvm::AnalysisUsage &usage) const override;
-  bool runOnModule(llvm::Module &module) override;
+  Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+
+  static void run(llvm::Module &M, StmtToIRMap &provenance,
+                  clang::ASTUnit &unit, IRToTypeDeclMap &type_decls,
+                  IRToValDeclMap &value_decls, IRToStmtMap &stmts,
+                  ArgToTempMap &temp_decls);
 };
 
 }  // namespace rellic

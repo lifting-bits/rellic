@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <llvm/Pass.h>
-
 #include <unordered_map>
 
 #include "rellic/AST/DebugInfoCollector.h"
@@ -20,25 +18,22 @@ namespace rellic {
 
 using TypeDeclToIRMap = std::unordered_map<clang::TypeDecl *, llvm::Type *>;
 
-class StructFieldRenamer : public llvm::ModulePass,
-                           public TransformVisitor<StructFieldRenamer> {
+class StructFieldRenamer
+    : public ASTPass,
+      public clang::RecursiveASTVisitor<StructFieldRenamer> {
  private:
-  ASTBuilder ast;
-  clang::ASTContext *ast_ctx;
-
   TypeDeclToIRMap decls;
   IRTypeToDITypeMap &types;
   IRToTypeDeclMap &inv_decl;
 
- public:
-  static char ID;
+ protected:
+  void RunImpl() override;
 
+ public:
   StructFieldRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
                      IRTypeToDITypeMap &types, IRToTypeDeclMap &decls);
 
   bool VisitRecordDecl(clang::RecordDecl *decl);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

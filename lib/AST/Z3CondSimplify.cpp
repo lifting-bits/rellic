@@ -16,18 +16,13 @@
 
 namespace rellic {
 
-char Z3CondSimplify::ID = 0;
-
 Z3CondSimplify::Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : ModulePass(Z3CondSimplify::ID),
-      TransformVisitor<Z3CondSimplify>(provenance),
-      ast_ctx(&unit.getASTContext()),
-      ast(unit),
+    : TransformVisitor<Z3CondSimplify>(provenance, unit),
       z_ctx(new z3::context()),
       z_gen(new Z3ConvVisitor(unit, z_ctx.get())),
       tactic(z3::tactic(*z_ctx, "sat")),
-      hash_adaptor{*ast_ctx, hashes},
-      ke_adaptor{*ast_ctx},
+      hash_adaptor{ast_ctx, hashes},
+      ke_adaptor{ast_ctx},
       proven_true(10, hash_adaptor, ke_adaptor),
       proven_false(10, hash_adaptor, ke_adaptor) {}
 
@@ -148,11 +143,10 @@ bool Z3CondSimplify::VisitDoStmt(clang::DoStmt *loop) {
   return true;
 }
 
-bool Z3CondSimplify::runOnModule(llvm::Module &module) {
+void Z3CondSimplify::RunImpl() {
   LOG(INFO) << "Simplifying conditions using Z3";
-  Initialize();
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
-  return changed;
+  TransformVisitor<Z3CondSimplify>::RunImpl();
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

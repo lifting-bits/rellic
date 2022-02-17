@@ -9,11 +9,7 @@
 #pragma once
 
 #include <clang/AST/ASTContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/Pass.h>
 
-#include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 #include "rellic/AST/Util.h"
 #include "rellic/AST/Z3ConvVisitor.h"
@@ -24,12 +20,8 @@ namespace rellic {
  * This pass simplifies conditions using Z3 by trying to remove terms that are
  * trivially true or false
  */
-class Z3CondSimplify : public llvm::ModulePass,
-                       public TransformVisitor<Z3CondSimplify> {
+class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
  private:
-  clang::ASTContext *ast_ctx;
-  ASTBuilder ast;
-
   std::unique_ptr<z3::context> z_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z_gen;
 
@@ -67,22 +59,21 @@ class Z3CondSimplify : public llvm::ModulePass,
   bool IsProvenTrue(clang::Expr *e);
   bool IsProvenFalse(clang::Expr *e);
 
- public:
-  static char ID;
+  clang::Expr *Simplify(clang::Expr *e);
 
+ protected:
+  void RunImpl() override;
+
+ public:
   Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit);
 
   z3::context &GetZ3Context() { return *z_ctx; }
 
   void SetZ3Tactic(z3::tactic t) { tactic = t; };
 
-  clang::Expr *Simplify(clang::Expr *e);
-
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *loop);
   bool VisitDoStmt(clang::DoStmt *loop);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

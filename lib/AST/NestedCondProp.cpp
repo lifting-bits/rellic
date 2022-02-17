@@ -29,13 +29,8 @@ static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
 
 }  // namespace
 
-char NestedCondProp::ID = 0;
-
 NestedCondProp::NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : ModulePass(NestedCondProp::ID),
-      TransformVisitor<NestedCondProp>(provenance),
-      ast(unit),
-      ast_ctx(&unit.getASTContext()),
+    : TransformVisitor<NestedCondProp>(provenance, unit),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
 
@@ -57,7 +52,7 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression
   auto cond = ifstmt->getCond();
-  if (!cond->isIntegerConstantExpr(*ast_ctx)) {
+  if (!cond->isIntegerConstantExpr(ast_ctx)) {
     auto stmt_then = ifstmt->getThen();
     auto stmt_else = ifstmt->getElse();
     // `cond` is not a constant expression and we propagate it
@@ -88,16 +83,16 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   if (iter != parent_conds.end()) {
     auto child_expr{ifstmt->getCond()};
     auto parent_expr{iter->second};
-    changed = Replace(*ast_ctx, /*from=*/parent_expr,
+    changed = Replace(ast_ctx, /*from=*/parent_expr,
                       /*to=*/ast.CreateTrue(), /*in=*/&child_expr);
     ifstmt->setCond(child_expr);
   }
-  return true;
+  return !Stopped();
 }
 
 bool NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
   auto cond = stmt->getCond();
-  if (!cond->isIntegerConstantExpr(*ast_ctx)) {
+  if (!cond->isIntegerConstantExpr(ast_ctx)) {
     auto body = stmt->getBody();
     // `cond` is not a constant expression and we propagate it
     // to `clang::IfStmt` nodes in its body.
@@ -115,18 +110,17 @@ bool NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
   if (iter != parent_conds.end()) {
     auto child_expr{stmt->getCond()};
     auto parent_expr{iter->second};
-    changed = Replace(*ast_ctx, /*from=*/parent_expr,
+    changed = Replace(ast_ctx, /*from=*/parent_expr,
                       /*to=*/ast.CreateTrue(), /*in=*/&child_expr);
     stmt->setCond(child_expr);
   }
-  return true;
+  return !Stopped();
 }
 
-bool NestedCondProp::runOnModule(llvm::Module &module) {
+void NestedCondProp::RunImpl() {
   LOG(INFO) << "Propagating nested conditions";
-  Initialize();
-  TraverseDecl(ast_ctx->getTranslationUnitDecl());
-  return changed;
+  TransformVisitor<NestedCondProp>::RunImpl();
+  TraverseDecl(ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

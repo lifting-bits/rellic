@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <llvm/Pass.h>
-
 #include <unordered_map>
 #include <unordered_set>
 
@@ -21,12 +19,8 @@ namespace rellic {
 
 using ValDeclToIRMap = std::unordered_map<clang::ValueDecl *, llvm::Value *>;
 
-class LocalDeclRenamer : public llvm::ModulePass,
-                         public TransformVisitor<LocalDeclRenamer> {
+class LocalDeclRenamer : public TransformVisitor<LocalDeclRenamer> {
  private:
-  ASTBuilder ast;
-  clang::ASTContext *ast_ctx;
-
   ValDeclToIRMap decls;
 
   // Stores currently visible names, with scope awareness
@@ -38,17 +32,16 @@ class LocalDeclRenamer : public llvm::ModulePass,
 
   bool IsNameVisible(const std::string &name);
 
- public:
-  static char ID;
+ protected:
+  void RunImpl() override;
 
+ public:
   LocalDeclRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
                    IRToNameMap &names, IRToValDeclMap &decls);
 
   bool shouldTraversePostOrder() override;
   bool VisitVarDecl(clang::VarDecl *decl);
   bool TraverseFunctionDecl(clang::FunctionDecl *decl);
-
-  bool runOnModule(llvm::Module &module) override;
 };
 
 }  // namespace rellic

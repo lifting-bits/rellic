@@ -36,11 +36,11 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   ASTBuilder ast;
 
-  IRToTypeDeclMap type_decls;
-  IRToValDeclMap value_decls;
-  IRToStmtMap stmts;
-  StmtToIRMap provenance;
-  ArgToTempMap temp_decls;
+  IRToTypeDeclMap &type_decls;
+  IRToValDeclMap &value_decls;
+  IRToStmtMap &stmts;
+  StmtToIRMap &provenance;
+  ArgToTempMap &temp_decls;
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
 
@@ -52,7 +52,9 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit);
+  IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                 IRToTypeDeclMap &type_decls, IRToValDeclMap &value_decls,
+                 IRToStmtMap &stmts, ArgToTempMap &temp_decls);
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);

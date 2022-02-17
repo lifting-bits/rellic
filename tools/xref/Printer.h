@@ -45,8 +45,7 @@ void PrintModule(
     const rellic::DecompilationResult::IRToDeclMap& DeclProvenance,
     const rellic::DecompilationResult::IRToStmtMap& StmtProvenance,
     const rellic::DecompilationResult::IRToTypeDeclMap& TypeProvenance,
-    llvm::raw_ostream& ROS, llvm::AssemblyAnnotationWriter* AAW = nullptr,
-    bool ShouldPreserveUseListOrder = false, bool IsForDebug = false);
+    llvm::raw_ostream& ROS);
 void PrintType(
     clang::QualType Type,
     const rellic::DecompilationResult::DeclToIRMap& DeclProvenance,

@@ -24,7 +24,7 @@ namespace rellic {
 
 void DebugInfoCollector::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
   auto var{inst.getVariable()};
-  auto loc{inst.getVariableLocation()};
+  auto loc{inst.getAddress()};
 
   names[loc] = var->getName().str();
   scopes[loc] = var->getScope();

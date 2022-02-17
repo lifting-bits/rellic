@@ -23,7 +23,7 @@ generated/*
 
 tools/build/*
 
-rellic-build
+rellic-build*
 rellic-angha-test-1k
 
 # LLVM bitcode files

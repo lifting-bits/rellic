@@ -38,7 +38,7 @@ class ASTPass {
         ast_ctx(ast_unit.getASTContext()),
         ast(ast_unit) {}
   virtual ~ASTPass() = default;
-  virtual void Stop() {
+  void Stop() {
     stop = true;
     StopImpl();
   }
@@ -48,6 +48,22 @@ class ASTPass {
     stop = false;
     RunImpl();
     return changed;
+  }
+
+  unsigned Fixpoint() {
+    unsigned iter_count{0};
+    changed = false;
+    auto DoIter = [this]() {
+      changed = false;
+      RunImpl();
+      return changed;
+    };
+    stop = false;
+    while (DoIter()) {
+      ++iter_count;
+    }
+
+    return iter_count;
   }
 
   bool Stopped() { return stop; }

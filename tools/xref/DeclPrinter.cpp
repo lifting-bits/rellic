@@ -1111,7 +1111,7 @@ void DeclPrinter::printTemplateArguments(ArrayRef<TemplateArgument> Args) {
   Out << "&lt;";
   for (size_t I = 0, E = Args.size(); I < E; ++I) {
     if (I) Out << ", ";
-    Args[I].print(Policy, Out);
+    Args[I].print(Policy, Out, true);
   }
   Out << "&gt;";
 }
@@ -1120,7 +1120,7 @@ void DeclPrinter::printTemplateArguments(ArrayRef<TemplateArgumentLoc> Args) {
   Out << "&lt;";
   for (size_t I = 0, E = Args.size(); I < E; ++I) {
     if (I) Out << ", ";
-    Args[I].getArgument().print(Policy, Out);
+    Args[I].getArgument().print(Policy, Out, true);
   }
   Out << "&gt;";
 }

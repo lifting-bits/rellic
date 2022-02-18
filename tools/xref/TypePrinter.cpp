@@ -947,6 +947,9 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       case CC_Swift:
         OS << " __attribute__((swiftcall))";
         break;
+      case CC_SwiftAsync:
+        OS << "__attribute__((swiftasynccall))";
+        break;
       case CC_PreserveMost:
         OS << " __attribute__((preserve_most))";
         break;
@@ -1200,8 +1203,7 @@ void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS,
     // Only suppress an inline namespace if the name has the same lookup
     // results in the enclosing namespace.
     if (Policy.SuppressInlineNamespace && NS->isInline() && NameInScope &&
-        DC->getParent()->lookup(NameInScope).size() ==
-            DC->lookup(NameInScope).size())
+        NS->isRedundantInlineQualifierFor(NameInScope))
       return AppendScope(DC->getParent(), OS, NameInScope);
 
     AppendScope(DC->getParent(), OS, NS->getDeclName());
@@ -1694,6 +1696,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     case attr::SwiftCall:
       OS << "swiftcall";
       break;
+    case attr::SwiftAsyncCall:
+      OS << "swiftasynccall";
+      break;
     case attr::VectorCall:
       OS << "vectorcall";
       break;
@@ -1850,7 +1855,7 @@ static const TemplateArgument &getArgument(const TemplateArgumentLoc &A) {
 
 static void printArgument(const TemplateArgument &A, const PrintingPolicy &PP,
                           llvm::raw_ostream &OS) {
-  A.print(PP, OS);
+  A.print(PP, OS, true);
 }
 
 static void printArgument(const TemplateArgumentLoc &A,
@@ -1858,7 +1863,7 @@ static void printArgument(const TemplateArgumentLoc &A,
   const TemplateArgument::ArgKind &Kind = A.getArgument().getKind();
   if (Kind == TemplateArgument::ArgKind::Type)
     return A.getTypeSourceInfo()->getType().print(OS, PP);
-  return A.getArgument().print(PP, OS);
+  return A.getArgument().print(PP, OS, true);
 }
 
 static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,

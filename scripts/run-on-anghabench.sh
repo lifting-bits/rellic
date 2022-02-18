@@ -4,7 +4,7 @@
 export RELLIC_BRANCH=__RELLIC_BRANCH__
 export RUN_SIZE=__RUN_SIZE__
 
-export LLVM_VERSION=12
+export LLVM_VERSION=13
 export CC=clang-${LLVM_VERSION} CXX=clang++-${LLVM_VERSION}
 
 

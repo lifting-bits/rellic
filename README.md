@@ -28,8 +28,8 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | [CMake](https://cmake.org/) | 3.14+ |
 | [Google Flags](https://github.com/google/glog) | Latest |
 | [Google Log](https://github.com/google/glog) | Latest |
-| [LLVM](http://llvm.org/) | 12|
-| [Clang](http://clang.llvm.org/) | 12|
+| [LLVM](http://llvm.org/) | 13|
+| [Clang](http://clang.llvm.org/) | 13|
 | [Z3](https://github.com/Z3Prover/z3) | 4.7.1+ |
 
 ## Pre-made Docker Images
@@ -62,7 +62,7 @@ sudo apt install \
      doctest-dev
 ```
 
-If the distribution you're on doesn't include a recent release of CMake (3.14 or later), you'll need to install it. For Ubuntu, see here https://apt.kitware.com/.
+If the distribution you're on doesn't include a recent release of CMake (3.14 or later), you'll need to install it. For Ubuntu, see here <https://apt.kitware.com/>.
 
 The next step is to clone the Rellic repository.
 
@@ -74,7 +74,7 @@ Finally, we build and package Rellic. This script will create another directory,
 
 ```shell
 cd rellic
-./scripts/build.sh --llvm-version 12
+./scripts/build.sh --llvm-version 13
 # to install the deb package, then do:
 sudo dpkg -i rellic-build/*.deb
 ```
@@ -83,14 +83,14 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 
 ```shell
 # Create some sample bitcode or your own
-clang-12 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-13 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 ./rellic-build/tools/rellic-decomp --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 ### On macOS
 
-Make sure to have the latest release of cxx-common for LLVM 12. Then, build with
+Make sure to have the latest release of cxx-common for LLVM 13. Then, build with
 
 ```shell
 cmake \
@@ -109,9 +109,10 @@ make -j8
 
 The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
 
-To build the docker image using LLVM 12 for Ubuntu 18.04 on amd64 you can run the following command:
+To build the docker image using LLVM 13 for Ubuntu 18.04 on amd64 you can run the following command:
+
 ```sh
-ARCH=amd64; UBUNTU=18.04; LLVM=12; docker build . \
+ARCH=amd64; UBUNTU=18.04; LLVM=13; docker build . \
   -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
   --build-arg UBUNTU_VERSION=${UBUNTU} \
@@ -123,13 +124,13 @@ To run the decompiler, the entrypoint has already been set, but make sure the bi
 
 ```sh
 # Get the bc file
-clang-12 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-13 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 # Decompile
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic:llvm12-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm13-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 To explain the above command more:
@@ -145,6 +146,7 @@ and
 # Set the user to current user to ensure correct permissions
 -u $(id -u):$(id -g) \
 ```
+
 ## Testing
 
 We use several integration and unit tests to test rellic.

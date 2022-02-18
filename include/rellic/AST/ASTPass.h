@@ -50,6 +50,22 @@ class ASTPass {
     return changed;
   }
 
+  unsigned Fixpoint() {
+    unsigned iter_count{0};
+    changed = false;
+    auto DoIter = [this]() {
+      changed = false;
+      RunImpl();
+      return changed;
+    };
+    stop = false;
+    while (DoIter()) {
+      ++iter_count;
+    }
+
+    return iter_count;
+  }
+
   bool Stopped() { return stop; }
 };
 

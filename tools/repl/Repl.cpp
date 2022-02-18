@@ -383,17 +383,13 @@ static void do_fixpoint(std::istream& is) {
   Diff d{[](llvm::raw_ostream& os) {
     ast_unit->getASTContext().getTranslationUnitDecl()->print(os, 0, false);
   }};
-  unsigned iter_count{0};
-  std::cout << "computing fixpoint... press Ctrl-Z to stop " << std::flush;
+  std::cout << "computing fixpoint... press Ctrl-Z to stop" << std::endl;
   try {
-    while (global_pass->Run()) {
-      std::cout << '.' << std::flush;
-      ++iter_count;
-    }
+    auto iter_count{global_pass->Fixpoint()};
     if (global_pass->Stopped()) {
-      std::cout << "\nstopped.";
+      std::cout << "stopped after " << iter_count << " iterations.";
     } else {
-      std::cout << "\nreached in " << iter_count << " iterations.";
+      std::cout << "reached in " << iter_count << " iterations.";
     }
     std::cout << std::endl;
   } catch (rellic::Exception& ex) {

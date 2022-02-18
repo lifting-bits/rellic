@@ -25,7 +25,7 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | Name | Version |
 | ---- | ------- |
 | [Git](https://git-scm.com/) | Latest |
-| [CMake](https://cmake.org/) | 3.14+ |
+| [CMake](https://cmake.org/) | 3.21+ |
 | [Google Flags](https://github.com/google/glog) | Latest |
 | [Google Log](https://github.com/google/glog) | Latest |
 | [LLVM](http://llvm.org/) | 13|
@@ -62,7 +62,7 @@ sudo apt install \
      doctest-dev
 ```
 
-If the distribution you're on doesn't include a recent release of CMake (3.14 or later), you'll need to install it. For Ubuntu, see here <https://apt.kitware.com/>.
+If the distribution you're on doesn't include a recent release of CMake (3.21 or later), you'll need to install it. For Ubuntu, see here <https://apt.kitware.com/>.
 
 The next step is to clone the Rellic repository.
 

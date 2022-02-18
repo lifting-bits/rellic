@@ -222,8 +222,6 @@ static void do_load(std::istream& is) {
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module->getTargetTriple()};
   ast_unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
-  global_pass =
-      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
   provenance.clear();
 
   std::cout << "ok." << std::endl;
@@ -306,6 +304,11 @@ static void do_decompile() {
   try {
     rellic::DebugInfoCollector dic;
     dic.visit(*module);
+    provenance.clear();
+    type_decls.clear();
+    value_decls.clear();
+    stmts.clear();
+    temp_decls.clear();
     rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
                              value_decls, stmts, temp_decls);
     rellic::LocalDeclRenamer ldr{provenance, *ast_unit, dic.GetIRToNameMap(),
@@ -326,12 +329,13 @@ static void do_run(std::istream& is) {
     return;
   }
 
-  rellic::CompositeASTPass comp(provenance, *ast_unit);
+  global_pass =
+      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};
     if (pass) {
-      comp.GetPasses().push_back(std::move(pass));
+      global_pass->GetPasses().push_back(std::move(pass));
     } else {
       std::cout << "error: unknown pass `" << name << "'." << std::endl;
       return;
@@ -342,7 +346,11 @@ static void do_run(std::istream& is) {
     ast_unit->getASTContext().getTranslationUnitDecl()->print(os, 0, false);
   }};
   try {
-    if (comp.Run()) {
+    auto res{global_pass->Run()};
+    if (global_pass->Stopped()) {
+      std::cout << "stopped." << std::endl;
+    }
+    if (res) {
       std::cout << "ok: the passes reported changes." << std::endl;
     } else {
       std::cout << "ok: the passes did not report any change." << std::endl;
@@ -350,6 +358,7 @@ static void do_run(std::istream& is) {
   } catch (rellic::Exception& ex) {
     std::cout << "error: " << ex.what() << std::endl;
   }
+  global_pass = nullptr;
 }
 
 static void do_fixpoint(std::istream& is) {
@@ -358,12 +367,13 @@ static void do_fixpoint(std::istream& is) {
     return;
   }
 
-  rellic::CompositeASTPass comp(provenance, *ast_unit);
+  global_pass =
+      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};
     if (pass) {
-      comp.GetPasses().push_back(std::move(pass));
+      global_pass->GetPasses().push_back(std::move(pass));
     } else {
       std::cout << "error: unknown pass `" << name << "'." << std::endl;
       return;
@@ -376,11 +386,11 @@ static void do_fixpoint(std::istream& is) {
   unsigned iter_count{0};
   std::cout << "computing fixpoint... press Ctrl-Z to stop " << std::flush;
   try {
-    while (comp.Run()) {
+    while (global_pass->Run()) {
       std::cout << '.' << std::flush;
       ++iter_count;
     }
-    if (comp.Stopped()) {
+    if (global_pass->Stopped()) {
       std::cout << "\nstopped.";
     } else {
       std::cout << "\nreached in " << iter_count << " iterations.";
@@ -389,6 +399,7 @@ static void do_fixpoint(std::istream& is) {
   } catch (rellic::Exception& ex) {
     std::cout << "error: " << ex.what() << std::endl;
   }
+  global_pass = nullptr;
 }
 
 static void do_diff(std::istream& is) {

@@ -38,7 +38,7 @@ class ASTPass {
         ast_ctx(ast_unit.getASTContext()),
         ast(ast_unit) {}
   virtual ~ASTPass() = default;
-  virtual void Stop() {
+  void Stop() {
     stop = true;
     StopImpl();
   }

@@ -25,7 +25,7 @@ jobs:
           - { name: 'ubuntu', tag: '18.04' }
           - { name: 'ubuntu', tag: '20.04' }
         llvm: [
-          '12'
+          '13'
           ]
 
     runs-on: ubuntu-20.04
@@ -88,8 +88,8 @@ jobs:
         run: |
           rellic-decomp --version
 
-      - name: Run Integration Tests (AnghaBench 1K, LLVM 12)
-        if: ${{ matrix.llvm == '12' && matrix.image.tag == '20.04' }}
+      - name: Run Integration Tests (AnghaBench 1K, LLVM 13)
+        if: ${{ matrix.llvm == '13' && matrix.image.tag == '20.04' }}
         shell: bash
         run: |
           apt-get install -y clang-${{ matrix.llvm }}
@@ -123,7 +123,7 @@ jobs:
           'macos-11'
           ]
         llvm: [
-          '12'
+          '13'
           ]
 
     runs-on: ${{ matrix.os }}
@@ -247,7 +247,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["12"]
+        llvm: ["13"]
         ubuntu: ["18.04"]
     steps:
     - uses: actions/checkout@v2

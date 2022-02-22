@@ -40,4 +40,19 @@ bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id);
 // check if a global object is llvm metadata
 bool IsGlobalMetadata(const llvm::GlobalObject &go);
 
+void CloneMetadataInto(
+    llvm::Instruction *dst,
+    const llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 16u> &mds);
+
+void CopyMetadataTo(llvm::Value *src, llvm::Value *dst);
+
+void RemovePHINodes(llvm::Module &module);
+
+void LowerSwitches(llvm::Module &module);
+
+void RemoveInsertValues(llvm::Module &module);
+
+void ConvertArrayStores(llvm::Module &module);
+
+void ConvertArrayArguments(llvm::Module &module);
 }  // namespace rellic

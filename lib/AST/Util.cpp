@@ -67,15 +67,10 @@ bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
 }
 
 void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map) {
-  std::vector<std::pair<clang::Stmt *, llvm::Value *>> pairs;
   auto range{map.equal_range(from)};
-  for (auto it{range.first}; it != range.second && it != map.end(); ++it) {
-    pairs.push_back({to, it->second});
-  }
-
-  for (auto &pair : pairs) {
-    map.insert(pair);
-  }
+  std::vector<std::pair<clang::Stmt *, llvm::Value *>> pairs{range.first,
+                                                             range.second};
+  map.insert(pairs.begin(), pairs.end());
 }
 
 }  // namespace rellic

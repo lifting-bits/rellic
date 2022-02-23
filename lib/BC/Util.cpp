@@ -380,6 +380,7 @@ void ConvertArrayArguments(llvm::Module &m) {
     llvm::BranchInst::Create(bb->getNextNode(), bb);
     return new_func;
   };
+
   std::unordered_map<llvm::Function *, llvm::Function *> fmap;
 
   for (auto &f : m.functions()) {
@@ -396,6 +397,7 @@ void ConvertArrayArguments(llvm::Module &m) {
   }
 
   for (auto &f : m.functions()) {
+    std::vector<llvm::Instruction *> insts_to_remove;
     for (auto &i : llvm::instructions(f)) {
       if (auto call = llvm::dyn_cast<llvm::CallInst>(&i)) {
         auto new_func{fmap[call->getCalledFunction()]};
@@ -421,9 +423,17 @@ void ConvertArrayArguments(llvm::Module &m) {
         call->getAllMetadataOtherThanDebugLoc(mds);
         CloneMetadataInto(new_call, mds);
         call->replaceAllUsesWith(new_call);
-        call->removeFromParent();
+        insts_to_remove.push_back(call);
       }
     }
+
+    for (auto inst : insts_to_remove) {
+      inst->removeFromParent();
+    }
+  }
+
+  for (auto kv : fmap) {
+    kv.first->removeFromParent();
   }
 }
 

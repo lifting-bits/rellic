@@ -360,6 +360,7 @@ void ConvertArrayArguments(llvm::Module &m) {
   std::unordered_map<llvm::Type *, llvm::Type *> conv_types;
   std::vector<unsigned> indices;
   indices.push_back(0);
+  std::vector<llvm::Function *> funcs_to_remove;
   auto ConvertType = [&](llvm::Type *t) -> llvm::Type * {
     if (!t->isArrayTy()) {
       return t;
@@ -406,6 +407,7 @@ void ConvertArrayArguments(llvm::Module &m) {
                             llvm::CloneFunctionChangeType::LocalChangesOnly,
                             Returns);
     llvm::BranchInst::Create(bb->getNextNode(), bb);
+    funcs_to_remove.push_back(orig_func);
     return new_func;
   };
 
@@ -455,12 +457,12 @@ void ConvertArrayArguments(llvm::Module &m) {
     }
 
     for (auto inst : insts_to_remove) {
-      inst->removeFromParent();
+      inst->eraseFromParent();
     }
   }
 
-  for (auto kv : fmap) {
-    kv.first->removeFromParent();
+  for (auto func : funcs_to_remove) {
+    func->eraseFromParent();
   }
 }
 

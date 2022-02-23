@@ -278,34 +278,60 @@ static llvm::Instruction *ConvertArrayStore(llvm::StoreInst *I) {
   auto src_opnd{I->getValueOperand()};
   auto dst_opnd{I->getPointerOperand()};
 
-  llvm::Type *params[3];
-  params[0] = llvm::Type::getInt8PtrTy(ctx);
-  params[1] = params[0];
-  params[2] = llvm::Type::getInt64Ty(ctx);
-
-  auto decl{
-      llvm::Intrinsic::getDeclaration(m, llvm::Intrinsic::memcpy, {params, 3})};
-
   auto sz{llvm::ConstantInt::get(
       ctx, llvm::APInt(64, DL.getTypeAllocSize(src_opnd->getType()), false))};
 
-  llvm::Value *args[4];
+  if (llvm::isa<llvm::ConstantAggregateZero>(src_opnd)) {
+    // Convert `store [ ... ] zeroinit, ...` to a memset call
+    llvm::Type *params[2];
+    params[0] = llvm::Type::getInt8PtrTy(ctx);
+    params[1] = llvm::Type::getInt64Ty(ctx);
 
-  std::vector<llvm::Value *> gep_indices{
-      llvm::ConstantInt::get(ctx, llvm::APInt(64, 0, false))};
-  auto src_ptr{llvm::GetElementPtrInst::Create(src_opnd->getType(), src_opnd,
-                                               gep_indices, "", I)};
-  args[0] = llvm::CastInst::Create(llvm::Instruction::BitCast, src_ptr,
-                                   llvm::Type::getInt8PtrTy(ctx), "", I);
-  args[1] = llvm::CastInst::Create(llvm::Instruction::BitCast, dst_opnd,
-                                   llvm::Type::getInt8PtrTy(ctx), "", I);
-  args[2] = sz;
-  args[3] = llvm::ConstantInt::getFalse(ctx);
+    auto decl{llvm::Intrinsic::getDeclaration(m, llvm::Intrinsic::memset,
+                                              {params, 2})};
 
-  auto res{
-      llvm::CallInst::Create(decl->getFunctionType(), decl, {args, 4}, "", I)};
-  I->eraseFromParent();
-  return res;
+    llvm::Value *args[4];
+
+    std::vector<llvm::Value *> gep_indices{
+        llvm::ConstantInt::get(ctx, llvm::APInt(64, 0, false))};
+    args[0] = llvm::CastInst::Create(llvm::Instruction::BitCast, dst_opnd,
+                                     llvm::Type::getInt8PtrTy(ctx), "", I);
+    args[1] = llvm::ConstantInt::get(ctx, llvm::APInt(8, 0, false));
+    args[2] = sz;
+    args[3] = llvm::ConstantInt::getFalse(ctx);
+
+    auto res{llvm::CallInst::Create(decl->getFunctionType(), decl, {args, 4},
+                                    "", I)};
+    I->eraseFromParent();
+    return res;
+  } else {
+    // Convert `store [ ... ], ...` to a memcpy call
+    llvm::Type *params[3];
+    params[0] = llvm::Type::getInt8PtrTy(ctx);
+    params[1] = params[0];
+    params[2] = llvm::Type::getInt64Ty(ctx);
+
+    auto decl{llvm::Intrinsic::getDeclaration(m, llvm::Intrinsic::memcpy,
+                                              {params, 3})};
+
+    llvm::Value *args[4];
+
+    std::vector<llvm::Value *> gep_indices{
+        llvm::ConstantInt::get(ctx, llvm::APInt(64, 0, false))};
+    auto src_ptr{llvm::GetElementPtrInst::Create(src_opnd->getType(), src_opnd,
+                                                 gep_indices, "", I)};
+    args[0] = llvm::CastInst::Create(llvm::Instruction::BitCast, src_ptr,
+                                     llvm::Type::getInt8PtrTy(ctx), "", I);
+    args[1] = llvm::CastInst::Create(llvm::Instruction::BitCast, dst_opnd,
+                                     llvm::Type::getInt8PtrTy(ctx), "", I);
+    args[2] = sz;
+    args[3] = llvm::ConstantInt::getFalse(ctx);
+
+    auto res{llvm::CallInst::Create(decl->getFunctionType(), decl, {args, 4},
+                                    "", I)};
+    I->eraseFromParent();
+    return res;
+  }
 }
 
 void ConvertArrayStores(llvm::Module &m) {
@@ -382,7 +408,6 @@ void ConvertArrayArguments(llvm::Module &m) {
   };
 
   std::unordered_map<llvm::Function *, llvm::Function *> fmap;
-
   for (auto &f : m.functions()) {
     if (f.getReturnType()->isArrayTy()) {
       fmap[&f] = ConvertFunction(&f);

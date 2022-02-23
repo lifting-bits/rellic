@@ -480,7 +480,12 @@ void ConvertArrayArguments(llvm::Module &m) {
   }
 
   for (auto func : funcs_to_remove) {
-    func->eraseFromParent();
+    // TODO(frabert): Sometimes uses stick around which are not calls (e.g.
+    // references in globals). How do we replace those? Cannot use
+    // `func->replaceAllUsesWith` because types don't match.
+    if (func->use_empty()) {
+      func->eraseFromParent();
+    }
   }
 }
 

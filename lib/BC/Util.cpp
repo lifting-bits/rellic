@@ -232,13 +232,12 @@ static llvm::LoadInst *ConvertInsertValue(llvm::InsertValueInst *I) {
   auto aggr_opnd{I->getAggregateOperand()};
   auto aggr_ty{aggr_opnd->getType()};
   auto ins_opnd{I->getInsertedValueOperand()};
-  auto idx_ty{DL.getIndexType(alloca->getType())};
 
   if (!llvm::isa<llvm::UndefValue>(aggr_opnd)) {
     new llvm::StoreInst(aggr_opnd, alloca, I);
   }
   std::vector<llvm::Value *> indices;
-  indices.push_back(llvm::ConstantInt::get(idx_ty, llvm::APInt(64, 0)));
+  indices.push_back(llvm::ConstantInt::get(ctx, llvm::APInt(64, 0, false)));
   for (auto i : I->getIndices()) {
     indices.push_back(
         llvm::ConstantInt::get(ctx, llvm::APInt(sizeof(i) * 8, i)));
@@ -293,9 +292,6 @@ static llvm::Instruction *ConvertArrayStore(llvm::StoreInst *I) {
                                               {params, 2})};
 
     llvm::Value *args[4];
-
-    std::vector<llvm::Value *> gep_indices{
-        llvm::ConstantInt::get(ctx, llvm::APInt(64, 0, false))};
     args[0] = llvm::CastInst::Create(llvm::Instruction::BitCast, dst_opnd,
                                      llvm::Type::getInt8PtrTy(ctx), "", I);
     args[1] = llvm::ConstantInt::get(ctx, llvm::APInt(8, 0, false));

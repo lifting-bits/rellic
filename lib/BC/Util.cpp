@@ -361,6 +361,7 @@ void ConvertArrayArguments(llvm::Module &m) {
   std::vector<unsigned> indices;
   indices.push_back(0);
   std::vector<llvm::Function *> funcs_to_remove;
+  auto &ctx{m.getContext()};
   auto ConvertType = [&](llvm::Type *t) -> llvm::Type * {
     if (!t->isArrayTy()) {
       return t;
@@ -407,6 +408,16 @@ void ConvertArrayArguments(llvm::Module &m) {
                             llvm::CloneFunctionChangeType::LocalChangesOnly,
                             Returns);
     llvm::BranchInst::Create(bb->getNextNode(), bb);
+
+    if (orig_func->getReturnType()->isArrayTy()) {
+      auto undef{llvm::UndefValue::get(return_ty)};
+      for (auto ret : Returns) {
+        auto wrap{llvm::InsertValueInst::Create(undef, ret->getReturnValue(),
+                                                indices, "", ret)};
+        auto new_ret{llvm::ReturnInst::Create(ctx, wrap, ret)};
+        ret->eraseFromParent();
+      }
+    }
     funcs_to_remove.push_back(orig_func);
     return new_func;
   };
@@ -429,7 +440,8 @@ void ConvertArrayArguments(llvm::Module &m) {
     std::vector<llvm::Instruction *> insts_to_remove;
     for (auto &i : llvm::instructions(f)) {
       if (auto call = llvm::dyn_cast<llvm::CallInst>(&i)) {
-        auto new_func{fmap[call->getCalledFunction()]};
+        auto callee{call->getCalledFunction()};
+        auto new_func{fmap[callee]};
         if (!new_func) {
           continue;
         }
@@ -451,7 +463,13 @@ void ConvertArrayArguments(llvm::Module &m) {
                                              call)};
         call->getAllMetadataOtherThanDebugLoc(mds);
         CloneMetadataInto(new_call, mds);
-        call->replaceAllUsesWith(new_call);
+        if (callee->getReturnType()->isArrayTy()) {
+          auto unwrap{
+              llvm::ExtractValueInst::Create(new_call, indices, "", call)};
+          call->replaceAllUsesWith(unwrap);
+        } else {
+          call->replaceAllUsesWith(new_call);
+        }
         insts_to_remove.push_back(call);
       }
     }

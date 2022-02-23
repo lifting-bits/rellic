@@ -28,6 +28,8 @@
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Transforms/Utils/LowerSwitch.h>
 
+#include <unordered_map>
+
 #include "rellic/BC/Compat/Error.h"
 #include "rellic/BC/Compat/IRReader.h"
 #include "rellic/BC/Compat/Verifier.h"

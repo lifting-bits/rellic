@@ -514,7 +514,7 @@ void IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memcpy, args);
+  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
 }
 
 void IRToASTVisitor::visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst) {
@@ -530,7 +530,7 @@ void IRToASTVisitor::visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memcpy, args);
+  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
 }
 
 void IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
@@ -546,7 +546,7 @@ void IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memmove, args);
+  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memmove, args);
 }
 
 void IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
@@ -562,7 +562,7 @@ void IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memset, args);
+  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
 }
 
 void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {

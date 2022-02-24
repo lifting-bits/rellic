@@ -8,7 +8,11 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/Decl.h>
+#include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/TargetInfo.h>
+#include <clang/Sema/Lookup.h>
 #include <clang/Sema/Sema.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -389,6 +393,22 @@ clang::CallExpr *ASTBuilder::CreateCall(clang::Expr *callee,
   return er.getAs<clang::CallExpr>();
 }
 
+clang::Expr *ASTBuilder::CreateBuiltinCall(clang::Builtin::ID builtin,
+                                           std::vector<clang::Expr *> &args) {
+  auto name{ctx.BuiltinInfo.getName(builtin)};
+  clang::SourceLocation loc;
+  clang::LookupResult R(sema, &ctx.Idents.get(name), loc,
+                        clang::Sema::LookupOrdinaryName);
+  clang::Sema::LookupNameKind NameKind = R.getLookupKind();
+  auto II{R.getLookupName().getAsIdentifierInfo()};
+  clang::ASTContext::GetBuiltinTypeError error;
+  auto ty{ctx.GetBuiltinType(builtin, error)};
+  CHECK(!error);
+  auto decl{sema.CreateBuiltin(II, ty, builtin, loc)};
+
+  return CreateCall(decl, args);
+}
+
 clang::MemberExpr *ASTBuilder::CreateFieldAcc(clang::Expr *base,
                                               clang::FieldDecl *field,
                                               bool is_arrow) {
@@ -459,8 +479,9 @@ clang::WhileStmt *ASTBuilder::CreateWhile(clang::Expr *cond,
 
 clang::DoStmt *ASTBuilder::CreateDo(clang::Expr *cond, clang::Stmt *body) {
   // auto sr{sema.ActOnDoStmt(clang::SourceLocation(), body,
-  //                          clang::SourceLocation(), clang::SourceLocation(),
-  //                          cond, clang::SourceLocation())};
+  //                          clang::SourceLocation(),
+  //                          clang::SourceLocation(), cond,
+  //                          clang::SourceLocation())};
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::DoStmt>();
   CHECK(cond != nullptr) << "Should not be null in CreateDo.";

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <clang/Basic/Builtins.h>
 #include <clang/Frontend/ASTUnit.h>
 
 #include <string>
@@ -271,6 +272,9 @@ class ASTBuilder {
                               std::vector<clang::Expr *> &args) {
     return CreateCall(CreateDeclRef(func), args);
   }
+  // Intrinsic call
+  clang::Expr *CreateBuiltinCall(clang::Builtin::ID builtin,
+                                 std::vector<clang::Expr *> &args);
   // Structure field access
   clang::MemberExpr *CreateFieldAcc(clang::Expr *base, clang::FieldDecl *field,
                                     bool is_arrow);

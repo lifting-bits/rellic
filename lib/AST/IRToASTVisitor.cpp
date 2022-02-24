@@ -502,7 +502,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 }
 
 void IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
-  DLOG(INFO) << "visitMemCpyInlineInst: " << LLVMThingToString(&inst);
+  DLOG(INFO) << "visitMemCpyInst: " << LLVMThingToString(&inst);
   auto &callstmt{stmts[&inst]};
   if (callstmt) {
     return;

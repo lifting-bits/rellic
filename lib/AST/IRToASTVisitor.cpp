@@ -6,7 +6,9 @@
  * the LICENSE file found in the root directory of this source tree.
  */
 
+#include <clang/Basic/Builtins.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/IntrinsicInst.h>
 #define GOOGLE_STRIP_LOG 1
 
 #include <gflags/gflags.h>
@@ -497,6 +499,70 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   }
 
   decl->getAsFunction()->setParams(params);
+}
+
+void IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
+  DLOG(INFO) << "visitMemCpyInlineInst: " << LLVMThingToString(&inst);
+  auto &callstmt{stmts[&inst]};
+  if (callstmt) {
+    return;
+  }
+
+  std::vector<clang::Expr *> args;
+  for (auto i{0U}; i < 3; ++i) {
+    auto &arg{inst.getArgOperandUse(i)};
+    args.push_back(GetOperandExpr(arg));
+  }
+
+  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memcpy, args);
+}
+
+void IRToASTVisitor::visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst) {
+  DLOG(INFO) << "visitMemCpyInlineInst: " << LLVMThingToString(&inst);
+  auto &callstmt{stmts[&inst]};
+  if (callstmt) {
+    return;
+  }
+
+  std::vector<clang::Expr *> args;
+  for (auto i{0U}; i < 3; ++i) {
+    auto &arg{inst.getArgOperandUse(i)};
+    args.push_back(GetOperandExpr(arg));
+  }
+
+  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memcpy, args);
+}
+
+void IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
+  DLOG(INFO) << "visitAnyMemMoveInst: " << LLVMThingToString(&inst);
+  auto &callstmt{stmts[&inst]};
+  if (callstmt) {
+    return;
+  }
+
+  std::vector<clang::Expr *> args;
+  for (auto i{0U}; i < 3; ++i) {
+    auto &arg{inst.getArgOperandUse(i)};
+    args.push_back(GetOperandExpr(arg));
+  }
+
+  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memmove, args);
+}
+
+void IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
+  DLOG(INFO) << "visitAnyMemSetInst: " << LLVMThingToString(&inst);
+  auto &callstmt{stmts[&inst]};
+  if (callstmt) {
+    return;
+  }
+
+  std::vector<clang::Expr *> args;
+  for (auto i{0U}; i < 3; ++i) {
+    auto &arg{inst.getArgOperandUse(i)};
+    args.push_back(GetOperandExpr(arg));
+  }
+
+  callstmt = ast.CreateIntrinsicCall(clang::Builtin::BI__builtin_memset, args);
 }
 
 void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {

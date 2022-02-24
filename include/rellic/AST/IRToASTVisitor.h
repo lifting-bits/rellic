@@ -13,6 +13,7 @@
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
+#include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/Operator.h>
 #include <llvm/IR/Value.h>
 #include <rellic/AST/Util.h>
@@ -68,6 +69,10 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   void VisitFunctionDecl(llvm::Function &func);
   void VisitArgument(llvm::Argument &arg);
 
+  void visitMemCpyInst(llvm::MemCpyInst &inst);
+  void visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst);
+  void visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst);
+  void visitAnyMemSetInst(llvm::AnyMemSetInst &inst);
   void visitIntrinsicInst(llvm::IntrinsicInst &inst);
   void visitCallInst(llvm::CallInst &inst);
   void visitGetElementPtrInst(llvm::GetElementPtrInst &inst);

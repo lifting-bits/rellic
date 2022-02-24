@@ -68,8 +68,10 @@ bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
 
 void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map) {
   auto range{map.equal_range(from)};
-  std::vector<std::pair<clang::Stmt *, llvm::Value *>> pairs{range.first,
-                                                             range.second};
+  std::vector<std::pair<clang::Stmt *, llvm::Value *>> pairs;
+  for (auto it{range.first}; it != range.second; ++it) {
+    pairs.emplace_back(to, it->second);
+  }
   map.insert(pairs.begin(), pairs.end());
 }
 

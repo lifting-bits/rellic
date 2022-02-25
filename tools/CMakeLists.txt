@@ -48,10 +48,16 @@ set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 # rellic-xref
 #
 
+include(FetchContent)
+FetchContent_Declare(httplib
+  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+  GIT_TAG        bb00a23116f5c9f64f1e257ecf5b97a49d0be44e
+)
+FetchContent_MakeAvailable(httplib)
+
 set(RELLIC_XREF "${PROJECT_NAME}-xref")
 
 add_executable(${RELLIC_XREF}
-  "xref/AsmWriter.cpp"
   "xref/DeclPrinter.cpp"
   "xref/StmtPrinter.cpp"
   "xref/TypePrinter.cpp"
@@ -63,6 +69,7 @@ target_link_libraries(${RELLIC_XREF}
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
     gflags::gflags
+    httplib::httplib
 )
 
 set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
@@ -71,7 +78,6 @@ set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
 # rellic-repl
 #
 
-include(FetchContent)
 FetchContent_Declare(linenoise
   GIT_REPOSITORY https://github.com/antirez/linenoise.git
   GIT_TAG        97d2850af13c339369093b78abe5265845d78220
@@ -115,13 +121,6 @@ if(RELLIC_ENABLE_INSTALL)
     RUNTIME
       DESTINATION
         ${CMAKE_INSTALL_BINDIR}
-  )
-
-  install(
-    PROGRAMS
-      "${CMAKE_CURRENT_SOURCE_DIR}/xref/cgi-bin/decompile.py"
-    DESTINATION
-      "lib/cgi-bin"
   )
 
   install(

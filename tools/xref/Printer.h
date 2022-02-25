@@ -40,12 +40,6 @@ void PrintStmt(
     llvm::raw_ostream& Out, const clang::PrintingPolicy& Policy,
     int Indentation = 0, const clang::ASTContext* Context = nullptr,
     clang::PrinterHelper* Helper = nullptr);
-void PrintModule(
-    const llvm::Module* Module,
-    const rellic::DecompilationResult::IRToDeclMap& DeclProvenance,
-    const rellic::DecompilationResult::IRToStmtMap& StmtProvenance,
-    const rellic::DecompilationResult::IRToTypeDeclMap& TypeProvenance,
-    llvm::raw_ostream& ROS);
 void PrintType(
     clang::QualType Type,
     const rellic::DecompilationResult::DeclToIRMap& DeclProvenance,

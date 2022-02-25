@@ -33,6 +33,9 @@ bool VerifyModule(llvm::Module *module);
 llvm::Module *LoadModuleFromFile(llvm::LLVMContext *context,
                                  std::string file_name,
                                  bool allow_failure = false);
+llvm::Module *LoadModuleFromMemory(llvm::LLVMContext *context,
+                                   std::string file_data,
+                                   bool allow_failure = false);
 
 // Check if an intrinsic ID is an annotation
 bool IsAnnotationIntrinsic(llvm::Intrinsic::ID id);

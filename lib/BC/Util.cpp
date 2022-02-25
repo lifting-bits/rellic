@@ -21,6 +21,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Utils.h>
@@ -103,6 +104,35 @@ llvm::Module *LoadModuleFromFile(llvm::LLVMContext *context,
   if (!VerifyModule(module)) {
     LOG_IF(FATAL, !allow_failure)
         << "Error verifying module read from file " << file_name;
+    delete module;
+    return nullptr;
+  }
+
+  return module;
+}
+
+llvm::Module *LoadModuleFromMemory(llvm::LLVMContext *context,
+                                   std::string file_data, bool allow_failure) {
+  llvm::SMDiagnostic err;
+  llvm::MemoryBufferRef ref(file_data, "memory");
+  auto mod_ptr = llvm::parseIR(ref, err, *context);
+  auto module = mod_ptr.release();
+
+  if (!module) {
+    LOG_IF(FATAL, !allow_failure)
+        << "Unable to parse module file: " << err.getMessage().str();
+    return nullptr;
+  }
+
+  auto ec = module->materializeAll();  // Just in case.
+  if (ec) {
+    LOG_IF(FATAL, !allow_failure) << "Unable to materialize everything";
+    delete module;
+    return nullptr;
+  }
+
+  if (!VerifyModule(module)) {
+    LOG_IF(FATAL, !allow_failure) << "Error verifying module";
     delete module;
     return nullptr;
   }

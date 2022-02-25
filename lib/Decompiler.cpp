@@ -40,82 +40,6 @@
 
 namespace {
 
-static void CloneMetadataInto(
-    llvm::Instruction* dst,
-    const llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u>& mds) {
-  for (auto [id, node] : mds) {
-    switch (id) {
-      case llvm::LLVMContext::MD_tbaa:
-      case llvm::LLVMContext::MD_tbaa_struct:
-      case llvm::LLVMContext::MD_noalias:
-      case llvm::LLVMContext::MD_alias_scope:
-        break;
-      default:
-        dst->setMetadata(id, node);
-        break;
-    }
-  }
-}
-
-static void CopyMetadataTo(llvm::Value* src, llvm::Value* dst) {
-  if (src == dst) {
-    return;
-  }
-  llvm::Instruction *src_inst = llvm::dyn_cast_or_null<llvm::Instruction>(src),
-                    *dst_inst = llvm::dyn_cast_or_null<llvm::Instruction>(dst);
-  if (!src_inst || !dst_inst) {
-    return;
-  }
-
-  llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u> mds;
-  src_inst->getAllMetadataOtherThanDebugLoc(mds);
-  CloneMetadataInto(dst_inst, mds);
-}
-
-static void RemovePHINodes(llvm::Module& module) {
-  std::vector<llvm::PHINode*> work_list;
-  for (auto& func : module) {
-    for (auto& inst : llvm::instructions(func)) {
-      if (auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
-        work_list.push_back(phi);
-      }
-    }
-  }
-  for (auto phi : work_list) {
-    llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>, 16u> mds;
-    phi->getAllMetadataOtherThanDebugLoc(mds);
-    auto new_alloca{DemotePHIToStack(phi)};
-    CloneMetadataInto(new_alloca, mds);
-  }
-}
-
-static void LowerSwitches(llvm::Module& module) {
-  llvm::PassBuilder pb;
-  llvm::ModulePassManager mpm;
-  llvm::ModuleAnalysisManager mam;
-  llvm::LoopAnalysisManager lam;
-  llvm::CGSCCAnalysisManager cam;
-  llvm::FunctionAnalysisManager fam;
-
-  pb.registerFunctionAnalyses(fam);
-  pb.registerModuleAnalyses(mam);
-  pb.registerCGSCCAnalyses(cam);
-  pb.registerLoopAnalyses(lam);
-
-  pb.crossRegisterProxies(lam, fam, cam, mam);
-
-  llvm::FunctionPassManager fpm;
-  fpm.addPass(llvm::LowerSwitchPass());
-
-  mpm.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(fpm)));
-  mpm.run(module, mam);
-
-  mam.clear();
-  fam.clear();
-  cam.clear();
-  lam.clear();
-}
-
 static void InitOptPasses(void) {
   auto& pr{*llvm::PassRegistry::getPassRegistry()};
   initializeCore(pr);
@@ -159,6 +83,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
     if (options.lower_switches) {
       LowerSwitches(*module);
     }
+
+    ConvertArrayArguments(*module);
+    RemoveInsertValues(*module);
+    ConvertArrayStores(*module);
 
     InitOptPasses();
     rellic::DebugInfoCollector dic;

@@ -815,7 +815,6 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
       std::vector<clang::Expr *> args{lhs, ast.CreateIntLit(zero), sz_expr};
       assign = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
     } else {
-      llvm::APInt zero(8, 0, false);
       std::vector<clang::Expr *> args{lhs, rhs, sz_expr};
       assign = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
     }

@@ -333,25 +333,6 @@ static void RemoveInsertValue(const httplib::Request& req,
   SendJSON(res, msg);
 }
 
-static void RemoveAggregateStores(const httplib::Request& req,
-                                  httplib::Response& res) {
-  auto& session{GetSession(req)};
-  read_lock load_mutex(session.LoadMutex);
-  write_lock mutation_mutex(session.MutationMutex);
-
-  if (!session.Module) {
-    llvm::json::Object msg{{"message", "No module loaded."}};
-    res.status = 400;
-    SendJSON(res, msg);
-    return;
-  }
-
-  rellic::ConvertArrayStores(*session.Module);
-
-  llvm::json::Object msg{{"message", "Ok."}};
-  SendJSON(res, msg);
-}
-
 static void RemoveArrayArguments(const httplib::Request& req,
                                  httplib::Response& res) {
   auto& session{GetSession(req)};
@@ -792,7 +773,6 @@ int main(int argc, char* argv[]) {
   svr.Post("/action/lower-switches", LowerSwitches);
   svr.Post("/action/remove-array-arguments", RemoveArrayArguments);
   svr.Post("/action/remove-insertvalue", RemoveInsertValue);
-  svr.Post("/action/remove-aggregate-stores", RemoveAggregateStores);
   svr.Post("/action/run", Run);
   svr.Post("/action/fixpoint", Fixpoint);
   svr.Post("/action/stop", Stop);

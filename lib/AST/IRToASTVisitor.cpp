@@ -799,15 +799,31 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   // Get the operand we're assigning to
   auto lhs{GetOperandExpr(inst.getPointerOperand())};
   // Get the operand we're assigning from
-  if (auto undef = llvm::dyn_cast<llvm::UndefValue>(inst.getValueOperand())) {
+  auto value_opnd{inst.getValueOperand()};
+  if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value_opnd)) {
     DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
     return;
   }
-  auto rhs{GetOperandExpr(inst.getValueOperand())};
-  // Create the assignemnt itself
-  auto deref{ast.CreateDeref(lhs)};
-  CopyProvenance(lhs, deref, provenance);
-  assign = ast.CreateAssign(deref, rhs);
+  auto rhs{GetOperandExpr(value_opnd)};
+  if (value_opnd->getType()->isArrayTy()) {
+    // We cannot directly assign arrays, so we generate memcpy or memset instead
+    auto DL{inst.getModule()->getDataLayout()};
+    llvm::APInt sz(64, DL.getTypeAllocSize(value_opnd->getType()));
+    auto sz_expr{ast.CreateIntLit(sz)};
+    if (llvm::isa<llvm::ConstantAggregateZero>(value_opnd)) {
+      llvm::APInt zero(8, 0, false);
+      std::vector<clang::Expr *> args{lhs, ast.CreateIntLit(zero), sz_expr};
+      assign = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
+    } else {
+      std::vector<clang::Expr *> args{lhs, rhs, sz_expr};
+      assign = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
+    }
+  } else {
+    // Create the assignemnt itself
+    auto deref{ast.CreateDeref(lhs)};
+    CopyProvenance(lhs, deref, provenance);
+    assign = ast.CreateAssign(deref, rhs);
+  }
 }
 
 void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {

@@ -86,7 +86,6 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     ConvertArrayArguments(*module);
     RemoveInsertValues(*module);
-    ConvertArrayStores(*module);
 
     InitOptPasses();
     rellic::DebugInfoCollector dic;

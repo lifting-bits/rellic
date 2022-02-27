@@ -242,6 +242,7 @@ void LowerSwitches(llvm::Module &module) {
   fam.clear();
   cam.clear();
   lam.clear();
+  CHECK(VerifyModule(&module)) << "Transformation broke module correctness";
 }
 
 // Takes an insertvalue node and converts into an alloca, store, load sequence
@@ -299,87 +300,8 @@ void RemoveInsertValues(llvm::Module &m) {
     auto new_load{ConvertInsertValue(iv)};
     CloneMetadataInto(new_load, mds);
   }
-}
 
-static llvm::Instruction *ConvertArrayStore(llvm::StoreInst *I) {
-  auto m{I->getModule()};
-  auto &ctx{m->getContext()};
-  auto DL{m->getDataLayout()};
-
-  auto src_opnd{I->getValueOperand()};
-  auto dst_opnd{I->getPointerOperand()};
-
-  auto sz{llvm::ConstantInt::get(
-      ctx, llvm::APInt(64, DL.getTypeAllocSize(src_opnd->getType()), false))};
-
-  if (llvm::isa<llvm::ConstantAggregateZero>(src_opnd)) {
-    // Convert `store [ ... ] zeroinit, ...` to a memset call
-    llvm::Type *params[2];
-    params[0] = llvm::Type::getInt8PtrTy(ctx);
-    params[1] = llvm::Type::getInt64Ty(ctx);
-
-    auto decl{llvm::Intrinsic::getDeclaration(m, llvm::Intrinsic::memset,
-                                              {params, 2})};
-
-    llvm::Value *args[4];
-    args[0] = llvm::CastInst::Create(llvm::Instruction::BitCast, dst_opnd,
-                                     llvm::Type::getInt8PtrTy(ctx), "", I);
-    args[1] = llvm::ConstantInt::get(ctx, llvm::APInt(8, 0, false));
-    args[2] = sz;
-    args[3] = llvm::ConstantInt::getFalse(ctx);
-
-    auto res{llvm::CallInst::Create(decl->getFunctionType(), decl, {args, 4},
-                                    "", I)};
-    I->eraseFromParent();
-    return res;
-  } else {
-    // Convert `store [ ... ], ...` to a memcpy call
-    llvm::Type *params[3];
-    params[0] = llvm::Type::getInt8PtrTy(ctx);
-    params[1] = params[0];
-    params[2] = llvm::Type::getInt64Ty(ctx);
-
-    auto decl{llvm::Intrinsic::getDeclaration(m, llvm::Intrinsic::memcpy,
-                                              {params, 3})};
-
-    llvm::Value *args[4];
-
-    std::vector<llvm::Value *> gep_indices{
-        llvm::ConstantInt::get(ctx, llvm::APInt(64, 0, false))};
-    auto src_ptr{llvm::GetElementPtrInst::Create(src_opnd->getType(), src_opnd,
-                                                 gep_indices, "", I)};
-    args[0] = llvm::CastInst::Create(llvm::Instruction::BitCast, src_ptr,
-                                     llvm::Type::getInt8PtrTy(ctx), "", I);
-    args[1] = llvm::CastInst::Create(llvm::Instruction::BitCast, dst_opnd,
-                                     llvm::Type::getInt8PtrTy(ctx), "", I);
-    args[2] = sz;
-    args[3] = llvm::ConstantInt::getFalse(ctx);
-
-    auto res{llvm::CallInst::Create(decl->getFunctionType(), decl, {args, 4},
-                                    "", I)};
-    I->eraseFromParent();
-    return res;
-  }
-}
-
-void ConvertArrayStores(llvm::Module &m) {
-  std::vector<llvm::StoreInst *> work_list;
-  for (auto &func : m) {
-    for (auto &inst : llvm::instructions(func)) {
-      if (auto store = llvm::dyn_cast<llvm::StoreInst>(&inst)) {
-        if (store->getValueOperand()->getType()->isArrayTy()) {
-          work_list.push_back(store);
-        }
-      }
-    }
-  }
-
-  for (auto iv : work_list) {
-    llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 16u> mds;
-    iv->getAllMetadataOtherThanDebugLoc(mds);
-    auto new_inst{ConvertArrayStore(iv)};
-    CloneMetadataInto(new_inst, mds);
-  }
+  CHECK(VerifyModule(&m)) << "Transformation broke module correctness";
 }
 
 void ConvertArrayArguments(llvm::Module &m) {
@@ -513,6 +435,8 @@ void ConvertArrayArguments(llvm::Module &m) {
       func->eraseFromParent();
     }
   }
+
+  CHECK(VerifyModule(&m)) << "Transformation broke module correctness";
 }
 
 }  // namespace rellic

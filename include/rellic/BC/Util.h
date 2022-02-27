@@ -52,7 +52,5 @@ void LowerSwitches(llvm::Module &module);
 
 void RemoveInsertValues(llvm::Module &module);
 
-void ConvertArrayStores(llvm::Module &module);
-
 void ConvertArrayArguments(llvm::Module &module);
 }  // namespace rellic

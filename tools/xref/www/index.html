@@ -5,310 +5,529 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"
+        integrity="sha256-kXTEJcRFN330VirZFl6gj9+UM6gIKW195fYZeR3xDhc=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/splitpanes@2.4.1/dist/splitpanes.umd.js"
+        integrity="sha256-drLR2ET7rR11QqTvg0iA8BeQlu+UHv30ICS/Bk+C5rg=" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/splitpanes@2.4.1/dist/splitpanes.css"
+        integrity="sha256-Enk7EggDNIYgB+cYyXOpZ3crh1+52zWUgAx2yDV+VNQ=" crossorigin="anonymous">
     <style>
         body,
         html {
             width: 100%;
-            height: 100%;
+            height: 100vh;
             margin: 0;
             padding: 0;
             font-family: sans-serif;
+        }
+
+        .hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .hover-sameaddr {
+            text-decoration: underline green wavy;
+        }
+
+        .logo {
+            font-size: xx-large;
+            margin-right: 1em;
+        }
+
+        #app {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
         }
 
-        .first-row {
-            overflow: auto;
-            resize: vertical;
+        header {
+            flex-grow: 0;
             padding: 0.5em;
         }
 
-        .options {
-            display: flex;
-            flex-direction: row;
-            flex-wrap: wrap;
+        main {
+            flex-grow: 1;
+            max-height: 85vh;
         }
 
-        .second-row {
-            display: block;
-            width: 100%;
-            height: 100%;
-            border: none;
+        footer {
+            flex-grow: 0;
+            padding: 0.5em;
+        }
+
+        .splitpanes__pane {
+            border: 1px solid grey;
+            overflow: auto;
+        }
+
+        pre {
+            margin: 0.5em;
+            padding: 0.5em;
+        }
+
+        .clang.keyword,
+        .llvm.keyword {
+            color: blue;
+        }
+
+        .clang.typename,
+        .llvm.typename {
+            color: purple;
+        }
+
+        .clang.string-literal,
+        .clang.character-literal,
+        .llvm.string-literal {
+            color: maroon;
+        }
+
+        .clang.number,
+        .llvm.number {
+            color: darkcyan;
+        }
+
+        .llvm.comment {
+            color: green;
+        }
+
+        .list-container {
+            border: 1px solid grey;
+            border-radius: 0.3em;
+            background-color: #00000011;
+            margin-top: 0.2em;
+            margin-left: 0.2em;
+            margin-right: 0.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .list-item {
+            margin: 0.2em;
+        }
+
+        .list-title {
+            padding: 0.2em;
+        }
+
+        .list-bottom {
+            padding: 0.2em;
         }
     </style>
 </head>
 
 <body>
-    <form class="first-row" action="cgi-bin/decompile.py" method="POST" enctype="multipart/form-data" target="upload">
-        <input type="file" id="myFile" name="filename" accept=".ll,.bc">
-        <input type="submit">
-        <details>
-            <summary>Advanced options</summary>
-            <div class="options">
-                <fieldset>
-                    <legend>Passes</legend>
-                    <select name="passes" multiple>
-                        <option value="enable_dse" selected>Dead statement elimination</option>
-                        <optgroup label="Condition-based refinement phase">
-                            <option value="enable_cbr_zcs" selected>Z3 condition simplification</option>
-                            <option value="enable_cbr_ncp" selected>Nested condition propagation</option>
-                            <option value="enable_cbr" selected>Condition-based refinement</option>
-                            <option value="enable_cbr_rbr" selected>Reach-based refinement</option>
-                            <option value="enable_cbr_en" selected>Expression normalization</option>
-                        </optgroup>
-                        <optgroup label="Loop refinement phase">
-                            <option value="enable_lr" selected>Loop refinement</option>
-                            <option value="enable_lr_nsc" selected>Nested scope combination</option>
-                            <option value="enable_lr_en" selected>Expression normalization</option>
-                        </optgroup>
-                        <optgroup label="Scope refinement phase">
-                            <option value="enable_sr_zcs" selected>Z3 condition simplification</option>
-                            <option value="enable_sr_ncp" selected>Nested condition propagation</option>
-                            <option value="enable_sr_nsc" selected>Nested scope combination</option>
-                            <option value="enable_sr_en" selected>Expression normalization</option>
-                        </optgroup>
-                        <option value="enable_en" selected>Expression normalization</option>
-                        <option value="enable_ec" selected>Expression combination</option>
-                    </select>
-                </fieldset>
-                <fieldset>
-                    <legend>Condition-based refinement Z3 tactics</legend>
-                    <select name="cbr_tactics" multiple>
-                        <option>ackermannize_bv</option>
-                        <option>add-bounds</option>
-                        <option>aig</option>
-                        <option>auflia</option>
-                        <option>auflira</option>
-                        <option>aufnira</option>
-                        <option>bit-blast</option>
-                        <option>blast-term-ite</option>
-                        <option>bv</option>
-                        <option>bv_bound_chk</option>
-                        <option>bv1-blast</option>
-                        <option>bvarray2uf</option>
-                        <option>card2bv</option>
-                        <option>cofactor-term-ite</option>
-                        <option>collect-statistics</option>
-                        <option>ctx-simplify</option>
-                        <option>ctx-solver-simplify</option>
-                        <option>default</option>
-                        <option>degree-shift</option>
-                        <option>der</option>
-                        <option>diff-neq</option>
-                        <option>distribute-forall</option>
-                        <option>dom-simplify</option>
-                        <option>dt2bv</option>
-                        <option>elim-and</option>
-                        <option>elim-small-bv</option>
-                        <option>elim-term-ite</option>
-                        <option>elim-uncnstr</option>
-                        <option>eq2bv</option>
-                        <option>factor</option>
-                        <option>fail</option>
-                        <option>fail-if-undecided</option>
-                        <option>fix-dl-var</option>
-                        <option>fm</option>
-                        <option>fpa2bv</option>
-                        <option>horn</option>
-                        <option>horn-simplify</option>
-                        <option>injectivity</option>
-                        <option>lia</option>
-                        <option>lia2card</option>
-                        <option>lia2pb</option>
-                        <option>lira</option>
-                        <option>lra</option>
-                        <option>macro-finder</option>
-                        <option>max-bv-sharing</option>
-                        <option>nla2bv</option>
-                        <option>nlqsat</option>
-                        <option>nlsat</option>
-                        <option>nnf</option>
-                        <option>normalize-bounds</option>
-                        <option>nra</option>
-                        <option>occf</option>
-                        <option>pb2bv</option>
-                        <option>pb-preprocess</option>
-                        <option>pqffd</option>
-                        <option>propagate-bv-bounds</option>
-                        <option>propagate-bv-bounds-new</option>
-                        <option>propagate-ineqs</option>
-                        <option>propagate-values</option>
-                        <option>psat</option>
-                        <option>psmt</option>
-                        <option>purify-arith</option>
-                        <option>qe</option>
-                        <option>qe_rec</option>
-                        <option>qe2</option>
-                        <option>qe-light</option>
-                        <option>qfaufbv</option>
-                        <option>qfauflia</option>
-                        <option>qfbv</option>
-                        <option>qfbv-sls</option>
-                        <option>qffd</option>
-                        <option>qffp</option>
-                        <option>qffpbv</option>
-                        <option>qffplra</option>
-                        <option>qfidl</option>
-                        <option>qflia</option>
-                        <option>qflra</option>
-                        <option>qfnia</option>
-                        <option>qfnra</option>
-                        <option>qfnra-nlsat</option>
-                        <option>qfuf</option>
-                        <option>qfufbv</option>
-                        <option>qfufbv_ackr</option>
-                        <option>qsat</option>
-                        <option>quasi-macros</option>
-                        <option>recover-01</option>
-                        <option>reduce-args</option>
-                        <option>reduce-bv-size</option>
-                        <option>reduce-invertible</option>
-                        <option selected>sat</option>
-                        <option>sat-preprocess</option>
-                        <option>simplify</option>
-                        <option>skip</option>
-                        <option>smt</option>
-                        <option>smtfd</option>
-                        <option>snf</option>
-                        <option>solve-eqs</option>
-                        <option>solver-subsumption</option>
-                        <option>special-relations</option>
-                        <option>split-clause</option>
-                        <option>subpaving</option>
-                        <option>symmetry-reduce</option>
-                        <option>tseitin-cnf</option>
-                        <option>tseitin-cnf-core</option>
-                        <option>ufbv</option>
-                        <option>ufbv-rewriter</option>
-                        <option>uflra</option>
-                        <option>ufnia</option>
-                        <option>unit-subsume-simplify</option>
-                    </select>
-                </fieldset>
-                <fieldset>
-                    <legend>Scope refinement Z3 tactics</legend>
-                    <select name="sr_tactics" multiple>
-                        <option>ackermannize_bv</option>
-                        <option>add-bounds</option>
-                        <option>aig</option>
-                        <option>auflia</option>
-                        <option>auflira</option>
-                        <option>aufnira</option>
-                        <option>bit-blast</option>
-                        <option>blast-term-ite</option>
-                        <option>bv</option>
-                        <option>bv_bound_chk</option>
-                        <option>bv1-blast</option>
-                        <option>bvarray2uf</option>
-                        <option>card2bv</option>
-                        <option>cofactor-term-ite</option>
-                        <option>collect-statistics</option>
-                        <option>ctx-simplify</option>
-                        <option>ctx-solver-simplify</option>
-                        <option>default</option>
-                        <option>degree-shift</option>
-                        <option>der</option>
-                        <option>diff-neq</option>
-                        <option>distribute-forall</option>
-                        <option>dom-simplify</option>
-                        <option>dt2bv</option>
-                        <option>elim-and</option>
-                        <option>elim-small-bv</option>
-                        <option>elim-term-ite</option>
-                        <option>elim-uncnstr</option>
-                        <option>eq2bv</option>
-                        <option>factor</option>
-                        <option>fail</option>
-                        <option>fail-if-undecided</option>
-                        <option>fix-dl-var</option>
-                        <option>fm</option>
-                        <option>fpa2bv</option>
-                        <option>horn</option>
-                        <option>horn-simplify</option>
-                        <option>injectivity</option>
-                        <option>lia</option>
-                        <option>lia2card</option>
-                        <option>lia2pb</option>
-                        <option>lira</option>
-                        <option>lra</option>
-                        <option>macro-finder</option>
-                        <option>max-bv-sharing</option>
-                        <option>nla2bv</option>
-                        <option>nlqsat</option>
-                        <option>nlsat</option>
-                        <option>nnf</option>
-                        <option>normalize-bounds</option>
-                        <option>nra</option>
-                        <option>occf</option>
-                        <option>pb2bv</option>
-                        <option>pb-preprocess</option>
-                        <option>pqffd</option>
-                        <option>propagate-bv-bounds</option>
-                        <option>propagate-bv-bounds-new</option>
-                        <option>propagate-ineqs</option>
-                        <option>propagate-values</option>
-                        <option>psat</option>
-                        <option>psmt</option>
-                        <option>purify-arith</option>
-                        <option>qe</option>
-                        <option>qe_rec</option>
-                        <option>qe2</option>
-                        <option>qe-light</option>
-                        <option>qfaufbv</option>
-                        <option>qfauflia</option>
-                        <option>qfbv</option>
-                        <option>qfbv-sls</option>
-                        <option>qffd</option>
-                        <option>qffp</option>
-                        <option>qffpbv</option>
-                        <option>qffplra</option>
-                        <option>qfidl</option>
-                        <option>qflia</option>
-                        <option>qflra</option>
-                        <option>qfnia</option>
-                        <option>qfnra</option>
-                        <option>qfnra-nlsat</option>
-                        <option>qfuf</option>
-                        <option>qfufbv</option>
-                        <option>qfufbv_ackr</option>
-                        <option>qsat</option>
-                        <option>quasi-macros</option>
-                        <option>recover-01</option>
-                        <option>reduce-args</option>
-                        <option>reduce-bv-size</option>
-                        <option>reduce-invertible</option>
-                        <option selected>sat</option>
-                        <option>sat-preprocess</option>
-                        <option>simplify</option>
-                        <option>skip</option>
-                        <option>smt</option>
-                        <option>smtfd</option>
-                        <option>snf</option>
-                        <option>solve-eqs</option>
-                        <option>solver-subsumption</option>
-                        <option>special-relations</option>
-                        <option>split-clause</option>
-                        <option>subpaving</option>
-                        <option>symmetry-reduce</option>
-                        <option>tseitin-cnf</option>
-                        <option>tseitin-cnf-core</option>
-                        <option>ufbv</option>
-                        <option>ufbv-rewriter</option>
-                        <option>uflra</option>
-                        <option>ufnia</option>
-                        <option>unit-subsume-simplify</option>
-                    </select>
-                </fieldset>
-                <fieldset>
-                    <legend>Miscellaneous</legend>
-                    <label for="timeout">Timeout in seconds</label>
-                    <input type="number" name="timeout" value="10">
-                </fieldset>
+    <template id="list-component">
+        <div class="list-container">
+            <div class="list-title">
+                <input type="button" @click="$emit('delete')" value="x" v-if="showDelete">
+                {{ title }}
             </div>
-        </details>
-    </form>
-    <iframe name="upload" class="second-row">
-    </iframe>
+            <ol>
+                <template v-for="(item, i) in items">
+                    <li>
+                        <div class="list-item" v-if="item.id">
+                            <input type="button" @click="deleteCommand(i)" value="x">
+                            {{ item.label }}
+                        </div>
+                        <list-comp v-if="Array.isArray(item)" :items="item" title="Fixpoint"
+                            :available-commands="availableCommands" :show-delete="true" @delete="deleteCommand(i)">
+                        </list-comp>
+                    </li>
+                </template>
+            </ol>
+            <div class="list-bottom">
+                <select v-model="selected">
+                    <option v-for="command in availableCommands" :value="command">{{ command.label }}</option>
+                </select>
+                <input type="button" @click="addCommand" value="Add">
+                <input type="button" @click="addFixpoint" value="Add fixpoint">
+            </div>
+        </div>
+    </template>
+
+    <div id="app">
+        <header>
+            <span class="logo">rellic</span>
+            <input type="file" accept=".bc,.ll" @change="selectFile">
+            <input type="button" @click="upload" value="Submit" :disabled="!file">
+            <input type="button" @click="decompile" value="Decompile" :disabled="!module">
+            <input type="button" v-for="action in actions" @click="runAction(action)" :value="action.desc"
+                :disabled="!module"><br>
+            <input type="button" @click="useDefaultChain" value="Use default chain">
+        </header>
+        <main>
+            <splitpanes class="default-theme">
+                <pane size="20">
+                    <list-comp :items="commands" :available-commands="available_commands" :show-delete="false"
+                        title="Refinement passes"></list-comp>
+                    <input type="button" @click="run" value="Run" :disabled="!ast || !commands">
+                    <input type="button" @click="fixpoint" value="Find fixpoint" :disabled="!ast || !commands">
+                    <input type="button" @click="clearCommands" value="Clear">
+                    <input type="button" @click="stop" value="Stop" :disabled="!running">
+                </pane>
+                <pane>
+                    <div v-html="astView"></div>
+                </pane>
+                <pane>
+                    <div v-html="moduleView"></div>
+                </pane>
+            </splitpanes>
+        </main>
+        <footer>
+            Status: <code>{{ status }}</code>
+        </footer>
+    </div>
+    <script>
+        const { Splitpanes, Pane } = splitpanes
+        const dse = {
+            id: "dse",
+            label: "Dead statement elimination"
+        }
+        const zcs = {
+            id: "zcs",
+            label: "Z3 condition simplification"
+        }
+        const ncp = {
+            id: "ncp",
+            label: "Nested condition propagation"
+        }
+        const nsc = {
+            id: "nsc",
+            label: "Nested scope combination"
+        }
+        const cbr = {
+            id: "cbr",
+            label: "Condition-based refinement"
+        }
+        const rbr = {
+            id: "rbr",
+            label: "Reach-based refinement"
+        }
+        const lr = {
+            id: "lr",
+            label: "Loop refinement"
+        }
+        const ec = {
+            id: "ec",
+            label: "Expression combination"
+        }
+        const nc = {
+            id: "nc",
+            label: "Condition normalization"
+        }
+
+        Vue.component('list-comp', {
+            props: ["items", "availableCommands", "showDelete", "title"],
+            methods: {
+                addCommand() {
+                    this.items.push(this.selected)
+                },
+                deleteCommand(i) {
+                    this.items.splice(i, 1)
+                },
+                addFixpoint() {
+                    this.items.push([])
+                }
+            },
+            data() {
+                return {
+                    selected: null
+                }
+            },
+            template: "#list-component"
+        })
+
+        const app = new Vue({
+            el: '#app',
+            components: { Splitpanes, Pane },
+            data: {
+                dragging: false,
+                ast: null,
+                module: null,
+                status: "Ready.",
+                file: null,
+                running: false,
+                available_commands: [
+                    dse,
+                    zcs,
+                    ncp,
+                    nsc,
+                    cbr,
+                    rbr,
+                    lr,
+                    ec,
+                    nc
+                ],
+                actions: [
+                    {
+                        url: "/action/remove-phi-nodes",
+                        desc: "Remove PHI nodes",
+                    },
+                    {
+                        url: "/action/lower-switches",
+                        desc: "Lower switches",
+                    },
+                    {
+                        url: "/action/remove-array-arguments",
+                        desc: "Remove array arguments",
+                    },
+                    {
+                        url: "/action/remove-insertvalue",
+                        desc: "Remove insertvalue",
+                    }
+                ],
+                commands: []
+            },
+            computed: {
+                astView: function () {
+                    if (this.ast) {
+                        return this.ast
+                    } else if (this.module) {
+                        return "Run 'Decompile' to view AST"
+                    } else {
+                        return "No module loaded"
+                    }
+                },
+                moduleView: function () {
+                    if (this.module) {
+                        return this.module
+                    } else {
+                        return "No module loaded"
+                    }
+                }
+            },
+            mounted: function () {
+                this.loadModule()
+                this.loadAST()
+            },
+            updated: function () {
+                const spans = document.querySelectorAll('[data-provenance],[data-addr]')
+                for (let span of spans) {
+                    span.addEventListener('mouseover', e => {
+                        e.stopImmediatePropagation()
+                        span.classList.add('hover')
+                        const provenanceAddr = span.dataset.provenance
+                        const addr = span.dataset.addr
+                        if (!provenanceAddr) { return; }
+                        for (let split of provenanceAddr.split(',')) {
+                            const provenanceSpans = document.querySelectorAll(`[data-addr='${split}']`)
+                            for (let prov of provenanceSpans) {
+                                prov.classList.add('hover')
+                            }
+                        }
+                        const addrSpans = document.querySelectorAll(`[data-addr='${addr}']`)
+                        if (addrSpans.length > 1) {
+                            for (let a of addrSpans) {
+                                a.classList.add('hover-sameaddr')
+                            }
+                        }
+                    })
+                    span.addEventListener('mouseleave', e => {
+                        span.classList.remove('hover')
+                        const provenanceAddr = span.dataset.provenance
+                        const addr = span.dataset.addr
+                        if (!provenanceAddr) { return; }
+                        for (let split of provenanceAddr.split(',')) {
+                            const provenanceSpans = document.querySelectorAll(`[data-addr='${split}'],[data-addr='${addr}']`)
+                            for (let prov of provenanceSpans) {
+                                prov.classList.remove('hover')
+                                prov.classList.remove('hover-sameaddr')
+                            }
+                        }
+                    })
+                }
+            },
+            methods: {
+                loadModule() {
+                    (async () => {
+                        try {
+                            res = await fetch("/action/module", {
+                                credentials: "include",
+                                method: "GET"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            let text = await res.text()
+                            this.module = text
+                        } catch (e) {
+                            this.module = null
+                            this.status = e
+                        }
+                    })()
+                },
+                loadAST() {
+                    (async () => {
+                        try {
+                            res = await fetch("/action/ast", {
+                                credentials: "include",
+                                method: "GET"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            let text = await res.text()
+                            this.ast = text
+                        } catch (e) {
+                            this.module = null
+                            this.status = e
+                        }
+                    })()
+                },
+                selectFile(event) {
+                    this.file = event.target.files[0]
+                },
+                upload() {
+                    this.status = "Uploading...";
+                    (async () => {
+                        try {
+                            let res = await fetch("/action/module", {
+                                credentials: "include",
+                                body: this.file,
+                                method: "POST"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            this.status = "Loading module text..."
+                            res = await fetch("/action/module", {
+                                credentials: "include",
+                                method: "GET"
+                            })
+                            let text = await res.text()
+                            this.module = text
+                            this.ast = null
+                            this.status = "Ready."
+                        } catch (e) {
+                            this.status = e
+                            this.module = null
+                            this.ast = null
+                        }
+                    })()
+                },
+                decompile() {
+                    this.status = "Decompiling...";
+                    (async () => {
+                        try {
+                            let res = await fetch("/action/decompile", {
+                                credentials: "include",
+                                method: "POST"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            this.status = "Loading AST..."
+                            res = await fetch("/action/ast", {
+                                credentials: "include",
+                                method: "GET"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            let text = await res.text()
+                            this.ast = text
+                            this.status = "Ready."
+                        } catch (e) {
+                            this.status = e
+                            this.ast = null
+                        }
+                    })()
+                },
+                runAction(action) {
+                    this.status = `${action.desc}...`;
+                    (async () => {
+                        try {
+                            let res = await fetch(action.url, {
+                                credentials: "include",
+                                method: "POST"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            this.status = (await res.json()).message
+                            this.loadModule()
+                        } catch (e) {
+                            this.status = e
+                            this.ast = null
+                        }
+                    })()
+                },
+                clearCommands() {
+                    this.commands = []
+                },
+                useDefaultChain() {
+                    this.commands = [
+                        dse,
+                        [zcs, ncp, nsc, cbr, rbr],
+                        [lr, nsc],
+                        [zcs, ncp, nsc],
+                        ec
+                    ]
+                },
+                run() {
+                    (async () => {
+                        try {
+                            this.status = "Executing passes..."
+                            this.running = true
+                            let res = await fetch("/action/run", {
+                                credentials: "include",
+                                body: JSON.stringify(this.commands),
+                                method: "POST"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            this.status = (await res.json()).message
+                            this.loadAST()
+                        } catch (e) {
+                            this.status = e
+                        } finally {
+                            this.running = false
+                        }
+                    })()
+                },
+                fixpoint() {
+                    (async () => {
+                        try {
+                            this.status = "Searching fixpoint..."
+                            this.running = true
+                            let res = await fetch("/action/fixpoint", {
+                                credentials: "include",
+                                body: JSON.stringify(this.commands),
+                                method: "POST"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            this.status = (await res.json()).message
+                            this.loadAST()
+                        } catch (e) {
+                            this.status = e
+                        } finally {
+                            this.running = false
+                        }
+                    })()
+                },
+                stop() {
+                    (async () => {
+                        try {
+                            let res = await fetch("/action/stop", {
+                                credentials: "include",
+                                method: "POST"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                        } catch (e) {
+                            this.status = e
+                        }
+                    })()
+                }
+            }
+        })
+    </script>
 </body>
 
 </html>

@@ -409,7 +409,7 @@ void ConvertArrayArguments(llvm::Module &m) {
         auto new_call{llvm::CallInst::Create(new_func->getFunctionType(),
                                              new_func, args, call->getName(),
                                              call)};
-        call->getAllMetadataOtherThanDebugLoc(mds);
+        call->getAllMetadata(mds);
         CloneMetadataInto(new_call, mds);
         if (callee->getReturnType()->isArrayTy()) {
           auto unwrap{

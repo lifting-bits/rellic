@@ -172,7 +172,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
 clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   auto &cond = reaching_conds[block];
   if (cond) {
-    return cond;
+    return Clone(unit, cond, GetStmtToIRMap());
   }
   // Gather reaching conditions from predecessors of the block
   for (auto pred : llvm::predecessors(block)) {
@@ -379,6 +379,7 @@ GenerateAST::GenerateAST(StmtToIRMap &provenance, clang::ASTUnit &unit,
                          IRToValDeclMap &value_decls, IRToStmtMap &stmts,
                          ArgToTempMap &temp_decls)
     : ast_ctx(&unit.getASTContext()),
+      unit(unit),
       ast_gen(provenance, unit, type_decls, value_decls, stmts, temp_decls),
       ast(unit) {}
 

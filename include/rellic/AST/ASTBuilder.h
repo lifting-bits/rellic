@@ -46,6 +46,7 @@ class ASTBuilder {
   };
 
   clang::CharacterLiteral *CreateCharLit(llvm::APInt val);
+  clang::CharacterLiteral *CreateCharLit(unsigned val);
   clang::StringLiteral *CreateStrLit(std::string val);
   clang::FloatingLiteral *CreateFPLit(llvm::APFloat val);
   // Casted literals
@@ -314,6 +315,8 @@ class ASTBuilder {
                                         clang::QualType type) {
     return CreateTypedefDecl(decl_ctx, CreateIdentifier(name), type);
   }
+  // Null statement
+  clang::NullStmt *CreateNullStmt();
 };
 
 }  // namespace rellic

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <clang/AST/DeclBase.h>
+#include <clang/Frontend/ASTUnit.h>
 #include <llvm/IR/Value.h>
 
 #include <unordered_map>
@@ -45,5 +46,8 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
 
 using StmtToIRMap = std::unordered_multimap<clang::Stmt *, llvm::Value *>;
 void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map);
+
+clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
+                   StmtToIRMap &provenance);
 
 }  // namespace rellic

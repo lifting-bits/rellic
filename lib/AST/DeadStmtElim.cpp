@@ -48,7 +48,7 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
       if (expr->HasSideEffects(ast_ctx)) {
         new_body.push_back(stmt);
       }
-    } else {
+    } else if (!clang::dyn_cast<clang::NullStmt>(stmt)) {
       new_body.push_back(stmt);
     }
   }

@@ -22,6 +22,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
  private:
   friend llvm::AnalysisInfoMixin<GenerateAST>;
   static llvm::AnalysisKey Key;
+  clang::ASTUnit &unit;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor ast_gen;
   rellic::ASTBuilder ast;
@@ -56,7 +57,6 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
               IRToTypeDeclMap &type_decls, IRToValDeclMap &value_decls,
               IRToStmtMap &stmts, ArgToTempMap &temp_decls);
 
-  IRToStmtMap &GetIRToStmtMap() { return ast_gen.GetIRToStmtMap(); }
   StmtToIRMap &GetStmtToIRMap() { return ast_gen.GetStmtToIRMap(); }
   IRToValDeclMap &GetIRToValDeclMap() { return ast_gen.GetIRToValDeclMap(); }
   IRToTypeDeclMap &GetIRToTypeDeclMap() { return ast_gen.GetIRToTypeDeclMap(); }

@@ -31,7 +31,7 @@ using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 
-class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
+class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Stmt *> {
  private:
   clang::ASTContext &ast_ctx;
 
@@ -39,7 +39,6 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
 
   IRToTypeDeclMap &type_decls;
   IRToValDeclMap &value_decls;
-  IRToStmtMap &stmts;
   StmtToIRMap &provenance;
   ArgToTempMap &temp_decls;
   size_t num_literal_structs = 0;
@@ -60,7 +59,6 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
 
-  IRToStmtMap &GetIRToStmtMap() { return stmts; }
   StmtToIRMap &GetStmtToIRMap() { return provenance; }
   IRToValDeclMap &GetIRToValDeclMap() { return value_decls; }
   IRToTypeDeclMap &GetIRToTypeDeclMap() { return type_decls; }
@@ -69,27 +67,27 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor> {
   void VisitFunctionDecl(llvm::Function &func);
   void VisitArgument(llvm::Argument &arg);
 
-  void visitMemCpyInst(llvm::MemCpyInst &inst);
-  void visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst);
-  void visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst);
-  void visitAnyMemSetInst(llvm::AnyMemSetInst &inst);
-  void visitIntrinsicInst(llvm::IntrinsicInst &inst);
-  void visitCallInst(llvm::CallInst &inst);
-  void visitGetElementPtrInst(llvm::GetElementPtrInst &inst);
-  void visitExtractValueInst(llvm::ExtractValueInst &inst);
-  void visitAllocaInst(llvm::AllocaInst &inst);
-  void visitLoadInst(llvm::LoadInst &inst);
-  void visitStoreInst(llvm::StoreInst &inst);
-  void visitReturnInst(llvm::ReturnInst &inst);
-  void visitBinaryOperator(llvm::BinaryOperator &inst);
-  void visitCmpInst(llvm::CmpInst &inst);
-  void visitCastInst(llvm::CastInst &inst);
-  void visitSelectInst(llvm::SelectInst &inst);
-  void visitFreezeInst(llvm::FreezeInst &inst);
-  void visitPHINode(llvm::PHINode &inst);
-  void visitBranchInst(llvm::BranchInst &inst);
-  void visitUnreachableInst(llvm::UnreachableInst &inst);
-  void visitInstruction(llvm::Instruction &inst);
+  clang::Stmt *visitMemCpyInst(llvm::MemCpyInst &inst);
+  clang::Stmt *visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst);
+  clang::Stmt *visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst);
+  clang::Stmt *visitAnyMemSetInst(llvm::AnyMemSetInst &inst);
+  clang::Stmt *visitIntrinsicInst(llvm::IntrinsicInst &inst);
+  clang::Stmt *visitCallInst(llvm::CallInst &inst);
+  clang::Stmt *visitGetElementPtrInst(llvm::GetElementPtrInst &inst);
+  clang::Stmt *visitExtractValueInst(llvm::ExtractValueInst &inst);
+  clang::Stmt *visitAllocaInst(llvm::AllocaInst &inst);
+  clang::Stmt *visitLoadInst(llvm::LoadInst &inst);
+  clang::Stmt *visitStoreInst(llvm::StoreInst &inst);
+  clang::Stmt *visitReturnInst(llvm::ReturnInst &inst);
+  clang::Stmt *visitBinaryOperator(llvm::BinaryOperator &inst);
+  clang::Stmt *visitCmpInst(llvm::CmpInst &inst);
+  clang::Stmt *visitCastInst(llvm::CastInst &inst);
+  clang::Stmt *visitSelectInst(llvm::SelectInst &inst);
+  clang::Stmt *visitFreezeInst(llvm::FreezeInst &inst);
+  clang::Stmt *visitPHINode(llvm::PHINode &inst);
+  clang::Stmt *visitBranchInst(llvm::BranchInst &inst);
+  clang::Stmt *visitUnreachableInst(llvm::UnreachableInst &inst);
+  clang::Stmt *visitInstruction(llvm::Instruction &inst);
 };
 
 }  // namespace rellic

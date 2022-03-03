@@ -34,7 +34,6 @@ IRToASTVisitor::IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
       ast(unit),
       type_decls(type_decls),
       value_decls(value_decls),
-      stmts(stmts),
       temp_decls(temp_decls) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
@@ -345,22 +344,17 @@ clang::Decl *IRToASTVisitor::GetOrCreateIntrinsic(llvm::InlineAsm *val) {
 }
 
 clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
-  auto &stmt{stmts[val]};
-  if (stmt) {
-    return stmt;
-  }
-
+  clang::Stmt *stmt;
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
     auto inst{cexpr->getAsInstruction()};
     stmt = GetOrCreateStmt(inst);
-    stmts.erase(inst);
     DeleteValue(inst);
   } else if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {
     stmt = CreateLiteralExpr(caggr);
   } else if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
     stmt = CreateLiteralExpr(cdata);
   } else if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
-    visit(inst);
+    stmt = visit(inst);
   } else {
     THROW() << "Unsupported value type: " << LLVMThingToString(val);
   }
@@ -501,12 +495,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   decl->getAsFunction()->setParams(params);
 }
 
-void IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
+clang::Stmt *IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
   DLOG(INFO) << "visitMemCpyInst: " << LLVMThingToString(&inst);
-  auto &callstmt{stmts[&inst]};
-  if (callstmt) {
-    return;
-  }
 
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
@@ -514,15 +504,12 @@ void IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
+  return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
 }
 
-void IRToASTVisitor::visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst) {
+clang::Stmt *IRToASTVisitor::visitMemCpyInlineInst(
+    llvm::MemCpyInlineInst &inst) {
   DLOG(INFO) << "visitMemCpyInlineInst: " << LLVMThingToString(&inst);
-  auto &callstmt{stmts[&inst]};
-  if (callstmt) {
-    return;
-  }
 
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
@@ -530,15 +517,11 @@ void IRToASTVisitor::visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
+  return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
 }
 
-void IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
+clang::Stmt *IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
   DLOG(INFO) << "visitAnyMemMoveInst: " << LLVMThingToString(&inst);
-  auto &callstmt{stmts[&inst]};
-  if (callstmt) {
-    return;
-  }
 
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
@@ -546,15 +529,11 @@ void IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memmove, args);
+  return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memmove, args);
 }
 
-void IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
+clang::Stmt *IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
   DLOG(INFO) << "visitAnyMemSetInst: " << LLVMThingToString(&inst);
-  auto &callstmt{stmts[&inst]};
-  if (callstmt) {
-    return;
-  }
 
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
@@ -562,10 +541,10 @@ void IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
     args.push_back(GetOperandExpr(arg));
   }
 
-  callstmt = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
+  return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
 }
 
-void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
+clang::Stmt *IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
   DLOG(INFO) << "visitIntrinsicInst: " << LLVMThingToString(&inst);
 
   // NOTE(artem): As of this writing, rellic does not do anything
@@ -576,7 +555,7 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
 
   if (llvm::isDbgInfoIntrinsic(inst.getIntrinsicID())) {
     DLOG(INFO) << "Skipping debug data intrinsic";
-    return;
+    return ast.CreateNullStmt();
   }
 
   if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
@@ -584,19 +563,15 @@ void IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
     // This is fine. We want debug data special cased as we know it is present
     // and we may make use of it earlier than other annotations
     DLOG(INFO) << "Skipping non-debug annotation";
-    return;
+    return ast.CreateNullStmt();
   }
 
   // handle this as a CallInst, which IntrinsicInst derives from
   return visitCallInst(inst);
 }
 
-void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
+clang::Stmt *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   DLOG(INFO) << "visitCallInst: " << LLVMThingToString(&inst);
-  auto &callstmt{stmts[&inst]};
-  if (callstmt) {
-    return;
-  }
 
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < inst.getNumArgOperands(); ++i) {
@@ -624,23 +599,22 @@ void IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   }
 
   if (inst.mayHaveSideEffects() && !inst.getType()->isVoidTy()) {
-    auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
-    auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-    auto var{ast.CreateVarDecl(fdecl, callexpr->getType(), name)};
-    value_decls[&inst] = var;
-    fdecl->addDecl(var);
-    callstmt = ast.CreateAssign(ast.CreateDeclRef(var), callexpr);
+    auto &var{value_decls[&inst]};
+    if (!var) {
+      auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
+      auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+      var = ast.CreateVarDecl(fdecl, callexpr->getType(), name);
+      fdecl->addDecl(var);
+    }
+    return ast.CreateAssign(ast.CreateDeclRef(var), callexpr);
   } else {
-    callstmt = callexpr;
+    return callexpr;
   }
 }
 
-void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
+clang::Stmt *IRToASTVisitor::visitGetElementPtrInst(
+    llvm::GetElementPtrInst &inst) {
   DLOG(INFO) << "visitGetElementPtrInst: " << LLVMThingToString(&inst);
-  auto &ref{stmts[&inst]};
-  if (ref) {
-    return;
-  }
 
   auto indexed_type{inst.getPointerOperandType()};
   auto base{GetOperandExpr(inst.getPointerOperand())};
@@ -694,27 +668,27 @@ void IRToASTVisitor::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
     }
   }
 
-  ref = ast.CreateAddrOf(base);
+  return ast.CreateAddrOf(base);
 }
 
-void IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
+clang::Stmt *IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
   THROW() << "Instruction not supported: " << LLVMThingToString(&inst);
+  return nullptr;
 }
 
-void IRToASTVisitor::visitBranchInst(llvm::BranchInst &inst) {
+clang::Stmt *IRToASTVisitor::visitBranchInst(llvm::BranchInst &inst) {
   DLOG(INFO) << "visitBranchInst ignored: " << LLVMThingToString(&inst);
+  return ast.CreateNullStmt();
 }
 
-void IRToASTVisitor::visitUnreachableInst(llvm::UnreachableInst &inst) {
+clang::Stmt *IRToASTVisitor::visitUnreachableInst(llvm::UnreachableInst &inst) {
   DLOG(INFO) << "visitUnreachableInst ignored:" << LLVMThingToString(&inst);
+  return ast.CreateNullStmt();
 }
 
-void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
+clang::Stmt *IRToASTVisitor::visitExtractValueInst(
+    llvm::ExtractValueInst &inst) {
   DLOG(INFO) << "visitExtractValueInst: " << LLVMThingToString(&inst);
-  auto &ref{stmts[&inst]};
-  if (ref) {
-    return;
-  }
 
   auto base{GetOperandExpr(inst.getAggregateOperand())};
   auto indexed_type{inst.getAggregateOperand()->getType()};
@@ -748,15 +722,11 @@ void IRToASTVisitor::visitExtractValueInst(llvm::ExtractValueInst &inst) {
     }
   }
 
-  ref = base;
+  return base;
 }
 
-void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
+clang::Stmt *IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
   DLOG(INFO) << "visitAllocaInst: " << LLVMThingToString(&inst);
-  auto &declref{stmts[&inst]};
-  if (declref) {
-    return;
-  }
 
   auto func{inst.getFunction()};
   CHECK(func) << "AllocaInst does not have a parent function";
@@ -786,15 +756,11 @@ void IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
     fdecl->addDecl(var);
   }
 
-  declref = ast.CreateDeclRef(var);
+  return ast.CreateDeclRef(var);
 }
 
-void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
+clang::Stmt *IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   DLOG(INFO) << "visitStoreInst: " << LLVMThingToString(&inst);
-  auto &assign{stmts[&inst]};
-  if (assign) {
-    return;
-  }
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
   auto lhs{GetOperandExpr(inst.getPointerOperand())};
@@ -802,7 +768,7 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
   auto value_opnd{inst.getValueOperand()};
   if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value_opnd)) {
     DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
-    return;
+    return ast.CreateNullStmt();
   }
   auto rhs{GetOperandExpr(value_opnd)};
   if (value_opnd->getType()->isArrayTy()) {
@@ -813,48 +779,35 @@ void IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
     if (llvm::isa<llvm::ConstantAggregateZero>(value_opnd)) {
       llvm::APInt zero(8, 0, false);
       std::vector<clang::Expr *> args{lhs, ast.CreateIntLit(zero), sz_expr};
-      assign = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
+      return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
     } else {
       std::vector<clang::Expr *> args{lhs, rhs, sz_expr};
-      assign = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
+      return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
     }
   } else {
     // Create the assignemnt itself
     auto deref{ast.CreateDeref(lhs)};
     CopyProvenance(lhs, deref, provenance);
-    assign = ast.CreateAssign(deref, rhs);
+    return ast.CreateAssign(deref, rhs);
   }
 }
 
-void IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
+clang::Stmt *IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  auto &ref{stmts[&inst]};
-  if (ref) {
-    return;
-  }
-  ref = ast.CreateDeref(GetOperandExpr(inst.getPointerOperand()));
+  return ast.CreateDeref(GetOperandExpr(inst.getPointerOperand()));
 }
 
-void IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
+clang::Stmt *IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
   DLOG(INFO) << "visitReturnInst: " << LLVMThingToString(&inst);
-  auto &retstmt{stmts[&inst]};
-  if (retstmt) {
-    return;
-  }
-
   if (auto retval = inst.getReturnValue()) {
-    retstmt = ast.CreateReturn(GetOperandExpr(retval));
+    return ast.CreateReturn(GetOperandExpr(retval));
   } else {
-    retstmt = ast.CreateReturn();
+    return ast.CreateReturn();
   }
 }
 
-void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
+clang::Stmt *IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   DLOG(INFO) << "visitBinaryOperator: " << LLVMThingToString(&inst);
-  auto &binop{stmts[&inst]};
-  if (binop) {
-    return;
-  }
   // Get operands
   auto lhs{GetOperandExpr(inst.getOperand(0))};
   auto rhs{GetOperandExpr(inst.getOperand(1))};
@@ -867,78 +820,60 @@ void IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   // Where the magic happens
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr:
-      binop = ast.CreateShr(IntSignCast(lhs, false), rhs);
-      break;
+      return ast.CreateShr(IntSignCast(lhs, false), rhs);
 
     case llvm::BinaryOperator::AShr:
-      binop = ast.CreateShr(IntSignCast(lhs, true), rhs);
-      break;
+      return ast.CreateShr(IntSignCast(lhs, true), rhs);
 
     case llvm::BinaryOperator::Shl:
-      binop = ast.CreateShl(lhs, rhs);
-      break;
+      return ast.CreateShl(lhs, rhs);
 
     case llvm::BinaryOperator::And:
-      binop = inst.getType()->isIntegerTy(1U) ? ast.CreateLAnd(lhs, rhs)
-                                              : ast.CreateAnd(lhs, rhs);
-      break;
+      return inst.getType()->isIntegerTy(1U) ? ast.CreateLAnd(lhs, rhs)
+                                             : ast.CreateAnd(lhs, rhs);
 
     case llvm::BinaryOperator::Or:
-      binop = inst.getType()->isIntegerTy(1U) ? ast.CreateLOr(lhs, rhs)
-                                              : ast.CreateOr(lhs, rhs);
-      break;
+      return inst.getType()->isIntegerTy(1U) ? ast.CreateLOr(lhs, rhs)
+                                             : ast.CreateOr(lhs, rhs);
 
     case llvm::BinaryOperator::Xor:
-      binop = ast.CreateXor(lhs, rhs);
-      break;
+      return ast.CreateXor(lhs, rhs);
 
     case llvm::BinaryOperator::URem:
-      binop = ast.CreateRem(IntSignCast(lhs, false), IntSignCast(rhs, false));
-      break;
+      return ast.CreateRem(IntSignCast(lhs, false), IntSignCast(rhs, false));
 
     case llvm::BinaryOperator::SRem:
-      binop = ast.CreateRem(IntSignCast(lhs, true), IntSignCast(rhs, true));
-      break;
+      return ast.CreateRem(IntSignCast(lhs, true), IntSignCast(rhs, true));
 
     case llvm::BinaryOperator::UDiv:
-      binop = ast.CreateDiv(IntSignCast(lhs, false), IntSignCast(rhs, false));
-      break;
+      return ast.CreateDiv(IntSignCast(lhs, false), IntSignCast(rhs, false));
 
     case llvm::BinaryOperator::SDiv:
-      binop = ast.CreateDiv(IntSignCast(lhs, true), IntSignCast(rhs, true));
-      break;
+      return ast.CreateDiv(IntSignCast(lhs, true), IntSignCast(rhs, true));
 
     case llvm::BinaryOperator::FDiv:
-      binop = ast.CreateDiv(lhs, rhs);
-      break;
+      return ast.CreateDiv(lhs, rhs);
 
     case llvm::BinaryOperator::Add:
     case llvm::BinaryOperator::FAdd:
-      binop = ast.CreateAdd(lhs, rhs);
-      break;
+      return ast.CreateAdd(lhs, rhs);
 
     case llvm::BinaryOperator::Sub:
     case llvm::BinaryOperator::FSub:
-      binop = ast.CreateSub(lhs, rhs);
-      break;
+      return ast.CreateSub(lhs, rhs);
 
     case llvm::BinaryOperator::Mul:
     case llvm::BinaryOperator::FMul:
-      binop = ast.CreateMul(lhs, rhs);
-      break;
+      return ast.CreateMul(lhs, rhs);
 
     default:
       THROW() << "Unknown BinaryOperator: " << inst.getOpcodeName();
-      break;
+      return nullptr;
   }
 }
 
-void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
+clang::Stmt *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   DLOG(INFO) << "visitCmpInst: " << LLVMThingToString(&inst);
-  auto &cmp{stmts[&inst]};
-  if (cmp) {
-    return;
-  }
   // Get operands
   auto lhs{GetOperandExpr(inst.getOperand(0))};
   auto rhs{GetOperandExpr(inst.getOperand(1))};
@@ -969,49 +904,39 @@ void IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
     case llvm::CmpInst::ICMP_UGT:
     case llvm::CmpInst::ICMP_SGT:
     case llvm::CmpInst::FCMP_OGT:
-      cmp = ast.CreateGT(lhs, rhs);
-      break;
+      return ast.CreateGT(lhs, rhs);
 
     case llvm::CmpInst::ICMP_ULT:
     case llvm::CmpInst::ICMP_SLT:
     case llvm::CmpInst::FCMP_OLT:
-      cmp = ast.CreateLT(lhs, rhs);
-      break;
+      return ast.CreateLT(lhs, rhs);
 
     case llvm::CmpInst::ICMP_UGE:
     case llvm::CmpInst::ICMP_SGE:
     case llvm::CmpInst::FCMP_OGE:
-      cmp = ast.CreateGE(lhs, rhs);
-      break;
+      return ast.CreateGE(lhs, rhs);
 
     case llvm::CmpInst::ICMP_ULE:
     case llvm::CmpInst::ICMP_SLE:
     case llvm::CmpInst::FCMP_OLE:
-      cmp = ast.CreateLE(lhs, rhs);
-      break;
+      return ast.CreateLE(lhs, rhs);
 
     case llvm::CmpInst::ICMP_EQ:
     case llvm::CmpInst::FCMP_OEQ:
-      cmp = ast.CreateEQ(lhs, rhs);
-      break;
+      return ast.CreateEQ(lhs, rhs);
 
     case llvm::CmpInst::ICMP_NE:
     case llvm::CmpInst::FCMP_UNE:
-      cmp = ast.CreateNE(lhs, rhs);
-      break;
+      return ast.CreateNE(lhs, rhs);
 
-    default: {
+    default:
       THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
-    } break;
+      return nullptr;
   }
 }
 
-void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
+clang::Stmt *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   DLOG(INFO) << "visitCastInst: " << LLVMThingToString(&inst);
-  auto &cast{stmts[&inst]};
-  if (cast) {
-    return;
-  }
   // There should always be an operand with a cast instruction
   // Get a C-language expression of the operand
   auto operand{GetOperandExpr(inst.getOperand(0))};
@@ -1060,37 +985,30 @@ void IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     } break;
   }
   // Create cast
-  cast = ast.CreateCStyleCast(type, operand);
+  return ast.CreateCStyleCast(type, operand);
 }
 
-void IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
+clang::Stmt *IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
   DLOG(INFO) << "visitSelectInst: " << LLVMThingToString(&inst);
-  auto &select{stmts[&inst]};
-  if (select) {
-    return;
-  }
 
   auto cond{GetOperandExpr(inst.getCondition())};
   auto tval{GetOperandExpr(inst.getTrueValue())};
   auto fval{GetOperandExpr(inst.getFalseValue())};
 
-  select = ast.CreateConditional(cond, tval, fval);
+  return ast.CreateConditional(cond, tval, fval);
 }
 
-void IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
+clang::Stmt *IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
   DLOG(INFO) << "visitFreezeInst: " << LLVMThingToString(&inst);
-  auto &freeze{stmts[&inst]};
-  if (freeze) {
-    return;
-  }
 
-  freeze = GetOperandExpr(inst.getOperand(0U));
+  return GetOperandExpr(inst.getOperand(0U));
 }
 
-void IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
+clang::Stmt *IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
   DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
   THROW() << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
              "before decompiling.";
+  return nullptr;
 }
 
 }  // namespace rellic

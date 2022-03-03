@@ -88,60 +88,49 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
       : ast(unit), ctx(unit.getASTContext()), provenance(provenance) {}
 
   clang::Expr *VisitIntegerLiteral(clang::IntegerLiteral *expr) {
-    LOG(INFO) << "VisitIntegerLiteral";
     return ast.CreateIntLit(expr->getValue());
   }
 
   clang::Expr *VisitCharacterLiteral(clang::CharacterLiteral *expr) {
-    LOG(INFO) << "VisitCharacterLiteral";
     return ast.CreateCharLit(expr->getValue());
   }
 
   clang::Expr *VisitStringLiteral(clang::StringLiteral *expr) {
-    LOG(INFO) << "VisitStringLiteral";
     return ast.CreateStrLit(expr->getString().str());
   }
 
   clang::Expr *VisitFloatingLiteral(clang::FloatingLiteral *expr) {
-    LOG(INFO) << "VisitFloatingLiteral";
     return ast.CreateFPLit(expr->getValue());
   }
 
   clang::Expr *VisitCastExpr(clang::CastExpr *expr) {
-    LOG(INFO) << "VisitCastExpr";
     return ast.CreateCStyleCast(expr->getType(), Visit(expr->getSubExpr()));
   }
 
   clang::Expr *VisitImplicitCastExpr(clang::ImplicitCastExpr *expr) {
-    LOG(INFO) << "VisitImplicitCastExpr";
     return Visit(expr->getSubExpr());
   }
 
   clang::Expr *VisitUnaryOperator(clang::UnaryOperator *expr) {
-    LOG(INFO) << "VisitUnaryOperator";
     return ast.CreateUnaryOp(expr->getOpcode(), Visit(expr->getSubExpr()));
   }
 
   clang::Expr *VisitBinaryOperator(clang::BinaryOperator *expr) {
-    LOG(INFO) << "VisitBinaryOperator";
     return ast.CreateBinaryOp(expr->getOpcode(), Visit(expr->getLHS()),
                               Visit(expr->getRHS()));
   }
 
   clang::Expr *VisitConditionalOperator(clang::ConditionalOperator *expr) {
-    LOG(INFO) << "VisitConditionalOperator";
     return ast.CreateConditional(Visit(expr->getCond()),
                                  Visit(expr->getTrueExpr()),
                                  Visit(expr->getFalseExpr()));
   }
 
   clang::Expr *VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
-    LOG(INFO) << "VisitArraySubscriptExpr";
     return ast.CreateArraySub(Visit(expr->getBase()), Visit(expr->getIdx()));
   }
 
   clang::Expr *VisitCallExpr(clang::CallExpr *expr) {
-    LOG(INFO) << "VisitCallExpr";
     std::vector<clang::Expr *> args;
     for (auto arg : expr->arguments()) {
       args.push_back(Visit(arg));
@@ -150,7 +139,6 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   }
 
   clang::Expr *VisitMemberExpr(clang::MemberExpr *expr) {
-    LOG(INFO) << "VisitMemberExpr";
     return clang::MemberExpr::Create(
         ctx, expr->getBase(), expr->isArrow(), clang::SourceLocation(),
         expr->getQualifierLoc(), clang::SourceLocation(), expr->getMemberDecl(),
@@ -160,12 +148,10 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   }
 
   clang::Expr *VisitDeclRefExpr(clang::DeclRefExpr *expr) {
-    LOG(INFO) << "VisitDeclRefExpr";
     return ast.CreateDeclRef(expr->getDecl());
   }
 
   clang::Expr *VisitInitListExpr(clang::InitListExpr *expr) {
-    LOG(INFO) << "VisitInitListExpr";
     std::vector<clang::Expr *> inits;
     for (auto init : expr->inits()) {
       inits.push_back(Visit(init));
@@ -174,13 +160,11 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   }
 
   clang::Expr *VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *expr) {
-    LOG(INFO) << "VisitCompoundLiteralExpr";
     return ast.CreateCompoundLit(expr->getType(),
                                  Visit(expr->getInitializer()));
   }
 
   clang::Expr *VisitParenExpr(clang::ParenExpr *expr) {
-    LOG(INFO) << "VisitParenExpr";
     return ast.CreateParen(Visit(expr->getSubExpr()));
   }
 
@@ -196,7 +180,7 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
 #define ABSTRACT_STMT(STMT)
 #define STMT(CLASS, PARENT)       \
   case clang::Stmt::CLASS##Class: \
-    LOG(FATAL) << "Unsupported " #CLASS;
+    THROW() << "Unsupported " #CLASS;
 #include <clang/AST/StmtNodes.inc>
     }
 

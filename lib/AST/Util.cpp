@@ -16,6 +16,7 @@
 #include <glog/logging.h>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/Exception.h"
 
 namespace rellic {
 

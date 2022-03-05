@@ -177,6 +177,12 @@ clang::CharacterLiteral *ASTBuilder::CreateCharLit(llvm::APInt val) {
       ctx.IntTy, clang::SourceLocation());
 }
 
+clang::CharacterLiteral *ASTBuilder::CreateCharLit(unsigned val) {
+  return new (ctx) clang::CharacterLiteral(
+      val, clang::CharacterLiteral::CharacterKind::Ascii, ctx.IntTy,
+      clang::SourceLocation());
+}
+
 clang::StringLiteral *ASTBuilder::CreateStrLit(std::string val) {
   auto type{ctx.getStringLiteralArrayType(ctx.CharTy, val.size())};
   return clang::StringLiteral::Create(
@@ -512,6 +518,10 @@ clang::TypedefDecl *ASTBuilder::CreateTypedefDecl(clang::DeclContext *decl_ctx,
   return clang::TypedefDecl::Create(ctx, decl_ctx, clang::SourceLocation(),
                                     clang::SourceLocation(), id,
                                     ctx.getTrivialTypeSourceInfo(type));
+}
+
+clang::NullStmt *ASTBuilder::CreateNullStmt() {
+  return new (ctx) clang::NullStmt(clang::SourceLocation());
 }
 
 }  // namespace rellic

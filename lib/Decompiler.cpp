@@ -8,6 +8,7 @@
 
 #include "rellic/Decompiler.h"
 
+#include <clang/AST/Decl.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/IR/InstIterator.h>
@@ -19,11 +20,14 @@
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Transforms/Utils/LowerSwitch.h>
 
+#include <iostream>
 #include <memory>
+#include <system_error>
 
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/DebugInfoCollector.h"
+#include "rellic/AST/EGraph.h"
 #include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
@@ -73,6 +77,32 @@ static void CopyMap(
 }
 
 namespace rellic {
+class DeclToEGraph : public clang::RecursiveASTVisitor<DeclToEGraph> {
+  EGraph& eg;
+
+ public:
+  DeclToEGraph(EGraph& eg) : eg(eg) {}
+
+  bool VisitStmt(clang::Stmt* stmt) {
+    eg.AddNode(stmt);
+    return true;
+  }
+};
+
+class EGraphToDecl : public clang::RecursiveASTVisitor<EGraphToDecl> {
+  EGraph& eg;
+
+ public:
+  EGraphToDecl(EGraph& eg) : eg(eg) {}
+
+  bool TraverseFunctionDecl(clang::FunctionDecl* decl) {
+    if (decl->hasBody()) {
+      decl->setBody(eg.Schedule(eg.AddNode(decl->getBody())));
+    }
+    return true;
+  }
+};
+
 Result<DecompilationResult, DecompilationError> Decompile(
     std::unique_ptr<llvm::Module> module, DecompilationOptions options) {
   try {
@@ -94,6 +124,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
     std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                   module->getTargetTriple()};
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
+    auto tu_decl{ast_unit->getASTContext().getTranslationUnitDecl()};
 
     rellic::StmtToIRMap provenance;
     rellic::IRToTypeDeclMap type_decls;
@@ -102,129 +133,73 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::ArgToTempMap temp_decls;
     rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
                              value_decls, stmts, temp_decls);
+    rellic::LocalDeclRenamer ldr(*ast_unit, dic.GetIRToNameMap(), value_decls);
+    ldr.TraverseDecl(tu_decl);
+
+    rellic::StructFieldRenamer sfr(*ast_unit, dic.GetIRTypeToDITypeMap(),
+                                   type_decls);
+    sfr.TraverseDecl(tu_decl);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
-    rellic::CompositeASTPass pass_ast(provenance, *ast_unit);
-    auto& ast_passes{pass_ast.GetPasses()};
+    rellic::Substitutions substitutions;
+    rellic::DeadStmtElim dse(provenance, *ast_unit, substitutions);
+    rellic::Z3CondSimplify zcs(provenance, *ast_unit, substitutions);
+    rellic::NestedCondProp ncp(provenance, *ast_unit, substitutions);
+    rellic::NestedScopeCombine nsc(provenance, *ast_unit, substitutions);
+    rellic::CondBasedRefine cbr(provenance, *ast_unit, substitutions);
+    rellic::ReachBasedRefine rbr(provenance, *ast_unit, substitutions);
+    rellic::LoopRefine lr(provenance, *ast_unit, substitutions);
+    rellic::ExprCombine ec(provenance, *ast_unit, substitutions);
+    rellic::EGraph eg;
+    DeclToEGraph dteg(eg);
+    dteg.TraverseDecl(tu_decl);
+    eg.Rebuild();
+    std::string s;
+    llvm::raw_string_ostream os(s);
+    eg.PrintGraph(os);
+    std::cout << s << std::endl;
 
-    if (options.dead_stmt_elimination) {
-      ast_passes.push_back(
-          std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit));
-    }
-    ast_passes.push_back(std::make_unique<rellic::LocalDeclRenamer>(
-        provenance, *ast_unit, dic.GetIRToNameMap(), value_decls));
-    ast_passes.push_back(std::make_unique<rellic::StructFieldRenamer>(
-        provenance, *ast_unit, dic.GetIRTypeToDITypeMap(), type_decls));
-    pass_ast.Run();
+    auto Run = [&](clang::Stmt* stmt) {
+      dse.Run(stmt);
+      zcs.Run(stmt);
+      ncp.Run(stmt);
+      nsc.Run(stmt);
+      cbr.Run(stmt);
+      rbr.Run(stmt);
+      lr.Run(stmt);
+      ec.Run(stmt);
+    };
 
-    rellic::CompositeASTPass pass_cbr(provenance, *ast_unit);
-    auto& cbr_passes{pass_cbr.GetPasses()};
-
-    if (options.condition_based_refinement.expression_normalize) {
-      cbr_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
-    if (!options.disable_z3) {
-      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
-      // Simplifier to use during condition-based refinement
-      z3::tactic tactic{zcs->GetZ3Context(), "skip"};
-      for (auto name : options.condition_based_refinement.z3_tactics) {
-        tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
+    int max{0};
+    while (max < 3) {
+      auto version{eg.GetVersion()};
+      auto classes{eg.GetClasses()};
+      for (auto& [id, nodes] : classes) {
+        for (auto& node : nodes) {
+          Run(node.stmt);
+        }
       }
-      zcs->SetZ3Tactic(tactic);
-      if (options.condition_based_refinement.z3_cond_simplify) {
-        cbr_passes.push_back(std::move(zcs));
+      for (auto& sub : substitutions) {
+        auto a{eg.AddNode(CHECK_NOTNULL(sub.before))};
+        auto b{eg.AddNode(CHECK_NOTNULL(sub.after))};
+        eg.Merge(a, b);
       }
-      if (options.condition_based_refinement.nested_cond_propagate) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
+      eg.Rebuild();
+      std::string s;
+      llvm::raw_string_ostream os(s);
+      eg.PrintGraph(os);
+      std::cout << s << std::endl;
+      if (eg.GetVersion() == version) {
+        LOG(INFO) << "Stopping";
+        break;
       }
+      substitutions.clear();
+      max++;
     }
 
-    if (options.condition_based_refinement.nested_scope_combine) {
-      cbr_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
-
-    if (!options.disable_z3) {
-      if (options.condition_based_refinement.cond_base_refine) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit));
-      }
-      if (options.condition_based_refinement.reach_based_refine) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
-      }
-    }
-
-    while (pass_cbr.Run()) {
-      ;
-    }
-
-    rellic::CompositeASTPass pass_loop{provenance, *ast_unit};
-    auto& loop_passes{pass_loop.GetPasses()};
-
-    if (options.loop_refinement.loop_refine) {
-      loop_passes.push_back(
-          std::make_unique<rellic::LoopRefine>(provenance, *ast_unit));
-    }
-    if (options.loop_refinement.nested_scope_combine) {
-      loop_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
-    if (options.loop_refinement.expression_normalize) {
-      loop_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
-    while (pass_loop.Run()) {
-      ;
-    }
-
-    rellic::CompositeASTPass pass_scope{provenance, *ast_unit};
-    auto& scope_passes{pass_scope.GetPasses()};
-    if (!options.disable_z3) {
-      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
-      // Simplifier to use during condition-based refinement
-      z3::tactic tactic{zcs->GetZ3Context(), "skip"};
-      for (auto name : options.condition_based_refinement.z3_tactics) {
-        tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
-      }
-      zcs->SetZ3Tactic(tactic);
-      if (options.condition_based_refinement.z3_cond_simplify) {
-        scope_passes.push_back(std::move(zcs));
-      }
-      if (options.condition_based_refinement.nested_cond_propagate) {
-        scope_passes.push_back(
-            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
-      }
-    }
-
-    if (options.scope_refinement.nested_scope_combine) {
-      scope_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
-    if (options.scope_refinement.expression_normalize) {
-      scope_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
-    while (pass_scope.Run()) {
-      ;
-    }
-
-    rellic::CompositeASTPass pass_ec{provenance, *ast_unit};
-    auto& ec_passes{pass_ec.GetPasses()};
-    if (options.expression_combine) {
-      ec_passes.push_back(
-          std::make_unique<rellic::ExprCombine>(provenance, *ast_unit));
-    }
-    if (options.expression_normalize) {
-      ec_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
-    while (pass_ec.Run()) {
-      ;
-    }
+    EGraphToDecl egtd(eg);
+    egtd.TraverseDecl(tu_decl);
 
     DecompilationResult result{};
     result.ast = std::move(ast_unit);

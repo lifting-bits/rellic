@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include "rellic/AST/TransformVisitor.h"
+#include <clang/AST/RecursiveASTVisitor.h>
+
+#include "rellic/AST/ASTPass.h"
 
 namespace rellic {
 
@@ -29,12 +31,14 @@ namespace rellic {
  *     body;
  *   }
  */
-class LoopRefine : public TransformVisitor<LoopRefine> {
+class LoopRefine : public clang::RecursiveASTVisitor<LoopRefine>,
+                   public ASTPass {
  protected:
-  void RunImpl() override;
+  void RunImpl(clang::Stmt *stmt) override;
 
  public:
-  LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &unit,
+             Substitutions &substitutions);
 
   bool VisitWhileStmt(clang::WhileStmt *loop);
 };

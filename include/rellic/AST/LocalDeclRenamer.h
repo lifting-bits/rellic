@@ -8,19 +8,25 @@
 
 #pragma once
 
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/Frontend/ASTUnit.h>
+
 #include <unordered_map>
 #include <unordered_set>
 
 #include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/IRToASTVisitor.h"
-#include "rellic/AST/TransformVisitor.h"
 
 namespace rellic {
 
 using ValDeclToIRMap = std::unordered_map<clang::ValueDecl *, llvm::Value *>;
 
-class LocalDeclRenamer : public TransformVisitor<LocalDeclRenamer> {
+class LocalDeclRenamer : public clang::RecursiveASTVisitor<LocalDeclRenamer> {
  private:
+  clang::ASTUnit &unit;
+  clang::ASTContext &ast_ctx;
+  ASTBuilder ast;
   ValDeclToIRMap decls;
 
   // Stores currently visible names, with scope awareness
@@ -32,14 +38,11 @@ class LocalDeclRenamer : public TransformVisitor<LocalDeclRenamer> {
 
   bool IsNameVisible(const std::string &name);
 
- protected:
-  void RunImpl() override;
-
  public:
-  LocalDeclRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                   IRToNameMap &names, IRToValDeclMap &decls);
+  LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
+                   IRToValDeclMap &decls);
 
-  bool shouldTraversePostOrder() override;
+  bool shouldTraversePostOrder();
   bool VisitVarDecl(clang::VarDecl *decl);
   bool TraverseFunctionDecl(clang::FunctionDecl *decl);
 };

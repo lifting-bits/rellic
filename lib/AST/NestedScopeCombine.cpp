@@ -16,8 +16,9 @@
 namespace rellic {
 
 NestedScopeCombine::NestedScopeCombine(StmtToIRMap &provenance,
-                                       clang::ASTUnit &unit)
-    : TransformVisitor<NestedScopeCombine>(provenance, unit) {}
+                                       clang::ASTUnit &unit,
+                                       Substitutions &substitutions)
+    : ASTPass(provenance, unit, substitutions) {}
 
 bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
@@ -26,13 +27,13 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, ast_ctx);
   bool is_const = if_const_expr.hasValue();
   if (is_const && if_const_expr->getBoolValue()) {
-    substitutions[ifstmt] = ifstmt->getThen();
+    substitutions.push_back({ifstmt, ifstmt->getThen()});
   } else if (is_const && !if_const_expr->getBoolValue()) {
     if (auto else_stmt = ifstmt->getElse()) {
-      substitutions[ifstmt] = else_stmt;
+      substitutions.push_back({ifstmt, else_stmt});
     } else {
       std::vector<clang::Stmt *> body;
-      substitutions[ifstmt] = ast.CreateCompoundStmt(body);
+      substitutions.push_back({ifstmt, ast.CreateCompoundStmt(body)});
     }
   }
   return !Stopped();
@@ -52,16 +53,15 @@ bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
 
   if (has_compound) {
-    substitutions[compound] = ast.CreateCompoundStmt(new_body);
+    substitutions.push_back({compound, ast.CreateCompoundStmt(new_body)});
   }
 
   return !Stopped();
 }
 
-void NestedScopeCombine::RunImpl() {
+void NestedScopeCombine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Combining nested scopes";
-  TransformVisitor<NestedScopeCombine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseStmt(stmt);
 }
 
 }  // namespace rellic

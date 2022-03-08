@@ -29,8 +29,9 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 }  // namespace
 
-CondBasedRefine::CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<CondBasedRefine>(provenance, unit),
+CondBasedRefine::CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                                 Substitutions &substitutions)
+    : ASTPass(provenance, unit, substitutions),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
@@ -91,7 +92,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
     // Erase then statements from the AST and `worklist`
     for (auto stmt : thens) {
       RemoveFromWorkList(stmt);
-      substitutions[stmt] = nullptr;
+      substitutions.push_back({stmt, ast.CreateNullStmt()});
     }
     // Create our new if-then
     auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompoundStmt(thens));
@@ -100,13 +101,13 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
       // Erase else statements from the AST and `worklist`
       for (auto stmt : elses) {
         RemoveFromWorkList(stmt);
-        substitutions[stmt] = nullptr;
+        substitutions.push_back({stmt, ast.CreateNullStmt()});
       }
       // Add the else branch
       sub->setElse(ast.CreateCompoundStmt(elses));
     }
     // Replace `lhs` with the new `sub`
-    substitutions[lhs] = sub;
+    substitutions.push_back({lhs, sub});
   }
 }
 
@@ -114,24 +115,12 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   // Create if-then-else substitutions for IfStmts in `compound`
   CreateIfThenElseStmts(GetIfStmts(compound));
-  // Apply created if-then-else substitutions and
-  // create a replacement for `compound`
-  if (ReplaceChildren(compound, substitutions)) {
-    std::vector<clang::Stmt *> new_body;
-    for (auto stmt : compound->body()) {
-      if (stmt) {
-        new_body.push_back(stmt);
-      }
-    }
-    substitutions[compound] = ast.CreateCompoundStmt(new_body);
-  }
   return !Stopped();
 }
 
-void CondBasedRefine::RunImpl() {
+void CondBasedRefine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Condition-based refinement";
-  TransformVisitor<CondBasedRefine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseStmt(stmt);
 }
 
 }  // namespace rellic

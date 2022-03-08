@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include "rellic/AST/TransformVisitor.h"
+#include <clang/AST/RecursiveASTVisitor.h>
+
+#include "rellic/AST/ASTPass.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
@@ -36,7 +38,8 @@ namespace rellic {
  *     body3;
  *   }
  */
-class ReachBasedRefine : public TransformVisitor<ReachBasedRefine> {
+class ReachBasedRefine : public clang::RecursiveASTVisitor<ReachBasedRefine>,
+                         public ASTPass {
  private:
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
@@ -52,10 +55,11 @@ class ReachBasedRefine : public TransformVisitor<ReachBasedRefine> {
   void CreateIfElseStmts(IfStmtVec stmts);
 
  protected:
-  void RunImpl() override;
+  void RunImpl(clang::Stmt *stmt) override;
 
  public:
-  ReachBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  ReachBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                   Substitutions &substitutions);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };

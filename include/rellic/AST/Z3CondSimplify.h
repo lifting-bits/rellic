@@ -9,8 +9,10 @@
 #pragma once
 
 #include <clang/AST/ASTContext.h>
+#include <clang/AST/Expr.h>
+#include <clang/AST/RecursiveASTVisitor.h>
 
-#include "rellic/AST/TransformVisitor.h"
+#include "rellic/AST/ASTPass.h"
 #include "rellic/AST/Util.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
@@ -20,7 +22,8 @@ namespace rellic {
  * This pass simplifies conditions using Z3 by trying to remove terms that are
  * trivially true or false
  */
-class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
+class Z3CondSimplify : public clang::RecursiveASTVisitor<Z3CondSimplify>,
+                       public ASTPass {
  private:
   std::unique_ptr<z3::context> z_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z_gen;
@@ -38,7 +41,7 @@ class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
     std::size_t operator()(clang::Expr *e) const noexcept {
       auto &hash{hashes[e]};
       if (!hash) {
-        hash = GetHash(ctx, e);
+        hash = GetHash(e);
       }
       return hash;
     }
@@ -47,7 +50,7 @@ class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
   struct KeyEqual {
     clang::ASTContext &ctx;
     bool operator()(clang::Expr *a, clang::Expr *b) const noexcept {
-      return IsEquivalent(ctx, a, b);
+      return IsEquivalent(a, b);
     }
   };
   Hash hash_adaptor;
@@ -59,21 +62,19 @@ class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
   bool IsProvenTrue(clang::Expr *e);
   bool IsProvenFalse(clang::Expr *e);
 
-  clang::Expr *Simplify(clang::Expr *e);
-
  protected:
-  void RunImpl() override;
+  void RunImpl(clang::Stmt *stmt) override;
 
  public:
-  Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                 Substitutions &substitutions);
 
   z3::context &GetZ3Context() { return *z_ctx; }
 
   void SetZ3Tactic(z3::tactic t) { tactic = t; };
 
-  bool VisitIfStmt(clang::IfStmt *stmt);
-  bool VisitWhileStmt(clang::WhileStmt *loop);
-  bool VisitDoStmt(clang::DoStmt *loop);
+  bool VisitBinaryOperator(clang::BinaryOperator *binop);
+  bool VisitUnaryOperator(clang::UnaryOperator *unop);
 };
 
 }  // namespace rellic

@@ -30,8 +30,9 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 }  // namespace
 
 ReachBasedRefine::ReachBasedRefine(StmtToIRMap &provenance,
-                                   clang::ASTUnit &unit)
-    : TransformVisitor<ReachBasedRefine>(provenance, unit),
+                                   clang::ASTUnit &unit,
+                                   Substitutions &substitutions)
+    : ASTPass(provenance, unit, substitutions),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
@@ -97,16 +98,16 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
     auto then = stmt->getThen();
     if (stmt == elifs.back()) {
       sub = ast.CreateIf(cond, then);
-      substitutions[stmt] = sub;
+      substitutions.push_back({stmt, sub});
     } else if (stmt == elifs.front()) {
       std::vector<clang::Stmt *> thens({then});
       sub->setElse(ast.CreateCompoundStmt(thens));
-      substitutions[stmt] = nullptr;
+      substitutions.push_back({stmt, ast.CreateNullStmt()});
     } else {
       auto elif = ast.CreateIf(cond, then);
       sub->setElse(elif);
       sub = elif;
-      substitutions[stmt] = nullptr;
+      substitutions.push_back({stmt, ast.CreateNullStmt()});
     }
   }
 }
@@ -115,24 +116,12 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   // Create else-if cascade substitutions for IfStmts in `compound`
   CreateIfElseStmts(GetIfStmts(compound));
-  // Apply created else-if substitutions and
-  // create a replacement for `compound`
-  if (ReplaceChildren(compound, substitutions)) {
-    std::vector<clang::Stmt *> new_body;
-    for (auto stmt : compound->body()) {
-      if (stmt) {
-        new_body.push_back(stmt);
-      }
-    }
-    substitutions[compound] = ast.CreateCompoundStmt(new_body);
-  }
-  return true;
+  return !Stopped();
 }
 
-void ReachBasedRefine::RunImpl() {
+void ReachBasedRefine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Reachability-based refinement";
-  TransformVisitor<ReachBasedRefine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseStmt(stmt);
 }
 
 }  // namespace rellic

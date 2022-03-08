@@ -8,9 +8,10 @@
 
 #pragma once
 
+#include <clang/AST/RecursiveASTVisitor.h>
+
 #include "rellic/AST/ASTPass.h"
 #include "rellic/AST/IRToASTVisitor.h"
-#include "rellic/AST/TransformVisitor.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
@@ -33,7 +34,8 @@ namespace rellic {
  *     body_else;
  *   }
  */
-class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
+class CondBasedRefine : public clang::RecursiveASTVisitor<CondBasedRefine>,
+                        public ASTPass {
  private:
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
@@ -49,10 +51,11 @@ class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
   void CreateIfThenElseStmts(IfStmtVec stmts);
 
  protected:
-  void RunImpl() override;
+  void RunImpl(clang::Stmt *stmt) override;
 
  public:
-  CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                  Substitutions &substitutions);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };

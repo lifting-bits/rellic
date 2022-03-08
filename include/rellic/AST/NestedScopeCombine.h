@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include "rellic/AST/TransformVisitor.h"
+#include <clang/AST/RecursiveASTVisitor.h>
+
+#include "rellic/AST/ASTPass.h"
 
 namespace rellic {
 
@@ -30,12 +32,15 @@ namespace rellic {
  *
  *   body1;
  */
-class NestedScopeCombine : public TransformVisitor<NestedScopeCombine> {
+class NestedScopeCombine
+    : public clang::RecursiveASTVisitor<NestedScopeCombine>,
+      public ASTPass {
  protected:
-  void RunImpl() override;
+  void RunImpl(clang::Stmt *stmt) override;
 
  public:
-  NestedScopeCombine(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  NestedScopeCombine(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                     Substitutions &substitutions);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);

@@ -244,7 +244,8 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
   }
 
   try {
-    session.Provenance.clear();
+    THROW() << "hello";
+    /*session.Provenance.clear();
     session.TypeDecls.clear();
     session.ValueDecls.clear();
     session.Stmts.clear();
@@ -267,7 +268,7 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
 
     llvm::json::Object msg{{"message", "Ok."}};
     SendJSON(res, msg);
-    res.status = 200;
+    res.status = 200;*/
   } catch (rellic::Exception& e) {
     llvm::json::Object msg{{"message", e.what()}};
     SendJSON(res, msg);
@@ -352,82 +353,6 @@ static void RemoveArrayArguments(const httplib::Request& req,
   SendJSON(res, msg);
 }
 
-class FixpointPass : public rellic::ASTPass {
-  rellic::CompositeASTPass comp;
-
- protected:
-  void StopImpl() override { comp.Stop(); }
-
-  void RunImpl() override { comp.Fixpoint(); }
-
- public:
-  FixpointPass(rellic::StmtToIRMap& provenance, clang::ASTUnit& ast_unit)
-      : ASTPass(provenance, ast_unit), comp(provenance, ast_unit) {}
-  std::vector<std::unique_ptr<ASTPass>>& GetPasses() {
-    return comp.GetPasses();
-  }
-};
-
-static std::unique_ptr<rellic::ASTPass> CreatePass(
-    Session& session, const llvm::json::Value& val) {
-  if (auto obj = val.getAsObject()) {
-    auto name{obj->getString("id")};
-    if (!name) {
-      LOG(ERROR) << "Request doesn't contain pass id";
-      return nullptr;
-    }
-    auto str{name->str()};
-
-    if (str == "cbr") {
-      return std::make_unique<rellic::CondBasedRefine>(session.Provenance,
-                                                       *session.Unit);
-    } else if (str == "dse") {
-      return std::make_unique<rellic::DeadStmtElim>(session.Provenance,
-                                                    *session.Unit);
-    } else if (str == "ec") {
-      return std::make_unique<rellic::ExprCombine>(session.Provenance,
-                                                   *session.Unit);
-    } else if (str == "lr") {
-      return std::make_unique<rellic::LoopRefine>(session.Provenance,
-                                                  *session.Unit);
-    } else if (str == "ncp") {
-      return std::make_unique<rellic::NestedCondProp>(session.Provenance,
-                                                      *session.Unit);
-    } else if (str == "nsc") {
-      return std::make_unique<rellic::NestedScopeCombine>(session.Provenance,
-                                                          *session.Unit);
-    } else if (str == "nc") {
-      return std::make_unique<rellic::NormalizeCond>(session.Provenance,
-                                                     *session.Unit);
-    } else if (str == "rbr") {
-      return std::make_unique<rellic::ReachBasedRefine>(session.Provenance,
-                                                        *session.Unit);
-    } else if (str == "zcs") {
-      return std::make_unique<rellic::Z3CondSimplify>(session.Provenance,
-                                                      *session.Unit);
-    } else {
-      LOG(ERROR) << "Request contains invalid pass id";
-      return nullptr;
-    }
-  } else if (auto arr = val.getAsArray()) {
-    auto fix{std::make_unique<FixpointPass>(session.Provenance, *session.Unit)};
-    for (auto& pass : *arr) {
-      auto p{CreatePass(session, pass)};
-      if (!p) {
-        return nullptr;
-      }
-      fix->GetPasses().push_back(std::move(p));
-    }
-    return fix;
-  } else {
-    std::string s;
-    llvm::raw_string_ostream os(s);
-    os << val;
-    LOG(ERROR) << "Invalid request type: " << s;
-    return nullptr;
-  }
-}
-
 static void Stop(const httplib::Request& req, httplib::Response& res) {
   auto& session{GetSession(req)};
   read_lock load_mutex(session.LoadMutex);
@@ -492,23 +417,8 @@ static void Run(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(session.Provenance,
-                                                            *session.Unit)};
-  for (auto& obj : *json->getAsArray()) {
-    auto pass{CreatePass(session, obj)};
-    if (!pass) {
-      llvm::json::Object msg{{"message", "Invalid request."}};
-      SendJSON(res, msg);
-      res.status = 400;
-      return;
-    }
-    composite->GetPasses().push_back(std::move(pass));
-  }
-
-  session.Pass = std::move(composite);
-
   try {
-    session.Pass->Run();
+    /*session.Pass->Run();
 
     if (session.Pass->Stopped()) {
       llvm::json::Object msg{{"message", "Stopped."}};
@@ -518,7 +428,7 @@ static void Run(const httplib::Request& req, httplib::Response& res) {
       SendJSON(res, msg);
     }
     res.status = 200;
-    session.Pass = nullptr;
+    session.Pass = nullptr;*/
   } catch (rellic::Exception& e) {
     llvm::json::Object msg{{"message", e.what()}};
     SendJSON(res, msg);
@@ -562,41 +472,7 @@ static void Fixpoint(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(session.Provenance,
-                                                            *session.Unit)};
-  for (auto& obj : *json->getAsArray()) {
-    auto pass{CreatePass(session, obj)};
-    if (!pass) {
-      llvm::json::Object msg{{"message", "Invalid request"}};
-      SendJSON(res, msg);
-      res.status = 400;
-      return;
-    }
-    composite->GetPasses().push_back(std::move(pass));
-  }
-
-  session.Pass = std::move(composite);
-
   try {
-    auto t1{std::chrono::system_clock::now()};
-    auto num_iterations{session.Pass->Fixpoint()};
-    auto t2{std::chrono::system_clock::now()};
-    auto elapsed{
-        std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()};
-
-    if (session.Pass->Stopped()) {
-      llvm::json::Object msg{{"message", "Stopped."}};
-      SendJSON(res, msg);
-    } else {
-      std::string s;
-      llvm::raw_string_ostream os(s);
-      os << "Fixpoint found after " << num_iterations << " iterations ("
-         << elapsed << " ms).";
-      llvm::json::Object msg{{"message", s}};
-      SendJSON(res, msg);
-    }
-    res.status = 200;
-    session.Pass = nullptr;
   } catch (rellic::Exception& e) {
     llvm::json::Object msg{{"message", e.what()}};
     SendJSON(res, msg);

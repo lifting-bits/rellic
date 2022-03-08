@@ -395,8 +395,9 @@ class CStyleZeroToPtrCastElimRule : public InferenceRule {
 
 }  // namespace
 
-ExprCombine::ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &u)
-    : TransformVisitor<ExprCombine>(provenance, u) {}
+ExprCombine::ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &u,
+                         Substitutions &substitutions)
+    : ASTPass(provenance, u, substitutions) {}
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   // TODO(frabert): Re-enable nullptr casts simplification
@@ -410,16 +411,14 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
     switch (result.Val.getKind()) {
       case clang::APValue::ValueKind::Int: {
         auto sub{ast.CreateAdjustedIntLit(result.Val.getInt())};
-        if (GetHash(ast_ctx, cast) != GetHash(ast_ctx, sub)) {
-          substitutions[cast] = sub;
-        }
+        substitutions.push_back({cast, sub});
       } break;
 
       default:
         break;
     }
 
-    return true;
+    return !Stopped();
   }
 
   std::vector<std::unique_ptr<InferenceRule>> rules;
@@ -427,12 +426,9 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   rules.emplace_back(new UnsignedToSignedCStyleCastRule);
   rules.emplace_back(new TripleCStyleCastElimRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, cast, rules)};
-  if (sub != cast) {
-    substitutions[cast] = sub;
-  }
+  ApplyMatchingRules(provenance, ast_unit, cast, rules, substitutions);
 
-  return true;
+  return !Stopped();
 }
 
 bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
@@ -445,12 +441,9 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DerefAddrOfConditionalRule);
   rules.emplace_back(new AddrOfArraySubscriptRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
-  if (sub != op) {
-    substitutions[op] = sub;
-  }
+  ApplyMatchingRules(provenance, ast_unit, op, rules, substitutions);
 
-  return true;
+  return !Stopped();
 }
 
 bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
@@ -459,12 +452,9 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
 
   rules.emplace_back(new AssignCastedExprRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
-  if (sub != op) {
-    substitutions[op] = sub;
-  }
+  ApplyMatchingRules(provenance, ast_unit, op, rules, substitutions);
 
-  return true;
+  return !Stopped();
 }
 
 bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
@@ -473,12 +463,9 @@ bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 
   rules.emplace_back(new ArraySubscriptAddrOfRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
-  if (sub != expr) {
-    substitutions[expr] = sub;
-  }
+  ApplyMatchingRules(provenance, ast_unit, expr, rules, substitutions);
 
-  return true;
+  return !Stopped();
 }
 
 bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
@@ -488,12 +475,9 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   rules.emplace_back(new MemberExprAddrOfRule);
   rules.emplace_back(new MemberExprArraySubRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
-  if (sub != expr) {
-    substitutions[expr] = sub;
-  }
+  ApplyMatchingRules(provenance, ast_unit, expr, rules, substitutions);
 
-  return true;
+  return !Stopped();
 }
 
 bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
@@ -502,18 +486,14 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
 
   rules.emplace_back(new ParenDeclRefExprStripRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
-  if (sub != expr) {
-    substitutions[expr] = sub;
-  }
+  ApplyMatchingRules(provenance, ast_unit, expr, rules, substitutions);
 
-  return true;
+  return !Stopped();
 }
 
-void ExprCombine::RunImpl() {
+void ExprCombine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Rule-based statement simplification";
-  TransformVisitor<ExprCombine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseStmt(stmt);
 }
 
 }  // namespace rellic

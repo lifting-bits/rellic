@@ -11,6 +11,7 @@
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/ASTMatchers/ASTMatchers.h>
 
+#include "rellic/AST/ASTPass.h"
 #include "rellic/AST/IRToASTVisitor.h"
 
 namespace clang {
@@ -39,8 +40,9 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
                                                clang::Stmt *stmt) = 0;
 };
 
-clang::Stmt *ApplyFirstMatchingRule(
-    StmtToIRMap &provenance, clang::ASTUnit &unit, clang::Stmt *stmt,
-    std::vector<std::unique_ptr<InferenceRule>> &rules);
+void ApplyMatchingRules(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                        clang::Stmt *stmt,
+                        std::vector<std::unique_ptr<InferenceRule>> &rules,
+                        Substitutions &substitutions);
 
 }  // namespace rellic

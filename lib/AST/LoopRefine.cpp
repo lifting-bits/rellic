@@ -299,8 +299,9 @@ class CondToSeqNegRule : public InferenceRule {
 
 }  // namespace
 
-LoopRefine::LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &u)
-    : TransformVisitor<LoopRefine>(provenance, u) {}
+LoopRefine::LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &u,
+                       Substitutions &substitutions)
+    : ASTPass(provenance, u, substitutions) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
@@ -313,18 +314,14 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   rules.emplace_back(new WhileRule);
   rules.emplace_back(new DoWhileRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, loop, rules)};
-  if (sub != loop) {
-    substitutions[loop] = sub;
-  }
+  ApplyMatchingRules(provenance, ast_unit, loop, rules, substitutions);
 
   return !Stopped();
 }
 
-void LoopRefine::RunImpl() {
+void LoopRefine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Rule-based loop refinement";
-  TransformVisitor<LoopRefine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseStmt(stmt);
 }
 
 }  // namespace rellic

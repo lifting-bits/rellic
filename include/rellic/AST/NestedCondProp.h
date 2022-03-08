@@ -11,7 +11,7 @@
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <z3++.h>
 
-#include "rellic/AST/TransformVisitor.h"
+#include "rellic/AST/ASTPass.h"
 #include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
@@ -34,7 +34,8 @@ namespace rellic {
  *     }
  *   }
  */
-class NestedCondProp : public TransformVisitor<NestedCondProp> {
+class NestedCondProp : public clang::RecursiveASTVisitor<NestedCondProp>,
+                       public ASTPass {
  private:
   std::unique_ptr<z3::context> z3_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
@@ -42,12 +43,13 @@ class NestedCondProp : public TransformVisitor<NestedCondProp> {
   std::unordered_map<clang::Stmt *, clang::Expr *> parent_conds;
 
  protected:
-  void RunImpl() override;
+  void RunImpl(clang::Stmt *stmt) override;
 
  public:
-  bool shouldTraversePostOrder() override { return false; }
+  bool shouldTraversePostOrder() { return false; }
 
-  NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                 Substitutions &substitutions);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *stmt);

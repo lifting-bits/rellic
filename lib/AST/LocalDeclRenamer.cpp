@@ -18,10 +18,11 @@
 
 namespace rellic {
 
-LocalDeclRenamer::LocalDeclRenamer(StmtToIRMap &provenance,
-                                   clang::ASTUnit &unit, IRToNameMap &names,
+LocalDeclRenamer::LocalDeclRenamer(clang::ASTUnit &unit, IRToNameMap &names,
                                    IRToValDeclMap &decls)
-    : TransformVisitor<LocalDeclRenamer>(provenance, unit),
+    : unit(unit),
+      ast_ctx(unit.getASTContext()),
+      ast(unit),
       seen_names(1),
       names(names),
       inv_decl(decls) {}
@@ -37,19 +38,19 @@ bool LocalDeclRenamer::IsNameVisible(const std::string &name) {
 
 bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
   if (renamed_decls.find(decl) != renamed_decls.end()) {
-    return !Stopped();
+    return true;
   }
   renamed_decls.insert(decl);
 
   auto val{decls.find(decl)};
   if (val == decls.end()) {
-    return !Stopped();
+    return true;
   }
 
   auto name{names.find(val->second)};
   if (name == names.end()) {
     seen_names.back().insert(decl->getName().str());
-    return !Stopped();
+    return true;
   }
 
   if (!IsNameVisible(name->second)) {
@@ -65,7 +66,7 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
     seen_names.back().insert(new_name);
   }
 
-  return !Stopped();
+  return true;
 }
 
 bool LocalDeclRenamer::TraverseFunctionDecl(clang::FunctionDecl *decl) {
@@ -76,16 +77,9 @@ bool LocalDeclRenamer::TraverseFunctionDecl(clang::FunctionDecl *decl) {
   seen_names.push_back(scope);
   RecursiveASTVisitor<LocalDeclRenamer>::TraverseFunctionDecl(decl);
   seen_names.pop_back();
-  return !Stopped();
+  return true;
 }
 
 bool LocalDeclRenamer::shouldTraversePostOrder() { return false; }
-
-void LocalDeclRenamer::RunImpl() {
-  for (auto &pair : inv_decl) {
-    decls[pair.second] = pair.first;
-  }
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
-}
 
 }  // namespace rellic

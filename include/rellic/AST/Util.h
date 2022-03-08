@@ -16,20 +16,19 @@
 
 namespace rellic {
 
-unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt);
-bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b);
+struct Substitution;
+
+unsigned GetHash(clang::Stmt *stmt);
+bool IsEquivalent(clang::Stmt *a, clang::Stmt *b);
 template <typename TFrom, typename TTo, typename TIn>
-bool Replace(clang::ASTContext &ctx, TFrom *from, TTo *to, TIn **in) {
-  if (IsEquivalent(ctx, *in, from)) {
-    *in = to;
-    return true;
+void Replace(TFrom *from, TTo *to, TIn *in,
+             std::vector<Substitution> &substitutions) {
+  if (IsEquivalent(in, from)) {
+    substitutions.push_back({in, to});
   } else {
-    bool changed{false};
-    for (auto child{(*in)->child_begin()}; child != (*in)->child_end();
-         ++child) {
-      changed |= Replace(ctx, from, to, &*child);
+    for (auto child{in->child_begin()}; child != in->child_end(); ++child) {
+      Replace(from, to, *child, substitutions);
     }
-    return changed;
   }
 }
 
@@ -49,5 +48,10 @@ void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map);
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
                    StmtToIRMap &provenance);
+
+template <typename T>
+T FindChild(clang::Stmt *stmt, clang::Stmt *child) {
+  return std::find(stmt->child_begin(), stmt->child_end(), child);
+}
 
 }  // namespace rellic

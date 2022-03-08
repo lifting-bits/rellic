@@ -8,30 +8,32 @@
 
 #pragma once
 
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/Frontend/ASTUnit.h>
+
 #include <unordered_map>
 
 #include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/IRToASTVisitor.h"
-#include "rellic/AST/TransformVisitor.h"
 
 namespace rellic {
 
 using TypeDeclToIRMap = std::unordered_map<clang::TypeDecl *, llvm::Type *>;
 
 class StructFieldRenamer
-    : public ASTPass,
-      public clang::RecursiveASTVisitor<StructFieldRenamer> {
+    : public clang::RecursiveASTVisitor<StructFieldRenamer> {
  private:
+  clang::ASTUnit &unit;
+  clang::ASTContext &ast_ctx;
+  ASTBuilder ast;
   TypeDeclToIRMap decls;
   IRTypeToDITypeMap &types;
   IRToTypeDeclMap &inv_decl;
 
- protected:
-  void RunImpl() override;
-
  public:
-  StructFieldRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                     IRTypeToDITypeMap &types, IRToTypeDeclMap &decls);
+  StructFieldRenamer(clang::ASTUnit &unit, IRTypeToDITypeMap &types,
+                     IRToTypeDeclMap &decls);
 
   bool VisitRecordDecl(clang::RecordDecl *decl);
 };

@@ -57,22 +57,22 @@ FetchContent_MakeAvailable(httplib)
 
 set(RELLIC_XREF "${PROJECT_NAME}-xref")
 
-add_executable(${RELLIC_XREF}
-  "xref/DeclPrinter.cpp"
-  "xref/StmtPrinter.cpp"
-  "xref/TypePrinter.cpp"
-  "xref/Xref.cpp"
-)
-
-target_link_libraries(${RELLIC_XREF}
-  PRIVATE
-    "${PROJECT_NAME}_cxx_settings"
-    "${PROJECT_NAME}"
-    gflags::gflags
-    httplib::httplib
-)
-
-set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
+#add_executable(${RELLIC_XREF}
+#  "xref/DeclPrinter.cpp"
+#  "xref/StmtPrinter.cpp"
+#  "xref/TypePrinter.cpp"
+#  "xref/Xref.cpp"
+#)
+#
+#target_link_libraries(${RELLIC_XREF}
+#  PRIVATE
+#    "${PROJECT_NAME}_cxx_settings"
+#    "${PROJECT_NAME}"
+#    gflags::gflags
+#    httplib::httplib
+#)
+#
+#set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
 
 #
 # rellic-repl
@@ -92,21 +92,21 @@ target_include_directories(linenoise
     "${linenoise_SOURCE_DIR}"
 )
 
-set(RELLIC_REPL "${PROJECT_NAME}-repl")
-
-add_executable(${RELLIC_REPL}
-  "repl/Repl.cpp"
-)
-
-target_link_libraries(${RELLIC_REPL}
-  PRIVATE
-    "${PROJECT_NAME}_cxx_settings"
-    "${PROJECT_NAME}"
-    gflags::gflags
-    linenoise
-)
-
-set(RELLIC_REPL "${RELLIC_REPL}" PARENT_SCOPE)
+#set(RELLIC_REPL "${PROJECT_NAME}-repl")
+#
+#add_executable(${RELLIC_REPL}
+#  "repl/Repl.cpp"
+#)
+#
+#target_link_libraries(${RELLIC_REPL}
+#  PRIVATE
+#    "${PROJECT_NAME}_cxx_settings"
+#    "${PROJECT_NAME}"
+#    gflags::gflags
+#    linenoise
+#)
+#
+#set(RELLIC_REPL "${RELLIC_REPL}" PARENT_SCOPE)
 
 if(RELLIC_ENABLE_INSTALL)
   
@@ -114,8 +114,8 @@ if(RELLIC_ENABLE_INSTALL)
     TARGETS
       ${RELLIC_DECOMP}
       ${RELLIC_HEADERGEN}
-      ${RELLIC_XREF}
-      ${RELLIC_REPL}
+      #${RELLIC_XREF}
+      #${RELLIC_REPL}
     EXPORT
       "${PROJECT_NAME}Targets"
     RUNTIME

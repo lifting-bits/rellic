@@ -14,8 +14,9 @@
 
 namespace rellic {
 
-DeadStmtElim::DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<DeadStmtElim>(provenance, unit) {}
+DeadStmtElim::DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit,
+                           Substitutions &substitutions)
+    : ASTPass(provenance, unit, substitutions) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
@@ -30,9 +31,10 @@ bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   auto compound = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen());
   bool is_empty = compound ? compound->body_empty() : false;
   if ((is_const && !expr_bool_value) || is_empty) {
-    substitutions[ifstmt] = nullptr;
+    substitutions.push_back({ifstmt, ast.CreateNullStmt()});
   }
-  return true;
+
+  return !Stopped();
 }
 
 bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
@@ -53,16 +55,15 @@ bool DeadStmtElim::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
   }
   // Create the a new compound
-  if (changed || new_body.size() < compound->size()) {
-    substitutions[compound] = ast.CreateCompoundStmt(new_body);
+  if (new_body.size() < compound->size()) {
+    substitutions.push_back({compound, ast.CreateCompoundStmt(new_body)});
   }
   return !Stopped();
 }
 
-void DeadStmtElim::RunImpl() {
+void DeadStmtElim::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Eliminating dead statements";
-  TransformVisitor<DeadStmtElim>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseStmt(stmt);
 }
 
 }  // namespace rellic

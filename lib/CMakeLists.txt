@@ -39,7 +39,6 @@ set(AST_HEADERS
   "${include_dir}/AST/StructFieldRenamer.h"
   "${include_dir}/AST/StructGenerator.h"
   "${include_dir}/AST/SubprogramGenerator.h"
-  "${include_dir}/AST/TransformVisitor.h"
   "${include_dir}/AST/Util.h"
   "${include_dir}/AST/Z3CondSimplify.h"
   "${include_dir}/AST/Z3ConvVisitor.h"

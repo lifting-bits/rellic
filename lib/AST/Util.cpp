@@ -10,6 +10,7 @@
 
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Expr.h>
+#include <clang/AST/ODRHash.h>
 #include <clang/AST/Stmt.h>
 #include <clang/AST/StmtVisitor.h>
 #include <gflags/gflags.h>
@@ -20,15 +21,17 @@
 
 namespace rellic {
 
-unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
+unsigned GetHash(clang::Stmt *stmt) {
   llvm::FoldingSetNodeID id;
-  stmt->Profile(id, ctx, /*Canonical=*/true);
-  return id.ComputeHash();
+  clang::ODRHash hash;
+  stmt->ProcessODRHash(id, hash);
+  return hash.CalculateHash();
 }
 
-static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
+static bool IsEquivalent(clang::Stmt *a, clang::Stmt *b,
                          llvm::FoldingSetNodeID &foldingSetA,
-                         llvm::FoldingSetNodeID &foldingSetB) {
+                         llvm::FoldingSetNodeID &foldingSetB,
+                         clang::ODRHash &hashA, clang::ODRHash &hashB) {
   if (a == b) {
     return true;
   }
@@ -39,8 +42,10 @@ static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
 
   foldingSetA.clear();
   foldingSetB.clear();
-  a->Profile(foldingSetA, ctx, /*Canonical=*/true);
-  b->Profile(foldingSetB, ctx, /*Canonical=*/true);
+  hashA.clear();
+  hashB.clear();
+  a->ProcessODRHash(foldingSetA, hashA);
+  b->ProcessODRHash(foldingSetB, hashB);
 
   if (foldingSetA == foldingSetB) {
     return true;
@@ -55,8 +60,8 @@ static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
       return false;
     } else if (a_end && b_end) {
       return true;
-    } else if (!IsEquivalent(ctx, *child_a, *child_b, foldingSetA,
-                             foldingSetB)) {
+    } else if (!IsEquivalent(*child_a, *child_b, foldingSetA, foldingSetB,
+                             hashA, hashB)) {
       return false;
     }
 
@@ -65,9 +70,10 @@ static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
   }
 }
 
-bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
+bool IsEquivalent(clang::Stmt *a, clang::Stmt *b) {
   llvm::FoldingSetNodeID idA, idB;
-  return IsEquivalent(ctx, a, b, idA, idB);
+  clang::ODRHash hashA, hashB;
+  return IsEquivalent(a, b, idA, idB, hashA, hashB);
 }
 
 void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map) {

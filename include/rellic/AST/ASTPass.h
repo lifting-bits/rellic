@@ -17,6 +17,13 @@
 
 namespace rellic {
 
+struct Substitution {
+  clang::Stmt* before;
+  clang::Stmt* after;
+};
+
+using Substitutions = std::vector<Substitution>;
+
 class ASTPass {
   std::atomic_bool stop{false};
 
@@ -24,73 +31,31 @@ class ASTPass {
   StmtToIRMap& provenance;
   clang::ASTUnit& ast_unit;
   clang::ASTContext& ast_ctx;
+  Substitutions& substitutions;
   ASTBuilder ast;
 
-  bool changed{false};
-
-  virtual void RunImpl() = 0;
+  virtual void RunImpl(clang::Stmt* stmt) = 0;
   virtual void StopImpl() {}
 
  public:
-  ASTPass(StmtToIRMap& provenance, clang::ASTUnit& ast_unit)
+  ASTPass(StmtToIRMap& provenance, clang::ASTUnit& ast_unit,
+          Substitutions& substitutions)
       : provenance(provenance),
         ast_unit(ast_unit),
         ast_ctx(ast_unit.getASTContext()),
-        ast(ast_unit) {}
+        ast(ast_unit),
+        substitutions(substitutions) {}
   virtual ~ASTPass() = default;
   void Stop() {
     stop = true;
     StopImpl();
   }
 
-  bool Run() {
-    changed = false;
+  void Run(clang::Stmt* stmt) {
     stop = false;
-    RunImpl();
-    return changed;
-  }
-
-  unsigned Fixpoint() {
-    unsigned iter_count{0};
-    changed = false;
-    auto DoIter = [this]() {
-      changed = false;
-      RunImpl();
-      return changed;
-    };
-    stop = false;
-    while (DoIter()) {
-      ++iter_count;
-    }
-
-    return iter_count;
+    RunImpl(stmt);
   }
 
   bool Stopped() { return stop; }
-};
-
-class CompositeASTPass : public ASTPass {
-  std::vector<std::unique_ptr<ASTPass>> passes;
-
- protected:
-  void StopImpl() override {
-    for (auto& pass : passes) {
-      pass->Stop();
-    }
-  }
-
-  void RunImpl() override {
-    for (auto& pass : passes) {
-      if (Stopped()) {
-        break;
-      }
-      changed |= pass->Run();
-    }
-  }
-
- public:
-  CompositeASTPass(StmtToIRMap& provenance, clang::ASTUnit& ast_unit)
-      : ASTPass(provenance, ast_unit) {}
-  std::vector<std::unique_ptr<ASTPass>>& GetPasses() { return passes; }
 };
 }  // namespace rellic

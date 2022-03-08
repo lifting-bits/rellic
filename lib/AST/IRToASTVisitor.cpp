@@ -348,7 +348,6 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
     auto inst{cexpr->getAsInstruction()};
     stmt = GetOrCreateStmt(inst);
-    stmts.erase(inst);
     provenance.erase(stmt);
     DeleteValue(inst);
   } else if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {

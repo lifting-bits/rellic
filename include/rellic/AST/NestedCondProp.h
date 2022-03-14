@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/StmtVisitor.h>
 #include <z3++.h>
 
 #include "rellic/AST/ASTPass.h"
@@ -34,7 +34,7 @@ namespace rellic {
  *     }
  *   }
  */
-class NestedCondProp : public clang::RecursiveASTVisitor<NestedCondProp>,
+class NestedCondProp : public clang::StmtVisitor<NestedCondProp>,
                        public ASTPass {
  private:
   std::unique_ptr<z3::context> z3_ctx;
@@ -51,8 +51,8 @@ class NestedCondProp : public clang::RecursiveASTVisitor<NestedCondProp>,
   NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit,
                  Substitutions &substitutions);
 
-  bool VisitIfStmt(clang::IfStmt *stmt);
-  bool VisitWhileStmt(clang::WhileStmt *stmt);
+  void VisitIfStmt(clang::IfStmt *stmt);
+  void VisitWhileStmt(clang::WhileStmt *stmt);
 };
 
 }  // namespace rellic

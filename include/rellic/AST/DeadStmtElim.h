@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/StmtVisitor.h>
 
 #include "rellic/AST/ASTPass.h"
 #include "rellic/AST/IRToASTVisitor.h"
@@ -18,8 +18,7 @@ namespace rellic {
 /*
  * This pass eliminates statements that have no effect
  */
-class DeadStmtElim : public clang::RecursiveASTVisitor<DeadStmtElim>,
-                     public ASTPass {
+class DeadStmtElim : public clang::StmtVisitor<DeadStmtElim>, public ASTPass {
  protected:
   void RunImpl(clang::Stmt *stmt) override;
 
@@ -27,8 +26,8 @@ class DeadStmtElim : public clang::RecursiveASTVisitor<DeadStmtElim>,
   DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit,
                Substitutions &substitutions);
 
-  bool VisitIfStmt(clang::IfStmt *ifstmt);
-  bool VisitCompoundStmt(clang::CompoundStmt *compound);
+  void VisitIfStmt(clang::IfStmt *ifstmt);
+  void VisitCompoundStmt(clang::CompoundStmt *compound);
 };
 
 }  // namespace rellic

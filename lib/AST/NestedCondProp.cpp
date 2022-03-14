@@ -49,7 +49,7 @@ static clang::Expr *Negate(rellic::ASTBuilder &ast, clang::Expr *expr) {
   return ast.CreateLNot(expr);
 }
 
-bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
+void NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression
   auto cond = ifstmt->getCond();
@@ -87,10 +87,9 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
     Replace(/*from=*/parent_expr,
             /*to=*/ast.CreateTrue(), /*in=*/child_expr, substitutions);
   }
-  return !Stopped();
 }
 
-bool NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
+void NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
   auto cond = stmt->getCond();
   if (!cond->isIntegerConstantExpr(ast_ctx)) {
     auto body = stmt->getBody();
@@ -113,12 +112,11 @@ bool NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
     Replace(/*from=*/parent_expr,
             /*to=*/ast.CreateTrue(), /*in=*/child_expr, substitutions);
   }
-  return !Stopped();
 }
 
 void NestedCondProp::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Propagating nested conditions";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

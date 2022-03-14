@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <clang/AST/Decl.h>
 #include <clang/Basic/Builtins.h>
 #include <clang/Frontend/ASTUnit.h>
 
@@ -153,6 +154,7 @@ class ASTBuilder {
   }
   // Declaration statement
   clang::DeclStmt *CreateDeclStmt(clang::Decl *decl);
+  clang::DeclStmt *CreateDeclStmt(clang::DeclGroupRef group);
   // Declaration reference
   clang::DeclRefExpr *CreateDeclRef(clang::ValueDecl *val);
   // Parentheses

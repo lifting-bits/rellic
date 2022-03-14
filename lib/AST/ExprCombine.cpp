@@ -399,26 +399,24 @@ ExprCombine::ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &u,
                          Substitutions &substitutions)
     : ASTPass(provenance, u, substitutions) {}
 
-bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
+void ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   // TODO(frabert): Re-enable nullptr casts simplification
 
   clang::Expr::EvalResult result;
   if (cast->EvaluateAsRValue(result, ast_ctx)) {
     if (result.HasSideEffects || result.HasUndefinedBehavior) {
-      return true;
+      return;
     }
 
     switch (result.Val.getKind()) {
       case clang::APValue::ValueKind::Int: {
         auto sub{ast.CreateAdjustedIntLit(result.Val.getInt())};
-        substitutions.push_back({cast, sub});
+        substitutions.push_back({cast, sub, "ExprCombine"});
       } break;
 
       default:
         break;
     }
-
-    return !Stopped();
   }
 
   std::vector<std::unique_ptr<InferenceRule>> rules;
@@ -427,11 +425,9 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   rules.emplace_back(new TripleCStyleCastElimRule);
 
   ApplyMatchingRules(provenance, ast_unit, cast, rules, substitutions);
-
-  return !Stopped();
 }
 
-bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
+void ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   // DLOG(INFO) << "VisitUnaryOperator: "
   //            << op->getOpcodeStr(op->getOpcode()).str();
   std::vector<std::unique_ptr<InferenceRule>> rules;
@@ -442,33 +438,27 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new AddrOfArraySubscriptRule);
 
   ApplyMatchingRules(provenance, ast_unit, op, rules, substitutions);
-
-  return !Stopped();
 }
 
-bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
+void ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
   // DLOG(INFO) << "VisitBinaryOperator: " << op->getOpcodeStr().str();
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new AssignCastedExprRule);
 
   ApplyMatchingRules(provenance, ast_unit, op, rules, substitutions);
-
-  return !Stopped();
 }
 
-bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
+void ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   // DLOG(INFO) << "VisitArraySubscriptExpr";
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new ArraySubscriptAddrOfRule);
 
   ApplyMatchingRules(provenance, ast_unit, expr, rules, substitutions);
-
-  return !Stopped();
 }
 
-bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
+void ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   // DLOG(INFO) << "VisitMemberExpr";
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
@@ -476,24 +466,20 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   rules.emplace_back(new MemberExprArraySubRule);
 
   ApplyMatchingRules(provenance, ast_unit, expr, rules, substitutions);
-
-  return !Stopped();
 }
 
-bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
+void ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
   // DLOG(INFO) << "VisitParenExpr";
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new ParenDeclRefExprStripRule);
 
   ApplyMatchingRules(provenance, ast_unit, expr, rules, substitutions);
-
-  return !Stopped();
 }
 
 void ExprCombine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Rule-based statement simplification";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

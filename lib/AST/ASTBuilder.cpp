@@ -10,6 +10,7 @@
 
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Decl.h>
+#include <clang/AST/DeclGroup.h>
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Sema/Lookup.h>
@@ -311,6 +312,11 @@ clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::Decl *decl) {
   return new (ctx)
       clang::DeclStmt(clang::DeclGroupRef(decl), clang::SourceLocation(),
                       clang::SourceLocation());
+}
+
+clang::DeclStmt *ASTBuilder::CreateDeclStmt(clang::DeclGroupRef grp) {
+  return new (ctx)
+      clang::DeclStmt(grp, clang::SourceLocation(), clang::SourceLocation());
 }
 
 clang::DeclRefExpr *ASTBuilder::CreateDeclRef(clang::ValueDecl *val) {

@@ -303,7 +303,7 @@ LoopRefine::LoopRefine(StmtToIRMap &provenance, clang::ASTUnit &u,
                        Substitutions &substitutions)
     : ASTPass(provenance, u, substitutions) {}
 
-bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
+void LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
@@ -315,13 +315,11 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   rules.emplace_back(new DoWhileRule);
 
   ApplyMatchingRules(provenance, ast_unit, loop, rules, substitutions);
-
-  return !Stopped();
 }
 
 void LoopRefine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Rule-based loop refinement";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

@@ -9,7 +9,12 @@
 #include "rellic/Decompiler.h"
 
 #include <clang/AST/Decl.h>
+#include <clang/AST/Expr.h>
+#include <clang/AST/OperationKinds.h>
+#include <clang/AST/Stmt.h>
+#include <clang/AST/StmtVisitor.h>
 #include <clang/Basic/TargetInfo.h>
+#include <clang/Frontend/ASTUnit.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/PassManager.h>
@@ -24,21 +29,12 @@
 #include <memory>
 #include <system_error>
 
-#include "rellic/AST/CondBasedRefine.h"
-#include "rellic/AST/DeadStmtElim.h"
 #include "rellic/AST/DebugInfoCollector.h"
 #include "rellic/AST/EGraph.h"
-#include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
-#include "rellic/AST/LoopRefine.h"
-#include "rellic/AST/NestedCondProp.h"
-#include "rellic/AST/NestedScopeCombine.h"
-#include "rellic/AST/NormalizeCond.h"
-#include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
-#include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -77,31 +73,57 @@ static void CopyMap(
 }
 
 namespace rellic {
-class DeclToEGraph : public clang::RecursiveASTVisitor<DeclToEGraph> {
+class DeclToEGraph : public clang::StmtVisitor<DeclToEGraph> {
   EGraph& eg;
 
  public:
   DeclToEGraph(EGraph& eg) : eg(eg) {}
 
-  bool VisitStmt(clang::Stmt* stmt) {
-    eg.AddNode(stmt);
-    return true;
-  }
+  void VisitStmt(clang::Stmt* stmt) { eg.AddNode(stmt, "StmtGen"); }
 };
 
-class EGraphToDecl : public clang::RecursiveASTVisitor<EGraphToDecl> {
-  EGraph& eg;
+using namespace rellic::matchers;
 
- public:
-  EGraphToDecl(EGraph& eg) : eg(eg) {}
-
-  bool TraverseFunctionDecl(clang::FunctionDecl* decl) {
-    if (decl->hasBody()) {
-      decl->setBody(eg.Schedule(eg.AddNode(decl->getBody())));
+static auto deadStmt(ClassMap& classes, EClass id)
+    -> decltype(either(any())(classes, id)) {
+  auto terminal = stmtClass([](auto c) {
+    switch (c) {
+      default:
+        return false;
+      case clang::Stmt::DeclRefExprClass:
+      case clang::Stmt::CharacterLiteralClass:
+      case clang::Stmt::IntegerLiteralClass:
+      case clang::Stmt::FloatingLiteralClass:
+        return true;
     }
-    return true;
-  }
-};
+  });
+  auto deadCast = cast(deadStmt) >> [](std::tuple<EClass, EClass> tup) {
+    return std::get<0>(tup);
+  };
+  auto deadUnop =
+      unop(
+          [](auto opcode) {
+            return !clang::UnaryOperator::isIncrementDecrementOp(opcode);
+          },
+          deadStmt) >>
+      [](std::tuple<EClass, clang::UnaryOperatorKind, EClass> tup) {
+        return std::get<0>(tup);
+      };
+  auto deadBinop =
+      binop(
+          [](auto opcode) {
+            return !clang::BinaryOperator::isAssignmentOp(opcode);
+          },
+          deadStmt, deadStmt) >>
+      [](std::tuple<EClass, clang::BinaryOperatorKind, EClass, EClass> tup) {
+        return std::get<0>(tup);
+      };
+  auto deadParen = paren(deadStmt) >> [](std::tuple<EClass, EClass> tup) {
+    return std::get<0>(tup);
+  };
+  return either(null(), nullStmt(), terminal, deadCast, deadParen, deadUnop,
+                deadBinop)(classes, id);
+}
 
 Result<DecompilationResult, DecompilationError> Decompile(
     std::unique_ptr<llvm::Module> module, DecompilationOptions options) {
@@ -142,50 +164,135 @@ Result<DecompilationResult, DecompilationError> Decompile(
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
-    rellic::Substitutions substitutions;
-    rellic::DeadStmtElim dse(provenance, *ast_unit, substitutions);
-    rellic::Z3CondSimplify zcs(provenance, *ast_unit, substitutions);
-    rellic::NestedCondProp ncp(provenance, *ast_unit, substitutions);
-    rellic::NestedScopeCombine nsc(provenance, *ast_unit, substitutions);
-    rellic::CondBasedRefine cbr(provenance, *ast_unit, substitutions);
-    rellic::ReachBasedRefine rbr(provenance, *ast_unit, substitutions);
-    rellic::LoopRefine lr(provenance, *ast_unit, substitutions);
-    rellic::ExprCombine ec(provenance, *ast_unit, substitutions);
     rellic::EGraph eg;
-    DeclToEGraph dteg(eg);
-    dteg.TraverseDecl(tu_decl);
+    std::unordered_map<clang::FunctionDecl*, EClass> bodies;
+    for (auto decl : tu_decl->decls()) {
+      if (auto fdecl = clang::dyn_cast<clang::FunctionDecl>(decl)) {
+        if (fdecl->hasBody() && fdecl->isThisDeclarationADefinition()) {
+          auto node{eg.AddNode(fdecl->getBody(), "StmtGen")};
+          bodies[fdecl] = node;
+        }
+      }
+    }
     eg.Rebuild();
     std::string s;
     llvm::raw_string_ostream os(s);
     eg.PrintGraph(os);
     std::cout << s << std::endl;
 
-    auto Run = [&](clang::Stmt* stmt) {
-      dse.Run(stmt);
-      zcs.Run(stmt);
-      ncp.Run(stmt);
-      nsc.Run(stmt);
-      cbr.Run(stmt);
-      rbr.Run(stmt);
-      lr.Run(stmt);
-      ec.Run(stmt);
-    };
-
     int max{0};
-    while (max < 3) {
+    while (max < 10) {
       auto version{eg.GetVersion()};
       auto classes{eg.GetClasses()};
+      std::vector<std::pair<EClass, EClass>> merges;
       for (auto& [id, nodes] : classes) {
-        for (auto& node : nodes) {
-          Run(node.stmt);
+        using namespace rellic::matchers;
+        {
+          // if(1) { a } -> a
+          auto ifMatch =
+              ifStmt(literalTrue(), any(), either(literalTrue(), null()));
+          auto res{ifMatch(classes, id)};
+          if (res) {
+            auto val{res.GetValue()};
+            merges.emplace_back(std::get<0>(val), std::get<2>(val));
+          }
+        }
+
+        {
+          // { {a} } -> { a }
+          auto inner = compound(filter(any())) >>
+                       [](std::tuple<EClass, std::vector<EClass>> tup) {
+                         return std::get<1>(tup);
+                       };
+          auto other =
+              any() >> [](EClass id) { return std::vector<EClass>({id}); };
+
+          auto outer = compound(filter(either(inner, other)));
+          auto res{outer(classes, id)};
+          if (res) {
+            auto old_class{std::get<0>(res.GetValue())};
+            auto bodies{std::get<1>(res.GetValue())};
+            std::vector<EClass> body;
+            for (auto& sub : bodies) {
+              body.insert(body.end(), sub.begin(), sub.end());
+            }
+            ENode node(old_class.id, clang::Stmt::CompoundStmtClass, body);
+            node.label = "NSC";
+            auto new_class{eg.AddENode(node)};
+            merges.emplace_back(old_class, new_class);
+          }
+        }
+
+        {
+          auto comp = binop(
+              [](auto opc) {
+                return clang::BinaryOperator::isComparisonOp(opc);
+              },
+              any(), any());
+          auto neg = unop([](auto opc) { return opc == clang::UO_LNot; }, comp);
+          auto res{neg(classes, id)};
+          if (res) {
+            auto val{res.GetValue()};
+            auto old_class{std::get<0>(val)};
+            auto bin{std::get<2>(val)};
+            auto old_opc{std::get<1>(bin)};
+            auto lhs{std::get<2>(bin)};
+            auto rhs{std::get<3>(bin)};
+
+            auto node{ENode(old_class.id,
+                            clang::BinaryOperator::negateComparisonOp(old_opc),
+                            lhs, rhs)};
+            node.label = "EC";
+            merges.emplace_back(old_class, eg.AddENode(node));
+          }
+        }
+
+        {
+          // *&a -> a
+          auto addrof = unop(
+              [](auto opcode) { return opcode == clang::UO_AddrOf; }, any());
+          auto deref = unop(
+              [](auto opcode) { return opcode == clang::UO_Deref; }, addrof);
+          auto res{deref(classes, id)};
+          if (res) {
+            auto val{res.GetValue()};
+            merges.emplace_back(std::get<0>(val),
+                                std::get<2>(std::get<2>(val)));
+          }
+        }
+
+        {
+          // (a) -> a
+          auto p = paren(any());
+          auto res{p(classes, id)};
+          if (res) {
+            auto val{res.GetValue()};
+            auto old_class{std::get<0>(val)};
+            auto new_class{std::get<1>(val)};
+            merges.emplace_back(old_class, new_class);
+          }
+        }
+
+        {
+          auto comp = compound(filter(notMatch(deadStmt)));
+
+          auto res{comp(classes, id)};
+          if (res) {
+            auto val{res.GetValue()};
+            auto old_class{std::get<0>(val)};
+            auto body{std::get<1>(val)};
+            ENode node(old_class.id, clang::Stmt::CompoundStmtClass, body);
+            node.label = "DSE";
+            auto new_class{eg.AddENode(node)};
+            merges.emplace_back(old_class, new_class);
+          }
         }
       }
-      for (auto& sub : substitutions) {
-        auto a{eg.AddNode(CHECK_NOTNULL(sub.before))};
-        auto b{eg.AddNode(CHECK_NOTNULL(sub.after))};
-        eg.Merge(a, b);
+      for (auto merge : merges) {
+        eg.Merge(merge.first, merge.second);
       }
       eg.Rebuild();
+
       std::string s;
       llvm::raw_string_ostream os(s);
       eg.PrintGraph(os);
@@ -194,12 +301,18 @@ Result<DecompilationResult, DecompilationError> Decompile(
         LOG(INFO) << "Stopping";
         break;
       }
-      substitutions.clear();
       max++;
     }
 
-    EGraphToDecl egtd(eg);
-    egtd.TraverseDecl(tu_decl);
+    for (auto decl : tu_decl->decls()) {
+      if (auto fdecl = clang::dyn_cast<clang::FunctionDecl>(decl)) {
+        if (fdecl->hasBody() && fdecl->isThisDeclarationADefinition()) {
+          auto node{bodies[fdecl]};
+          auto stmt{eg.Schedule(node, *ast_unit, provenance)};
+          fdecl->setBody(stmt);
+        }
+      }
+    }
 
     DecompilationResult result{};
     result.ast = std::move(ast_unit);

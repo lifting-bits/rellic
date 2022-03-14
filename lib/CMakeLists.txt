@@ -23,24 +23,24 @@ set(include_dir "${PROJECT_SOURCE_DIR}/include/${PROJECT_NAME}")
 set(AST_HEADERS
   "${include_dir}/AST/ASTBuilder.h"
   "${include_dir}/AST/CXXToCDecl.h"
-  "${include_dir}/AST/CondBasedRefine.h"
-  "${include_dir}/AST/DeadStmtElim.h"
+  #"${include_dir}/AST/CondBasedRefine.h"
+  #"${include_dir}/AST/DeadStmtElim.h"
   "${include_dir}/AST/DebugInfoCollector.h"
-  "${include_dir}/AST/ExprCombine.h"
+  #"${include_dir}/AST/ExprCombine.h"
   "${include_dir}/AST/GenerateAST.h"
   "${include_dir}/AST/IRToASTVisitor.h"
-  "${include_dir}/AST/InferenceRule.h"
+  #"${include_dir}/AST/InferenceRule.h"
   "${include_dir}/AST/LocalDeclRenamer.h"
-  "${include_dir}/AST/LoopRefine.h"
-  "${include_dir}/AST/NestedCondProp.h"
-  "${include_dir}/AST/NestedScopeCombine.h"
-  "${include_dir}/AST/NormalizeCond.h"
-  "${include_dir}/AST/ReachBasedRefine.h"
+  #"${include_dir}/AST/LoopRefine.h"
+  #"${include_dir}/AST/NestedCondProp.h"
+  #"${include_dir}/AST/NestedScopeCombine.h"
+  #"${include_dir}/AST/NormalizeCond.h"
+  #"${include_dir}/AST/ReachBasedRefine.h"
   "${include_dir}/AST/StructFieldRenamer.h"
   "${include_dir}/AST/StructGenerator.h"
   "${include_dir}/AST/SubprogramGenerator.h"
   "${include_dir}/AST/Util.h"
-  "${include_dir}/AST/Z3CondSimplify.h"
+  #"${include_dir}/AST/Z3CondSimplify.h"
   "${include_dir}/AST/Z3ConvVisitor.h"
 )
 
@@ -86,22 +86,22 @@ set(AST_COMPAT_SOURCES
 set(AST_SOURCES
   AST/ASTBuilder.cpp
   AST/CXXToCDecl.cpp
-  AST/InferenceRule.cpp
-  AST/DeadStmtElim.cpp
+  #AST/InferenceRule.cpp
+  #AST/DeadStmtElim.cpp
   AST/DebugInfoCollector.cpp
-  AST/CondBasedRefine.cpp
-  AST/ExprCombine.cpp
+  #AST/CondBasedRefine.cpp
+  #AST/ExprCombine.cpp
   AST/GenerateAST.cpp
   AST/IRToASTVisitor.cpp
   AST/LocalDeclRenamer.cpp
-  AST/LoopRefine.cpp
-  AST/NestedCondProp.cpp
-  AST/NestedScopeCombine.cpp
-  AST/NormalizeCond.cpp
+  #AST/LoopRefine.cpp
+  #AST/NestedCondProp.cpp
+  #AST/NestedScopeCombine.cpp
+  #AST/NormalizeCond.cpp
   AST/Util.cpp
-  AST/Z3CondSimplify.cpp
+  #AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp
-  AST/ReachBasedRefine.cpp
+  #AST/ReachBasedRefine.cpp
   AST/StructFieldRenamer.cpp
   AST/StructGenerator.cpp
   AST/SubprogramGenerator.cpp

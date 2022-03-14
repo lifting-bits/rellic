@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/StmtVisitor.h>
 
 #include "rellic/AST/ASTPass.h"
 namespace rellic {
@@ -17,8 +17,7 @@ namespace rellic {
  * This pass performs a number of different trasnformations on expressions,
  * like turning *&a into a, or !(a == b) into a != b
  */
-class ExprCombine : public clang::RecursiveASTVisitor<ExprCombine>,
-                    public ASTPass {
+class ExprCombine : public clang::StmtVisitor<ExprCombine>, public ASTPass {
  protected:
   void RunImpl(clang::Stmt *stmt) override;
 
@@ -26,12 +25,12 @@ class ExprCombine : public clang::RecursiveASTVisitor<ExprCombine>,
   ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &unit,
               Substitutions &substitutions);
 
-  bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
-  bool VisitUnaryOperator(clang::UnaryOperator *op);
-  bool VisitBinaryOperator(clang::BinaryOperator *op);
-  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
-  bool VisitMemberExpr(clang::MemberExpr *expr);
-  bool VisitParenExpr(clang::ParenExpr *paren);
+  void VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
+  void VisitUnaryOperator(clang::UnaryOperator *op);
+  void VisitBinaryOperator(clang::BinaryOperator *op);
+  void VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
+  void VisitMemberExpr(clang::MemberExpr *expr);
+  void VisitParenExpr(clang::ParenExpr *paren);
 };
 
 }  // namespace rellic

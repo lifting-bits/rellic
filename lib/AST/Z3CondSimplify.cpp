@@ -55,7 +55,7 @@ z3::expr Z3CondSimplify::ToZ3(clang::Expr *e) {
   return z_gen->Z3BoolCast(z_gen->GetOrCreateZ3Expr(e));
 }
 
-bool Z3CondSimplify::VisitBinaryOperator(clang::BinaryOperator *binop) {
+void Z3CondSimplify::VisitBinaryOperator(clang::BinaryOperator *binop) {
   auto lhs{binop->getLHS()};
   auto rhs{binop->getRHS()};
   auto opcode{binop->getOpcode()};
@@ -66,45 +66,42 @@ bool Z3CondSimplify::VisitBinaryOperator(clang::BinaryOperator *binop) {
     auto not_rhs_proven{IsProvenFalse(rhs)};
     if (opcode == clang::BO_LAnd) {
       if (lhs_proven && rhs_proven) {
-        substitutions.push_back({binop, ast.CreateTrue()});
+        substitutions.push_back({binop, ast.CreateTrue(), "Z3CondSimplify"});
       } else if (not_lhs_proven || not_rhs_proven) {
-        substitutions.push_back({binop, ast.CreateFalse()});
+        substitutions.push_back({binop, ast.CreateFalse(), "Z3CondSimplify"});
       } else if (lhs_proven) {
-        substitutions.push_back({binop, rhs});
+        substitutions.push_back({binop, rhs, "Z3CondSimplify"});
       } else if (rhs_proven) {
-        substitutions.push_back({binop, lhs});
+        substitutions.push_back({binop, lhs, "Z3CondSimplify"});
       }
     } else {
       if (not_lhs_proven && not_rhs_proven) {
-        substitutions.push_back({binop, ast.CreateFalse()});
+        substitutions.push_back({binop, ast.CreateFalse(), "Z3CondSimplify"});
       } else if (lhs_proven || rhs_proven) {
-        substitutions.push_back({binop, ast.CreateTrue()});
+        substitutions.push_back({binop, ast.CreateTrue(), "Z3CondSimplify"});
       } else if (not_lhs_proven) {
-        substitutions.push_back({binop, rhs});
+        substitutions.push_back({binop, rhs, "Z3CondSimplify"});
       } else if (not_rhs_proven) {
-        substitutions.push_back({binop, lhs});
+        substitutions.push_back({binop, lhs, "Z3CondSimplify"});
       }
     }
   }
-
-  return !Stopped();
 }
 
-bool Z3CondSimplify::VisitUnaryOperator(clang::UnaryOperator *unop) {
+void Z3CondSimplify::VisitUnaryOperator(clang::UnaryOperator *unop) {
   if (unop->getOpcode() == clang::UO_LNot) {
     auto sub{unop->getSubExpr()};
     if (IsProvenTrue(sub)) {
-      substitutions.push_back({unop, ast.CreateFalse()});
+      substitutions.push_back({unop, ast.CreateFalse(), "Z3CondSimplify"});
     } else if (IsProvenFalse(sub)) {
-      substitutions.push_back({unop, ast.CreateTrue()});
+      substitutions.push_back({unop, ast.CreateTrue(), "Z3CondSimplify"});
     }
   }
-  return !Stopped();
 }
 
 void Z3CondSimplify::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Simplifying conditions using Z3";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

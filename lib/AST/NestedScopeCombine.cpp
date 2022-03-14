@@ -10,6 +10,7 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include "rellic/AST/Compat/Stmt.h"
 
@@ -20,26 +21,25 @@ NestedScopeCombine::NestedScopeCombine(StmtToIRMap &provenance,
                                        Substitutions &substitutions)
     : ASTPass(provenance, unit, substitutions) {}
 
-bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
+void NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
   auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, ast_ctx);
   bool is_const = if_const_expr.hasValue();
   if (is_const && if_const_expr->getBoolValue()) {
-    substitutions.push_back({ifstmt, ifstmt->getThen()});
+    substitutions.push_back({ifstmt, ifstmt->getThen(), "NestedScopeCombine"});
   } else if (is_const && !if_const_expr->getBoolValue()) {
     if (auto else_stmt = ifstmt->getElse()) {
-      substitutions.push_back({ifstmt, else_stmt});
+      substitutions.push_back({ifstmt, else_stmt, "NestedScopeCombine"});
     } else {
-      std::vector<clang::Stmt *> body;
-      substitutions.push_back({ifstmt, ast.CreateCompoundStmt(body)});
+      substitutions.push_back(
+          {ifstmt, ast.CreateNullStmt(), "NestedScopeCombine"});
     }
   }
-  return !Stopped();
 }
 
-bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
+void NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   bool has_compound = false;
   std::vector<clang::Stmt *> new_body;
@@ -53,15 +53,14 @@ bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
 
   if (has_compound) {
-    substitutions.push_back({compound, ast.CreateCompoundStmt(new_body)});
+    substitutions.push_back(
+        {compound, ast.CreateCompoundStmt(new_body), "NestedScopeCombine"});
   }
-
-  return !Stopped();
 }
 
 void NestedScopeCombine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Combining nested scopes";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/StmtVisitor.h>
 
 #include "rellic/AST/ASTPass.h"
 
@@ -19,8 +19,7 @@ namespace rellic {
  * has the potential of creating an exponential number of terms, so it's best to
  * perform this pass after simplification.
  */
-class NormalizeCond : public clang::RecursiveASTVisitor<NormalizeCond>,
-                      public ASTPass {
+class NormalizeCond : public clang::StmtVisitor<NormalizeCond>, public ASTPass {
  protected:
   void RunImpl(clang::Stmt *stmt) override;
 
@@ -30,8 +29,8 @@ class NormalizeCond : public clang::RecursiveASTVisitor<NormalizeCond>,
   NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &unit,
                 Substitutions &substitutions);
 
-  bool VisitUnaryOperator(clang::UnaryOperator *op);
-  bool VisitBinaryOperator(clang::BinaryOperator *op);
+  void VisitUnaryOperator(clang::UnaryOperator *op);
+  void VisitBinaryOperator(clang::BinaryOperator *op);
 };
 
 }  // namespace rellic

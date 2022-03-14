@@ -8,6 +8,7 @@
 
 #include "rellic/AST/CondBasedRefine.h"
 
+#include <clang/AST/Stmt.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -66,6 +67,7 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
     return Prove(lhs == !rhs);
   };
 
+  std::vector<clang::Stmt *> new_body;
   while (!worklist.empty()) {
     auto lhs = *worklist.begin();
     RemoveFromWorkList(lhs);
@@ -92,7 +94,8 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
     // Erase then statements from the AST and `worklist`
     for (auto stmt : thens) {
       RemoveFromWorkList(stmt);
-      substitutions.push_back({stmt, ast.CreateNullStmt()});
+      // substitutions.push_back({stmt, ast.CreateNullStmt(),
+      // "CondBasedRefine"});
     }
     // Create our new if-then
     auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompoundStmt(thens));
@@ -101,26 +104,26 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
       // Erase else statements from the AST and `worklist`
       for (auto stmt : elses) {
         RemoveFromWorkList(stmt);
-        substitutions.push_back({stmt, ast.CreateNullStmt()});
+        substitutions.push_back(
+            {stmt, ast.CreateNullStmt(), "CondBasedRefine"});
       }
       // Add the else branch
       sub->setElse(ast.CreateCompoundStmt(elses));
     }
     // Replace `lhs` with the new `sub`
-    substitutions.push_back({lhs, sub});
+    substitutions.push_back({lhs, sub, "CondBasedRefine"});
   }
 }
 
-bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
+void CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   // Create if-then-else substitutions for IfStmts in `compound`
   CreateIfThenElseStmts(GetIfStmts(compound));
-  return !Stopped();
 }
 
 void CondBasedRefine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Condition-based refinement";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

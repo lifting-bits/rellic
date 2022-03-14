@@ -24,7 +24,7 @@ template <typename TFrom, typename TTo, typename TIn>
 void Replace(TFrom *from, TTo *to, TIn *in,
              std::vector<Substitution> &substitutions) {
   if (IsEquivalent(in, from)) {
-    substitutions.push_back({in, to});
+    substitutions.push_back({in, to, "Replace"});
   } else {
     for (auto child{in->child_begin()}; child != in->child_end(); ++child) {
       Replace(from, to, *child, substitutions);
@@ -48,6 +48,13 @@ void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map);
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
                    StmtToIRMap &provenance);
+clang::Stmt *Clone(clang::ASTUnit &unit, clang::Stmt *stmt,
+                   StmtToIRMap &provenance);
+
+clang::Expr *ShallowClone(clang::ASTUnit &unit, clang::Expr *stmt,
+                          StmtToIRMap &provenance);
+clang::Stmt *ShallowClone(clang::ASTUnit &unit, clang::Stmt *stmt,
+                          StmtToIRMap &provenance);
 
 template <typename T>
 T FindChild(clang::Stmt *stmt, clang::Stmt *child) {

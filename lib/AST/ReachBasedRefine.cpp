@@ -98,30 +98,29 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
     auto then = stmt->getThen();
     if (stmt == elifs.back()) {
       sub = ast.CreateIf(cond, then);
-      substitutions.push_back({stmt, sub});
+      substitutions.push_back({stmt, sub, "ReachBasedRefine"});
     } else if (stmt == elifs.front()) {
       std::vector<clang::Stmt *> thens({then});
       sub->setElse(ast.CreateCompoundStmt(thens));
-      substitutions.push_back({stmt, ast.CreateNullStmt()});
+      substitutions.push_back({stmt, ast.CreateNullStmt(), "ReachBasedRefine"});
     } else {
       auto elif = ast.CreateIf(cond, then);
       sub->setElse(elif);
       sub = elif;
-      substitutions.push_back({stmt, ast.CreateNullStmt()});
+      substitutions.push_back({stmt, ast.CreateNullStmt(), "ReachBasedRefine"});
     }
   }
 }
 
-bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
+void ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   // Create else-if cascade substitutions for IfStmts in `compound`
   CreateIfElseStmts(GetIfStmts(compound));
-  return !Stopped();
 }
 
 void ReachBasedRefine::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Reachability-based refinement";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

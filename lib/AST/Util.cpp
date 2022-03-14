@@ -11,10 +11,13 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/ODRHash.h>
+#include <clang/AST/PrettyPrinter.h>
 #include <clang/AST/Stmt.h>
 #include <clang/AST/StmtVisitor.h>
+#include <clang/Basic/LangOptions.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/Exception.h"
@@ -89,10 +92,23 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   ASTBuilder ast;
   clang::ASTContext &ctx;
   StmtToIRMap &provenance;
+  bool shallow;
+
+  clang::Expr *Clone(clang::Expr *e) {
+    if (shallow) {
+      return e;
+    } else {
+      return Visit(e);
+    }
+  }
 
  public:
-  ExprCloner(clang::ASTUnit &unit, StmtToIRMap &provenance)
-      : ast(unit), ctx(unit.getASTContext()), provenance(provenance) {}
+  ExprCloner(clang::ASTUnit &unit, StmtToIRMap &provenance,
+             bool shallow = false)
+      : ast(unit),
+        ctx(unit.getASTContext()),
+        provenance(provenance),
+        shallow(shallow) {}
 
   clang::Expr *VisitIntegerLiteral(clang::IntegerLiteral *expr) {
     return ast.CreateIntLit(expr->getValue());
@@ -111,7 +127,7 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   }
 
   clang::Expr *VisitCastExpr(clang::CastExpr *expr) {
-    return ast.CreateCStyleCast(expr->getType(), Visit(expr->getSubExpr()));
+    return ast.CreateCStyleCast(expr->getType(), Clone(expr->getSubExpr()));
   }
 
   clang::Expr *VisitImplicitCastExpr(clang::ImplicitCastExpr *expr) {
@@ -119,30 +135,30 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   }
 
   clang::Expr *VisitUnaryOperator(clang::UnaryOperator *expr) {
-    return ast.CreateUnaryOp(expr->getOpcode(), Visit(expr->getSubExpr()));
+    return ast.CreateUnaryOp(expr->getOpcode(), Clone(expr->getSubExpr()));
   }
 
   clang::Expr *VisitBinaryOperator(clang::BinaryOperator *expr) {
-    return ast.CreateBinaryOp(expr->getOpcode(), Visit(expr->getLHS()),
-                              Visit(expr->getRHS()));
+    return ast.CreateBinaryOp(expr->getOpcode(), Clone(expr->getLHS()),
+                              Clone(expr->getRHS()));
   }
 
   clang::Expr *VisitConditionalOperator(clang::ConditionalOperator *expr) {
-    return ast.CreateConditional(Visit(expr->getCond()),
-                                 Visit(expr->getTrueExpr()),
-                                 Visit(expr->getFalseExpr()));
+    return ast.CreateConditional(Clone(expr->getCond()),
+                                 Clone(expr->getTrueExpr()),
+                                 Clone(expr->getFalseExpr()));
   }
 
   clang::Expr *VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
-    return ast.CreateArraySub(Visit(expr->getBase()), Visit(expr->getIdx()));
+    return ast.CreateArraySub(Clone(expr->getBase()), Clone(expr->getIdx()));
   }
 
   clang::Expr *VisitCallExpr(clang::CallExpr *expr) {
     std::vector<clang::Expr *> args;
     for (auto arg : expr->arguments()) {
-      args.push_back(Visit(arg));
+      args.push_back(Clone(arg));
     }
-    return ast.CreateCall(Visit(expr->getCallee()), args);
+    return ast.CreateCall(Clone(expr->getCallee()), args);
   }
 
   clang::Expr *VisitMemberExpr(clang::MemberExpr *expr) {
@@ -161,18 +177,18 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   clang::Expr *VisitInitListExpr(clang::InitListExpr *expr) {
     std::vector<clang::Expr *> inits;
     for (auto init : expr->inits()) {
-      inits.push_back(Visit(init));
+      inits.push_back(Clone(init));
     }
     return ast.CreateInitList(inits);
   }
 
   clang::Expr *VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *expr) {
     return ast.CreateCompoundLit(expr->getType(),
-                                 Visit(expr->getInitializer()));
+                                 Clone(expr->getInitializer()));
   }
 
   clang::Expr *VisitParenExpr(clang::ParenExpr *expr) {
-    return ast.CreateParen(Visit(expr->getSubExpr()));
+    return ast.CreateParen(Clone(expr->getSubExpr()));
   }
 
   clang::Expr *VisitStmt(clang::Stmt *stmt) {
@@ -201,9 +217,113 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   }
 };
 
+class StmtCloner : public clang::StmtVisitor<StmtCloner, clang::Stmt *> {
+  clang::ASTUnit &unit;
+  ASTBuilder ast;
+  clang::ASTContext &ctx;
+  StmtToIRMap &provenance;
+  bool shallow;
+
+  clang::Expr *CloneExpr(clang::Expr *e) {
+    return shallow ? e : ::rellic::Clone(unit, e, provenance);
+  }
+
+  clang::Stmt *Clone(clang::Stmt *s) { return shallow ? s : Visit(s); }
+
+ public:
+  StmtCloner(clang::ASTUnit &unit, StmtToIRMap &provenance,
+             bool shallow = false)
+      : unit(unit),
+        ast(unit),
+        ctx(unit.getASTContext()),
+        provenance(provenance),
+        shallow(shallow) {}
+
+  clang::Stmt *VisitCompoundStmt(clang::CompoundStmt *stmt) {
+    std::vector<clang::Stmt *> body;
+    for (auto child : stmt->body()) {
+      body.push_back(Visit(child));
+    }
+
+    return ast.CreateCompoundStmt(body);
+  }
+
+  clang::Stmt *VisitIfStmt(clang::IfStmt *stmt) {
+    return ast.CreateIf(CloneExpr(stmt->getCond()), Clone(stmt->getThen()),
+                        stmt->getElse() ? Clone(stmt->getElse()) : nullptr);
+  }
+
+  clang::Stmt *VisitWhileStmt(clang::WhileStmt *stmt) {
+    return ast.CreateWhile(CloneExpr(stmt->getCond()), Clone(stmt->getBody()));
+  }
+
+  clang::Stmt *VisitDoStmt(clang::DoStmt *stmt) {
+    return ast.CreateDo(CloneExpr(stmt->getCond()), Clone(stmt->getBody()));
+  }
+
+  clang::Stmt *VisitBreakStmt(clang::BreakStmt *) { return ast.CreateBreak(); }
+
+  clang::Stmt *VisitReturnStmt(clang::ReturnStmt *stmt) {
+    return ast.CreateReturn(stmt->getRetValue() ? CloneExpr(stmt->getRetValue())
+                                                : nullptr);
+  }
+
+  clang::Stmt *VisitNullStmt(clang::NullStmt *) { return ast.CreateNullStmt(); }
+
+  clang::Stmt *VisitDeclStmt(clang::DeclStmt *stmt) {
+    return ast.CreateDeclStmt(stmt->getDeclGroup());
+  }
+
+  clang::Stmt *VisitExpr(clang::Expr *expr) {
+    return shallow ? ::rellic::ShallowClone(unit, expr, provenance)
+                   : ::rellic::Clone(unit, expr, provenance);
+  }
+
+  clang::Stmt *VisitStmt(clang::Stmt *stmt) {
+    switch (stmt->getStmtClass()) {
+      default:
+        llvm_unreachable("Unknown stmt kind!");
+#define ABSTRACT_STMT(STMT)
+#define STMT(CLASS, PARENT)       \
+  case clang::Stmt::CLASS##Class: \
+    THROW() << "Unsupported " #CLASS;
+#include <clang/AST/StmtNodes.inc>
+    }
+
+    return nullptr;
+  }
+
+  clang::Stmt *Visit(clang::Stmt *stmt) {
+    if (!stmt) {
+      return nullptr;
+    }
+    auto res{clang::StmtVisitor<StmtCloner, clang::Stmt *>::Visit(stmt)};
+    CopyProvenance(stmt, res, provenance);
+    return res;
+  }
+};
+
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *expr,
                    StmtToIRMap &provenance) {
   ExprCloner cloner{unit, provenance};
   return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(expr)));
+}
+
+clang::Stmt *Clone(clang::ASTUnit &unit, clang::Stmt *stmt,
+                   StmtToIRMap &provenance) {
+  StmtCloner cloner{unit, provenance};
+  return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(stmt)));
+}
+
+clang::Expr *ShallowClone(clang::ASTUnit &unit, clang::Expr *expr,
+                          StmtToIRMap &provenance) {
+  ExprCloner cloner{unit, provenance, /*shallow=*/true};
+  return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(expr)));
+}
+
+clang::Stmt *ShallowClone(clang::ASTUnit &unit, clang::Stmt *stmt,
+                          StmtToIRMap &provenance) {
+  StmtCloner cloner{unit, provenance, /*shallow=*/true};
+  return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(stmt)));
 }
 }  // namespace rellic

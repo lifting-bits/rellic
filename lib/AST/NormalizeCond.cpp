@@ -169,18 +169,16 @@ NormalizeCond::NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &u,
                              Substitutions &substitutions)
     : ASTPass(provenance, u, substitutions) {}
 
-bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
+void NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new DeMorganRule(clang::BO_LAnd, clang::BO_LOr));
   rules.emplace_back(new DeMorganRule(clang::BO_LOr, clang::BO_LAnd));
 
   ApplyMatchingRules(provenance, ast_unit, op, rules, substitutions);
-
-  return !Stopped();
 }
 
-bool NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
+void NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new AssociativeRule(clang::BO_LAnd));
@@ -189,13 +187,11 @@ bool NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
   rules.emplace_back(new RDistributiveRule);
 
   ApplyMatchingRules(provenance, ast_unit, op, rules, substitutions);
-
-  return !Stopped();
 }
 
 void NormalizeCond::RunImpl(clang::Stmt *stmt) {
   LOG(INFO) << "Conversion into conjunctive normal form";
-  TraverseStmt(stmt);
+  Visit(stmt);
 }
 
 }  // namespace rellic

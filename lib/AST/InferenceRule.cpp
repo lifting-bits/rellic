@@ -29,7 +29,8 @@ void ApplyMatchingRules(StmtToIRMap &provenance, clang::ASTUnit &unit,
   for (auto &rule : rules) {
     if (*rule) {
       substitutions.push_back(
-          {stmt, rule->GetOrCreateSubstitution(provenance, unit, stmt)});
+          {stmt, rule->GetOrCreateSubstitution(provenance, unit, stmt),
+           "InferenceRule"});
     }
   }
 }

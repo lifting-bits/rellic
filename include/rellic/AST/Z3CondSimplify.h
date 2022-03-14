@@ -10,7 +10,7 @@
 
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Expr.h>
-#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/StmtVisitor.h>
 
 #include "rellic/AST/ASTPass.h"
 #include "rellic/AST/Util.h"
@@ -22,7 +22,7 @@ namespace rellic {
  * This pass simplifies conditions using Z3 by trying to remove terms that are
  * trivially true or false
  */
-class Z3CondSimplify : public clang::RecursiveASTVisitor<Z3CondSimplify>,
+class Z3CondSimplify : public clang::StmtVisitor<Z3CondSimplify>,
                        public ASTPass {
  private:
   std::unique_ptr<z3::context> z_ctx;
@@ -73,8 +73,8 @@ class Z3CondSimplify : public clang::RecursiveASTVisitor<Z3CondSimplify>,
 
   void SetZ3Tactic(z3::tactic t) { tactic = t; };
 
-  bool VisitBinaryOperator(clang::BinaryOperator *binop);
-  bool VisitUnaryOperator(clang::UnaryOperator *unop);
+  void VisitBinaryOperator(clang::BinaryOperator *binop);
+  void VisitUnaryOperator(clang::UnaryOperator *unop);
 };
 
 }  // namespace rellic

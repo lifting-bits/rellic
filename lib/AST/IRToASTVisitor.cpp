@@ -251,7 +251,15 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   // Helper functions
   auto CreateExpr{[this, &val] {
     auto stmt{GetOrCreateStmt(val)};
-    return clang::cast<clang::Expr>(stmt);
+    auto expr{clang::cast<clang::Expr>(stmt)};
+    // Handle calls to functions with a return value and side-effects, and
+    // values with multiple uses
+    if (auto binop = clang::dyn_cast<clang::BinaryOperator>(expr)) {
+      if (binop->getOpcode() == clang::BO_Assign) {
+        return binop->getLHS();
+      }
+    }
+    return expr;
   }};
 
   auto CreateRef{[this, &val] {
@@ -300,16 +308,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a result of an expression
   if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
-    // Handle calls to functions with a return value and side-effects, and
-    // values with multiple uses
-    auto expr{CreateExpr()};
-    if (auto binop = clang::dyn_cast<clang::BinaryOperator>(expr)) {
-      if (binop->getOpcode() == clang::BO_Assign) {
-        return binop->getLHS();
-      }
-    }
-    // Everything else
-    return expr;
+    return CreateExpr();
   }
 
   ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);

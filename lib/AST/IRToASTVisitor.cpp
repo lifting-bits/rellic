@@ -373,6 +373,9 @@ clang::Expr *IRToASTVisitor::GetTempAssign(llvm::Instruction &inst,
       auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
       auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
       auto type{GetQualType(inst.getType())};
+      if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
+        type = ast_ctx.getPointerType(arrayType->getElementType());
+      }
       decl = ast.CreateVarDecl(fdecl, type, name);
       fdecl->addDecl(decl);
     }

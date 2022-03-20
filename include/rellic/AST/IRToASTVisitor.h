@@ -13,6 +13,7 @@
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
+#include <llvm/IR/Instruction.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/Operator.h>
 #include <llvm/IR/Value.h>
@@ -50,6 +51,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Stmt *> {
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
 
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
+
+  clang::Expr *GetTempAssign(llvm::Instruction &inst, clang::Expr *expr);
 
  public:
   IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,

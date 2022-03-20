@@ -300,14 +300,16 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
   }
   // Operand is a result of an expression
   if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
-    // Handle calls to functions with a return value and side-effects
-    if (llvm::isa<llvm::CallInst>(inst) && inst->mayHaveSideEffects() &&
-        !inst->getType()->isVoidTy()) {
-      auto assign{clang::cast<clang::BinaryOperator>(GetOrCreateStmt(val))};
-      return assign->getLHS();
+    // Handle calls to functions with a return value and side-effects, and
+    // values with multiple uses
+    auto expr{CreateExpr()};
+    if (auto binop = clang::dyn_cast<clang::BinaryOperator>(expr)) {
+      if (binop->getOpcode() == clang::BO_Assign) {
+        return binop->getLHS();
+      }
     }
     // Everything else
-    return CreateExpr();
+    return expr;
   }
 
   ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
@@ -362,6 +364,24 @@ clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
 
   provenance.insert({stmt, val});
   return stmt;
+}
+
+clang::Expr *IRToASTVisitor::GetTempAssign(llvm::Instruction &inst,
+                                           clang::Expr *expr) {
+  if (inst.hasNUsesOrMore(2)) {
+    auto &decl{value_decls[&inst]};
+    if (!decl) {
+      auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
+      auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+      auto type{GetQualType(inst.getType())};
+      decl = ast.CreateVarDecl(fdecl, type, name);
+      fdecl->addDecl(decl);
+    }
+
+    return ast.CreateAssign(ast.CreateDeclRef(decl), expr);
+  } else {
+    return expr;
+  }
 }
 
 clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
@@ -669,7 +689,7 @@ clang::Stmt *IRToASTVisitor::visitGetElementPtrInst(
     }
   }
 
-  return ast.CreateAddrOf(base);
+  return GetTempAssign(inst, ast.CreateAddrOf(base));
 }
 
 clang::Stmt *IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
@@ -723,7 +743,7 @@ clang::Stmt *IRToASTVisitor::visitExtractValueInst(
     }
   }
 
-  return base;
+  return GetTempAssign(inst, base);
 }
 
 clang::Stmt *IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
@@ -818,59 +838,75 @@ clang::Stmt *IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
         ast_ctx.getTypeSize(operand->getType()), sign)};
     return ast.CreateCStyleCast(type, operand);
   }};
+  clang::Expr *res;
   // Where the magic happens
   switch (inst.getOpcode()) {
     case llvm::BinaryOperator::LShr:
-      return ast.CreateShr(IntSignCast(lhs, false), rhs);
+      res = ast.CreateShr(IntSignCast(lhs, false), rhs);
+      break;
 
     case llvm::BinaryOperator::AShr:
-      return ast.CreateShr(IntSignCast(lhs, true), rhs);
+      res = ast.CreateShr(IntSignCast(lhs, true), rhs);
+      break;
 
     case llvm::BinaryOperator::Shl:
-      return ast.CreateShl(lhs, rhs);
+      res = ast.CreateShl(lhs, rhs);
+      break;
 
     case llvm::BinaryOperator::And:
-      return inst.getType()->isIntegerTy(1U) ? ast.CreateLAnd(lhs, rhs)
-                                             : ast.CreateAnd(lhs, rhs);
+      res = inst.getType()->isIntegerTy(1U) ? ast.CreateLAnd(lhs, rhs)
+                                            : ast.CreateAnd(lhs, rhs);
+      break;
 
     case llvm::BinaryOperator::Or:
-      return inst.getType()->isIntegerTy(1U) ? ast.CreateLOr(lhs, rhs)
-                                             : ast.CreateOr(lhs, rhs);
+      res = inst.getType()->isIntegerTy(1U) ? ast.CreateLOr(lhs, rhs)
+                                            : ast.CreateOr(lhs, rhs);
+      break;
 
     case llvm::BinaryOperator::Xor:
-      return ast.CreateXor(lhs, rhs);
+      res = ast.CreateXor(lhs, rhs);
+      break;
 
     case llvm::BinaryOperator::URem:
-      return ast.CreateRem(IntSignCast(lhs, false), IntSignCast(rhs, false));
+      res = ast.CreateRem(IntSignCast(lhs, false), IntSignCast(rhs, false));
+      break;
 
     case llvm::BinaryOperator::SRem:
-      return ast.CreateRem(IntSignCast(lhs, true), IntSignCast(rhs, true));
+      res = ast.CreateRem(IntSignCast(lhs, true), IntSignCast(rhs, true));
+      break;
 
     case llvm::BinaryOperator::UDiv:
-      return ast.CreateDiv(IntSignCast(lhs, false), IntSignCast(rhs, false));
+      res = ast.CreateDiv(IntSignCast(lhs, false), IntSignCast(rhs, false));
+      break;
 
     case llvm::BinaryOperator::SDiv:
-      return ast.CreateDiv(IntSignCast(lhs, true), IntSignCast(rhs, true));
+      res = ast.CreateDiv(IntSignCast(lhs, true), IntSignCast(rhs, true));
+      break;
 
     case llvm::BinaryOperator::FDiv:
-      return ast.CreateDiv(lhs, rhs);
+      res = ast.CreateDiv(lhs, rhs);
+      break;
 
     case llvm::BinaryOperator::Add:
     case llvm::BinaryOperator::FAdd:
-      return ast.CreateAdd(lhs, rhs);
+      res = ast.CreateAdd(lhs, rhs);
+      break;
 
     case llvm::BinaryOperator::Sub:
     case llvm::BinaryOperator::FSub:
-      return ast.CreateSub(lhs, rhs);
+      res = ast.CreateSub(lhs, rhs);
+      break;
 
     case llvm::BinaryOperator::Mul:
     case llvm::BinaryOperator::FMul:
-      return ast.CreateMul(lhs, rhs);
+      res = ast.CreateMul(lhs, rhs);
+      break;
 
     default:
       THROW() << "Unknown BinaryOperator: " << inst.getOpcodeName();
       return nullptr;
   }
+  return GetTempAssign(inst, res);
 }
 
 clang::Stmt *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
@@ -900,40 +936,48 @@ clang::Stmt *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
     lhs = IntSignCast(lhs, false);
     rhs = IntSignCast(rhs, false);
   }
+  clang::Expr *res;
   // Where the magic happens
   switch (inst.getPredicate()) {
     case llvm::CmpInst::ICMP_UGT:
     case llvm::CmpInst::ICMP_SGT:
     case llvm::CmpInst::FCMP_OGT:
-      return ast.CreateGT(lhs, rhs);
+      res = ast.CreateGT(lhs, rhs);
+      break;
 
     case llvm::CmpInst::ICMP_ULT:
     case llvm::CmpInst::ICMP_SLT:
     case llvm::CmpInst::FCMP_OLT:
-      return ast.CreateLT(lhs, rhs);
+      res = ast.CreateLT(lhs, rhs);
+      break;
 
     case llvm::CmpInst::ICMP_UGE:
     case llvm::CmpInst::ICMP_SGE:
     case llvm::CmpInst::FCMP_OGE:
-      return ast.CreateGE(lhs, rhs);
+      res = ast.CreateGE(lhs, rhs);
+      break;
 
     case llvm::CmpInst::ICMP_ULE:
     case llvm::CmpInst::ICMP_SLE:
     case llvm::CmpInst::FCMP_OLE:
-      return ast.CreateLE(lhs, rhs);
+      res = ast.CreateLE(lhs, rhs);
+      break;
 
     case llvm::CmpInst::ICMP_EQ:
     case llvm::CmpInst::FCMP_OEQ:
-      return ast.CreateEQ(lhs, rhs);
+      res = ast.CreateEQ(lhs, rhs);
+      break;
 
     case llvm::CmpInst::ICMP_NE:
     case llvm::CmpInst::FCMP_UNE:
-      return ast.CreateNE(lhs, rhs);
+      res = ast.CreateNE(lhs, rhs);
+      break;
 
     default:
       THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
       return nullptr;
   }
+  return GetTempAssign(inst, res);
 }
 
 clang::Stmt *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
@@ -986,7 +1030,7 @@ clang::Stmt *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     } break;
   }
   // Create cast
-  return ast.CreateCStyleCast(type, operand);
+  return GetTempAssign(inst, ast.CreateCStyleCast(type, operand));
 }
 
 clang::Stmt *IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
@@ -996,13 +1040,13 @@ clang::Stmt *IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
   auto tval{GetOperandExpr(inst.getTrueValue())};
   auto fval{GetOperandExpr(inst.getFalseValue())};
 
-  return ast.CreateConditional(cond, tval, fval);
+  return GetTempAssign(inst, ast.CreateConditional(cond, tval, fval));
 }
 
 clang::Stmt *IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
   DLOG(INFO) << "visitFreezeInst: " << LLVMThingToString(&inst);
 
-  return GetOperandExpr(inst.getOperand(0U));
+  return GetTempAssign(inst, GetOperandExpr(inst.getOperand(0U)));
 }
 
 clang::Stmt *IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {

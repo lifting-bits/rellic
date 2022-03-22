@@ -114,6 +114,37 @@
         .list-bottom {
             padding: 0.2em;
         }
+
+        .dir-entry {
+            padding-left: 0.5em;
+            cursor: pointer;
+        }
+
+        .dir-entry>summary {
+            list-style-type: '\1F5C0\FE0E';
+        }
+
+        .dir-entry[open]>summary {
+            list-style-type: '\1F5C1\FE0E';
+        }
+
+        .file-entry {
+            margin-left: 0.5em;
+            border: none;
+            background-color: inherit;
+            cursor: pointer;
+            display: block;
+        }
+
+        .file-entry::before {
+            content: '\1F5CE\FE0E';
+            padding-right: 0.5em;
+            font-size: large;
+        }
+
+        dialog {
+            width: 50vw;
+        }
     </style>
 </head>
 
@@ -147,7 +178,27 @@
         </div>
     </template>
 
+    <template id="tree-view">
+        <details class="dir-entry">
+            <summary>{{ name }}</summary>
+            <template v-for="entry in entries">
+                <tree-view v-if="entry.entries" :name="entry.name" :entries="entry.entries">
+                </tree-view>
+                <button v-if="!entry.entries" :value="entry.path" class="file-entry">{{ entry.name }}</button>
+            </template>
+        </details>
+    </template>
+
     <div id="app">
+        <dialog ref="anghaDialog" @close="anghaClosed">
+            <form class="tree-view" method="dialog">
+                <template v-for="entry in angha">
+                    <tree-view v-if="entry.entries" :name="entry.name" :entries="entry.entries">
+                    </tree-view>
+                    <button v-if="!entry.entries" :value="entry.path" class="file-entry">{{ entry.name }}</button>
+                </template>
+            </form>
+        </dialog>
         <header>
             <span class="logo">rellic</span>
             <input type="file" accept=".bc,.ll" @change="selectFile">
@@ -156,6 +207,7 @@
             <input type="button" v-for="action in actions" @click="runAction(action)" :value="action.desc"
                 :disabled="!module"><br>
             <input type="button" @click="useDefaultChain" value="Use default chain">
+            <input type="button" @click="openAngha" value="Open AnghaBench file">
         </header>
         <main>
             <splitpanes class="default-theme">
@@ -239,6 +291,27 @@
             template: "#list-component"
         })
 
+        Vue.component('tree-view', {
+            props: ["entries", "name"],
+            methods: {
+                addCommand() {
+                    this.items.push(this.selected)
+                },
+                deleteCommand(i) {
+                    this.items.splice(i, 1)
+                },
+                addFixpoint() {
+                    this.items.push([])
+                }
+            },
+            data() {
+                return {
+                    selected: null
+                }
+            },
+            template: "#tree-view"
+        })
+
         const app = new Vue({
             el: '#app',
             components: { Splitpanes, Pane },
@@ -249,6 +322,7 @@
                 status: "Ready.",
                 file: null,
                 running: false,
+                angha: [],
                 available_commands: [
                     dse,
                     zcs,
@@ -301,6 +375,7 @@
             mounted: function () {
                 this.loadModule()
                 this.loadAST()
+                this.loadAngha()
             },
             updated: function () {
                 const spans = document.querySelectorAll('[data-provenance],[data-addr]')
@@ -372,6 +447,23 @@
                             this.ast = text
                         } catch (e) {
                             this.module = null
+                            this.status = e
+                        }
+                    })()
+                },
+                loadAngha() {
+                    (async () => {
+                        try {
+                            res = await fetch("/action/angha", {
+                                credentials: "include",
+                                method: "GET"
+                            })
+                            if (res.status != 200) {
+                                throw (await res.json()).message
+                            }
+                            let json = await res.json()
+                            this.angha = json
+                        } catch (e) {
                             this.status = e
                         }
                     })()
@@ -465,6 +557,43 @@
                         [zcs, ncp, nsc],
                         ec
                     ]
+                },
+                openAngha() {
+                    this.$refs.anghaDialog.showModal()
+                },
+                anghaClosed(event) {
+                    console.log("anghaClosed", event.returnValue)
+                    if (event.returnValue) {
+                        const path = this.$refs.anghaDialog.returnValue;
+                        console.log("path: ", path);
+                        (async () => {
+                            try {
+                                this.status = `Loading ${path}...`
+                                this.running = true
+                                let res = await fetch("/action/loadAngha", {
+                                    credentials: "include",
+                                    body: JSON.stringify(path),
+                                    method: "POST"
+                                })
+                                if (res.status != 200) {
+                                    throw (await res.json()).message
+                                }
+                                this.status = "Loading module text..."
+                                res = await fetch("/action/module", {
+                                    credentials: "include",
+                                    method: "GET"
+                                })
+                                let text = await res.text()
+                                this.module = text
+                                this.ast = null
+                                this.status = "Ready."
+                            } catch (e) {
+                                this.status = e
+                                this.module = null
+                                this.ast = null
+                            }
+                        })()
+                    }
                 },
                 run() {
                     (async () => {

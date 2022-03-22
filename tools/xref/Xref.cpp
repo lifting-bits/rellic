@@ -19,6 +19,7 @@
 #include <llvm/InitializePasses.h>
 #include <llvm/Pass.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/FileSystem.h>
 #include <llvm/Support/FormattedStream.h>
 #include <llvm/Support/JSON.h>
 #include <llvm/Support/raw_ostream.h>
@@ -67,6 +68,7 @@ DECLARE_bool(version);
 DEFINE_string(address, "0.0.0.0", "Address on which the server will listen");
 DEFINE_int32(port, 80, "Port on which the server will listen");
 DEFINE_string(home, "./www", "");
+DEFINE_string(angha, "./anghabench", "Path for anghabench files");
 
 using namespace std::chrono_literals;
 
@@ -193,6 +195,13 @@ static void SendJSON(httplib::Response& res, llvm::json::Object& obj) {
   std::string s;
   llvm::raw_string_ostream os(s);
   os << llvm::json::Value(std::move(obj));
+  res.set_content(s, "application/json");
+}
+
+static void SendJSON(httplib::Response& res, llvm::json::Array& arr) {
+  std::string s;
+  llvm::raw_string_ostream os(s);
+  os << llvm::json::Value(std::move(arr));
   res.set_content(s, "application/json");
 }
 
@@ -745,6 +754,62 @@ static void PrintAST(const httplib::Request& req, httplib::Response& res) {
   res.set_content(s, "text/html");
 }
 
+static llvm::json::Array EnumerateEntries(
+    const llvm::sys::fs::directory_entry& entry) {
+  std::error_code ec;
+  llvm::json::Array result;
+  for (llvm::sys::fs::directory_iterator it(entry.path(), ec, false), end;
+       it != end; it.increment(ec)) {
+    auto& entry_path{it->path()};
+    auto entry_name{entry_path.substr(entry_path.find_last_of('/') + 1)};
+    llvm::json::Object obj;
+    obj["name"] = entry_name;
+    if (it->type() == llvm::sys::fs::file_type::regular_file) {
+      obj["path"] = entry_path;
+      result.push_back(std::move(obj));
+    } else if (it->type() == llvm::sys::fs::file_type::directory_file) {
+      obj["entries"] = EnumerateEntries(*it);
+      result.push_back(std::move(obj));
+    }
+  }
+
+  return result;
+}
+
+static void ListAngha(const httplib::Request& req, httplib::Response& res) {
+  res.status = 200;
+  auto entries{
+      EnumerateEntries(llvm::sys::fs::directory_entry(FLAGS_angha, false))};
+  SendJSON(res, entries);
+}
+
+static void LoadAngha(const httplib::Request& req, httplib::Response& res) {
+  auto& session{GetSession(req)};
+  write_lock lock(session.LoadMutex, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    llvm::json::Object msg{
+        {"message",
+         "Cannot load a new module while other operations are in progress."}};
+    res.status = 409;
+    SendJSON(res, msg);
+    return;
+  }
+
+  auto json{llvm::json::parse(req.body)};
+  auto mod{rellic::LoadModuleFromFile(session.Context.get(),
+                                      json->getAsString()->str(), true)};
+  if (!mod) {
+    llvm::json::Object msg{{"message", "Couldn't load LLVM module."}};
+    res.status = 400;
+    SendJSON(res, msg);
+    return;
+  }
+  session.Module = std::unique_ptr<llvm::Module>(mod);
+  llvm::json::Object msg{{"message", "Ok."}};
+  SendJSON(res, msg);
+  res.status = 200;
+}
+
 int main(int argc, char* argv[]) {
   std::stringstream usage;
   usage << std::endl
@@ -776,9 +841,11 @@ int main(int argc, char* argv[]) {
   svr.Post("/action/run", Run);
   svr.Post("/action/fixpoint", Fixpoint);
   svr.Post("/action/stop", Stop);
+  svr.Post("/action/loadAngha", LoadAngha);
 
   svr.Get("/action/module", PrintModule);
   svr.Get("/action/ast", PrintAST);
+  svr.Get("/action/angha", ListAngha);
 
   LOG(INFO) << "Listening";
   svr.listen(FLAGS_address.c_str(), FLAGS_port);

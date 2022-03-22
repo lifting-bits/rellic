@@ -44,12 +44,13 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Stmt *> {
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
 
-  clang::Expr *GetOperandExpr(llvm::Value *val);
   clang::QualType GetQualType(llvm::Type *type);
 
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
 
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
+
+  clang::Expr *GetTempAssign(llvm::Instruction &inst, clang::Expr *expr);
 
  public:
   IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
@@ -58,6 +59,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Stmt *> {
 
   clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
+  clang::Expr *GetOperandExpr(llvm::Value *val);
 
   StmtToIRMap &GetStmtToIRMap() { return provenance; }
   IRToValDeclMap &GetIRToValDeclMap() { return value_decls; }

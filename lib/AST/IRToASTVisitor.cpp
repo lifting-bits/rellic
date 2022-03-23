@@ -7,6 +7,7 @@
  */
 
 #include <clang/Basic/Builtins.h>
+#include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 #define GOOGLE_STRIP_LOG 1
@@ -28,13 +29,15 @@ namespace rellic {
 IRToASTVisitor::IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
                                IRToTypeDeclMap &type_decls,
                                IRToValDeclMap &value_decls, IRToStmtMap &stmts,
-                               ArgToTempMap &temp_decls)
+                               ArgToTempMap &temp_decls,
+                               UseToExprMap &use_provenance)
     : provenance(provenance),
       ast_ctx(unit.getASTContext()),
       ast(unit),
       type_decls(type_decls),
       value_decls(value_decls),
-      temp_decls(temp_decls) {}
+      temp_decls(temp_decls),
+      use_provenance(use_provenance) {}
 
 clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
@@ -146,6 +149,17 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
   return result;
 }
 
+clang::Expr *IRToASTVisitor::CreateConstantExpr(llvm::Constant *constant) {
+  if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(constant)) {
+    return visit(cexpr->getAsInstruction());
+  } else if (auto global = llvm::dyn_cast<llvm::GlobalValue>(constant)) {
+    auto ref{ast.CreateDeclRef(value_decls[global])};
+    provenance.insert({ref, constant});
+    return ast.CreateAddrOf(ref);
+  }
+  return CreateLiteralExpr(constant);
+}
+
 clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
   DLOG(INFO) << "Creating literal Expr for " << LLVMThingToString(constant);
 
@@ -158,7 +172,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     std::vector<clang::Expr *> init_exprs;
     if (!constant->isZeroValue()) {
       for (auto i{0U}; auto elm = constant->getAggregateElement(i); ++i) {
-        init_exprs.push_back(GetOperandExpr(elm));
+        init_exprs.push_back(CreateConstantExpr(elm));
       }
     }
     return ast.CreateInitList(init_exprs);
@@ -246,88 +260,82 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     LOG(FATAL) << "Invalid operand [" #x "]"; \
   }
 
-clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Value *val) {
+clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
-  // Helper functions
-  auto CreateExpr{[this, &val] {
-    auto stmt{GetOrCreateStmt(val)};
-    auto expr{clang::cast<clang::Expr>(stmt)};
-    // Handle calls to functions with a return value and side-effects, and
-    // values with multiple uses
-    if (auto binop = clang::dyn_cast<clang::BinaryOperator>(expr)) {
-      if (binop->getOpcode() == clang::BO_Assign) {
-        return binop->getLHS();
-      }
-    }
-    return expr;
-  }};
-
   auto CreateRef{[this, &val] {
     auto decl{GetOrCreateDecl(val)};
     auto ref{ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl))};
     provenance.insert({ref, val});
     return ref;
   }};
-  // Operand is a constant value
-  if (llvm::isa<llvm::ConstantExpr>(val) ||
-      llvm::isa<llvm::ConstantAggregate>(val) ||
-      llvm::isa<llvm::ConstantData>(val)) {
-    return CreateExpr();
-  }
-  // Operand is an l-value (variable, function, ...)
-  if (llvm::isa<llvm::GlobalValue>(val) || llvm::isa<llvm::AllocaInst>(val)) {
-    // Add a `&` operator
-    return ast.CreateAddrOf(CreateRef());
-  }
-  // Operand is a function argument or local variable
-  if (llvm::isa<llvm::Argument>(val)) {
-    auto arg{llvm::cast<llvm::Argument>(val)};
-    auto ref{CreateRef()};
-    if (arg->hasByValAttr()) {
-      // Since arguments that have the `byval` are pointers, but actually mean
-      // pass-by-value semantics, we need to create an auxiliary pointer to the
-      // actual argument and use it instead of the actual argument.
-      // This is because `byval` arguments are pointers, so each reference to
-      // those arguments assume they are dealing with pointers.
-      auto &temp{temp_decls[arg]};
-      if (!temp) {
-        auto addr_of_arg{ast.CreateAddrOf(ref)};
-        auto func{arg->getParent()};
-        auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
-        auto argdecl{clang::cast<clang::ParmVarDecl>(value_decls[arg])};
-        temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
-                                 argdecl->getName().str() + "_ptr");
-        temp->setInit(addr_of_arg);
-        fdecl->addDecl(temp);
-      }
 
-      return ast.CreateDeclRef(temp);
-    } else {
-      return ref;
+  auto Wrapper{[&]() -> clang::Expr * {
+    // Operand is a constant value
+    if (auto constant = llvm::dyn_cast<llvm::Constant>(val)) {
+      return CreateConstantExpr(constant);
     }
-  }
-  // Operand is a result of an expression
-  if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
-    return CreateExpr();
-  }
+    // Operand is an l-value (variable, function, ...)
+    if (llvm::isa<llvm::AllocaInst>(val)) {
+      // Add a `&` operator
+      return ast.CreateAddrOf(CreateRef());
+    }
+    // Operand is a function argument or local variable
+    if (llvm::isa<llvm::Argument>(val)) {
+      auto arg{llvm::cast<llvm::Argument>(val)};
+      auto ref{CreateRef()};
+      if (arg->hasByValAttr()) {
+        // Since arguments that have the `byval` are pointers, but actually mean
+        // pass-by-value semantics, we need to create an auxiliary pointer to
+        // the actual argument and use it instead of the actual argument. This
+        // is because `byval` arguments are pointers, so each reference to those
+        // arguments assume they are dealing with pointers.
+        auto &temp{temp_decls[arg]};
+        if (!temp) {
+          auto addr_of_arg{ast.CreateAddrOf(ref)};
+          auto func{arg->getParent()};
+          auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
+          auto argdecl{clang::cast<clang::ParmVarDecl>(value_decls[arg])};
+          temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
+                                   argdecl->getName().str() + "_ptr");
+          temp->setInit(addr_of_arg);
+          fdecl->addDecl(temp);
+        }
 
-  ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
-  ASSERT_ON_VALUE_TYPE(llvm::Constant);
-  ASSERT_ON_VALUE_TYPE(llvm::BasicBlock);
-  ASSERT_ON_VALUE_TYPE(llvm::GlobalVariable);
-  ASSERT_ON_VALUE_TYPE(llvm::GlobalAlias);
-  ASSERT_ON_VALUE_TYPE(llvm::GlobalIFunc);
-  ASSERT_ON_VALUE_TYPE(llvm::GlobalIndirectSymbol);
-  ASSERT_ON_VALUE_TYPE(llvm::GlobalObject);
-  ASSERT_ON_VALUE_TYPE(llvm::FPMathOperator);
-  ASSERT_ON_VALUE_TYPE(llvm::Operator);
-  ASSERT_ON_VALUE_TYPE(llvm::BlockAddress);
+        return ast.CreateDeclRef(temp);
+      } else {
+        return ref;
+      }
+    }
+    // Operand is a result of an expression
+    if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
+      if (auto decl = value_decls[inst]) {
+        return ast.CreateDeclRef(decl);
+      } else {
+        return visit(inst);
+      }
+    }
 
-  LOG(FATAL) << "Invalid operand value id: [" << val->getValueID() << "]\n"
-             << "Bitcode: [" << LLVMThingToString(val) << "]\n"
-             << "Type: [" << LLVMThingToString(val->getType()) << "]\n";
+    ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
+    ASSERT_ON_VALUE_TYPE(llvm::Constant);
+    ASSERT_ON_VALUE_TYPE(llvm::BasicBlock);
+    ASSERT_ON_VALUE_TYPE(llvm::GlobalVariable);
+    ASSERT_ON_VALUE_TYPE(llvm::GlobalAlias);
+    ASSERT_ON_VALUE_TYPE(llvm::GlobalIFunc);
+    ASSERT_ON_VALUE_TYPE(llvm::GlobalIndirectSymbol);
+    ASSERT_ON_VALUE_TYPE(llvm::GlobalObject);
+    ASSERT_ON_VALUE_TYPE(llvm::FPMathOperator);
+    ASSERT_ON_VALUE_TYPE(llvm::Operator);
+    ASSERT_ON_VALUE_TYPE(llvm::BlockAddress);
 
-  return nullptr;
+    LOG(FATAL) << "Invalid operand value id: [" << val->getValueID() << "]\n"
+               << "Bitcode: [" << LLVMThingToString(val) << "]\n"
+               << "Type: [" << LLVMThingToString(val->getType()) << "]\n";
+
+    return nullptr;
+  }};
+  auto res{Wrapper()};
+  use_provenance.insert({&val, res});
+  return res;
 }
 
 clang::Decl *IRToASTVisitor::GetOrCreateIntrinsic(llvm::InlineAsm *val) {
@@ -342,48 +350,6 @@ clang::Decl *IRToASTVisitor::GetOrCreateIntrinsic(llvm::InlineAsm *val) {
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
   return decl;
-}
-
-clang::Stmt *IRToASTVisitor::GetOrCreateStmt(llvm::Value *val) {
-  clang::Stmt *stmt;
-  if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(val)) {
-    auto inst{cexpr->getAsInstruction()};
-    stmt = GetOrCreateStmt(inst);
-    provenance.erase(stmt);
-    DeleteValue(inst);
-  } else if (auto caggr = llvm::dyn_cast<llvm::ConstantAggregate>(val)) {
-    stmt = CreateLiteralExpr(caggr);
-  } else if (auto cdata = llvm::dyn_cast<llvm::ConstantData>(val)) {
-    stmt = CreateLiteralExpr(cdata);
-  } else if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
-    stmt = visit(inst);
-  } else {
-    THROW() << "Unsupported value type: " << LLVMThingToString(val);
-  }
-
-  provenance.insert({stmt, val});
-  return stmt;
-}
-
-clang::Expr *IRToASTVisitor::GetTempAssign(llvm::Instruction &inst,
-                                           clang::Expr *expr) {
-  if (inst.hasNUsesOrMore(2)) {
-    auto &decl{value_decls[&inst]};
-    if (!decl) {
-      auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
-      auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-      auto type{GetQualType(inst.getType())};
-      if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
-        type = ast_ctx.getPointerType(arrayType->getElementType());
-      }
-      decl = ast.CreateVarDecl(fdecl, type, name);
-      fdecl->addDecl(decl);
-    }
-
-    return ast.CreateAssign(ast.CreateDeclRef(decl), expr);
-  } else {
-    return expr;
-  }
 }
 
 clang::Decl *IRToASTVisitor::GetOrCreateDecl(llvm::Value *val) {
@@ -432,7 +398,7 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   // Create an initalizer literal
   if (gvar.hasInitializer()) {
     clang::cast<clang::VarDecl>(var)->setInit(
-        GetOperandExpr(gvar.getInitializer()));
+        CreateConstantExpr(gvar.getInitializer()));
   }
 }
 
@@ -505,20 +471,56 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   tudecl->addDecl(decl);
 
-  if (func.arg_empty()) {
-    return;
-  }
-
   std::vector<clang::ParmVarDecl *> params;
   for (auto &arg : func.args()) {
     auto parm{clang::cast<clang::ParmVarDecl>(GetOrCreateDecl(&arg))};
     params.push_back(parm);
   }
 
-  decl->getAsFunction()->setParams(params);
+  auto fdecl{decl->getAsFunction()};
+  fdecl->setParams(params);
+
+  for (auto &inst : llvm::instructions(func)) {
+    auto &var{value_decls[&inst]};
+    if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
+      auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+      // TLDR: Here we discard the variable name as present in the bitcode
+      // because there probably is a better one we can assign afterwards, using
+      // debug metadata.
+      //
+      // The rationale behind discarding the bitcode-provided name here is that
+      // such a name is generally only present if the code was compiled with
+      // debug info enabled, in which case more specific info is available in
+      // later passes. If debug metadata is not present, we don't have variable
+      // names either.
+      // Also, the "autogenerated" name is used in the renaming passes in order
+      // to disambiguate between variables which were originally in different
+      // scopes but have the same name: if, for example, we had two variables
+      // named `a`, we disambiguate by renaming one `a_var1`. If we instead use
+      // the name as provided by the bitcode, we would end up with something
+      // like `a_a_addr`
+      // (`varname_addr` being a common name used by clang for variables used as
+      // storage for parameters e.g. a parameter named "foo" has a corresponding
+      // local variable named "foo_addr").
+      var = ast.CreateVarDecl(fdecl, GetQualType(alloca->getAllocatedType()),
+                              name);
+      fdecl->addDecl(var);
+    } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst)) {
+      if (!inst.getType()->isVoidTy()) {
+        auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+        auto type{GetQualType(inst.getType())};
+        if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
+          type = ast_ctx.getPointerType(arrayType->getElementType());
+        }
+
+        var = ast.CreateVarDecl(fdecl, type, name);
+        fdecl->addDecl(var);
+      }
+    }
+  }
 }
 
-clang::Stmt *IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
+clang::Expr *IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
   DLOG(INFO) << "visitMemCpyInst: " << LLVMThingToString(&inst);
 
   std::vector<clang::Expr *> args;
@@ -530,7 +532,7 @@ clang::Stmt *IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
 }
 
-clang::Stmt *IRToASTVisitor::visitMemCpyInlineInst(
+clang::Expr *IRToASTVisitor::visitMemCpyInlineInst(
     llvm::MemCpyInlineInst &inst) {
   DLOG(INFO) << "visitMemCpyInlineInst: " << LLVMThingToString(&inst);
 
@@ -543,7 +545,7 @@ clang::Stmt *IRToASTVisitor::visitMemCpyInlineInst(
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
 }
 
-clang::Stmt *IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
+clang::Expr *IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
   DLOG(INFO) << "visitAnyMemMoveInst: " << LLVMThingToString(&inst);
 
   std::vector<clang::Expr *> args;
@@ -555,7 +557,7 @@ clang::Stmt *IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memmove, args);
 }
 
-clang::Stmt *IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
+clang::Expr *IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
   DLOG(INFO) << "visitAnyMemSetInst: " << LLVMThingToString(&inst);
 
   std::vector<clang::Expr *> args;
@@ -567,7 +569,7 @@ clang::Stmt *IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
 }
 
-clang::Stmt *IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
+clang::Expr *IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
   DLOG(INFO) << "visitIntrinsicInst: " << LLVMThingToString(&inst);
 
   // NOTE(artem): As of this writing, rellic does not do anything
@@ -578,7 +580,7 @@ clang::Stmt *IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
 
   if (llvm::isDbgInfoIntrinsic(inst.getIntrinsicID())) {
     DLOG(INFO) << "Skipping debug data intrinsic";
-    return ast.CreateNullStmt();
+    return nullptr;
   }
 
   if (IsAnnotationIntrinsic(inst.getIntrinsicID())) {
@@ -586,14 +588,14 @@ clang::Stmt *IRToASTVisitor::visitIntrinsicInst(llvm::IntrinsicInst &inst) {
     // This is fine. We want debug data special cased as we know it is present
     // and we may make use of it earlier than other annotations
     DLOG(INFO) << "Skipping non-debug annotation";
-    return ast.CreateNullStmt();
+    return nullptr;
   }
 
   // handle this as a CallInst, which IntrinsicInst derives from
   return visitCallInst(inst);
 }
 
-clang::Stmt *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
+clang::Expr *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   DLOG(INFO) << "visitCallInst: " << LLVMThingToString(&inst);
 
   std::vector<clang::Expr *> args;
@@ -608,7 +610,7 @@ clang::Stmt *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   }
 
   clang::Expr *callexpr{nullptr};
-  auto callee{inst.getCalledOperand()};
+  auto &callee{*(inst.op_end() - 1)};
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
     auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);
@@ -635,12 +637,12 @@ clang::Stmt *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   }
 }
 
-clang::Stmt *IRToASTVisitor::visitGetElementPtrInst(
+clang::Expr *IRToASTVisitor::visitGetElementPtrInst(
     llvm::GetElementPtrInst &inst) {
   DLOG(INFO) << "visitGetElementPtrInst: " << LLVMThingToString(&inst);
 
   auto indexed_type{inst.getPointerOperandType()};
-  auto base{GetOperandExpr(inst.getPointerOperand())};
+  auto base{GetOperandExpr(inst.getOperandUse(0))};
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {
@@ -691,29 +693,19 @@ clang::Stmt *IRToASTVisitor::visitGetElementPtrInst(
     }
   }
 
-  return GetTempAssign(inst, ast.CreateAddrOf(base));
+  return ast.CreateAddrOf(base);
 }
 
-clang::Stmt *IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
+clang::Expr *IRToASTVisitor::visitInstruction(llvm::Instruction &inst) {
   THROW() << "Instruction not supported: " << LLVMThingToString(&inst);
   return nullptr;
 }
 
-clang::Stmt *IRToASTVisitor::visitBranchInst(llvm::BranchInst &inst) {
-  DLOG(INFO) << "visitBranchInst ignored: " << LLVMThingToString(&inst);
-  return ast.CreateNullStmt();
-}
-
-clang::Stmt *IRToASTVisitor::visitUnreachableInst(llvm::UnreachableInst &inst) {
-  DLOG(INFO) << "visitUnreachableInst ignored:" << LLVMThingToString(&inst);
-  return ast.CreateNullStmt();
-}
-
-clang::Stmt *IRToASTVisitor::visitExtractValueInst(
+clang::Expr *IRToASTVisitor::visitExtractValueInst(
     llvm::ExtractValueInst &inst) {
   DLOG(INFO) << "visitExtractValueInst: " << LLVMThingToString(&inst);
 
-  auto base{GetOperandExpr(inst.getAggregateOperand())};
+  auto base{GetOperandExpr(inst.getOperandUse(0))};
   auto indexed_type{inst.getAggregateOperand()->getType()};
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
@@ -745,95 +737,19 @@ clang::Stmt *IRToASTVisitor::visitExtractValueInst(
     }
   }
 
-  return GetTempAssign(inst, base);
+  return base;
 }
 
-clang::Stmt *IRToASTVisitor::visitAllocaInst(llvm::AllocaInst &inst) {
-  DLOG(INFO) << "visitAllocaInst: " << LLVMThingToString(&inst);
-
-  auto func{inst.getFunction()};
-  CHECK(func) << "AllocaInst does not have a parent function";
-
-  auto &var{value_decls[&inst]};
-  if (!var) {
-    auto fdecl{clang::cast<clang::FunctionDecl>(GetOrCreateDecl(func))};
-    auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-    // TLDR: Here we discard the variable name as present in the bitcode because
-    // there probably is a better one we can assign afterwards, using debug
-    // metadata.
-    //
-    // The rationale behind discarding the bitcode-provided name here is that
-    // such a name is generally only present if the code was compiled with
-    // debug info enabled, in which case more specific info is available in
-    // later passes. If debug metadata is not present, we don't have variable
-    // names either.
-    // Also, the "autogenerated" name is used in the renaming passes in order to
-    // disambiguate between variables which were originally in different scopes
-    // but have the same name: if, for example, we had two variables named `a`,
-    // we disambiguate by renaming one `a_var1`. If we instead use the name as
-    // provided by the bitcode, we would end up with something like `a_a_addr`
-    // (`varname_addr` being a common name used by clang for variables used as
-    // storage for parameters e.g. a parameter named "foo" has a corresponding
-    // local variable named "foo_addr").
-    var = ast.CreateVarDecl(fdecl, GetQualType(inst.getAllocatedType()), name);
-    fdecl->addDecl(var);
-  }
-
-  return ast.CreateDeclRef(var);
-}
-
-clang::Stmt *IRToASTVisitor::visitStoreInst(llvm::StoreInst &inst) {
-  DLOG(INFO) << "visitStoreInst: " << LLVMThingToString(&inst);
-  // Stores in LLVM IR correspond to value assignments in C
-  // Get the operand we're assigning to
-  auto lhs{GetOperandExpr(inst.getPointerOperand())};
-  // Get the operand we're assigning from
-  auto value_opnd{inst.getValueOperand()};
-  if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value_opnd)) {
-    DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
-    return ast.CreateNullStmt();
-  }
-  auto rhs{GetOperandExpr(value_opnd)};
-  if (value_opnd->getType()->isArrayTy()) {
-    // We cannot directly assign arrays, so we generate memcpy or memset instead
-    auto DL{inst.getModule()->getDataLayout()};
-    llvm::APInt sz(64, DL.getTypeAllocSize(value_opnd->getType()));
-    auto sz_expr{ast.CreateIntLit(sz)};
-    if (llvm::isa<llvm::ConstantAggregateZero>(value_opnd)) {
-      llvm::APInt zero(8, 0, false);
-      std::vector<clang::Expr *> args{lhs, ast.CreateIntLit(zero), sz_expr};
-      return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
-    } else {
-      std::vector<clang::Expr *> args{lhs, rhs, sz_expr};
-      return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
-    }
-  } else {
-    // Create the assignemnt itself
-    auto deref{ast.CreateDeref(lhs)};
-    CopyProvenance(lhs, deref, provenance);
-    return ast.CreateAssign(deref, rhs);
-  }
-}
-
-clang::Stmt *IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
+clang::Expr *IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  return ast.CreateDeref(GetOperandExpr(inst.getPointerOperand()));
+  return ast.CreateDeref(GetOperandExpr(inst.getOperandUse(0)));
 }
 
-clang::Stmt *IRToASTVisitor::visitReturnInst(llvm::ReturnInst &inst) {
-  DLOG(INFO) << "visitReturnInst: " << LLVMThingToString(&inst);
-  if (auto retval = inst.getReturnValue()) {
-    return ast.CreateReturn(GetOperandExpr(retval));
-  } else {
-    return ast.CreateReturn();
-  }
-}
-
-clang::Stmt *IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
+clang::Expr *IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   DLOG(INFO) << "visitBinaryOperator: " << LLVMThingToString(&inst);
   // Get operands
-  auto lhs{GetOperandExpr(inst.getOperand(0))};
-  auto rhs{GetOperandExpr(inst.getOperand(1))};
+  auto lhs{GetOperandExpr(inst.getOperandUse(0))};
+  auto rhs{GetOperandExpr(inst.getOperandUse(1))};
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *operand, bool sign) {
     auto type{ast_ctx.getIntTypeForBitwidth(
@@ -908,14 +824,14 @@ clang::Stmt *IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
       THROW() << "Unknown BinaryOperator: " << inst.getOpcodeName();
       return nullptr;
   }
-  return GetTempAssign(inst, res);
+  return res;
 }
 
-clang::Stmt *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
+clang::Expr *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   DLOG(INFO) << "visitCmpInst: " << LLVMThingToString(&inst);
   // Get operands
-  auto lhs{GetOperandExpr(inst.getOperand(0))};
-  auto rhs{GetOperandExpr(inst.getOperand(1))};
+  auto lhs{GetOperandExpr(inst.getOperandUse(0))};
+  auto rhs{GetOperandExpr(inst.getOperandUse(1))};
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *op, bool sign) {
     auto ot{op->getType()};
@@ -979,14 +895,14 @@ clang::Stmt *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
       return nullptr;
   }
-  return GetTempAssign(inst, res);
+  return res;
 }
 
-clang::Stmt *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
+clang::Expr *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   DLOG(INFO) << "visitCastInst: " << LLVMThingToString(&inst);
   // There should always be an operand with a cast instruction
   // Get a C-language expression of the operand
-  auto operand{GetOperandExpr(inst.getOperand(0))};
+  auto operand{GetOperandExpr(inst.getOperandUse(0))};
   // Get destination type
   auto type{GetQualType(inst.getType())};
   // Adjust type
@@ -1032,26 +948,26 @@ clang::Stmt *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
     } break;
   }
   // Create cast
-  return GetTempAssign(inst, ast.CreateCStyleCast(type, operand));
+  return ast.CreateCStyleCast(type, operand);
 }
 
-clang::Stmt *IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
+clang::Expr *IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
   DLOG(INFO) << "visitSelectInst: " << LLVMThingToString(&inst);
 
-  auto cond{GetOperandExpr(inst.getCondition())};
-  auto tval{GetOperandExpr(inst.getTrueValue())};
-  auto fval{GetOperandExpr(inst.getFalseValue())};
+  auto cond{GetOperandExpr(inst.getOperandUse(0))};
+  auto tval{GetOperandExpr(inst.getOperandUse(1))};
+  auto fval{GetOperandExpr(inst.getOperandUse(2))};
 
-  return GetTempAssign(inst, ast.CreateConditional(cond, tval, fval));
+  return ast.CreateConditional(cond, tval, fval);
 }
 
-clang::Stmt *IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
+clang::Expr *IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
   DLOG(INFO) << "visitFreezeInst: " << LLVMThingToString(&inst);
 
-  return GetTempAssign(inst, GetOperandExpr(inst.getOperand(0U)));
+  return GetOperandExpr(inst.getOperandUse(0));
 }
 
-clang::Stmt *IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
+clang::Expr *IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {
   DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
   THROW() << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
              "before decompiling.";

@@ -113,6 +113,7 @@ struct Session {
   rellic::IRToValDeclMap ValueDecls;
   rellic::IRToStmtMap Stmts;
   rellic::ArgToTempMap TempDecls;
+  rellic::UseToExprMap UseProvenance;
   // Must always be acquired in this order and released all at once
   std::shared_mutex LoadMutex, MutationMutex;
 };
@@ -265,7 +266,8 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
     dic.visit(*session.Module);
     rellic::GenerateAST::run(*session.Module, session.Provenance, *session.Unit,
                              session.TypeDecls, session.ValueDecls,
-                             session.Stmts, session.TempDecls);
+                             session.Stmts, session.TempDecls,
+                             session.UseProvenance);
     rellic::LocalDeclRenamer ldr{session.Provenance, *session.Unit,
                                  dic.GetIRToNameMap(), session.ValueDecls};
     rellic::StructFieldRenamer sfr{session.Provenance, *session.Unit,

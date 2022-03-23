@@ -200,4 +200,11 @@ clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *expr,
   ExprCloner cloner{unit, provenance};
   return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(expr)));
 }
+
+std::string ClangThingToString(clang::Stmt *stmt) {
+  std::string s;
+  llvm::raw_string_ostream os(s);
+  stmt->printPretty(os, nullptr, clang::PrintingPolicy(clang::LangOptions()));
+  return s;
+}
 }  // namespace rellic

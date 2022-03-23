@@ -100,8 +100,9 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::IRToValDeclMap value_decls;
     rellic::IRToStmtMap stmts;
     rellic::ArgToTempMap temp_decls;
+    rellic::UseToExprMap use_provenance;
     rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
-                             value_decls, stmts, temp_decls);
+                             value_decls, stmts, temp_decls, use_provenance);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
@@ -232,6 +233,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
     CopyMap(provenance, result.stmt_provenance_map, result.value_to_stmt_map);
     CopyMap(value_decls, result.value_to_decl_map, result.decl_provenance_map);
     CopyMap(type_decls, result.type_to_decl_map, result.type_provenance_map);
+    CopyMap(use_provenance, result.use_expr_map, result.expr_use_map);
 
     return Result<DecompilationResult, DecompilationError>(std::move(result));
   } catch (Exception& ex) {

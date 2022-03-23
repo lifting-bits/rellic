@@ -66,6 +66,7 @@ rellic::IRToTypeDeclMap type_decls;
 rellic::IRToValDeclMap value_decls;
 rellic::IRToStmtMap stmts;
 rellic::ArgToTempMap temp_decls;
+rellic::UseToExprMap use_provenance;
 std::unique_ptr<rellic::CompositeASTPass> global_pass{nullptr};
 
 static void SetVersion(void) {
@@ -310,7 +311,7 @@ static void do_decompile() {
     stmts.clear();
     temp_decls.clear();
     rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
-                             value_decls, stmts, temp_decls);
+                             value_decls, stmts, temp_decls, use_provenance);
     rellic::LocalDeclRenamer ldr{provenance, *ast_unit, dic.GetIRToNameMap(),
                                  value_decls};
     rellic::StructFieldRenamer sfr{provenance, *ast_unit,

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <clang/AST/DeclBase.h>
+#include <clang/AST/Stmt.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <llvm/IR/Value.h>
 
@@ -49,5 +50,7 @@ void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map);
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
                    StmtToIRMap &provenance);
+
+std::string ClangThingToString(clang::Stmt *stmt);
 
 }  // namespace rellic

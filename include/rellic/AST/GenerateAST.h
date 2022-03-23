@@ -55,7 +55,8 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   using Result = llvm::PreservedAnalyses;
   GenerateAST(StmtToIRMap &provenance, clang::ASTUnit &unit,
               IRToTypeDeclMap &type_decls, IRToValDeclMap &value_decls,
-              IRToStmtMap &stmts, ArgToTempMap &temp_decls);
+              IRToStmtMap &stmts, ArgToTempMap &temp_decls,
+              UseToExprMap &use_provenance);
 
   StmtToIRMap &GetStmtToIRMap() { return ast_gen.GetStmtToIRMap(); }
   IRToValDeclMap &GetIRToValDeclMap() { return ast_gen.GetIRToValDeclMap(); }
@@ -67,7 +68,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   static void run(llvm::Module &M, StmtToIRMap &provenance,
                   clang::ASTUnit &unit, IRToTypeDeclMap &type_decls,
                   IRToValDeclMap &value_decls, IRToStmtMap &stmts,
-                  ArgToTempMap &temp_decls);
+                  ArgToTempMap &temp_decls, UseToExprMap &use_provenance);
 };
 
 }  // namespace rellic

@@ -29,9 +29,10 @@ namespace rellic {
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+using UseToExprMap = std::unordered_map<llvm::Use *, clang::Expr *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 
-class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Stmt *> {
+class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Expr *> {
  private:
   clang::ASTContext &ast_ctx;
 
@@ -41,25 +42,25 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Stmt *> {
   IRToValDeclMap &value_decls;
   StmtToIRMap &provenance;
   ArgToTempMap &temp_decls;
+  UseToExprMap &use_provenance;
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
 
   clang::QualType GetQualType(llvm::Type *type);
 
+  clang::Expr *CreateConstantExpr(llvm::Constant *constant);
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
 
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
-  clang::Expr *GetTempAssign(llvm::Instruction &inst, clang::Expr *expr);
-
  public:
   IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
                  IRToTypeDeclMap &type_decls, IRToValDeclMap &value_decls,
-                 IRToStmtMap &stmts, ArgToTempMap &temp_decls);
+                 IRToStmtMap &stmts, ArgToTempMap &temp_decls,
+                 UseToExprMap &use_provenance);
 
-  clang::Stmt *GetOrCreateStmt(llvm::Value *val);
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
-  clang::Expr *GetOperandExpr(llvm::Value *val);
+  clang::Expr *GetOperandExpr(llvm::Use &val);
 
   StmtToIRMap &GetStmtToIRMap() { return provenance; }
   IRToValDeclMap &GetIRToValDeclMap() { return value_decls; }
@@ -69,27 +70,22 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Stmt *> {
   void VisitFunctionDecl(llvm::Function &func);
   void VisitArgument(llvm::Argument &arg);
 
-  clang::Stmt *visitMemCpyInst(llvm::MemCpyInst &inst);
-  clang::Stmt *visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst);
-  clang::Stmt *visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst);
-  clang::Stmt *visitAnyMemSetInst(llvm::AnyMemSetInst &inst);
-  clang::Stmt *visitIntrinsicInst(llvm::IntrinsicInst &inst);
-  clang::Stmt *visitCallInst(llvm::CallInst &inst);
-  clang::Stmt *visitGetElementPtrInst(llvm::GetElementPtrInst &inst);
-  clang::Stmt *visitExtractValueInst(llvm::ExtractValueInst &inst);
-  clang::Stmt *visitAllocaInst(llvm::AllocaInst &inst);
-  clang::Stmt *visitLoadInst(llvm::LoadInst &inst);
-  clang::Stmt *visitStoreInst(llvm::StoreInst &inst);
-  clang::Stmt *visitReturnInst(llvm::ReturnInst &inst);
-  clang::Stmt *visitBinaryOperator(llvm::BinaryOperator &inst);
-  clang::Stmt *visitCmpInst(llvm::CmpInst &inst);
-  clang::Stmt *visitCastInst(llvm::CastInst &inst);
-  clang::Stmt *visitSelectInst(llvm::SelectInst &inst);
-  clang::Stmt *visitFreezeInst(llvm::FreezeInst &inst);
-  clang::Stmt *visitPHINode(llvm::PHINode &inst);
-  clang::Stmt *visitBranchInst(llvm::BranchInst &inst);
-  clang::Stmt *visitUnreachableInst(llvm::UnreachableInst &inst);
-  clang::Stmt *visitInstruction(llvm::Instruction &inst);
+  clang::Expr *visitMemCpyInst(llvm::MemCpyInst &inst);
+  clang::Expr *visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst);
+  clang::Expr *visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst);
+  clang::Expr *visitAnyMemSetInst(llvm::AnyMemSetInst &inst);
+  clang::Expr *visitIntrinsicInst(llvm::IntrinsicInst &inst);
+  clang::Expr *visitCallInst(llvm::CallInst &inst);
+  clang::Expr *visitGetElementPtrInst(llvm::GetElementPtrInst &inst);
+  clang::Expr *visitExtractValueInst(llvm::ExtractValueInst &inst);
+  clang::Expr *visitLoadInst(llvm::LoadInst &inst);
+  clang::Expr *visitBinaryOperator(llvm::BinaryOperator &inst);
+  clang::Expr *visitCmpInst(llvm::CmpInst &inst);
+  clang::Expr *visitCastInst(llvm::CastInst &inst);
+  clang::Expr *visitSelectInst(llvm::SelectInst &inst);
+  clang::Expr *visitFreezeInst(llvm::FreezeInst &inst);
+  clang::Expr *visitPHINode(llvm::PHINode &inst);
+  clang::Expr *visitInstruction(llvm::Instruction &inst);
 };
 
 }  // namespace rellic

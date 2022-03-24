@@ -151,7 +151,11 @@ clang::QualType IRToASTVisitor::GetQualType(llvm::Type *type) {
 
 clang::Expr *IRToASTVisitor::CreateConstantExpr(llvm::Constant *constant) {
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(constant)) {
-    return visit(cexpr->getAsInstruction());
+    auto inst{cexpr->getAsInstruction()};
+    auto expr{visit(inst)};
+    provenance.erase(expr);
+    DeleteValue(inst);
+    return expr;
   } else if (auto global = llvm::dyn_cast<llvm::GlobalValue>(constant)) {
     auto ref{ast.CreateDeclRef(value_decls[global])};
     provenance.insert({ref, constant});
@@ -642,7 +646,7 @@ clang::Expr *IRToASTVisitor::visitGetElementPtrInst(
   DLOG(INFO) << "visitGetElementPtrInst: " << LLVMThingToString(&inst);
 
   auto indexed_type{inst.getPointerOperandType()};
-  auto base{GetOperandExpr(inst.getOperandUse(0))};
+  auto base{GetOperandExpr(inst.getOperandUse(inst.getPointerOperandIndex()))};
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {

@@ -32,7 +32,7 @@ function show_usage {
   printf "\n"
   printf "\t--help: this screen\n"
   printf "\t--debug-vcpkg: build against a debug vcpkg (default OFF)\n"
-  printf "\t<debug|release>: the type of build to do (debug or release)\n"
+  printf "\t<debug|release|asan>: the type of build to do (debug or release or asan+debug)\n"
   printf "\tArguments after '--' are passed to CMake during configuration (e.g. -DCMAKE_C_COMPILER=foo)\n"
   printf "\n"
   printf "INSTALL_DIR set to [${INSTALL_DIR}]\n"
@@ -113,6 +113,11 @@ do
         BUILD_TYPE="rel"
         shift
         ;;
+        asan)
+        BUILD_TYPE="asan"
+        VCPKG_SUFFIX="-asan"
+        shift
+        ;;
         "--")
         shift
         break
@@ -142,8 +147,7 @@ fi
 cmake --preset vcpkg-${ARCH}-${BUILD_TYPE} ${@} &>${CONFIGLOG}
 if [ "$?" != "0" ]; then
   echo "Configuration failed. See ${CONFIGLOG}"
-  echo "Last 10 lines are:"
-  tail -n 10 "${CONFIGLOG}"
+  cat "${CONFIGLOG}"
   exit 1
 else
   echo "Configure success!"
@@ -153,8 +157,7 @@ echo "Building [${BUILD_TYPE}] [${ARCH}]..."
 cmake --build --preset ${ARCH}-${BUILD_TYPE} --parallel &>${BUILDLOG}
 if [ "$?" != "0" ]; then
   echo "Build failed. See ${BUILDLOG}"
-  echo "Last 10 lines are:"
-  tail -n 10 "${BUILDLOG}"
+  cat "${BUILDLOG}"
   exit 1
 else
   echo "Build success!"
@@ -165,8 +168,7 @@ echo "Installing [${BUILD_TYPE}] [${ARCH}]..."
 cmake --build --preset ${ARCH}-${BUILD_TYPE} --target install --parallel >>${BUILDLOG} 2>&1
 if [ "$?" != "0" ]; then
   echo "Install failed. See ${BUILDLOG}"
-  echo "Last 10 lines are:"
-  tail -n 10 "${BUILDLOG}"
+  cat "${BUILDLOG}"
   exit 1
 else
   echo "Install success!"

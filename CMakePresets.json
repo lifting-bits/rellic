@@ -16,6 +16,15 @@
             }
         },
         {
+            "name": "asan-flags",
+            "hidden": true,
+            "inherits": ["debug-flags"],
+            "cacheVariables": {
+                "CMAKE_C_FLAGS": "-fno-omit-frame-pointer -fno-optimize-sibling-calls -gfull -O1 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls -ffunction-sections -fdata-sections",
+                "CMAKE_CXX_FLAGS": "-fno-omit-frame-pointer -fno-optimize-sibling-calls -gfull -O1 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls -ffunction-sections -fdata-sections"
+            }
+        },
+        {
             "name": "release-flags",
             "hidden": true,
             "cacheVariables": {
@@ -69,6 +78,11 @@
             "inherits": ["release-flags", "vcpkg-common"]
         },
         {
+            "name": "vcpkg-asan",
+            "hidden": true,
+            "inherits": ["asan-flags", "vcpkg-common"]
+        },
+        {
             "name": "vcpkg-x64-dbg",
             "inherits": ["vcpkg-debug", "x86_64"],
             "displayName": "Debug Build (vcpkg) (x64)",
@@ -81,6 +95,12 @@
             "description": "Build a Release version against a VCPKG installation. Define 'VCPKG_ROOT', 'INSTALL_DIR', 'VCPKG_TARGET_TRIPLET' env vars!"
         },
         {
+            "name": "vcpkg-x64-asan",
+            "inherits": ["vcpkg-asan", "x86_64"],
+            "displayName": "Debug ASAN Build (vcpkg) (x64)",
+            "description": "Build a Debug ASAN version against a VCPKG installation. Define 'VCPKG_ROOT', 'INSTALL_DIR', 'VCPKG_TARGET_TRIPLET' env vars!"
+        },
+        {
             "name": "vcpkg-arm64-dbg",
             "inherits": ["vcpkg-debug", "arm64"],
             "displayName": "Debug Build (vcpkg) (arm64)",
@@ -91,6 +111,12 @@
             "inherits": ["vcpkg-release", "arm64"],
             "displayName": "Release Build (vcpkg) (arm64)",
             "description": "Build a Release version against a VCPKG installation. Define 'VCPKG_ROOT', 'INSTALL_DIR', 'VCPKG_TARGET_TRIPLET' env vars!"
+        },
+        {
+            "name": "vcpkg-arm64-asan",
+            "inherits": ["vcpkg-asan", "arm64"],
+            "displayName": "Debug ASAN Build (vcpkg) (arm64)",
+            "description": "Build a Debug ASAN version against a VCPKG installation. Define 'VCPKG_ROOT', 'INSTALL_DIR', 'VCPKG_TARGET_TRIPLET' env vars!"
         }
     ],
     "buildPresets": [
@@ -107,10 +133,22 @@
             "configuration": "Release"
         },
         {
+            "name": "build-base-asan",
+            "hidden": true,
+            "description": "Build in Debug Asan mode",
+            "configuration": "Debug"
+        },
+        {
             "name": "x64-dbg",
             "configurePreset": "vcpkg-x64-dbg",
             "displayName": "Build (debug) (x64)",
             "inherits": ["build-base-debug"]
+        },
+        {
+            "name": "x64-asan",
+            "configurePreset": "vcpkg-x64-asan",
+            "displayName": "Build (debug) (ASAN) (x64)",
+            "inherits": ["build-base-asan"]
         },
         {
             "name": "x64-rel",
@@ -123,6 +161,12 @@
             "configurePreset": "vcpkg-arm64-dbg",
             "displayName": "Build (debug) (arm64)",
             "inherits": ["build-base-debug"]
+        },
+        {
+            "name": "arm64-asan",
+            "configurePreset": "vcpkg-arm64-asan",
+            "displayName": "Build (debug) (ASAN) (arm64)",
+            "inherits": ["build-base-asan"]
         },
         {
             "name": "arm64-rel",

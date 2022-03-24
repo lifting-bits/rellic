@@ -42,8 +42,8 @@ static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
   a->Profile(foldingSetA, ctx, /*Canonical=*/true);
   b->Profile(foldingSetB, ctx, /*Canonical=*/true);
 
-  if (foldingSetA == foldingSetB) {
-    return true;
+  if (foldingSetA != foldingSetB) {
+    return false;
   }
 
   auto child_a{a->child_begin()};

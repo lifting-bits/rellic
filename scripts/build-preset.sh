@@ -32,7 +32,7 @@ function show_usage {
   printf "\n"
   printf "\t--help: this screen\n"
   printf "\t--debug-vcpkg: build against a debug vcpkg (default OFF)\n"
-  printf "\t<debug|release>: the type of build to do (debug or release)\n"
+  printf "\t<debug|release|asan>: the type of build to do (debug or release or asan+debug)\n"
   printf "\tArguments after '--' are passed to CMake during configuration (e.g. -DCMAKE_C_COMPILER=foo)\n"
   printf "\n"
   printf "INSTALL_DIR set to [${INSTALL_DIR}]\n"
@@ -111,6 +111,11 @@ do
         ;;
         release)
         BUILD_TYPE="rel"
+        shift
+        ;;
+        asan)
+        BUILD_TYPE="asan"
+        VCPKG_SUFFIX="-asan"
         shift
         ;;
         "--")

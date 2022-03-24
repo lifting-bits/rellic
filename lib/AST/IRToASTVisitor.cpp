@@ -157,7 +157,8 @@ clang::Expr *IRToASTVisitor::CreateConstantExpr(llvm::Constant *constant) {
     DeleteValue(inst);
     return expr;
   } else if (auto global = llvm::dyn_cast<llvm::GlobalValue>(constant)) {
-    auto ref{ast.CreateDeclRef(value_decls[global])};
+    auto decl{GetOrCreateDecl(global)};
+    auto ref{ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl))};
     provenance.insert({ref, constant});
     return ast.CreateAddrOf(ref);
   }

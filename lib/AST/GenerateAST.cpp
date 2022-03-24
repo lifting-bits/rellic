@@ -290,11 +290,10 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor> {
   void visitAllocaInst(llvm::AllocaInst &inst) {}
 
   void visitInstruction(llvm::Instruction &inst) {
-    if (inst.hasNUsesOrMore(2)) {
-      auto &var{value_decls[&inst]};
+    auto &var{value_decls[&inst]};
+    if (var) {
       auto expr{ast_gen.visit(inst)};
-      stmts.push_back(
-          ast.CreateAssign(ast.CreateDeclRef(CHECK_NOTNULL(var)), expr));
+      stmts.push_back(ast.CreateAssign(ast.CreateDeclRef(var), expr));
     }
   }
 };

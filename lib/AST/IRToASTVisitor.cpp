@@ -510,7 +510,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       var = ast.CreateVarDecl(fdecl, GetQualType(alloca->getAllocatedType()),
                               name);
       fdecl->addDecl(var);
-    } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst)) {
+    } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst) ||
+               llvm::isa<llvm::LoadInst>(inst)) {
       if (!inst.getType()->isVoidTy()) {
         auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
         auto type{GetQualType(inst.getType())};
@@ -628,18 +629,7 @@ clang::Expr *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     LOG(FATAL) << "Callee is not a function";
   }
 
-  if (inst.mayHaveSideEffects() && !inst.getType()->isVoidTy()) {
-    auto &var{value_decls[&inst]};
-    if (!var) {
-      auto fdecl{GetOrCreateDecl(inst.getFunction())->getAsFunction()};
-      auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-      var = ast.CreateVarDecl(fdecl, callexpr->getType(), name);
-      fdecl->addDecl(var);
-    }
-    return ast.CreateAssign(ast.CreateDeclRef(var), callexpr);
-  } else {
-    return callexpr;
-  }
+  return callexpr;
 }
 
 clang::Expr *IRToASTVisitor::visitGetElementPtrInst(

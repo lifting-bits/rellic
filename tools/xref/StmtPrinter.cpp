@@ -74,28 +74,17 @@ class StmtPrinter : public StmtVisitor<StmtPrinter> {
   PrintingPolicy Policy;
   std::string NL;
   const ASTContext *Context;
-  const rellic::DecompilationResult::DeclToIRMap &DeclProvenance;
-  const rellic::DecompilationResult::StmtToIRMap &StmtProvenance;
-  const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance;
 
  public:
-  StmtPrinter(
-      raw_ostream &os,
-      const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-      const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-      const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance,
-      PrinterHelper *helper, const PrintingPolicy &Policy,
-      unsigned Indentation = 0, StringRef NL = "\n",
-      const ASTContext *Context = nullptr)
+  StmtPrinter(raw_ostream &os, PrinterHelper *helper,
+              const PrintingPolicy &Policy, unsigned Indentation = 0,
+              StringRef NL = "\n", const ASTContext *Context = nullptr)
       : OS(os),
         IndentLevel(Indentation),
         Helper(helper),
         Policy(Policy),
         NL(NL),
-        Context(Context),
-        DeclProvenance(DeclProvenance),
-        StmtProvenance(StmtProvenance),
-        TypeProvenance(TypeProvenance) {}
+        Context(Context) {}
 
   void PrintStmt(Stmt *S) { PrintStmt(S, Policy.Indentation); }
 
@@ -163,28 +152,9 @@ class StmtPrinter : public StmtVisitor<StmtPrinter> {
     if (Helper && Helper->handledStmt(S, OS))
       return;
     else {
-      OS << "<span class=\"stmt\" data-addr=\"";
+      OS << "<span class=\"clang stmt\" id=\"";
       OS.write_hex((unsigned long long)S);
-      OS << '"';
-      {
-        auto range{StmtProvenance.equal_range(S)};
-        std::vector<unsigned long long> provs{};
-        for (auto it{range.first};
-             it != range.second && it != StmtProvenance.end(); it++) {
-          provs.emplace_back((unsigned long long)it->second);
-        }
-
-        if (provs.size()) {
-          OS << " data-provenance=\"";
-          for (auto i{0U}; i < provs.size() - 1; ++i) {
-            OS.write_hex(provs[i]);
-            OS << ',';
-          }
-          OS.write_hex(provs.back());
-          OS << '"';
-        }
-      }
-      OS << ">";
+      OS << "\">";
       StmtVisitor<StmtPrinter>::Visit(S);
       OS << "</span>";
     }
@@ -221,14 +191,12 @@ void StmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
 }
 
 void StmtPrinter::PrintRawDecl(Decl *D) {
-  PrintDecl(D, DeclProvenance, StmtProvenance, TypeProvenance, Policy,
-            IndentLevel, OS);
+  PrintDecl(D, Policy, IndentLevel, OS);
 }
 
 void StmtPrinter::PrintRawDeclStmt(const DeclStmt *S) {
   SmallVector<Decl *, 2> Decls(S->decls());
-  PrintDeclGroup(Decls.data(), DeclProvenance, StmtProvenance, TypeProvenance,
-                 Decls.size(), OS, Policy, IndentLevel);
+  PrintDeclGroup(Decls.data(), Decls.size(), OS, Policy, IndentLevel);
 }
 
 void StmtPrinter::VisitNullStmt(NullStmt *Node) { Indent() << ";" << NL; }
@@ -386,8 +354,7 @@ void StmtPrinter::VisitCXXForRangeStmt(CXXForRangeStmt *Node) {
   if (Node->getInit()) PrintInitStmt(Node->getInit(), 5);
   PrintingPolicy SubPolicy(Policy);
   SubPolicy.SuppressInitializers = true;
-  PrintDecl(Node->getLoopVariable(), DeclProvenance, StmtProvenance,
-            TypeProvenance, SubPolicy, IndentLevel, OS);
+  PrintDecl(Node->getLoopVariable(), SubPolicy, IndentLevel, OS);
   OS << " : ";
   PrintExpr(Node->getRangeInit());
   OS << ")";
@@ -1060,8 +1027,7 @@ void StmtPrinter::VisitConstantExpr(ConstantExpr *Node) {
 void StmtPrinter::VisitDeclRefExpr(DeclRefExpr *Node) {
   if (const auto *OCED = dyn_cast<OMPCapturedExprDecl>(Node->getDecl())) {
     auto expr{const_cast<clang::Expr *>(OCED->getInit()->IgnoreImpCasts())};
-    ::PrintStmt(expr, DeclProvenance, StmtProvenance, TypeProvenance, OS,
-                Policy);
+    ::PrintStmt(expr, OS, Policy);
     return;
   }
   if (const auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Node->getDecl())) {
@@ -1571,8 +1537,7 @@ void StmtPrinter::VisitUnaryOperator(UnaryOperator *Node) {
 
 void StmtPrinter::VisitOffsetOfExpr(OffsetOfExpr *Node) {
   OS << "<span class=\"clang keyword\">__builtin_offsetof</span>(";
-  PrintType(Node->getTypeSourceInfo()->getType(), DeclProvenance,
-            StmtProvenance, TypeProvenance, OS, Policy);
+  PrintType(Node->getTypeSourceInfo()->getType(), OS, Policy);
   OS << ", ";
   bool PrintedSomething = false;
   for (unsigned i = 0, n = Node->getNumComponents(); i < n; ++i) {
@@ -1618,8 +1583,7 @@ void StmtPrinter::VisitUnaryExprOrTypeTraitExpr(
 
   if (Node->isArgumentType()) {
     OS << '(';
-    PrintType(Node->getArgumentType(), DeclProvenance, StmtProvenance,
-              TypeProvenance, OS, Policy);
+    PrintType(Node->getArgumentType(), OS, Policy);
     OS << ')';
   } else {
     OS << " ";
@@ -1636,7 +1600,7 @@ void StmtPrinter::VisitGenericSelectionExpr(GenericSelectionExpr *Node) {
     if (T.isNull())
       OS << "<span class=\"clang keyword\">default</span>";
     else
-      PrintType(T, DeclProvenance, StmtProvenance, TypeProvenance, OS, Policy);
+      PrintType(T, OS, Policy);
     OS << ": ";
     PrintExpr(Assoc.getAssociationExpr());
   }
@@ -1690,8 +1654,7 @@ void StmtPrinter::VisitOMPIteratorExpr(OMPIteratorExpr *Node) {
   OS << "iterator(";
   for (unsigned I = 0, E = Node->numOfIterators(); I < E; ++I) {
     auto *VD = cast<ValueDecl>(Node->getIteratorDecl(I));
-    PrintType(VD->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-              Policy);
+    PrintType(VD->getType(), OS, Policy);
     const OMPIteratorExpr::IteratorRange Range = Node->getIteratorRange(I);
     OS << " " << VD->getName() << " = ";
     PrintExpr(Range.Begin);
@@ -1768,16 +1731,14 @@ void StmtPrinter::VisitExtVectorElementExpr(ExtVectorElementExpr *Node) {
 
 void StmtPrinter::VisitCStyleCastExpr(CStyleCastExpr *Node) {
   OS << '(';
-  PrintType(Node->getTypeAsWritten(), DeclProvenance, StmtProvenance,
-            TypeProvenance, OS, Policy);
+  PrintType(Node->getTypeAsWritten(), OS, Policy);
   OS << ')';
   PrintExpr(Node->getSubExpr());
 }
 
 void StmtPrinter::VisitCompoundLiteralExpr(CompoundLiteralExpr *Node) {
   OS << '(';
-  PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-            Policy);
+  PrintType(Node->getType(), OS, Policy);
   OS << ')';
   PrintExpr(Node->getInitializer());
 }
@@ -1851,8 +1812,7 @@ void StmtPrinter::VisitConvertVectorExpr(ConvertVectorExpr *Node) {
   OS << "__builtin_convertvector(";
   PrintExpr(Node->getSrcExpr());
   OS << ", ";
-  PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-            Policy);
+  PrintType(Node->getType(), OS, Policy);
   OS << ")";
 }
 
@@ -1943,13 +1903,11 @@ void StmtPrinter::VisitNoInitExpr(NoInitExpr *Node) { OS << "/*no init*/"; }
 void StmtPrinter::VisitImplicitValueInitExpr(ImplicitValueInitExpr *Node) {
   if (Node->getType()->getAsCXXRecordDecl()) {
     OS << "/*implicit*/";
-    PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance,
-              OS, Policy);
+    PrintType(Node->getType(), OS, Policy);
     OS << "()";
   } else {
     OS << "/*implicit*/(";
-    PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance,
-              OS, Policy);
+    PrintType(Node->getType(), OS, Policy);
     OS << ')';
     if (Node->getType()->isRecordType())
       OS << "{}";
@@ -1962,8 +1920,7 @@ void StmtPrinter::VisitVAArgExpr(VAArgExpr *Node) {
   OS << "__builtin_va_arg(";
   PrintExpr(Node->getSubExpr());
   OS << ", ";
-  PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-            Policy);
+  PrintType(Node->getType(), OS, Policy);
   OS << ")";
 }
 
@@ -2081,8 +2038,7 @@ void StmtPrinter::VisitCXXRewrittenBinaryOperator(
 
 void StmtPrinter::VisitCXXNamedCastExpr(CXXNamedCastExpr *Node) {
   OS << Node->getCastName() << "&lt;";
-  PrintType(Node->getTypeAsWritten(), DeclProvenance, StmtProvenance,
-            TypeProvenance, OS, Policy);
+  PrintType(Node->getTypeAsWritten(), OS, Policy);
   OS << "&gt;(";
   PrintExpr(Node->getSubExpr());
   OS << ")";
@@ -2106,8 +2062,7 @@ void StmtPrinter::VisitCXXConstCastExpr(CXXConstCastExpr *Node) {
 
 void StmtPrinter::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *Node) {
   OS << "__builtin_bit_cast(";
-  PrintType(Node->getTypeInfoAsWritten()->getType(), DeclProvenance,
-            StmtProvenance, TypeProvenance, OS, Policy);
+  PrintType(Node->getTypeInfoAsWritten()->getType(), OS, Policy);
   OS << ", ";
   PrintExpr(Node->getSubExpr());
   OS << ")";
@@ -2120,8 +2075,7 @@ void StmtPrinter::VisitCXXAddrspaceCastExpr(CXXAddrspaceCastExpr *Node) {
 void StmtPrinter::VisitCXXTypeidExpr(CXXTypeidExpr *Node) {
   OS << "<span class=\"clang keyword\">typeid</span>(";
   if (Node->isTypeOperand()) {
-    PrintType(Node->getTypeOperandSourceInfo()->getType(), DeclProvenance,
-              StmtProvenance, TypeProvenance, OS, Policy);
+    PrintType(Node->getTypeOperandSourceInfo()->getType(), OS, Policy);
   } else {
     PrintExpr(Node->getExprOperand());
   }
@@ -2131,8 +2085,7 @@ void StmtPrinter::VisitCXXTypeidExpr(CXXTypeidExpr *Node) {
 void StmtPrinter::VisitCXXUuidofExpr(CXXUuidofExpr *Node) {
   OS << "<span class=\"clang keyword\">__uuidof</span>(";
   if (Node->isTypeOperand()) {
-    PrintType(Node->getTypeOperandSourceInfo()->getType(), DeclProvenance,
-              StmtProvenance, TypeProvenance, OS, Policy);
+    PrintType(Node->getTypeOperandSourceInfo()->getType(), OS, Policy);
   } else {
     PrintExpr(Node->getExprOperand());
   }
@@ -2235,8 +2188,7 @@ void StmtPrinter::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *Node) {
 }
 
 void StmtPrinter::VisitCXXFunctionalCastExpr(CXXFunctionalCastExpr *Node) {
-  PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-            Policy);
+  PrintType(Node->getType(), OS, Policy);
   // If there are no parens, this is list-initialization, and the braces are
   // part of the syntax of the inner construct.
   if (Node->getLParenLoc().isValid()) OS << "(";
@@ -2249,8 +2201,7 @@ void StmtPrinter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *Node) {
 }
 
 void StmtPrinter::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr *Node) {
-  PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-            Policy);
+  PrintType(Node->getType(), OS, Policy);
   if (Node->isStdInitListInitialization())
     /* Nothing to do; braces are part of creating the std::initializer_list. */;
   else if (Node->isListInitialization())
@@ -2359,8 +2310,7 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
         NeedComma = true;
       }
       std::string ParamStr = P->getNameAsString();
-      PrintType(P->getOriginalType(), DeclProvenance, StmtProvenance,
-                TypeProvenance, OS, Policy, ParamStr);
+      PrintType(P->getOriginalType(), OS, Policy, ParamStr);
     }
     if (Method->isVariadic()) {
       if (NeedComma) OS << ", ";
@@ -2379,8 +2329,7 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
     // Print the trailing return type if it was specified in the source.
     if (Node->hasExplicitResultType()) {
       OS << " -&gt; ";
-      PrintType(Proto->getReturnType(), DeclProvenance, StmtProvenance,
-                TypeProvenance, OS, Policy);
+      PrintType(Proto->getReturnType(), OS, Policy);
     }
   }
 
@@ -2394,11 +2343,9 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
 
 void StmtPrinter::VisitCXXScalarValueInitExpr(CXXScalarValueInitExpr *Node) {
   if (TypeSourceInfo *TSInfo = Node->getTypeSourceInfo())
-    PrintType(TSInfo->getType(), DeclProvenance, StmtProvenance, TypeProvenance,
-              OS, Policy);
+    PrintType(TSInfo->getType(), OS, Policy);
   else
-    PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance,
-              OS, Policy);
+    PrintType(Node->getType(), OS, Policy);
   OS << "()";
 }
 
@@ -2421,13 +2368,10 @@ void StmtPrinter::VisitCXXNewExpr(CXXNewExpr *E) {
   if (Optional<Expr *> Size = E->getArraySize()) {
     llvm::raw_string_ostream s(TypeS);
     s << '[';
-    if (*Size)
-      ::PrintStmt(*Size, DeclProvenance, StmtProvenance, TypeProvenance, s,
-                  Policy, 0, nullptr, Helper);
+    if (*Size) ::PrintStmt(*Size, s, Policy, 0, nullptr, Helper);
     s << ']';
   }
-  PrintType(E->getAllocatedType(), DeclProvenance, StmtProvenance,
-            TypeProvenance, OS, Policy, TypeS);
+  PrintType(E->getAllocatedType(), OS, Policy, TypeS);
   if (E->isParenTypeId()) OS << ")";
 
   CXXNewExpr::InitializationStyle InitStyle = E->getInitializationStyle();
@@ -2457,8 +2401,7 @@ void StmtPrinter::VisitCXXPseudoDestructorExpr(CXXPseudoDestructorExpr *E) {
   if (IdentifierInfo *II = E->getDestroyedTypeIdentifier())
     OS << II->getName();
   else
-    PrintType(E->getDestroyedType(), DeclProvenance, StmtProvenance,
-              TypeProvenance, OS, Policy);
+    PrintType(E->getDestroyedType(), OS, Policy);
 }
 
 void StmtPrinter::VisitCXXConstructExpr(CXXConstructExpr *E) {
@@ -2493,8 +2436,7 @@ void StmtPrinter::VisitExprWithCleanups(ExprWithCleanups *E) {
 
 void StmtPrinter::VisitCXXUnresolvedConstructExpr(
     CXXUnresolvedConstructExpr *Node) {
-  PrintType(Node->getTypeAsWritten(), DeclProvenance, StmtProvenance,
-            TypeProvenance, OS, Policy);
+  PrintType(Node->getTypeAsWritten(), OS, Policy);
   OS << "(";
   for (CXXUnresolvedConstructExpr::arg_iterator Arg = Node->arg_begin(),
                                                 ArgEnd = Node->arg_end();
@@ -2538,16 +2480,14 @@ void StmtPrinter::VisitTypeTraitExpr(TypeTraitExpr *E) {
   OS << getTraitSpelling(E->getTrait()) << "(";
   for (unsigned I = 0, N = E->getNumArgs(); I != N; ++I) {
     if (I > 0) OS << ", ";
-    PrintType(E->getArg(I)->getType(), DeclProvenance, StmtProvenance,
-              TypeProvenance, OS, Policy);
+    PrintType(E->getArg(I)->getType(), OS, Policy);
   }
   OS << ")";
 }
 
 void StmtPrinter::VisitArrayTypeTraitExpr(ArrayTypeTraitExpr *E) {
   OS << getTraitSpelling(E->getTrait()) << '(';
-  PrintType(E->getQueriedType(), DeclProvenance, StmtProvenance, TypeProvenance,
-            OS, Policy);
+  PrintType(E->getQueriedType(), OS, Policy);
   OS << ')';
 }
 
@@ -2635,8 +2575,7 @@ void StmtPrinter::VisitRequiresExpr(RequiresExpr *E) {
       if (TypeReq->isSubstitutionFailure())
         OS << "&lt;&lt;error-type&gt;&gt;";
       else
-        PrintType(TypeReq->getType()->getType(), DeclProvenance, StmtProvenance,
-                  TypeProvenance, OS, Policy);
+        PrintType(TypeReq->getType()->getType(), OS, Policy);
     } else if (auto *ExprReq = dyn_cast<concepts::ExprRequirement>(Req)) {
       if (ExprReq->isCompound()) OS << "{ ";
       if (ExprReq->isExprSubstitutionFailure())
@@ -2737,8 +2676,7 @@ void StmtPrinter::VisitObjCDictionaryLiteral(ObjCDictionaryLiteral *E) {
 
 void StmtPrinter::VisitObjCEncodeExpr(ObjCEncodeExpr *Node) {
   OS << "<span class=\"clang keyword objective-c\">@encode</span>(";
-  PrintType(Node->getEncodedType(), DeclProvenance, StmtProvenance,
-            TypeProvenance, OS, Policy);
+  PrintType(Node->getEncodedType(), OS, Policy);
   OS << ')';
 }
 
@@ -2761,8 +2699,7 @@ void StmtPrinter::VisitObjCMessageExpr(ObjCMessageExpr *Mess) {
       break;
 
     case ObjCMessageExpr::Class:
-      PrintType(Mess->getClassReceiver(), DeclProvenance, StmtProvenance,
-                TypeProvenance, OS, Policy);
+      PrintType(Mess->getClassReceiver(), OS, Policy);
       break;
 
     case ObjCMessageExpr::SuperInstance:
@@ -2804,8 +2741,7 @@ void StmtPrinter::VisitObjCIndirectCopyRestoreExpr(
 
 void StmtPrinter::VisitObjCBridgedCastExpr(ObjCBridgedCastExpr *E) {
   OS << '(' << E->getBridgeKindName();
-  PrintType(E->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-            Policy);
+  PrintType(E->getType(), OS, Policy);
   OS << ')';
   PrintExpr(E->getSubExpr());
 }
@@ -2824,8 +2760,7 @@ void StmtPrinter::VisitBlockExpr(BlockExpr *Node) {
          AI != E; ++AI) {
       if (AI != BD->param_begin()) OS << ", ";
       std::string ParamStr = (*AI)->getNameAsString();
-      PrintType((*AI)->getType(), DeclProvenance, StmtProvenance,
-                TypeProvenance, OS, Policy, ParamStr);
+      PrintType((*AI)->getType(), OS, Policy, ParamStr);
     }
 
     const auto *FT = cast<FunctionProtoType>(AFT);
@@ -2862,8 +2797,7 @@ void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {
   OS << "__builtin_astype(";
   PrintExpr(Node->getSrcExpr());
   OS << ", ";
-  PrintType(Node->getType(), DeclProvenance, StmtProvenance, TypeProvenance, OS,
-            Policy);
+  PrintType(Node->getType(), OS, Policy);
   OS << ")";
 }
 
@@ -2871,15 +2805,9 @@ void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {
 // Stmt method implementations
 //===----------------------------------------------------------------------===//
 
-void PrintStmt(
-    clang::Stmt *stmt,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance,
-    llvm::raw_ostream &Out, const clang::PrintingPolicy &Policy,
-    int Indentation, const clang::ASTContext *Context,
-    clang::PrinterHelper *Helper) {
-  StmtPrinter P(Out, DeclProvenance, StmtProvenance, TypeProvenance, Helper,
-                Policy, Indentation, "\n", Context);
+void PrintStmt(clang::Stmt *stmt, llvm::raw_ostream &Out,
+               const clang::PrintingPolicy &Policy, int Indentation,
+               const clang::ASTContext *Context, clang::PrinterHelper *Helper) {
+  StmtPrinter P(Out, Helper, Policy, Indentation, "\n", Context);
   P.Visit(stmt);
 }

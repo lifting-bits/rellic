@@ -111,7 +111,6 @@ struct Session {
   rellic::StmtToIRMap Provenance;
   rellic::IRToTypeDeclMap TypeDecls;
   rellic::IRToValDeclMap ValueDecls;
-  rellic::IRToStmtMap Stmts;
   rellic::ArgToTempMap TempDecls;
   rellic::ExprToUseMap UseProvenance;
   // Must always be acquired in this order and released all at once
@@ -257,8 +256,8 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
     session.Provenance.clear();
     session.TypeDecls.clear();
     session.ValueDecls.clear();
-    session.Stmts.clear();
     session.TempDecls.clear();
+    session.UseProvenance.clear();
     std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                   session.Module->getTargetTriple()};
     session.Unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
@@ -619,28 +618,6 @@ static void Fixpoint(const httplib::Request& req, httplib::Response& res) {
   }
 }
 
-template <typename TMap, typename TKey>
-static void PrintProvenances(llvm::raw_ostream& OS, const TKey* key,
-                             const TMap& provenances) {
-  std::vector<unsigned long long> provs{};
-  auto range{provenances.equal_range((TKey*)key)};
-  for (auto it{range.first}; it != range.second && it != provenances.end();
-       it++) {
-    provs.emplace_back((unsigned long long)it->second);
-  }
-  OS << " data-addr=\"";
-  OS.write_hex((unsigned long long)key);
-  OS << "\" data-provenance=\"";
-  if (provs.size() > 0) {
-    for (auto i{0U}; i < provs.size() - 1; ++i) {
-      OS.write_hex(provs[i]);
-      OS << ',';
-    }
-    OS.write_hex(provs.back());
-  }
-  OS << '"';
-}
-
 class AAW : public llvm::AssemblyAnnotationWriter {
   const Session& session;
 
@@ -649,15 +626,15 @@ class AAW : public llvm::AssemblyAnnotationWriter {
 
   void emitFunctionAnnot(const llvm::Function* F,
                          llvm::formatted_raw_ostream& OS) override {
-    OS << "</span><span class=\"llvm\"";
-    PrintProvenances(OS, F, session.ValueDecls);
-    OS << '>';
+    OS << "</span><span class=\"llvm\" id=\"";
+    OS.write_hex((unsigned long long)F);
+    OS << "\">";
   }
   void emitInstructionAnnot(const llvm::Instruction* I,
                             llvm::formatted_raw_ostream& OS) override {
-    OS << "</span><span class=\"llvm\"";
-    PrintProvenances(OS, I, session.Stmts);
-    OS << '>';
+    OS << "</span><span class=\"llvm\" id=\"";
+    OS.write_hex((unsigned long long)I);
+    OS << "\">";
   }
   void emitBasicBlockStartAnnot(const llvm::BasicBlock*,
                                 llvm::formatted_raw_ostream& OS) override {
@@ -752,7 +729,6 @@ static void PrintAST(const httplib::Request& req, httplib::Response& res) {
   llvm::raw_string_ostream os(s);
   os << "<pre>";
   PrintDecl(session.Unit->getASTContext().getTranslationUnitDecl(),
-            decl_provenance_map, stmt_provenance_map, type_provenance_map,
             session.Unit->getASTContext().getPrintingPolicy(), 0, os);
   os << "</pre>";
   res.status = 200;
@@ -815,6 +791,58 @@ static void LoadAngha(const httplib::Request& req, httplib::Response& res) {
   res.status = 200;
 }
 
+static void PrintProvenance(const httplib::Request& req,
+                            httplib::Response& res) {
+  auto& session{GetSession(req)};
+  read_lock load_mutex(session.LoadMutex);
+  read_lock mutation_mutex(session.MutationMutex);
+  if (!session.Module) {
+    llvm::json::Object msg{{"message", "No module loaded."}};
+    res.status = 400;
+    SendJSON(res, msg);
+    return;
+  }
+
+  llvm::json::Array stmt_provenance;
+  for (auto elem : session.Provenance) {
+    stmt_provenance.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array type_decls;
+  for (auto elem : session.TypeDecls) {
+    type_decls.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array value_decls;
+  for (auto elem : session.ValueDecls) {
+    value_decls.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array temp_decls;
+  for (auto elem : session.TempDecls) {
+    temp_decls.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array use_provenance;
+  for (auto elem : session.UseProvenance) {
+    use_provenance.push_back(
+        llvm::json::Array({(unsigned long long)elem.first,
+                           (unsigned long long)elem.second->get()}));
+  }
+
+  llvm::json::Object msg{{"stmt_provenance", std::move(stmt_provenance)},
+                         {"type_decls", std::move(type_decls)},
+                         {"value_decls", std::move(value_decls)},
+                         {"temp_decls", std::move(temp_decls)},
+                         {"use_provenance", std::move(use_provenance)}};
+  SendJSON(res, msg);
+  res.status = 200;
+}
+
 int main(int argc, char* argv[]) {
   std::stringstream usage;
   usage << std::endl
@@ -851,6 +879,7 @@ int main(int argc, char* argv[]) {
   svr.Get("/action/module", PrintModule);
   svr.Get("/action/ast", PrintAST);
   svr.Get("/action/angha", ListAngha);
+  svr.Get("/action/provenance", PrintProvenance);
 
   LOG(INFO) << "Listening";
   svr.listen(FLAGS_address.c_str(), FLAGS_port);

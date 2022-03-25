@@ -16,8 +16,9 @@
 namespace rellic {
 
 NestedScopeCombine::NestedScopeCombine(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit)
-    : TransformVisitor<NestedScopeCombine>(provenance, unit) {}
+    : TransformVisitor<NestedScopeCombine>(provenance, use_provenance, unit) {}
 
 bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";

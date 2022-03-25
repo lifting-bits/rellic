@@ -65,7 +65,8 @@ class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
   void RunImpl() override;
 
  public:
-  Z3CondSimplify(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  Z3CondSimplify(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
+                 clang::ASTUnit &unit);
 
   z3::context &GetZ3Context() { return *z_ctx; }
 

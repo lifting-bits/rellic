@@ -41,6 +41,7 @@ class ArraySubscriptAddrOfRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto sub = clang::cast<clang::ArraySubscriptExpr>(stmt);
@@ -48,7 +49,7 @@ class ArraySubscriptAddrOfRule : public InferenceRule {
                            "ArraySubscriptExpr!";
     auto paren = clang::cast<clang::ParenExpr>(sub->getBase());
     auto addr_of = clang::cast<clang::UnaryOperator>(paren->getSubExpr());
-    CopyProvenance(addr_of, addr_of->getSubExpr(), provenance);
+    CopyProvenance(addr_of, addr_of->getSubExpr(), use_provenance);
     return addr_of->getSubExpr();
   }
 };
@@ -67,6 +68,7 @@ class AddrOfArraySubscriptRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto addr_of = clang::cast<clang::UnaryOperator>(stmt);
@@ -74,7 +76,7 @@ class AddrOfArraySubscriptRule : public InferenceRule {
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
     auto subexpr = addr_of->getSubExpr()->IgnoreParenImpCasts();
     auto sub = clang::cast<clang::ArraySubscriptExpr>(subexpr);
-    CopyProvenance(sub, sub->getBase(), provenance);
+    CopyProvenance(sub, sub->getBase(), use_provenance);
     return sub->getBase();
   }
 };
@@ -92,6 +94,7 @@ class DerefAddrOfRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
@@ -99,7 +102,7 @@ class DerefAddrOfRule : public InferenceRule {
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
     auto subexpr = deref->getSubExpr()->IgnoreParenImpCasts();
     auto addr_of = clang::cast<clang::UnaryOperator>(subexpr);
-    CopyProvenance(addr_of, addr_of->getSubExpr(), provenance);
+    CopyProvenance(addr_of, addr_of->getSubExpr(), use_provenance);
     return addr_of->getSubExpr();
   }
 };
@@ -121,6 +124,7 @@ class DerefAddrOfConditionalRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
@@ -132,8 +136,8 @@ class DerefAddrOfConditionalRule : public InferenceRule {
         clang::cast<clang::UnaryOperator>(conditional->getTrueExpr());
     auto addr_of2 =
         clang::cast<clang::UnaryOperator>(conditional->getFalseExpr());
-    CopyProvenance(addr_of1, addr_of1->getSubExpr(), provenance);
-    CopyProvenance(addr_of2, addr_of2->getSubExpr(), provenance);
+    CopyProvenance(addr_of1, addr_of1->getSubExpr(), use_provenance);
+    CopyProvenance(addr_of2, addr_of2->getSubExpr(), use_provenance);
 
     return ASTBuilder(unit).CreateConditional(
         conditional->getCond(), addr_of1->getSubExpr(), addr_of2->getSubExpr());
@@ -157,6 +161,7 @@ class NegComparisonRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto op = clang::cast<clang::UnaryOperator>(stmt);
@@ -183,6 +188,7 @@ class ParenDeclRefExprStripRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto paren = clang::cast<clang::ParenExpr>(stmt);
@@ -209,6 +215,7 @@ class MemberExprAddrOfRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto arrow{clang::cast<clang::MemberExpr>(stmt)};
@@ -219,7 +226,7 @@ class MemberExprAddrOfRule : public InferenceRule {
     auto field{clang::dyn_cast<clang::FieldDecl>(arrow->getMemberDecl())};
     CHECK(field != nullptr)
         << "Substituted MemberExpr is not a structure field access!";
-    CopyProvenance(addr_of, addr_of->getSubExpr(), provenance);
+    CopyProvenance(addr_of, addr_of->getSubExpr(), use_provenance);
     return ASTBuilder(unit).CreateDot(addr_of->getSubExpr(), field);
   }
 };
@@ -242,6 +249,7 @@ class MemberExprArraySubRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto dot{clang::cast<clang::MemberExpr>(stmt)};
@@ -252,7 +260,7 @@ class MemberExprArraySubRule : public InferenceRule {
     auto field{clang::dyn_cast<clang::FieldDecl>(dot->getMemberDecl())};
     CHECK(field != nullptr)
         << "Substituted MemberExpr is not a structure field access!";
-    CopyProvenance(sub, sub->getBase(), provenance);
+    CopyProvenance(sub, sub->getBase(), use_provenance);
     return ASTBuilder(unit).CreateArrow(sub->getBase(), field);
   }
 };
@@ -274,6 +282,7 @@ class AssignCastedExprRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto assign{clang::cast<clang::BinaryOperator>(stmt)};
@@ -310,6 +319,7 @@ class UnsignedToSignedCStyleCastRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
@@ -344,6 +354,7 @@ class TripleCStyleCastElimRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
@@ -383,6 +394,7 @@ class CStyleZeroToPtrCastElimRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
@@ -395,8 +407,9 @@ class CStyleZeroToPtrCastElimRule : public InferenceRule {
 
 }  // namespace
 
-ExprCombine::ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &u)
-    : TransformVisitor<ExprCombine>(provenance, u) {}
+ExprCombine::ExprCombine(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
+                         clang::ASTUnit &u)
+    : TransformVisitor<ExprCombine>(provenance, use_provenance, u) {}
 
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   // TODO(frabert): Re-enable nullptr casts simplification
@@ -427,7 +440,8 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   rules.emplace_back(new UnsignedToSignedCStyleCastRule);
   rules.emplace_back(new TripleCStyleCastElimRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, cast, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, cast,
+                                  rules)};
   if (sub != cast) {
     substitutions[cast] = sub;
   }
@@ -445,7 +459,8 @@ bool ExprCombine::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DerefAddrOfConditionalRule);
   rules.emplace_back(new AddrOfArraySubscriptRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
+  auto sub{
+      ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -459,7 +474,8 @@ bool ExprCombine::VisitBinaryOperator(clang::BinaryOperator *op) {
 
   rules.emplace_back(new AssignCastedExprRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
+  auto sub{
+      ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -473,7 +489,8 @@ bool ExprCombine::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 
   rules.emplace_back(new ArraySubscriptAddrOfRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, expr,
+                                  rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -488,7 +505,8 @@ bool ExprCombine::VisitMemberExpr(clang::MemberExpr *expr) {
   rules.emplace_back(new MemberExprAddrOfRule);
   rules.emplace_back(new MemberExprArraySubRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, expr,
+                                  rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }
@@ -502,7 +520,8 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
 
   rules.emplace_back(new ParenDeclRefExprStripRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, expr,
+                                  rules)};
   if (sub != expr) {
     substitutions[expr] = sub;
   }

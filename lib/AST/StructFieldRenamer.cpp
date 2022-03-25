@@ -20,10 +20,13 @@
 namespace rellic {
 
 StructFieldRenamer::StructFieldRenamer(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        IRTypeToDITypeMap &types,
                                        IRToTypeDeclMap &decls)
-    : ASTPass(provenance, unit), types(types), inv_decl(decls) {}
+    : ASTPass(provenance, use_provenance, unit),
+      types(types),
+      inv_decl(decls) {}
 
 bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
   auto type{decls[decl]};

@@ -19,9 +19,10 @@
 namespace rellic {
 
 LocalDeclRenamer::LocalDeclRenamer(StmtToIRMap &provenance,
+                                   ExprToUseMap &use_provenance,
                                    clang::ASTUnit &unit, IRToNameMap &names,
                                    IRToValDeclMap &decls)
-    : TransformVisitor<LocalDeclRenamer>(provenance, unit),
+    : TransformVisitor<LocalDeclRenamer>(provenance, use_provenance, unit),
       seen_names(1),
       names(names),
       inv_decl(decls) {}

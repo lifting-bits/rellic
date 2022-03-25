@@ -113,7 +113,7 @@ struct Session {
   rellic::IRToValDeclMap ValueDecls;
   rellic::IRToStmtMap Stmts;
   rellic::ArgToTempMap TempDecls;
-  rellic::UseToExprMap UseProvenance;
+  rellic::ExprToUseMap UseProvenance;
   // Must always be acquired in this order and released all at once
   std::shared_mutex LoadMutex, MutationMutex;
 };
@@ -266,12 +266,12 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
     dic.visit(*session.Module);
     rellic::GenerateAST::run(*session.Module, session.Provenance, *session.Unit,
                              session.TypeDecls, session.ValueDecls,
-                             session.Stmts, session.TempDecls,
-                             session.UseProvenance);
-    rellic::LocalDeclRenamer ldr{session.Provenance, *session.Unit,
-                                 dic.GetIRToNameMap(), session.ValueDecls};
-    rellic::StructFieldRenamer sfr{session.Provenance, *session.Unit,
-                                   dic.GetIRTypeToDITypeMap(),
+                             session.TempDecls, session.UseProvenance);
+    rellic::LocalDeclRenamer ldr{session.Provenance, session.UseProvenance,
+                                 *session.Unit, dic.GetIRToNameMap(),
+                                 session.ValueDecls};
+    rellic::StructFieldRenamer sfr{session.Provenance, session.UseProvenance,
+                                   *session.Unit, dic.GetIRTypeToDITypeMap(),
                                    session.TypeDecls};
     ldr.Run();
     sfr.Run();
@@ -372,8 +372,10 @@ class FixpointPass : public rellic::ASTPass {
   void RunImpl() override { comp.Fixpoint(); }
 
  public:
-  FixpointPass(rellic::StmtToIRMap& provenance, clang::ASTUnit& ast_unit)
-      : ASTPass(provenance, ast_unit), comp(provenance, ast_unit) {}
+  FixpointPass(rellic::StmtToIRMap& provenance,
+               rellic::ExprToUseMap& use_provenance, clang::ASTUnit& ast_unit)
+      : ASTPass(provenance, use_provenance, ast_unit),
+        comp(provenance, use_provenance, ast_unit) {}
   std::vector<std::unique_ptr<ASTPass>>& GetPasses() {
     return comp.GetPasses();
   }
@@ -390,38 +392,39 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(
     auto str{name->str()};
 
     if (str == "cbr") {
-      return std::make_unique<rellic::CondBasedRefine>(session.Provenance,
-                                                       *session.Unit);
+      return std::make_unique<rellic::CondBasedRefine>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "dse") {
-      return std::make_unique<rellic::DeadStmtElim>(session.Provenance,
-                                                    *session.Unit);
+      return std::make_unique<rellic::DeadStmtElim>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "ec") {
-      return std::make_unique<rellic::ExprCombine>(session.Provenance,
-                                                   *session.Unit);
+      return std::make_unique<rellic::ExprCombine>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "lr") {
-      return std::make_unique<rellic::LoopRefine>(session.Provenance,
-                                                  *session.Unit);
+      return std::make_unique<rellic::LoopRefine>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "ncp") {
-      return std::make_unique<rellic::NestedCondProp>(session.Provenance,
-                                                      *session.Unit);
+      return std::make_unique<rellic::NestedCondProp>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "nsc") {
-      return std::make_unique<rellic::NestedScopeCombine>(session.Provenance,
-                                                          *session.Unit);
+      return std::make_unique<rellic::NestedScopeCombine>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "nc") {
-      return std::make_unique<rellic::NormalizeCond>(session.Provenance,
-                                                     *session.Unit);
+      return std::make_unique<rellic::NormalizeCond>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "rbr") {
-      return std::make_unique<rellic::ReachBasedRefine>(session.Provenance,
-                                                        *session.Unit);
+      return std::make_unique<rellic::ReachBasedRefine>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else if (str == "zcs") {
-      return std::make_unique<rellic::Z3CondSimplify>(session.Provenance,
-                                                      *session.Unit);
+      return std::make_unique<rellic::Z3CondSimplify>(
+          session.Provenance, session.UseProvenance, *session.Unit);
     } else {
       LOG(ERROR) << "Request contains invalid pass id";
       return nullptr;
     }
   } else if (auto arr = val.getAsArray()) {
-    auto fix{std::make_unique<FixpointPass>(session.Provenance, *session.Unit)};
+    auto fix{std::make_unique<FixpointPass>(
+        session.Provenance, session.UseProvenance, *session.Unit)};
     for (auto& pass : *arr) {
       auto p{CreatePass(session, pass)};
       if (!p) {
@@ -503,8 +506,8 @@ static void Run(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(session.Provenance,
-                                                            *session.Unit)};
+  auto composite{std::make_unique<rellic::CompositeASTPass>(
+      session.Provenance, session.UseProvenance, *session.Unit)};
   for (auto& obj : *json->getAsArray()) {
     auto pass{CreatePass(session, obj)};
     if (!pass) {
@@ -573,8 +576,8 @@ static void Fixpoint(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(session.Provenance,
-                                                            *session.Unit)};
+  auto composite{std::make_unique<rellic::CompositeASTPass>(
+      session.Provenance, session.UseProvenance, *session.Unit)};
   for (auto& obj : *json->getAsArray()) {
     auto pass{CreatePass(session, obj)};
     if (!pass) {

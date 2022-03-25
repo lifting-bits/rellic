@@ -48,6 +48,7 @@ class DeMorganRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
@@ -61,8 +62,8 @@ class DeMorganRule : public InferenceRule {
 
     auto new_lhs{ast.CreateLNot(binop->getLHS())};
     auto new_rhs{ast.CreateLNot(binop->getRHS())};
-    CopyProvenance(binop->getLHS(), new_lhs, provenance);
-    CopyProvenance(binop->getRHS(), new_rhs, provenance);
+    CopyProvenance(binop->getLHS(), new_lhs, use_provenance);
+    CopyProvenance(binop->getRHS(), new_rhs, use_provenance);
     return ast.CreateBinaryOp(to, new_lhs, new_rhs);
   }
 };
@@ -84,6 +85,7 @@ class AssociativeRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
@@ -115,6 +117,7 @@ class LDistributiveRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
@@ -146,6 +149,7 @@ class RDistributiveRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+                                       ExprToUseMap &use_provenance,
                                        clang::ASTUnit &unit,
                                        clang::Stmt *stmt) {
     auto &ctx{unit.getASTContext()};
@@ -165,8 +169,9 @@ class RDistributiveRule : public InferenceRule {
 
 }  // namespace
 
-NormalizeCond::NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &u)
-    : TransformVisitor<NormalizeCond>(provenance, u) {}
+NormalizeCond::NormalizeCond(StmtToIRMap &provenance,
+                             ExprToUseMap &use_provenance, clang::ASTUnit &u)
+    : TransformVisitor<NormalizeCond>(provenance, use_provenance, u) {}
 
 bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
@@ -174,7 +179,8 @@ bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DeMorganRule(clang::BO_LAnd, clang::BO_LOr));
   rules.emplace_back(new DeMorganRule(clang::BO_LOr, clang::BO_LAnd));
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
+  auto sub{
+      ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -190,7 +196,8 @@ bool NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
   rules.emplace_back(new LDistributiveRule);
   rules.emplace_back(new RDistributiveRule);
 
-  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
+  auto sub{
+      ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }

@@ -98,36 +98,38 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::StmtToIRMap provenance;
     rellic::IRToTypeDeclMap type_decls;
     rellic::IRToValDeclMap value_decls;
-    rellic::IRToStmtMap stmts;
     rellic::ArgToTempMap temp_decls;
-    rellic::UseToExprMap use_provenance;
+    rellic::ExprToUseMap use_provenance;
     rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
-                             value_decls, stmts, temp_decls, use_provenance);
+                             value_decls, temp_decls, use_provenance);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
-    rellic::CompositeASTPass pass_ast(provenance, *ast_unit);
+    rellic::CompositeASTPass pass_ast(provenance, use_provenance, *ast_unit);
     auto& ast_passes{pass_ast.GetPasses()};
 
     if (options.dead_stmt_elimination) {
-      ast_passes.push_back(
-          std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit));
+      ast_passes.push_back(std::make_unique<rellic::DeadStmtElim>(
+          provenance, use_provenance, *ast_unit));
     }
     ast_passes.push_back(std::make_unique<rellic::LocalDeclRenamer>(
-        provenance, *ast_unit, dic.GetIRToNameMap(), value_decls));
+        provenance, use_provenance, *ast_unit, dic.GetIRToNameMap(),
+        value_decls));
     ast_passes.push_back(std::make_unique<rellic::StructFieldRenamer>(
-        provenance, *ast_unit, dic.GetIRTypeToDITypeMap(), type_decls));
+        provenance, use_provenance, *ast_unit, dic.GetIRTypeToDITypeMap(),
+        type_decls));
     pass_ast.Run();
 
-    rellic::CompositeASTPass pass_cbr(provenance, *ast_unit);
+    rellic::CompositeASTPass pass_cbr(provenance, use_provenance, *ast_unit);
     auto& cbr_passes{pass_cbr.GetPasses()};
 
     if (options.condition_based_refinement.expression_normalize) {
-      cbr_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
+      cbr_passes.push_back(std::make_unique<rellic::NormalizeCond>(
+          provenance, use_provenance, *ast_unit));
     }
     if (!options.disable_z3) {
-      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
+      auto zcs{std::make_unique<rellic::Z3CondSimplify>(
+          provenance, use_provenance, *ast_unit)};
       // Simplifier to use during condition-based refinement
       z3::tactic tactic{zcs->GetZ3Context(), "skip"};
       for (auto name : options.condition_based_refinement.z3_tactics) {
@@ -138,24 +140,24 @@ Result<DecompilationResult, DecompilationError> Decompile(
         cbr_passes.push_back(std::move(zcs));
       }
       if (options.condition_based_refinement.nested_cond_propagate) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
+        cbr_passes.push_back(std::make_unique<rellic::NestedCondProp>(
+            provenance, use_provenance, *ast_unit));
       }
     }
 
     if (options.condition_based_refinement.nested_scope_combine) {
-      cbr_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
+      cbr_passes.push_back(std::make_unique<rellic::NestedScopeCombine>(
+          provenance, use_provenance, *ast_unit));
     }
 
     if (!options.disable_z3) {
       if (options.condition_based_refinement.cond_base_refine) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit));
+        cbr_passes.push_back(std::make_unique<rellic::CondBasedRefine>(
+            provenance, use_provenance, *ast_unit));
       }
       if (options.condition_based_refinement.reach_based_refine) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
+        cbr_passes.push_back(std::make_unique<rellic::ReachBasedRefine>(
+            provenance, use_provenance, *ast_unit));
       }
     }
 
@@ -163,29 +165,30 @@ Result<DecompilationResult, DecompilationError> Decompile(
       ;
     }
 
-    rellic::CompositeASTPass pass_loop{provenance, *ast_unit};
+    rellic::CompositeASTPass pass_loop{provenance, use_provenance, *ast_unit};
     auto& loop_passes{pass_loop.GetPasses()};
 
     if (options.loop_refinement.loop_refine) {
-      loop_passes.push_back(
-          std::make_unique<rellic::LoopRefine>(provenance, *ast_unit));
+      loop_passes.push_back(std::make_unique<rellic::LoopRefine>(
+          provenance, use_provenance, *ast_unit));
     }
     if (options.loop_refinement.nested_scope_combine) {
-      loop_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
+      loop_passes.push_back(std::make_unique<rellic::NestedScopeCombine>(
+          provenance, use_provenance, *ast_unit));
     }
     if (options.loop_refinement.expression_normalize) {
-      loop_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
+      loop_passes.push_back(std::make_unique<rellic::NormalizeCond>(
+          provenance, use_provenance, *ast_unit));
     }
     while (pass_loop.Run()) {
       ;
     }
 
-    rellic::CompositeASTPass pass_scope{provenance, *ast_unit};
+    rellic::CompositeASTPass pass_scope{provenance, use_provenance, *ast_unit};
     auto& scope_passes{pass_scope.GetPasses()};
     if (!options.disable_z3) {
-      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
+      auto zcs{std::make_unique<rellic::Z3CondSimplify>(
+          provenance, use_provenance, *ast_unit)};
       // Simplifier to use during condition-based refinement
       z3::tactic tactic{zcs->GetZ3Context(), "skip"};
       for (auto name : options.condition_based_refinement.z3_tactics) {
@@ -196,32 +199,32 @@ Result<DecompilationResult, DecompilationError> Decompile(
         scope_passes.push_back(std::move(zcs));
       }
       if (options.condition_based_refinement.nested_cond_propagate) {
-        scope_passes.push_back(
-            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
+        scope_passes.push_back(std::make_unique<rellic::NestedCondProp>(
+            provenance, use_provenance, *ast_unit));
       }
     }
 
     if (options.scope_refinement.nested_scope_combine) {
-      scope_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
+      scope_passes.push_back(std::make_unique<rellic::NestedScopeCombine>(
+          provenance, use_provenance, *ast_unit));
     }
     if (options.scope_refinement.expression_normalize) {
-      scope_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
+      scope_passes.push_back(std::make_unique<rellic::NormalizeCond>(
+          provenance, use_provenance, *ast_unit));
     }
     while (pass_scope.Run()) {
       ;
     }
 
-    rellic::CompositeASTPass pass_ec{provenance, *ast_unit};
+    rellic::CompositeASTPass pass_ec{provenance, use_provenance, *ast_unit};
     auto& ec_passes{pass_ec.GetPasses()};
     if (options.expression_combine) {
-      ec_passes.push_back(
-          std::make_unique<rellic::ExprCombine>(provenance, *ast_unit));
+      ec_passes.push_back(std::make_unique<rellic::ExprCombine>(
+          provenance, use_provenance, *ast_unit));
     }
     if (options.expression_normalize) {
-      ec_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
+      ec_passes.push_back(std::make_unique<rellic::NormalizeCond>(
+          provenance, use_provenance, *ast_unit));
     }
     while (pass_ec.Run()) {
       ;
@@ -233,7 +236,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
     CopyMap(provenance, result.stmt_provenance_map, result.value_to_stmt_map);
     CopyMap(value_decls, result.value_to_decl_map, result.decl_provenance_map);
     CopyMap(type_decls, result.type_to_decl_map, result.type_provenance_map);
-    CopyMap(use_provenance, result.use_expr_map, result.expr_use_map);
+    CopyMap(use_provenance, result.expr_use_map, result.use_expr_map);
 
     return Result<DecompilationResult, DecompilationError>(std::move(result));
   } catch (Exception& ex) {

@@ -26,13 +26,12 @@
 
 namespace rellic {
 
-IRToASTVisitor::IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
+IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit,
                                IRToTypeDeclMap &type_decls,
-                               IRToValDeclMap &value_decls, IRToStmtMap &stmts,
+                               IRToValDeclMap &value_decls,
                                ArgToTempMap &temp_decls,
-                               UseToExprMap &use_provenance)
-    : provenance(provenance),
-      ast_ctx(unit.getASTContext()),
+                               ExprToUseMap &use_provenance)
+    : ast_ctx(unit.getASTContext()),
       ast(unit),
       type_decls(type_decls),
       value_decls(value_decls),
@@ -153,13 +152,12 @@ clang::Expr *IRToASTVisitor::CreateConstantExpr(llvm::Constant *constant) {
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(constant)) {
     auto inst{cexpr->getAsInstruction()};
     auto expr{visit(inst)};
-    provenance.erase(expr);
+    use_provenance.erase(expr);
     DeleteValue(inst);
     return expr;
   } else if (auto global = llvm::dyn_cast<llvm::GlobalValue>(constant)) {
     auto decl{GetOrCreateDecl(global)};
     auto ref{ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl))};
-    provenance.insert({ref, constant});
     return ast.CreateAddrOf(ref);
   }
   return CreateLiteralExpr(constant);
@@ -270,7 +268,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
   auto CreateRef{[this, &val] {
     auto decl{GetOrCreateDecl(val)};
     auto ref{ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl))};
-    provenance.insert({ref, val});
+    use_provenance.insert({ref, &val});
     return ref;
   }};
 
@@ -339,7 +337,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
     return nullptr;
   }};
   auto res{Wrapper()};
-  use_provenance.insert({&val, res});
+  use_provenance.insert({res, &val});
   return res;
 }
 
@@ -610,7 +608,7 @@ clang::Expr *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto opnd{GetOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
       opnd = ast.CreateDeref(opnd);
-      provenance.insert({opnd, arg});
+      use_provenance.insert({opnd, &arg});
     }
     args.push_back(opnd);
   }
@@ -835,7 +833,7 @@ clang::Expr *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
       return op;
     } else {
       auto cast{ast.CreateCStyleCast(rt, op)};
-      CopyProvenance(op, cast, provenance);
+      CopyProvenance(op, cast, use_provenance);
       return (clang::Expr *)cast;
     }
   }};

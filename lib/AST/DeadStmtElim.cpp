@@ -14,8 +14,9 @@
 
 namespace rellic {
 
-DeadStmtElim::DeadStmtElim(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<DeadStmtElim>(provenance, unit) {}
+DeadStmtElim::DeadStmtElim(StmtToIRMap &provenance,
+                           ExprToUseMap &use_provenance, clang::ASTUnit &unit)
+    : TransformVisitor<DeadStmtElim>(provenance, use_provenance, unit) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";

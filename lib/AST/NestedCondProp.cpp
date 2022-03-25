@@ -29,8 +29,10 @@ static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
 
 }  // namespace
 
-NestedCondProp::NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<NestedCondProp>(provenance, unit),
+NestedCondProp::NestedCondProp(StmtToIRMap &provenance,
+                               ExprToUseMap &use_provenance,
+                               clang::ASTUnit &unit)
+    : TransformVisitor<NestedCondProp>(provenance, use_provenance, unit),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
 

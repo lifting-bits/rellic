@@ -52,7 +52,8 @@ class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
   void RunImpl() override;
 
  public:
-  CondBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  CondBasedRefine(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
+                  clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };

@@ -46,10 +46,21 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
 }
 
 using StmtToIRMap = std::unordered_multimap<clang::Stmt *, llvm::Value *>;
-void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map);
+using ExprToUseMap = std::unordered_multimap<clang::Expr *, llvm::Use *>;
+
+template <typename TKey1, typename TKey2, typename TKey3, typename TValue>
+void CopyProvenance(TKey1 *from, TKey2 *to,
+                    std::unordered_multimap<TKey3 *, TValue *> &map) {
+  auto range{map.equal_range(from)};
+  std::vector<std::pair<TKey3 *, TValue *>> pairs;
+  for (auto it{range.first}; it != range.second; ++it) {
+    pairs.emplace_back(to, it->second);
+  }
+  map.insert(pairs.begin(), pairs.end());
+}
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
-                   StmtToIRMap &provenance);
+                   ExprToUseMap &provenance);
 
 std::string ClangThingToString(clang::Stmt *stmt);
 

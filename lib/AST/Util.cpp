@@ -70,22 +70,13 @@ bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
   return IsEquivalent(ctx, a, b, idA, idB);
 }
 
-void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map) {
-  auto range{map.equal_range(from)};
-  std::vector<std::pair<clang::Stmt *, llvm::Value *>> pairs;
-  for (auto it{range.first}; it != range.second; ++it) {
-    pairs.emplace_back(to, it->second);
-  }
-  map.insert(pairs.begin(), pairs.end());
-}
-
 class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   ASTBuilder ast;
   clang::ASTContext &ctx;
-  StmtToIRMap &provenance;
+  ExprToUseMap &provenance;
 
  public:
-  ExprCloner(clang::ASTUnit &unit, StmtToIRMap &provenance)
+  ExprCloner(clang::ASTUnit &unit, ExprToUseMap &provenance)
       : ast(unit), ctx(unit.getASTContext()), provenance(provenance) {}
 
   clang::Expr *VisitIntegerLiteral(clang::IntegerLiteral *expr) {
@@ -189,14 +180,15 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   }
 
   clang::Expr *Visit(clang::Stmt *stmt) {
+    auto expr{clang::dyn_cast<clang::Expr>(stmt)};
     auto res{clang::StmtVisitor<ExprCloner, clang::Expr *>::Visit(stmt)};
-    CopyProvenance(stmt, res, provenance);
+    CopyProvenance(expr, res, provenance);
     return res;
   }
 };
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *expr,
-                   StmtToIRMap &provenance) {
+                   ExprToUseMap &provenance) {
   ExprCloner cloner{unit, provenance};
   return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(expr)));
 }

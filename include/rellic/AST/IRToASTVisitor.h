@@ -29,7 +29,6 @@ namespace rellic {
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
-using UseToExprMap = std::unordered_map<llvm::Use *, clang::Expr *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 
 class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Expr *> {
@@ -40,9 +39,8 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Expr *> {
 
   IRToTypeDeclMap &type_decls;
   IRToValDeclMap &value_decls;
-  StmtToIRMap &provenance;
   ArgToTempMap &temp_decls;
-  UseToExprMap &use_provenance;
+  ExprToUseMap &use_provenance;
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
 
@@ -54,15 +52,14 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Expr *> {
   clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
 
  public:
-  IRToASTVisitor(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                 IRToTypeDeclMap &type_decls, IRToValDeclMap &value_decls,
-                 IRToStmtMap &stmts, ArgToTempMap &temp_decls,
-                 UseToExprMap &use_provenance);
+  IRToASTVisitor(clang::ASTUnit &unit, IRToTypeDeclMap &type_decls,
+                 IRToValDeclMap &value_decls, ArgToTempMap &temp_decls,
+                 ExprToUseMap &use_provenance);
 
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
   clang::Expr *GetOperandExpr(llvm::Use &val);
 
-  StmtToIRMap &GetStmtToIRMap() { return provenance; }
+  ExprToUseMap &GetExprToUseMap() { return use_provenance; }
   IRToValDeclMap &GetIRToValDeclMap() { return value_decls; }
   IRToTypeDeclMap &GetIRToTypeDeclMap() { return type_decls; }
 

@@ -55,7 +55,8 @@ class ReachBasedRefine : public TransformVisitor<ReachBasedRefine> {
   void RunImpl() override;
 
  public:
-  ReachBasedRefine(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  ReachBasedRefine(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
+                   clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };

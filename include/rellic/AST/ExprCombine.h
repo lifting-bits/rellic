@@ -21,7 +21,8 @@ class ExprCombine : public TransformVisitor<ExprCombine> {
   void RunImpl() override;
 
  public:
-  ExprCombine(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  ExprCombine(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
+              clang::ASTUnit &unit);
 
   bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   bool VisitUnaryOperator(clang::UnaryOperator *op);

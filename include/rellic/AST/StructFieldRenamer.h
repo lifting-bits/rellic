@@ -30,8 +30,9 @@ class StructFieldRenamer
   void RunImpl() override;
 
  public:
-  StructFieldRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                     IRTypeToDITypeMap &types, IRToTypeDeclMap &decls);
+  StructFieldRenamer(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
+                     clang::ASTUnit &unit, IRTypeToDITypeMap &types,
+                     IRToTypeDeclMap &decls);
 
   bool VisitRecordDecl(clang::RecordDecl *decl);
 };

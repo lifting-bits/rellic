@@ -47,6 +47,17 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
 
 using StmtToIRMap = std::unordered_multimap<clang::Stmt *, llvm::Value *>;
 using ExprToUseMap = std::unordered_multimap<clang::Expr *, llvm::Use *>;
+using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
+using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
+using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
+struct Provenance {
+  StmtToIRMap stmt_provenance;
+  ExprToUseMap use_provenance;
+  IRToTypeDeclMap type_decls;
+  IRToValDeclMap value_decls;
+  ArgToTempMap temp_decls;
+};
 
 template <typename TKey1, typename TKey2, typename TKey3, typename TValue>
 void CopyProvenance(TKey1 *from, TKey2 *to,

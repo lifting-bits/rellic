@@ -16,10 +16,8 @@
 
 namespace rellic {
 
-Z3CondSimplify::Z3CondSimplify(StmtToIRMap &provenance,
-                               ExprToUseMap &use_provenance,
-                               clang::ASTUnit &unit)
-    : TransformVisitor<Z3CondSimplify>(provenance, use_provenance, unit),
+Z3CondSimplify::Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit)
+    : TransformVisitor<Z3CondSimplify>(provenance, unit),
       z_ctx(new z3::context()),
       z_gen(new Z3ConvVisitor(unit, z_ctx.get())),
       tactic(z3::tactic(*z_ctx, "sat")),

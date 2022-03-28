@@ -14,8 +14,8 @@
 namespace rellic {
 
 clang::Stmt *ApplyFirstMatchingRule(
-    StmtToIRMap &provenance, ExprToUseMap &use_provenance, clang::ASTUnit &unit,
-    clang::Stmt *stmt, std::vector<std::unique_ptr<InferenceRule>> &rules) {
+    Provenance &provenance, clang::ASTUnit &unit, clang::Stmt *stmt,
+    std::vector<std::unique_ptr<InferenceRule>> &rules) {
   clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
   clang::ast_matchers::MatchFinder finder(opts);
 
@@ -27,8 +27,7 @@ clang::Stmt *ApplyFirstMatchingRule(
 
   for (auto &rule : rules) {
     if (*rule) {
-      return rule->GetOrCreateSubstitution(provenance, use_provenance, unit,
-                                           stmt);
+      return rule->GetOrCreateSubstitution(provenance, unit, stmt);
     }
   }
 

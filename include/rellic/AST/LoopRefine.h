@@ -34,8 +34,7 @@ class LoopRefine : public TransformVisitor<LoopRefine> {
   void RunImpl() override;
 
  public:
-  LoopRefine(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
-             clang::ASTUnit &unit);
+  LoopRefine(Provenance &provenance, clang::ASTUnit &unit);
 
   bool VisitWhileStmt(clang::WhileStmt *loop);
 };

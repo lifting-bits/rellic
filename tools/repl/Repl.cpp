@@ -61,12 +61,7 @@ DECLARE_bool(version);
 llvm::LLVMContext llvm_ctx;
 std::unique_ptr<llvm::Module> module{nullptr};
 std::unique_ptr<clang::ASTUnit> ast_unit{nullptr};
-rellic::StmtToIRMap provenance;
-rellic::IRToTypeDeclMap type_decls;
-rellic::IRToValDeclMap value_decls;
-rellic::IRToStmtMap stmts;
-rellic::ArgToTempMap temp_decls;
-rellic::ExprToUseMap use_provenance;
+rellic::Provenance provenance;
 std::unique_ptr<rellic::CompositeASTPass> global_pass{nullptr};
 
 static void SetVersion(void) {
@@ -152,32 +147,23 @@ class Diff {
 
 static std::unique_ptr<rellic::ASTPass> CreatePass(const std::string& name) {
   if (name == "cbr") {
-    return std::make_unique<rellic::CondBasedRefine>(provenance, use_provenance,
-                                                     *ast_unit);
+    return std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit);
   } else if (name == "dse") {
-    return std::make_unique<rellic::DeadStmtElim>(provenance, use_provenance,
-                                                  *ast_unit);
+    return std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit);
   } else if (name == "ec") {
-    return std::make_unique<rellic::ExprCombine>(provenance, use_provenance,
-                                                 *ast_unit);
+    return std::make_unique<rellic::ExprCombine>(provenance, *ast_unit);
   } else if (name == "lr") {
-    return std::make_unique<rellic::LoopRefine>(provenance, use_provenance,
-                                                *ast_unit);
+    return std::make_unique<rellic::LoopRefine>(provenance, *ast_unit);
   } else if (name == "ncp") {
-    return std::make_unique<rellic::NestedCondProp>(provenance, use_provenance,
-                                                    *ast_unit);
+    return std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit);
   } else if (name == "nsc") {
-    return std::make_unique<rellic::NestedScopeCombine>(
-        provenance, use_provenance, *ast_unit);
+    return std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit);
   } else if (name == "nc") {
-    return std::make_unique<rellic::NormalizeCond>(provenance, use_provenance,
-                                                   *ast_unit);
+    return std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit);
   } else if (name == "rbr") {
-    return std::make_unique<rellic::ReachBasedRefine>(
-        provenance, use_provenance, *ast_unit);
+    return std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit);
   } else if (name == "zcs") {
-    return std::make_unique<rellic::Z3CondSimplify>(provenance, use_provenance,
-                                                    *ast_unit);
+    return std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit);
   } else {
     return nullptr;
   }
@@ -232,7 +218,7 @@ static void do_load(std::istream& is) {
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module->getTargetTriple()};
   ast_unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
-  provenance.clear();
+  provenance = {};
 
   std::cout << "ok." << std::endl;
 }
@@ -314,16 +300,11 @@ static void do_decompile() {
   try {
     rellic::DebugInfoCollector dic;
     dic.visit(*module);
-    provenance.clear();
-    type_decls.clear();
-    value_decls.clear();
-    temp_decls.clear();
-    rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
-                             value_decls, temp_decls, use_provenance);
-    rellic::LocalDeclRenamer ldr{provenance, use_provenance, *ast_unit,
-                                 dic.GetIRToNameMap(), value_decls};
-    rellic::StructFieldRenamer sfr{provenance, use_provenance, *ast_unit,
-                                   dic.GetIRTypeToDITypeMap(), type_decls};
+    provenance = {};
+    rellic::GenerateAST::run(*module, provenance, *ast_unit);
+    rellic::LocalDeclRenamer ldr{provenance, *ast_unit, dic.GetIRToNameMap()};
+    rellic::StructFieldRenamer sfr{provenance, *ast_unit,
+                                   dic.GetIRTypeToDITypeMap()};
     ldr.Run();
     sfr.Run();
     std::cout << "ok." << std::endl;
@@ -338,8 +319,8 @@ static void do_run(std::istream& is) {
     return;
   }
 
-  global_pass = std::make_unique<rellic::CompositeASTPass>(
-      provenance, use_provenance, *ast_unit);
+  global_pass =
+      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};
@@ -376,8 +357,8 @@ static void do_fixpoint(std::istream& is) {
     return;
   }
 
-  global_pass = std::make_unique<rellic::CompositeASTPass>(
-      provenance, use_provenance, *ast_unit);
+  global_pass =
+      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};

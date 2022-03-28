@@ -43,14 +43,13 @@ class DeMorganRule : public InferenceRule {
                 .bind("not")),
         to(to) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("not");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
-                                       ExprToUseMap &use_provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -62,8 +61,8 @@ class DeMorganRule : public InferenceRule {
 
     auto new_lhs{ast.CreateLNot(binop->getLHS())};
     auto new_rhs{ast.CreateLNot(binop->getRHS())};
-    CopyProvenance(binop->getLHS(), new_lhs, use_provenance);
-    CopyProvenance(binop->getRHS(), new_rhs, use_provenance);
+    CopyProvenance(binop->getLHS(), new_lhs, provenance.use_provenance);
+    CopyProvenance(binop->getRHS(), new_rhs, provenance.use_provenance);
     return ast.CreateBinaryOp(to, new_lhs, new_rhs);
   }
 };
@@ -80,14 +79,13 @@ class AssociativeRule : public InferenceRule {
                 .bind("binop")),
         op(op) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
-                                       ExprToUseMap &use_provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -112,14 +110,13 @@ class LDistributiveRule : public InferenceRule {
                                binaryOperator(hasOperatorName("&&")))))
                 .bind("binop")) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
-                                       ExprToUseMap &use_provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -144,14 +141,13 @@ class RDistributiveRule : public InferenceRule {
                                binaryOperator(hasOperatorName("&&")))))
                 .bind("binop")) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
-                                       ExprToUseMap &use_provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -169,9 +165,8 @@ class RDistributiveRule : public InferenceRule {
 
 }  // namespace
 
-NormalizeCond::NormalizeCond(StmtToIRMap &provenance,
-                             ExprToUseMap &use_provenance, clang::ASTUnit &u)
-    : TransformVisitor<NormalizeCond>(provenance, use_provenance, u) {}
+NormalizeCond::NormalizeCond(Provenance &provenance, clang::ASTUnit &u)
+    : TransformVisitor<NormalizeCond>(provenance, u) {}
 
 bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
@@ -179,8 +174,7 @@ bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {
   rules.emplace_back(new DeMorganRule(clang::BO_LAnd, clang::BO_LOr));
   rules.emplace_back(new DeMorganRule(clang::BO_LOr, clang::BO_LAnd));
 
-  auto sub{
-      ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }
@@ -196,8 +190,7 @@ bool NormalizeCond::VisitBinaryOperator(clang::BinaryOperator *op) {
   rules.emplace_back(new LDistributiveRule);
   rules.emplace_back(new RDistributiveRule);
 
-  auto sub{
-      ApplyFirstMatchingRule(provenance, use_provenance, ast_unit, op, rules)};
+  auto sub{ApplyFirstMatchingRule(provenance, ast_unit, op, rules)};
   if (sub != op) {
     substitutions[op] = sub;
   }

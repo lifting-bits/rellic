@@ -35,8 +35,7 @@ class NestedScopeCombine : public TransformVisitor<NestedScopeCombine> {
   void RunImpl() override;
 
  public:
-  NestedScopeCombine(StmtToIRMap &provenance, ExprToUseMap &use_provenance,
-                     clang::ASTUnit &unit);
+  NestedScopeCombine(Provenance &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);

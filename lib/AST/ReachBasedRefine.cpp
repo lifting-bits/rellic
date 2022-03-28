@@ -29,10 +29,8 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 
 }  // namespace
 
-ReachBasedRefine::ReachBasedRefine(StmtToIRMap &provenance,
-                                   ExprToUseMap &use_provenance,
-                                   clang::ASTUnit &unit)
-    : TransformVisitor<ReachBasedRefine>(provenance, use_provenance, unit),
+ReachBasedRefine::ReachBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
+    : TransformVisitor<ReachBasedRefine>(provenance, unit),
       z3_ctx(new z3::context()),
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}

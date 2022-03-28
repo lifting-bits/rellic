@@ -143,7 +143,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
           auto tmp{ast.CreateLNot(result)};
-          CopyProvenance(result, tmp, ast_gen.GetExprToUseMap());
+          CopyProvenance(result, tmp, provenance.use_provenance);
           result = tmp;
         }
       }
@@ -172,7 +172,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
 clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   auto &cond = reaching_conds[block];
   if (cond) {
-    return Clone(unit, cond, GetExprToUseMap());
+    return Clone(unit, cond, provenance.use_provenance);
   }
   // Gather reaching conditions from predecessors of the block
   for (auto pred : llvm::predecessors(block)) {
@@ -209,19 +209,16 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
   ASTBuilder &ast;
   IRToASTVisitor &ast_gen;
   StmtVec &stmts;
-  StmtToIRMap &provenance;
-  IRToValDeclMap &value_decls;
+  Provenance &provenance;
 
  public:
   BlockVisitor(clang::ASTContext &ast_ctx, ASTBuilder &ast,
-               IRToASTVisitor &ast_gen, StmtVec &stmts, StmtToIRMap &provenance,
-               IRToValDeclMap &value_decls)
+               IRToASTVisitor &ast_gen, StmtVec &stmts, Provenance &provenance)
       : ast_ctx(ast_ctx),
         ast(ast),
         ast_gen(ast_gen),
         stmts(stmts),
-        provenance(provenance),
-        value_decls(value_decls) {}
+        provenance(provenance) {}
 
   clang::Stmt *visitStoreInst(llvm::StoreInst &inst) {
     DLOG(INFO) << "visitStoreInst: " << LLVMThingToString(&inst);
@@ -253,13 +250,13 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
     } else {
       // Create the assignemnt itself
       auto deref{ast.CreateDeref(lhs)};
-      CopyProvenance(lhs, deref, ast_gen.GetExprToUseMap());
+      CopyProvenance(lhs, deref, provenance.use_provenance);
       return ast.CreateAssign(deref, rhs);
     }
   }
 
   clang::Stmt *visitCallInst(llvm::CallInst &inst) {
-    auto &var{value_decls[&inst]};
+    auto &var{provenance.value_decls[&inst]};
     auto expr{ast_gen.visit(inst)};
     if (var) {
       return ast.CreateAssign(ast.CreateDeclRef(var), expr);
@@ -289,7 +286,7 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
   clang::Stmt *visitAllocaInst(llvm::AllocaInst &inst) { return nullptr; }
 
   clang::Stmt *visitInstruction(llvm::Instruction &inst) {
-    auto &var{value_decls[&inst]};
+    auto &var{provenance.value_decls[&inst]};
     if (var) {
       auto expr{ast_gen.visit(inst)};
       return ast.CreateAssign(ast.CreateDeclRef(var), expr);
@@ -300,7 +297,7 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
   void VisitInstruction(llvm::Instruction &inst) {
     auto res{visit(inst)};
     if (res) {
-      provenance.insert({res, &inst});
+      provenance.stmt_provenance.insert({res, &inst});
       stmts.push_back(res);
     }
   }
@@ -308,8 +305,7 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
 
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
-  BlockVisitor visitor(*ast_ctx, ast, ast_gen, result, GetStmtToIRMap(),
-                       GetIRToValDeclMap());
+  BlockVisitor visitor(*ast_ctx, ast, ast_gen, result, provenance);
   for (auto &inst : *block) {
     visitor.VisitInstruction(inst);
   }
@@ -476,14 +472,11 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 llvm::AnalysisKey GenerateAST::Key;
 
-GenerateAST::GenerateAST(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                         IRToTypeDeclMap &type_decls,
-                         IRToValDeclMap &value_decls, ArgToTempMap &temp_decls,
-                         ExprToUseMap &use_provenance)
+GenerateAST::GenerateAST(Provenance &provenance, clang::ASTUnit &unit)
     : ast_ctx(&unit.getASTContext()),
       unit(unit),
       provenance(provenance),
-      ast_gen(unit, type_decls, value_decls, temp_decls, use_provenance),
+      ast_gen(unit, provenance),
       ast(unit) {}
 
 GenerateAST::Result GenerateAST::run(llvm::Module &module,
@@ -534,7 +527,7 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   auto fdefn =
       ast.CreateFunctionDecl(tudecl, fdecl->getType(), fdecl->getIdentifier());
   fdefn->setPreviousDecl(fdecl);
-  GetIRToValDeclMap()[&func] = fdefn;
+  provenance.value_decls[&func] = fdefn;
   tudecl->addDecl(fdefn);
   // Set parameters to the same as the previous declaration
   fdefn->setParams(fdecl->parameters());
@@ -556,30 +549,20 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   return llvm::PreservedAnalyses::all();
 }
 
-void GenerateAST::run(llvm::Module &module, StmtToIRMap &provenance,
-                      clang::ASTUnit &unit, IRToTypeDeclMap &type_decls,
-                      IRToValDeclMap &value_decls, ArgToTempMap &temp_decls,
-                      ExprToUseMap &use_provenance) {
+void GenerateAST::run(llvm::Module &module, Provenance &provenance,
+                      clang::ASTUnit &unit) {
   llvm::ModulePassManager mpm;
   llvm::ModuleAnalysisManager mam;
   llvm::PassBuilder pb;
-  mam.registerPass([&] {
-    return rellic::GenerateAST(provenance, unit, type_decls, value_decls,
-                               temp_decls, use_provenance);
-  });
-  mpm.addPass(rellic::GenerateAST(provenance, unit, type_decls, value_decls,
-                                  temp_decls, use_provenance));
+  mam.registerPass([&] { return rellic::GenerateAST(provenance, unit); });
+  mpm.addPass(rellic::GenerateAST(provenance, unit));
   pb.registerModuleAnalyses(mam);
   mpm.run(module, mam);
 
   llvm::FunctionPassManager fpm;
   llvm::FunctionAnalysisManager fam;
-  fam.registerPass([&] {
-    return rellic::GenerateAST(provenance, unit, type_decls, value_decls,
-                               temp_decls, use_provenance);
-  });
-  fpm.addPass(rellic::GenerateAST(provenance, unit, type_decls, value_decls,
-                                  temp_decls, use_provenance));
+  fam.registerPass([&] { return rellic::GenerateAST(provenance, unit); });
+  fpm.addPass(rellic::GenerateAST(provenance, unit));
   pb.registerFunctionAnalyses(fam);
   for (auto &func : module.functions()) {
     fpm.run(func, fam);

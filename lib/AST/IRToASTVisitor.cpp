@@ -259,7 +259,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
   auto CreateRef{[this, &val] {
     auto decl{GetOrCreateDecl(val)};
     auto ref{ast.CreateDeclRef(clang::cast<clang::ValueDecl>(decl))};
-    provenance.use_provenance.insert({ref, &val});
+    provenance.use_provenance[ref] = &val;
     return ref;
   }};
 
@@ -329,7 +329,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
     return nullptr;
   }};
   auto res{Wrapper()};
-  provenance.use_provenance.insert({res, &val});
+  provenance.use_provenance[res] = &val;
   return res;
 }
 
@@ -600,7 +600,7 @@ clang::Expr *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto opnd{GetOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
       opnd = ast.CreateDeref(opnd);
-      provenance.use_provenance.insert({opnd, &arg});
+      provenance.use_provenance[opnd] = &arg;
     }
     args.push_back(opnd);
   }

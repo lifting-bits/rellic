@@ -669,19 +669,6 @@ static void CopyMap(const std::unordered_map<TKey*, TValue*>& from,
   }
 }
 
-template <typename TKey, typename TValue>
-static void CopyMap(
-    const std::unordered_multimap<TKey*, TValue*>& from,
-    std::unordered_multimap<const TKey*, const TValue*>& to,
-    std::unordered_multimap<const TValue*, const TKey*>& inverse) {
-  for (auto [key, value] : from) {
-    if (value) {
-      to.insert({key, value});
-      inverse.insert({value, key});
-    }
-  }
-}
-
 static void PrintAST(const httplib::Request& req, httplib::Response& res) {
   auto& session{GetSession(req)};
   read_lock load_mutex(session.LoadMutex);

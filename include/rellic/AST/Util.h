@@ -45,8 +45,8 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
   return result;
 }
 
-using StmtToIRMap = std::unordered_multimap<clang::Stmt *, llvm::Value *>;
-using ExprToUseMap = std::unordered_multimap<clang::Expr *, llvm::Use *>;
+using StmtToIRMap = std::unordered_map<clang::Stmt *, llvm::Value *>;
+using ExprToUseMap = std::unordered_map<clang::Expr *, llvm::Use *>;
 using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
@@ -61,13 +61,8 @@ struct Provenance {
 
 template <typename TKey1, typename TKey2, typename TKey3, typename TValue>
 void CopyProvenance(TKey1 *from, TKey2 *to,
-                    std::unordered_multimap<TKey3 *, TValue *> &map) {
-  auto range{map.equal_range(from)};
-  std::vector<std::pair<TKey3 *, TValue *>> pairs;
-  for (auto it{range.first}; it != range.second; ++it) {
-    pairs.emplace_back(to, it->second);
-  }
-  map.insert(pairs.begin(), pairs.end());
+                    std::unordered_map<TKey3 *, TValue *> &map) {
+  map[to] = map[from];
 }
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,

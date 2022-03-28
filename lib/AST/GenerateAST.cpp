@@ -297,7 +297,7 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
   void VisitInstruction(llvm::Instruction &inst) {
     auto res{visit(inst)};
     if (res) {
-      provenance.stmt_provenance.insert({res, &inst});
+      provenance.stmt_provenance[res] = &inst;
       stmts.push_back(res);
     }
   }

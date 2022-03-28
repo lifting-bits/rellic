@@ -204,6 +204,16 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   return cond;
 }
 
+// BlockVisitor is tasked with populating blocks with their top-level
+// statements. It delegates to IRToASTVisitor for generating the expressions
+// used by each statement.
+//
+// Most instructions in a LLVM BasicBlock are actually free of side effects and
+// only make sense as part of expressions. The handful of instructions that
+// actually have potential side effects are handled here, by creating
+// top-level statements for them, and eventually even storing their result in a
+// local variable if it was deemed necessary by
+// IRToASTVisitor::VisitFunctionDecl
 class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
  private:
   clang::ASTContext &ast_ctx;
@@ -256,6 +266,9 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
     }
   }
 
+  // Function calls have potential side effects: generate a top-level
+  // statements. If a local variable was created by
+  // IRToASTVisitor::VisitFunctionDecl, put the result of the call there.
   clang::Stmt *visitCallInst(llvm::CallInst &inst) {
     auto &var{provenance.value_decls[&inst]};
     auto expr{ast_gen.visit(inst)};
@@ -265,6 +278,7 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
     return expr;
   }
 
+  // Returns only make sense as top-level statements.
   clang::Stmt *visitReturnInst(llvm::ReturnInst &inst) {
     DLOG(INFO) << "visitReturnInst: " << LLVMThingToString(&inst);
     if (auto retval = inst.getReturnValue()) {
@@ -284,6 +298,8 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
     return nullptr;
   }
 
+  // Allocas are treated as local variable declarations by
+  // IRToASTVisitor::VisitFunctionDecl
   clang::Stmt *visitAllocaInst(llvm::AllocaInst &inst) { return nullptr; }
 
   clang::Stmt *visitInstruction(llvm::Instruction &inst) {

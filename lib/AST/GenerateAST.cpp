@@ -205,6 +205,7 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
 }
 
 class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
+ private:
   clang::ASTContext &ast_ctx;
   ASTBuilder &ast;
   IRToASTVisitor &ast_gen;
@@ -294,11 +295,13 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
     return nullptr;
   }
 
-  void VisitInstruction(llvm::Instruction &inst) {
-    auto res{visit(inst)};
-    if (res) {
-      provenance.stmt_provenance[res] = &inst;
-      stmts.push_back(res);
+  void visitBasicBlock(llvm::BasicBlock &block) {
+    for (auto &inst : block) {
+      auto res{visit(inst)};
+      if (res) {
+        provenance.stmt_provenance[res] = &inst;
+        stmts.push_back(res);
+      }
     }
   }
 };
@@ -306,9 +309,7 @@ class BlockVisitor : public llvm::InstVisitor<BlockVisitor, clang::Stmt *> {
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
   BlockVisitor visitor(*ast_ctx, ast, ast_gen, result, provenance);
-  for (auto &inst : *block) {
-    visitor.VisitInstruction(inst);
-  }
+  visitor.visit(block);
   return result;
 }
 

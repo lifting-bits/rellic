@@ -263,53 +263,49 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
     return ref;
   }};
 
-  auto Wrapper{[&]() -> clang::Expr * {
+  clang::Expr *res{nullptr};
+  if (auto constant = llvm::dyn_cast<llvm::Constant>(val)) {
     // Operand is a constant value
-    if (auto constant = llvm::dyn_cast<llvm::Constant>(val)) {
-      return CreateConstantExpr(constant);
-    }
+    res = CreateConstantExpr(constant);
+  } else if (llvm::isa<llvm::AllocaInst>(val)) {
     // Operand is an l-value (variable, function, ...)
-    if (llvm::isa<llvm::AllocaInst>(val)) {
-      // Add a `&` operator
-      return ast.CreateAddrOf(CreateRef());
-    }
+    // Add a `&` operator
+    res = ast.CreateAddrOf(CreateRef());
+  } else if (llvm::isa<llvm::Argument>(val)) {
     // Operand is a function argument or local variable
-    if (llvm::isa<llvm::Argument>(val)) {
-      auto arg{llvm::cast<llvm::Argument>(val)};
-      auto ref{CreateRef()};
-      if (arg->hasByValAttr()) {
-        // Since arguments that have the `byval` are pointers, but actually mean
-        // pass-by-value semantics, we need to create an auxiliary pointer to
-        // the actual argument and use it instead of the actual argument. This
-        // is because `byval` arguments are pointers, so each reference to those
-        // arguments assume they are dealing with pointers.
-        auto &temp{provenance.temp_decls[arg]};
-        if (!temp) {
-          auto addr_of_arg{ast.CreateAddrOf(ref)};
-          auto func{arg->getParent()};
-          auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
-          auto argdecl{
-              clang::cast<clang::ParmVarDecl>(provenance.value_decls[arg])};
-          temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
-                                   argdecl->getName().str() + "_ptr");
-          temp->setInit(addr_of_arg);
-          fdecl->addDecl(temp);
-        }
-
-        return ast.CreateDeclRef(temp);
-      } else {
-        return ref;
+    auto arg{llvm::cast<llvm::Argument>(val)};
+    auto ref{CreateRef()};
+    if (arg->hasByValAttr()) {
+      // Since arguments that have the `byval` are pointers, but actually mean
+      // pass-by-value semantics, we need to create an auxiliary pointer to
+      // the actual argument and use it instead of the actual argument. This
+      // is because `byval` arguments are pointers, so each reference to those
+      // arguments assume they are dealing with pointers.
+      auto &temp{provenance.temp_decls[arg]};
+      if (!temp) {
+        auto addr_of_arg{ast.CreateAddrOf(ref)};
+        auto func{arg->getParent()};
+        auto fdecl{GetOrCreateDecl(func)->getAsFunction()};
+        auto argdecl{
+            clang::cast<clang::ParmVarDecl>(provenance.value_decls[arg])};
+        temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
+                                 argdecl->getName().str() + "_ptr");
+        temp->setInit(addr_of_arg);
+        fdecl->addDecl(temp);
       }
+
+      res = ast.CreateDeclRef(temp);
+    } else {
+      res = ref;
     }
+  } else if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
     // Operand is a result of an expression
-    if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
-      if (auto decl = provenance.value_decls[inst]) {
-        return ast.CreateDeclRef(decl);
-      } else {
-        return visit(inst);
-      }
+    if (auto decl = provenance.value_decls[inst]) {
+      res = ast.CreateDeclRef(decl);
+    } else {
+      res = visit(inst);
     }
-
+  } else {
     ASSERT_ON_VALUE_TYPE(llvm::MetadataAsValue);
     ASSERT_ON_VALUE_TYPE(llvm::Constant);
     ASSERT_ON_VALUE_TYPE(llvm::BasicBlock);
@@ -325,10 +321,7 @@ clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
     LOG(FATAL) << "Invalid operand value id: [" << val->getValueID() << "]\n"
                << "Bitcode: [" << LLVMThingToString(val) << "]\n"
                << "Type: [" << LLVMThingToString(val->getType()) << "]\n";
-
-    return nullptr;
-  }};
-  auto res{Wrapper()};
+  }
   provenance.use_provenance[res] = &val;
   return res;
 }

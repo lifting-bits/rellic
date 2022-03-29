@@ -22,6 +22,7 @@ set(include_dir "${PROJECT_SOURCE_DIR}/include/${PROJECT_NAME}")
 
 set(AST_HEADERS
   "${include_dir}/AST/ASTBuilder.h"
+  "${include_dir}/AST/BlockVisitor.h"
   "${include_dir}/AST/CXXToCDecl.h"
   "${include_dir}/AST/CondBasedRefine.h"
   "${include_dir}/AST/DeadStmtElim.h"
@@ -86,6 +87,7 @@ set(AST_COMPAT_SOURCES
 
 set(AST_SOURCES
   AST/ASTBuilder.cpp
+  AST/BlockVisitor.cpp
   AST/CXXToCDecl.cpp
   AST/InferenceRule.cpp
   AST/DeadStmtElim.cpp

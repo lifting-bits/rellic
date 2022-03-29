@@ -24,14 +24,13 @@ class StructFieldRenamer
  private:
   TypeDeclToIRMap decls;
   IRTypeToDITypeMap &types;
-  IRToTypeDeclMap &inv_decl;
 
  protected:
   void RunImpl() override;
 
  public:
-  StructFieldRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                     IRTypeToDITypeMap &types, IRToTypeDeclMap &decls);
+  StructFieldRenamer(Provenance &provenance, clang::ASTUnit &unit,
+                     IRTypeToDITypeMap &types);
 
   bool VisitRecordDecl(clang::RecordDecl *decl);
 };

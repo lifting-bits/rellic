@@ -16,6 +16,7 @@
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/RegionInfo.h>
+#include <llvm/IR/Instruction.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
@@ -138,11 +139,11 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
       auto br = llvm::cast<llvm::BranchInst>(term);
       if (br->isConditional()) {
         // Get the edge condition
-        result = ast_gen.GetOperandExpr(br->getCondition());
+        result = ast_gen.CreateOperandExpr(*(br->op_end() - 3));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
           auto tmp{ast.CreateLNot(result)};
-          CopyProvenance(result, tmp, GetStmtToIRMap());
+          CopyProvenance(result, tmp, provenance.use_provenance);
           result = tmp;
         }
       }
@@ -171,7 +172,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
 clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
   auto &cond = reaching_conds[block];
   if (cond) {
-    return Clone(unit, cond, GetStmtToIRMap());
+    return Clone(unit, cond, provenance.use_provenance);
   }
   // Gather reaching conditions from predecessors of the block
   for (auto pred : llvm::predecessors(block)) {
@@ -205,11 +206,7 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
 
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
-  for (auto &inst : *block) {
-    if (auto stmt = ast_gen.GetOrCreateStmt(&inst)) {
-      result.push_back(stmt);
-    }
-  }
+  ast_gen.VisitBasicBlock(*block, result);
   return result;
 }
 
@@ -373,13 +370,11 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 llvm::AnalysisKey GenerateAST::Key;
 
-GenerateAST::GenerateAST(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                         IRToTypeDeclMap &type_decls,
-                         IRToValDeclMap &value_decls, IRToStmtMap &stmts,
-                         ArgToTempMap &temp_decls)
+GenerateAST::GenerateAST(Provenance &provenance, clang::ASTUnit &unit)
     : ast_ctx(&unit.getASTContext()),
       unit(unit),
-      ast_gen(provenance, unit, type_decls, value_decls, stmts, temp_decls),
+      provenance(provenance),
+      ast_gen(unit, provenance),
       ast(unit) {}
 
 GenerateAST::Result GenerateAST::run(llvm::Module &module,
@@ -424,13 +419,13 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // Call the above declared bad boy
   POWalkSubRegions(regions->getTopLevelRegion());
   // Get the function declaration AST node for `func`
-  auto fdecl = clang::cast<clang::FunctionDecl>(ast_gen.GetOrCreateDecl(&func));
+  auto fdecl = clang::cast<clang::FunctionDecl>(provenance.value_decls[&func]);
   // Create a redeclaration of `fdecl` that will serve as a definition
   auto tudecl = ast_ctx->getTranslationUnitDecl();
   auto fdefn =
       ast.CreateFunctionDecl(tudecl, fdecl->getType(), fdecl->getIdentifier());
   fdefn->setPreviousDecl(fdecl);
-  GetIRToValDeclMap()[&func] = fdefn;
+  provenance.value_decls[&func] = fdefn;
   tudecl->addDecl(fdefn);
   // Set parameters to the same as the previous declaration
   fdefn->setParams(fdecl->parameters());
@@ -452,30 +447,20 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   return llvm::PreservedAnalyses::all();
 }
 
-void GenerateAST::run(llvm::Module &module, StmtToIRMap &provenance,
-                      clang::ASTUnit &unit, IRToTypeDeclMap &type_decls,
-                      IRToValDeclMap &value_decls, IRToStmtMap &stmts,
-                      ArgToTempMap &temp_decls) {
+void GenerateAST::run(llvm::Module &module, Provenance &provenance,
+                      clang::ASTUnit &unit) {
   llvm::ModulePassManager mpm;
   llvm::ModuleAnalysisManager mam;
   llvm::PassBuilder pb;
-  mam.registerPass([&] {
-    return rellic::GenerateAST(provenance, unit, type_decls, value_decls, stmts,
-                               temp_decls);
-  });
-  mpm.addPass(rellic::GenerateAST(provenance, unit, type_decls, value_decls,
-                                  stmts, temp_decls));
+  mam.registerPass([&] { return rellic::GenerateAST(provenance, unit); });
+  mpm.addPass(rellic::GenerateAST(provenance, unit));
   pb.registerModuleAnalyses(mam);
   mpm.run(module, mam);
 
   llvm::FunctionPassManager fpm;
   llvm::FunctionAnalysisManager fam;
-  fam.registerPass([&] {
-    return rellic::GenerateAST(provenance, unit, type_decls, value_decls, stmts,
-                               temp_decls);
-  });
-  fpm.addPass(rellic::GenerateAST(provenance, unit, type_decls, value_decls,
-                                  stmts, temp_decls));
+  fam.registerPass([&] { return rellic::GenerateAST(provenance, unit); });
+  fpm.addPass(rellic::GenerateAST(provenance, unit));
   pb.registerFunctionAnalyses(fam);
   for (auto &func : module.functions()) {
     fpm.run(func, fam);

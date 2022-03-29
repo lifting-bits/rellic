@@ -24,7 +24,7 @@ class NormalizeCond : public TransformVisitor<NormalizeCond> {
  public:
   static char ID;
 
-  NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  NormalizeCond(Provenance &provenance, clang::ASTUnit &unit);
 
   bool VisitUnaryOperator(clang::UnaryOperator *op);
   bool VisitBinaryOperator(clang::BinaryOperator *op);

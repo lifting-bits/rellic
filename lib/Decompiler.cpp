@@ -59,19 +59,6 @@ static void CopyMap(const std::unordered_map<TKey*, TValue*>& from,
   }
 }
 
-template <typename TKey, typename TValue>
-static void CopyMap(
-    const std::unordered_multimap<TKey*, TValue*>& from,
-    std::unordered_multimap<const TKey*, const TValue*>& to,
-    std::unordered_multimap<const TValue*, const TKey*>& inverse) {
-  for (auto [key, value] : from) {
-    if (value) {
-      to.insert({key, value});
-      inverse.insert({value, key});
-    }
-  }
-}
-
 namespace rellic {
 Result<DecompilationResult, DecompilationError> Decompile(
     std::unique_ptr<llvm::Module> module, DecompilationOptions options) {
@@ -95,13 +82,8 @@ Result<DecompilationResult, DecompilationError> Decompile(
                                   module->getTargetTriple()};
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
-    rellic::StmtToIRMap provenance;
-    rellic::IRToTypeDeclMap type_decls;
-    rellic::IRToValDeclMap value_decls;
-    rellic::IRToStmtMap stmts;
-    rellic::ArgToTempMap temp_decls;
-    rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
-                             value_decls, stmts, temp_decls);
+    rellic::Provenance provenance;
+    rellic::GenerateAST::run(*module, provenance, *ast_unit);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
@@ -113,9 +95,9 @@ Result<DecompilationResult, DecompilationError> Decompile(
           std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit));
     }
     ast_passes.push_back(std::make_unique<rellic::LocalDeclRenamer>(
-        provenance, *ast_unit, dic.GetIRToNameMap(), value_decls));
+        provenance, *ast_unit, dic.GetIRToNameMap()));
     ast_passes.push_back(std::make_unique<rellic::StructFieldRenamer>(
-        provenance, *ast_unit, dic.GetIRTypeToDITypeMap(), type_decls));
+        provenance, *ast_unit, dic.GetIRTypeToDITypeMap()));
     pass_ast.Run();
 
     rellic::CompositeASTPass pass_cbr(provenance, *ast_unit);
@@ -229,9 +211,14 @@ Result<DecompilationResult, DecompilationError> Decompile(
     DecompilationResult result{};
     result.ast = std::move(ast_unit);
     result.module = std::move(module);
-    CopyMap(provenance, result.stmt_provenance_map, result.value_to_stmt_map);
-    CopyMap(value_decls, result.value_to_decl_map, result.decl_provenance_map);
-    CopyMap(type_decls, result.type_to_decl_map, result.type_provenance_map);
+    CopyMap(provenance.stmt_provenance, result.stmt_provenance_map,
+            result.value_to_stmt_map);
+    CopyMap(provenance.value_decls, result.value_to_decl_map,
+            result.decl_provenance_map);
+    CopyMap(provenance.type_decls, result.type_to_decl_map,
+            result.type_provenance_map);
+    CopyMap(provenance.use_provenance, result.expr_use_map,
+            result.use_expr_map);
 
     return Result<DecompilationResult, DecompilationError>(std::move(result));
   } catch (Exception& ex) {

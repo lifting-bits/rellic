@@ -28,7 +28,6 @@ class LocalDeclRenamer : public TransformVisitor<LocalDeclRenamer> {
 
   std::unordered_set<clang::VarDecl *> renamed_decls;
   IRToNameMap &names;
-  IRToValDeclMap &inv_decl;
 
   bool IsNameVisible(const std::string &name);
 
@@ -36,8 +35,8 @@ class LocalDeclRenamer : public TransformVisitor<LocalDeclRenamer> {
   void RunImpl() override;
 
  public:
-  LocalDeclRenamer(StmtToIRMap &provenance, clang::ASTUnit &unit,
-                   IRToNameMap &names, IRToValDeclMap &decls);
+  LocalDeclRenamer(Provenance &provenance, clang::ASTUnit &unit,
+                   IRToNameMap &names);
 
   bool shouldTraversePostOrder() override;
   bool VisitVarDecl(clang::VarDecl *decl);

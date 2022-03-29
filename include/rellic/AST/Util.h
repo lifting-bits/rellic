@@ -9,6 +9,7 @@
 #pragma once
 
 #include <clang/AST/DeclBase.h>
+#include <clang/AST/Stmt.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <llvm/IR/Value.h>
 
@@ -44,10 +45,29 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
   return result;
 }
 
-using StmtToIRMap = std::unordered_multimap<clang::Stmt *, llvm::Value *>;
-void CopyProvenance(clang::Stmt *from, clang::Stmt *to, StmtToIRMap &map);
+using StmtToIRMap = std::unordered_map<clang::Stmt *, llvm::Value *>;
+using ExprToUseMap = std::unordered_map<clang::Expr *, llvm::Use *>;
+using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
+using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
+using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
+struct Provenance {
+  StmtToIRMap stmt_provenance;
+  ExprToUseMap use_provenance;
+  IRToTypeDeclMap type_decls;
+  IRToValDeclMap value_decls;
+  ArgToTempMap temp_decls;
+};
+
+template <typename TKey1, typename TKey2, typename TKey3, typename TValue>
+void CopyProvenance(TKey1 *from, TKey2 *to,
+                    std::unordered_map<TKey3 *, TValue *> &map) {
+  map[to] = map[from];
+}
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
-                   StmtToIRMap &provenance);
+                   ExprToUseMap &provenance);
+
+std::string ClangThingToString(clang::Stmt *stmt);
 
 }  // namespace rellic

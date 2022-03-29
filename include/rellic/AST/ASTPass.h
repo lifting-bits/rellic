@@ -21,7 +21,7 @@ class ASTPass {
   std::atomic_bool stop{false};
 
  protected:
-  StmtToIRMap& provenance;
+  Provenance& provenance;
   clang::ASTUnit& ast_unit;
   clang::ASTContext& ast_ctx;
   ASTBuilder ast;
@@ -32,7 +32,7 @@ class ASTPass {
   virtual void StopImpl() {}
 
  public:
-  ASTPass(StmtToIRMap& provenance, clang::ASTUnit& ast_unit)
+  ASTPass(Provenance& provenance, clang::ASTUnit& ast_unit)
       : provenance(provenance),
         ast_unit(ast_unit),
         ast_ctx(ast_unit.getASTContext()),
@@ -89,7 +89,7 @@ class CompositeASTPass : public ASTPass {
   }
 
  public:
-  CompositeASTPass(StmtToIRMap& provenance, clang::ASTUnit& ast_unit)
+  CompositeASTPass(Provenance& provenance, clang::ASTUnit& ast_unit)
       : ASTPass(provenance, ast_unit) {}
   std::vector<std::unique_ptr<ASTPass>>& GetPasses() { return passes; }
 };

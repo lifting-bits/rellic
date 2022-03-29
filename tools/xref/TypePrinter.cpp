@@ -103,21 +103,10 @@ class TypePrinter {
   unsigned Indentation;
   bool HasEmptyPlaceHolder = false;
   bool InsideCCAttribute = false;
-  const rellic::DecompilationResult::DeclToIRMap &DeclProvenance;
-  const rellic::DecompilationResult::StmtToIRMap &StmtProvenance;
-  const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance;
 
  public:
-  explicit TypePrinter(
-      const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-      const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-      const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance,
-      const PrintingPolicy &Policy, unsigned Indentation = 0)
-      : Policy(Policy),
-        Indentation(Indentation),
-        DeclProvenance(DeclProvenance),
-        StmtProvenance(StmtProvenance),
-        TypeProvenance(TypeProvenance) {}
+  explicit TypePrinter(const PrintingPolicy &Policy, unsigned Indentation = 0)
+      : Policy(Policy), Indentation(Indentation) {}
 
   void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
              StringRef PlaceHolder);
@@ -484,8 +473,7 @@ void TypePrinter::printMemberPointerBefore(const MemberPointerType *T,
 
   PrintingPolicy InnerPolicy(Policy);
   InnerPolicy.IncludeTagDefinition = false;
-  TypePrinter(DeclProvenance, StmtProvenance, TypeProvenance, InnerPolicy)
-      .print(QualType(T->getClass(), 0), OS, StringRef());
+  TypePrinter(InnerPolicy).print(QualType(T->getClass(), 0), OS, StringRef());
 
   OS << "::*";
 }
@@ -1237,22 +1225,14 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
   if (Policy.IncludeTagDefinition) {
     PrintingPolicy SubPolicy = Policy;
     SubPolicy.IncludeTagDefinition = false;
-    PrintDecl(D, DeclProvenance, StmtProvenance, TypeProvenance, SubPolicy,
-              Indentation, OS);
+    PrintDecl(D, SubPolicy, Indentation, OS);
     spaceBeforePlaceHolder(OS);
     return;
   }
 
-  OS << "<span class=\"clang type\" data-addr=\"";
+  OS << "<span class=\"clang type\" id=\"";
   OS.write_hex((unsigned long long)D);
-  OS << '"';
-  auto provenance{TypeProvenance.find(D)};
-  if (provenance != TypeProvenance.end()) {
-    OS << " data-provenance=\"";
-    OS.write_hex((unsigned long long)provenance->second);
-    OS << '"';
-  }
-  OS << '>';
+  OS << "\">";
 
   bool HasKindDecoration = false;
 
@@ -1455,8 +1435,7 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
            "OwnedTagDecl expected to be a declaration for the type");
     PrintingPolicy SubPolicy = Policy;
     SubPolicy.IncludeTagDefinition = false;
-    PrintDecl(OwnedTagDecl, DeclProvenance, StmtProvenance, TypeProvenance,
-              SubPolicy, Indentation, OS);
+    PrintDecl(OwnedTagDecl, SubPolicy, Indentation, OS);
     spaceBeforePlaceHolder(OS);
     return;
   }
@@ -2153,30 +2132,18 @@ void PrintQualifiers(const clang::Qualifiers &Qualifiers, llvm::raw_ostream &OS,
   if (appendSpaceIfNonEmpty && addSpace) OS << ' ';
 }
 
-static void print(
-    const Type *ty,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance,
-    Qualifiers qs, raw_ostream &OS, const PrintingPolicy &policy,
-    const Twine &PlaceHolder, unsigned Indentation) {
+static void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
+                  const PrintingPolicy &policy, const Twine &PlaceHolder,
+                  unsigned Indentation) {
   SmallString<128> PHBuf;
   StringRef PH = PlaceHolder.toStringRef(PHBuf);
-  TypePrinter(DeclProvenance, StmtProvenance, TypeProvenance, policy,
-              Indentation)
-      .print(ty, qs, OS, PH);
+  TypePrinter(policy, Indentation).print(ty, qs, OS, PH);
 }
 
-void PrintType(
-    QualType Type,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance,
-    raw_ostream &OS, const PrintingPolicy &Policy, const Twine &PlaceHolder,
-    unsigned Indentation) {
+void PrintType(QualType Type, raw_ostream &OS, const PrintingPolicy &Policy,
+               const Twine &PlaceHolder, unsigned Indentation) {
   auto split{splitAccordingToPolicy(Type, Policy)};
-  print(split.Ty, DeclProvenance, StmtProvenance, TypeProvenance, split.Quals,
-        OS, Policy, PlaceHolder, Indentation);
+  print(split.Ty, split.Quals, OS, Policy, PlaceHolder, Indentation);
 }
 
 std::string GetQualifiersAsString(const Qualifiers &Qual,
@@ -2192,67 +2159,42 @@ std::string GetQualifiersAsString(const Qualifiers &Qual) {
   return GetQualifiersAsString(Qual, PrintingPolicy(LO));
 }
 
-static void getAsStringInternal(
-    const Type *ty, Qualifiers qs, std::string &buffer,
-    const PrintingPolicy &policy,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance) {
+static void getAsStringInternal(const Type *ty, Qualifiers qs,
+                                std::string &buffer,
+                                const PrintingPolicy &policy) {
   SmallString<256> Buf;
   llvm::raw_svector_ostream StrOS(Buf);
-  TypePrinter(DeclProvenance, StmtProvenance, TypeProvenance, policy)
-      .print(ty, qs, StrOS, buffer);
+  TypePrinter(policy).print(ty, qs, StrOS, buffer);
   std::string str = std::string(StrOS.str());
   buffer.swap(str);
 }
 
-static void getAsStringInternal(
-    QualType Type, std::string &Str, const PrintingPolicy &Policy,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance) {
+static void getAsStringInternal(QualType Type, std::string &Str,
+                                const PrintingPolicy &Policy) {
   auto split{splitAccordingToPolicy(Type, Policy)};
-  return getAsStringInternal(split.Ty, split.Quals, Str, Policy, DeclProvenance,
-                             StmtProvenance, TypeProvenance);
+  return getAsStringInternal(split.Ty, split.Quals, Str, Policy);
 }
 
-static std::string getAsString(
-    const Type *ty, Qualifiers qs, const PrintingPolicy &Policy,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance) {
+static std::string getAsString(const Type *ty, Qualifiers qs,
+                               const PrintingPolicy &Policy) {
   std::string buffer;
-  getAsStringInternal(ty, qs, buffer, Policy, DeclProvenance, StmtProvenance,
-                      TypeProvenance);
+  getAsStringInternal(ty, qs, buffer, Policy);
   return buffer;
 }
 
-static std::string getAsString(
-    SplitQualType split, const PrintingPolicy &Policy,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance) {
-  return getAsString(split.Ty, split.Quals, Policy, DeclProvenance,
-                     StmtProvenance, TypeProvenance);
+static std::string getAsString(SplitQualType split,
+                               const PrintingPolicy &Policy) {
+  return getAsString(split.Ty, split.Quals, Policy);
 }
 
-std::string GetQualTypeAsString(
-    QualType Type, const PrintingPolicy &Policy,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance) {
+std::string GetQualTypeAsString(QualType Type, const PrintingPolicy &Policy) {
   auto split{Type.split()};
-  return getAsString(split.Ty, split.Quals, Policy, DeclProvenance,
-                     StmtProvenance, TypeProvenance);
+  return getAsString(split.Ty, split.Quals, Policy);
 }
 
-std::string GetTypeAsString(
-    const Type *ty, Qualifiers qs, const PrintingPolicy &Policy,
-    const rellic::DecompilationResult::DeclToIRMap &DeclProvenance,
-    const rellic::DecompilationResult::StmtToIRMap &StmtProvenance,
-    const rellic::DecompilationResult::TypeDeclToIRMap &TypeProvenance) {
+std::string GetTypeAsString(const Type *ty, Qualifiers qs,
+                            const PrintingPolicy &Policy) {
   std::string buffer;
-  getAsStringInternal(ty, qs, buffer, Policy, DeclProvenance, StmtProvenance,
-                      TypeProvenance);
+  getAsStringInternal(ty, qs, buffer, Policy);
   return buffer;
 }

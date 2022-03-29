@@ -47,7 +47,7 @@ class NestedCondProp : public TransformVisitor<NestedCondProp> {
  public:
   bool shouldTraversePostOrder() override { return false; }
 
-  NestedCondProp(StmtToIRMap &provenance, clang::ASTUnit &unit);
+  NestedCondProp(Provenance &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *stmt);

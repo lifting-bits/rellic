@@ -43,13 +43,13 @@ class DeMorganRule : public InferenceRule {
                 .bind("not")),
         to(to) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("not");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -61,8 +61,8 @@ class DeMorganRule : public InferenceRule {
 
     auto new_lhs{ast.CreateLNot(binop->getLHS())};
     auto new_rhs{ast.CreateLNot(binop->getRHS())};
-    CopyProvenance(binop->getLHS(), new_lhs, provenance);
-    CopyProvenance(binop->getRHS(), new_rhs, provenance);
+    CopyProvenance(binop->getLHS(), new_lhs, provenance.use_provenance);
+    CopyProvenance(binop->getRHS(), new_rhs, provenance.use_provenance);
     return ast.CreateBinaryOp(to, new_lhs, new_rhs);
   }
 };
@@ -79,13 +79,13 @@ class AssociativeRule : public InferenceRule {
                 .bind("binop")),
         op(op) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::UnaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -110,13 +110,13 @@ class LDistributiveRule : public InferenceRule {
                                binaryOperator(hasOperatorName("&&")))))
                 .bind("binop")) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -141,13 +141,13 @@ class RDistributiveRule : public InferenceRule {
                                binaryOperator(hasOperatorName("&&")))))
                 .bind("binop")) {}
 
-  void run(const MatchFinder::MatchResult &result) {
+  void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::BinaryOperator>("binop");
   }
 
-  clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                        clang::ASTUnit &unit,
-                                       clang::Stmt *stmt) {
+                                       clang::Stmt *stmt) override {
     auto &ctx{unit.getASTContext()};
     ASTBuilder ast{unit};
 
@@ -165,7 +165,7 @@ class RDistributiveRule : public InferenceRule {
 
 }  // namespace
 
-NormalizeCond::NormalizeCond(StmtToIRMap &provenance, clang::ASTUnit &u)
+NormalizeCond::NormalizeCond(Provenance &provenance, clang::ASTUnit &u)
     : TransformVisitor<NormalizeCond>(provenance, u) {}
 
 bool NormalizeCond::VisitUnaryOperator(clang::UnaryOperator *op) {

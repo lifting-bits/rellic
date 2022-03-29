@@ -18,13 +18,11 @@
 
 namespace rellic {
 
-LocalDeclRenamer::LocalDeclRenamer(StmtToIRMap &provenance,
-                                   clang::ASTUnit &unit, IRToNameMap &names,
-                                   IRToValDeclMap &decls)
+LocalDeclRenamer::LocalDeclRenamer(Provenance &provenance, clang::ASTUnit &unit,
+                                   IRToNameMap &names)
     : TransformVisitor<LocalDeclRenamer>(provenance, unit),
       seen_names(1),
-      names(names),
-      inv_decl(decls) {}
+      names(names) {}
 
 bool LocalDeclRenamer::IsNameVisible(const std::string &name) {
   for (auto &scope : seen_names) {
@@ -82,7 +80,7 @@ bool LocalDeclRenamer::TraverseFunctionDecl(clang::FunctionDecl *decl) {
 bool LocalDeclRenamer::shouldTraversePostOrder() { return false; }
 
 void LocalDeclRenamer::RunImpl() {
-  for (auto &pair : inv_decl) {
+  for (auto &pair : provenance.value_decls) {
     decls[pair.second] = pair.first;
   }
   TraverseDecl(ast_ctx.getTranslationUnitDecl());

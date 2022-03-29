@@ -15,7 +15,7 @@
 
 namespace rellic {
 
-NestedScopeCombine::NestedScopeCombine(StmtToIRMap &provenance,
+NestedScopeCombine::NestedScopeCombine(Provenance &provenance,
                                        clang::ASTUnit &unit)
     : TransformVisitor<NestedScopeCombine>(provenance, unit) {}
 

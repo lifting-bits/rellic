@@ -34,13 +34,13 @@ class InferenceRule : public clang::ast_matchers::MatchFinder::MatchCallback {
     return cond;
   }
 
-  virtual clang::Stmt *GetOrCreateSubstitution(StmtToIRMap &provenance,
+  virtual clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
                                                clang::ASTUnit &unit,
                                                clang::Stmt *stmt) = 0;
 };
 
 clang::Stmt *ApplyFirstMatchingRule(
-    StmtToIRMap &provenance, clang::ASTUnit &unit, clang::Stmt *stmt,
+    Provenance &provenance, clang::ASTUnit &unit, clang::Stmt *stmt,
     std::vector<std::unique_ptr<InferenceRule>> &rules);
 
 }  // namespace rellic

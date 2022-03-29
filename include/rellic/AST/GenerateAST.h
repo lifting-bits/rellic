@@ -27,6 +27,8 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   rellic::IRToASTVisitor ast_gen;
   rellic::ASTBuilder ast;
 
+  Provenance &provenance;
+
   std::unordered_map<llvm::BasicBlock *, clang::Expr *> reaching_conds;
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
@@ -53,21 +55,13 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
  public:
   using Result = llvm::PreservedAnalyses;
-  GenerateAST(StmtToIRMap &provenance, clang::ASTUnit &unit,
-              IRToTypeDeclMap &type_decls, IRToValDeclMap &value_decls,
-              IRToStmtMap &stmts, ArgToTempMap &temp_decls);
-
-  StmtToIRMap &GetStmtToIRMap() { return ast_gen.GetStmtToIRMap(); }
-  IRToValDeclMap &GetIRToValDeclMap() { return ast_gen.GetIRToValDeclMap(); }
-  IRToTypeDeclMap &GetIRToTypeDeclMap() { return ast_gen.GetIRToTypeDeclMap(); }
+  GenerateAST(Provenance &provenance, clang::ASTUnit &unit);
 
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
   Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
 
-  static void run(llvm::Module &M, StmtToIRMap &provenance,
-                  clang::ASTUnit &unit, IRToTypeDeclMap &type_decls,
-                  IRToValDeclMap &value_decls, IRToStmtMap &stmts,
-                  ArgToTempMap &temp_decls);
+  static void run(llvm::Module &M, Provenance &provenance,
+                  clang::ASTUnit &unit);
 };
 
 }  // namespace rellic

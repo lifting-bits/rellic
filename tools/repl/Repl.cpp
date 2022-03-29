@@ -61,11 +61,7 @@ DECLARE_bool(version);
 llvm::LLVMContext llvm_ctx;
 std::unique_ptr<llvm::Module> module{nullptr};
 std::unique_ptr<clang::ASTUnit> ast_unit{nullptr};
-rellic::StmtToIRMap provenance;
-rellic::IRToTypeDeclMap type_decls;
-rellic::IRToValDeclMap value_decls;
-rellic::IRToStmtMap stmts;
-rellic::ArgToTempMap temp_decls;
+rellic::Provenance provenance;
 std::unique_ptr<rellic::CompositeASTPass> global_pass{nullptr};
 
 static void SetVersion(void) {
@@ -222,7 +218,7 @@ static void do_load(std::istream& is) {
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                 module->getTargetTriple()};
   ast_unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
-  provenance.clear();
+  provenance = {};
 
   std::cout << "ok." << std::endl;
 }
@@ -304,17 +300,11 @@ static void do_decompile() {
   try {
     rellic::DebugInfoCollector dic;
     dic.visit(*module);
-    provenance.clear();
-    type_decls.clear();
-    value_decls.clear();
-    stmts.clear();
-    temp_decls.clear();
-    rellic::GenerateAST::run(*module, provenance, *ast_unit, type_decls,
-                             value_decls, stmts, temp_decls);
-    rellic::LocalDeclRenamer ldr{provenance, *ast_unit, dic.GetIRToNameMap(),
-                                 value_decls};
+    provenance = {};
+    rellic::GenerateAST::run(*module, provenance, *ast_unit);
+    rellic::LocalDeclRenamer ldr{provenance, *ast_unit, dic.GetIRToNameMap()};
     rellic::StructFieldRenamer sfr{provenance, *ast_unit,
-                                   dic.GetIRTypeToDITypeMap(), type_decls};
+                                   dic.GetIRTypeToDITypeMap()};
     ldr.Run();
     sfr.Run();
     std::cout << "ok." << std::endl;

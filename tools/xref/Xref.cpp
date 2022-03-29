@@ -108,11 +108,7 @@ struct Session {
   std::unique_ptr<llvm::Module> Module;
   std::unique_ptr<clang::ASTUnit> Unit;
   std::unique_ptr<rellic::ASTPass> Pass;
-  rellic::StmtToIRMap Provenance;
-  rellic::IRToTypeDeclMap TypeDecls;
-  rellic::IRToValDeclMap ValueDecls;
-  rellic::IRToStmtMap Stmts;
-  rellic::ArgToTempMap TempDecls;
+  rellic::Provenance Provenance;
   // Must always be acquired in this order and released all at once
   std::shared_mutex LoadMutex, MutationMutex;
 };
@@ -253,24 +249,18 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
   }
 
   try {
-    session.Provenance.clear();
-    session.TypeDecls.clear();
-    session.ValueDecls.clear();
-    session.Stmts.clear();
-    session.TempDecls.clear();
+    session.Provenance = {};
     std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
                                   session.Module->getTargetTriple()};
     session.Unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
     rellic::DebugInfoCollector dic;
     dic.visit(*session.Module);
-    rellic::GenerateAST::run(*session.Module, session.Provenance, *session.Unit,
-                             session.TypeDecls, session.ValueDecls,
-                             session.Stmts, session.TempDecls);
+    rellic::GenerateAST::run(*session.Module, session.Provenance,
+                             *session.Unit);
     rellic::LocalDeclRenamer ldr{session.Provenance, *session.Unit,
-                                 dic.GetIRToNameMap(), session.ValueDecls};
+                                 dic.GetIRToNameMap()};
     rellic::StructFieldRenamer sfr{session.Provenance, *session.Unit,
-                                   dic.GetIRTypeToDITypeMap(),
-                                   session.TypeDecls};
+                                   dic.GetIRTypeToDITypeMap()};
     ldr.Run();
     sfr.Run();
 
@@ -370,7 +360,7 @@ class FixpointPass : public rellic::ASTPass {
   void RunImpl() override { comp.Fixpoint(); }
 
  public:
-  FixpointPass(rellic::StmtToIRMap& provenance, clang::ASTUnit& ast_unit)
+  FixpointPass(rellic::Provenance& provenance, clang::ASTUnit& ast_unit)
       : ASTPass(provenance, ast_unit), comp(provenance, ast_unit) {}
   std::vector<std::unique_ptr<ASTPass>>& GetPasses() {
     return comp.GetPasses();
@@ -614,28 +604,6 @@ static void Fixpoint(const httplib::Request& req, httplib::Response& res) {
   }
 }
 
-template <typename TMap, typename TKey>
-static void PrintProvenances(llvm::raw_ostream& OS, const TKey* key,
-                             const TMap& provenances) {
-  std::vector<unsigned long long> provs{};
-  auto range{provenances.equal_range((TKey*)key)};
-  for (auto it{range.first}; it != range.second && it != provenances.end();
-       it++) {
-    provs.emplace_back((unsigned long long)it->second);
-  }
-  OS << " data-addr=\"";
-  OS.write_hex((unsigned long long)key);
-  OS << "\" data-provenance=\"";
-  if (provs.size() > 0) {
-    for (auto i{0U}; i < provs.size() - 1; ++i) {
-      OS.write_hex(provs[i]);
-      OS << ',';
-    }
-    OS.write_hex(provs.back());
-  }
-  OS << '"';
-}
-
 class AAW : public llvm::AssemblyAnnotationWriter {
   const Session& session;
 
@@ -644,15 +612,15 @@ class AAW : public llvm::AssemblyAnnotationWriter {
 
   void emitFunctionAnnot(const llvm::Function* F,
                          llvm::formatted_raw_ostream& OS) override {
-    OS << "</span><span class=\"llvm\"";
-    PrintProvenances(OS, F, session.ValueDecls);
-    OS << '>';
+    OS << "</span><span class=\"llvm\" id=\"";
+    OS.write_hex((unsigned long long)F);
+    OS << "\">";
   }
   void emitInstructionAnnot(const llvm::Instruction* I,
                             llvm::formatted_raw_ostream& OS) override {
-    OS << "</span><span class=\"llvm\"";
-    PrintProvenances(OS, I, session.Stmts);
-    OS << '>';
+    OS << "</span><span class=\"llvm\" id=\"";
+    OS.write_hex((unsigned long long)I);
+    OS << "\">";
   }
   void emitBasicBlockStartAnnot(const llvm::BasicBlock*,
                                 llvm::formatted_raw_ostream& OS) override {
@@ -701,19 +669,6 @@ static void CopyMap(const std::unordered_map<TKey*, TValue*>& from,
   }
 }
 
-template <typename TKey, typename TValue>
-static void CopyMap(
-    const std::unordered_multimap<TKey*, TValue*>& from,
-    std::unordered_multimap<const TKey*, const TValue*>& to,
-    std::unordered_multimap<const TValue*, const TKey*>& inverse) {
-  for (auto [key, value] : from) {
-    if (value) {
-      to.insert({key, value});
-      inverse.insert({value, key});
-    }
-  }
-}
-
 static void PrintAST(const httplib::Request& req, httplib::Response& res) {
   auto& session{GetSession(req)};
   read_lock load_mutex(session.LoadMutex);
@@ -739,15 +694,16 @@ static void PrintAST(const httplib::Request& req, httplib::Response& res) {
   rellic::DecompilationResult::IRToTypeDeclMap type_to_decl_map;
   rellic::DecompilationResult::TypeDeclToIRMap type_provenance_map;
 
-  CopyMap(session.Provenance, stmt_provenance_map, value_to_stmt_map);
-  CopyMap(session.ValueDecls, value_to_decl_map, decl_provenance_map);
-  CopyMap(session.TypeDecls, type_to_decl_map, type_provenance_map);
+  CopyMap(session.Provenance.stmt_provenance, stmt_provenance_map,
+          value_to_stmt_map);
+  CopyMap(session.Provenance.value_decls, value_to_decl_map,
+          decl_provenance_map);
+  CopyMap(session.Provenance.type_decls, type_to_decl_map, type_provenance_map);
 
   std::string s;
   llvm::raw_string_ostream os(s);
   os << "<pre>";
   PrintDecl(session.Unit->getASTContext().getTranslationUnitDecl(),
-            decl_provenance_map, stmt_provenance_map, type_provenance_map,
             session.Unit->getASTContext().getPrintingPolicy(), 0, os);
   os << "</pre>";
   res.status = 200;
@@ -810,6 +766,61 @@ static void LoadAngha(const httplib::Request& req, httplib::Response& res) {
   res.status = 200;
 }
 
+static void PrintProvenance(const httplib::Request& req,
+                            httplib::Response& res) {
+  auto& session{GetSession(req)};
+  read_lock load_mutex(session.LoadMutex);
+  read_lock mutation_mutex(session.MutationMutex);
+  if (!session.Module) {
+    llvm::json::Object msg{{"message", "No module loaded."}};
+    res.status = 400;
+    SendJSON(res, msg);
+    return;
+  }
+
+  llvm::json::Array stmt_provenance;
+  for (auto elem : session.Provenance.stmt_provenance) {
+    stmt_provenance.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array type_decls;
+  for (auto elem : session.Provenance.type_decls) {
+    type_decls.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array value_decls;
+  for (auto elem : session.Provenance.value_decls) {
+    value_decls.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array temp_decls;
+  for (auto elem : session.Provenance.temp_decls) {
+    temp_decls.push_back(llvm::json::Array(
+        {(unsigned long long)elem.first, (unsigned long long)elem.second}));
+  }
+
+  llvm::json::Array use_provenance;
+  for (auto elem : session.Provenance.use_provenance) {
+    if (!elem.second) {
+      continue;
+    }
+    use_provenance.push_back(
+        llvm::json::Array({(unsigned long long)elem.first,
+                           (unsigned long long)elem.second->get()}));
+  }
+
+  llvm::json::Object msg{{"stmt_provenance", std::move(stmt_provenance)},
+                         {"type_decls", std::move(type_decls)},
+                         {"value_decls", std::move(value_decls)},
+                         {"temp_decls", std::move(temp_decls)},
+                         {"use_provenance", std::move(use_provenance)}};
+  SendJSON(res, msg);
+  res.status = 200;
+}
+
 int main(int argc, char* argv[]) {
   std::stringstream usage;
   usage << std::endl
@@ -846,6 +857,7 @@ int main(int argc, char* argv[]) {
   svr.Get("/action/module", PrintModule);
   svr.Get("/action/ast", PrintAST);
   svr.Get("/action/angha", ListAngha);
+  svr.Get("/action/provenance", PrintProvenance);
 
   LOG(INFO) << "Listening";
   svr.listen(FLAGS_address.c_str(), FLAGS_port);

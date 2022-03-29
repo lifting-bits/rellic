@@ -254,7 +254,7 @@ clang::Expr *IRToASTVisitor::CreateLiteralExpr(llvm::Constant *constant) {
     LOG(FATAL) << "Invalid operand [" #x "]"; \
   }
 
-clang::Expr *IRToASTVisitor::GetOperandExpr(llvm::Use &val) {
+clang::Expr *IRToASTVisitor::CreateOperandExpr(llvm::Use &val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
   auto CreateRef{[this, &val] {
     auto decl{GetOrCreateDecl(val)};
@@ -515,7 +515,7 @@ clang::Expr *IRToASTVisitor::visitMemCpyInst(llvm::MemCpyInst &inst) {
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
     auto &arg{inst.getArgOperandUse(i)};
-    args.push_back(GetOperandExpr(arg));
+    args.push_back(CreateOperandExpr(arg));
   }
 
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
@@ -528,7 +528,7 @@ clang::Expr *IRToASTVisitor::visitMemCpyInlineInst(
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
     auto &arg{inst.getArgOperandUse(i)};
-    args.push_back(GetOperandExpr(arg));
+    args.push_back(CreateOperandExpr(arg));
   }
 
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memcpy, args);
@@ -540,7 +540,7 @@ clang::Expr *IRToASTVisitor::visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst) {
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
     auto &arg{inst.getArgOperandUse(i)};
-    args.push_back(GetOperandExpr(arg));
+    args.push_back(CreateOperandExpr(arg));
   }
 
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memmove, args);
@@ -552,7 +552,7 @@ clang::Expr *IRToASTVisitor::visitAnyMemSetInst(llvm::AnyMemSetInst &inst) {
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < 3; ++i) {
     auto &arg{inst.getArgOperandUse(i)};
-    args.push_back(GetOperandExpr(arg));
+    args.push_back(CreateOperandExpr(arg));
   }
 
   return ast.CreateBuiltinCall(clang::Builtin::BI__builtin_memset, args);
@@ -590,7 +590,7 @@ clang::Expr *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
   std::vector<clang::Expr *> args;
   for (auto i{0U}; i < inst.getNumArgOperands(); ++i) {
     auto &arg{inst.getArgOperandUse(i)};
-    auto opnd{GetOperandExpr(arg)};
+    auto opnd{CreateOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
       opnd = ast.CreateDeref(opnd);
       provenance.use_provenance[opnd] = &arg;
@@ -607,7 +607,7 @@ clang::Expr *IRToASTVisitor::visitCallInst(llvm::CallInst &inst) {
     auto fdecl{GetOrCreateIntrinsic(iasm)->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);
   } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
-    callexpr = ast.CreateCall(GetOperandExpr(callee), args);
+    callexpr = ast.CreateCall(CreateOperandExpr(callee), args);
   } else {
     LOG(FATAL) << "Callee is not a function";
   }
@@ -620,7 +620,8 @@ clang::Expr *IRToASTVisitor::visitGetElementPtrInst(
   DLOG(INFO) << "visitGetElementPtrInst: " << LLVMThingToString(&inst);
 
   auto indexed_type{inst.getPointerOperandType()};
-  auto base{GetOperandExpr(inst.getOperandUse(inst.getPointerOperandIndex()))};
+  auto base{
+      CreateOperandExpr(inst.getOperandUse(inst.getPointerOperandIndex()))};
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     switch (indexed_type->getTypeID()) {
@@ -628,13 +629,13 @@ clang::Expr *IRToASTVisitor::visitGetElementPtrInst(
       case llvm::Type::PointerTyID: {
         CHECK(idx == *inst.idx_begin())
             << "Indexing an llvm::PointerType is only valid at first index";
-        base = ast.CreateArraySub(base, GetOperandExpr(idx));
+        base = ast.CreateArraySub(base, CreateOperandExpr(idx));
         indexed_type =
             llvm::cast<llvm::PointerType>(indexed_type)->getElementType();
       } break;
       // Arrays
       case llvm::Type::ArrayTyID: {
-        base = ast.CreateArraySub(base, GetOperandExpr(idx));
+        base = ast.CreateArraySub(base, CreateOperandExpr(idx));
         indexed_type =
             llvm::cast<llvm::ArrayType>(indexed_type)->getElementType();
       } break;
@@ -661,7 +662,7 @@ clang::Expr *IRToASTVisitor::visitGetElementPtrInst(
           auto c_elm_ty{GetQualType(l_elm_ty)};
           base = ast.CreateCStyleCast(ast_ctx.getPointerType(c_elm_ty),
                                       ast.CreateAddrOf(base));
-          base = ast.CreateArraySub(base, GetOperandExpr(idx));
+          base = ast.CreateArraySub(base, CreateOperandExpr(idx));
           indexed_type = l_elm_ty;
         } else {
           THROW() << "Indexing an unknown type: "
@@ -683,7 +684,7 @@ clang::Expr *IRToASTVisitor::visitExtractValueInst(
     llvm::ExtractValueInst &inst) {
   DLOG(INFO) << "visitExtractValueInst: " << LLVMThingToString(&inst);
 
-  auto base{GetOperandExpr(inst.getOperandUse(0))};
+  auto base{CreateOperandExpr(inst.getOperandUse(0))};
   auto indexed_type{inst.getAggregateOperand()->getType()};
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
@@ -720,14 +721,14 @@ clang::Expr *IRToASTVisitor::visitExtractValueInst(
 
 clang::Expr *IRToASTVisitor::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  return ast.CreateDeref(GetOperandExpr(inst.getOperandUse(0)));
+  return ast.CreateDeref(CreateOperandExpr(inst.getOperandUse(0)));
 }
 
 clang::Expr *IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
   DLOG(INFO) << "visitBinaryOperator: " << LLVMThingToString(&inst);
   // Get operands
-  auto lhs{GetOperandExpr(inst.getOperandUse(0))};
-  auto rhs{GetOperandExpr(inst.getOperandUse(1))};
+  auto lhs{CreateOperandExpr(inst.getOperandUse(0))};
+  auto rhs{CreateOperandExpr(inst.getOperandUse(1))};
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *operand, bool sign) {
     auto type{ast_ctx.getIntTypeForBitwidth(
@@ -808,8 +809,8 @@ clang::Expr *IRToASTVisitor::visitBinaryOperator(llvm::BinaryOperator &inst) {
 clang::Expr *IRToASTVisitor::visitCmpInst(llvm::CmpInst &inst) {
   DLOG(INFO) << "visitCmpInst: " << LLVMThingToString(&inst);
   // Get operands
-  auto lhs{GetOperandExpr(inst.getOperandUse(0))};
-  auto rhs{GetOperandExpr(inst.getOperandUse(1))};
+  auto lhs{CreateOperandExpr(inst.getOperandUse(0))};
+  auto rhs{CreateOperandExpr(inst.getOperandUse(1))};
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *op, bool sign) {
     auto ot{op->getType()};
@@ -880,7 +881,7 @@ clang::Expr *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
   DLOG(INFO) << "visitCastInst: " << LLVMThingToString(&inst);
   // There should always be an operand with a cast instruction
   // Get a C-language expression of the operand
-  auto operand{GetOperandExpr(inst.getOperandUse(0))};
+  auto operand{CreateOperandExpr(inst.getOperandUse(0))};
   // Get destination type
   auto type{GetQualType(inst.getType())};
   // Adjust type
@@ -932,9 +933,9 @@ clang::Expr *IRToASTVisitor::visitCastInst(llvm::CastInst &inst) {
 clang::Expr *IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
   DLOG(INFO) << "visitSelectInst: " << LLVMThingToString(&inst);
 
-  auto cond{GetOperandExpr(inst.getOperandUse(0))};
-  auto tval{GetOperandExpr(inst.getOperandUse(1))};
-  auto fval{GetOperandExpr(inst.getOperandUse(2))};
+  auto cond{CreateOperandExpr(inst.getOperandUse(0))};
+  auto tval{CreateOperandExpr(inst.getOperandUse(1))};
+  auto fval{CreateOperandExpr(inst.getOperandUse(2))};
 
   return ast.CreateConditional(cond, tval, fval);
 }
@@ -942,7 +943,7 @@ clang::Expr *IRToASTVisitor::visitSelectInst(llvm::SelectInst &inst) {
 clang::Expr *IRToASTVisitor::visitFreezeInst(llvm::FreezeInst &inst) {
   DLOG(INFO) << "visitFreezeInst: " << LLVMThingToString(&inst);
 
-  return GetOperandExpr(inst.getOperandUse(0));
+  return CreateOperandExpr(inst.getOperandUse(0));
 }
 
 clang::Expr *IRToASTVisitor::visitPHINode(llvm::PHINode &inst) {

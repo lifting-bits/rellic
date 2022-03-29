@@ -29,7 +29,7 @@ clang::Stmt *BlockVisitor::visitStoreInst(llvm::StoreInst &inst) {
   DLOG(INFO) << "visitStoreInst: " << LLVMThingToString(&inst);
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
-  auto lhs{ast_gen.GetOperandExpr(
+  auto lhs{ast_gen.CreateOperandExpr(
       inst.getOperandUse(inst.getPointerOperandIndex()))};
   // Get the operand we're assigning from
   auto &value_opnd{inst.getOperandUse(0)};
@@ -37,7 +37,7 @@ clang::Stmt *BlockVisitor::visitStoreInst(llvm::StoreInst &inst) {
     DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
     return nullptr;
   }
-  auto rhs{ast_gen.GetOperandExpr(value_opnd)};
+  auto rhs{ast_gen.CreateOperandExpr(value_opnd)};
   if (value_opnd->getType()->isArrayTy()) {
     // We cannot directly assign arrays, so we generate memcpy or memset
     // instead
@@ -72,7 +72,7 @@ clang::Stmt *BlockVisitor::visitCallInst(llvm::CallInst &inst) {
 clang::Stmt *BlockVisitor::visitReturnInst(llvm::ReturnInst &inst) {
   DLOG(INFO) << "visitReturnInst: " << LLVMThingToString(&inst);
   if (auto retval = inst.getReturnValue()) {
-    return ast.CreateReturn(ast_gen.GetOperandExpr(inst.getOperandUse(0)));
+    return ast.CreateReturn(ast_gen.CreateOperandExpr(inst.getOperandUse(0)));
   } else {
     return ast.CreateReturn();
   }

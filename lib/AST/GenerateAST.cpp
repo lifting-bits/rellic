@@ -140,7 +140,7 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
       auto br = llvm::cast<llvm::BranchInst>(term);
       if (br->isConditional()) {
         // Get the edge condition
-        result = ast_gen.GetOperandExpr(*(br->op_end() - 3));
+        result = ast_gen.CreateOperandExpr(*(br->op_end() - 3));
         // Negate if `br` jumps to `to` when `expr` is false
         if (to == br->getSuccessor(1)) {
           auto tmp{ast.CreateLNot(result)};

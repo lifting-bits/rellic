@@ -47,7 +47,7 @@ class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Expr *> {
   IRToASTVisitor(clang::ASTUnit &unit, Provenance &provenance);
 
   clang::Decl *GetOrCreateDecl(llvm::Value *val);
-  clang::Expr *GetOperandExpr(llvm::Use &val);
+  clang::Expr *CreateOperandExpr(llvm::Use &val);
 
   void VisitGlobalVar(llvm::GlobalVariable &var);
   void VisitFunctionDecl(llvm::Function &func);

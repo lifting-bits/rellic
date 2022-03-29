@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/BlockVisitor.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -207,8 +206,7 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
 
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
-  BlockVisitor visitor(*ast_ctx, ast, ast_gen, result, provenance);
-  visitor.visit(block);
+  ast_gen.VisitBasicBlock(*block, result);
   return result;
 }
 
@@ -421,7 +419,7 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // Call the above declared bad boy
   POWalkSubRegions(regions->getTopLevelRegion());
   // Get the function declaration AST node for `func`
-  auto fdecl = clang::cast<clang::FunctionDecl>(ast_gen.GetOrCreateDecl(&func));
+  auto fdecl = clang::cast<clang::FunctionDecl>(provenance.value_decls[&func]);
   // Create a redeclaration of `fdecl` that will serve as a definition
   auto tudecl = ast_ctx->getTranslationUnitDecl();
   auto fdefn =

@@ -10,6 +10,7 @@
 
 #include <clang/AST/Decl.h>
 #include <clang/AST/Stmt.h>
+#include <clang/Frontend/ASTUnit.h>
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstVisitor.h>
@@ -25,50 +26,26 @@
 #include "rellic/AST/Compat/ASTContext.h"
 
 namespace rellic {
-
-class IRToASTVisitor : public llvm::InstVisitor<IRToASTVisitor, clang::Expr *> {
+class IRToASTVisitor {
  private:
+  clang::ASTUnit &ast_unit;
   clang::ASTContext &ast_ctx;
 
   ASTBuilder ast;
 
   Provenance &provenance;
-  size_t num_literal_structs = 0;
-  size_t num_declared_structs = 0;
 
-  clang::QualType GetQualType(llvm::Type *type);
-
-  clang::Expr *CreateConstantExpr(llvm::Constant *constant);
-  clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
-
-  clang::Decl *GetOrCreateIntrinsic(llvm::InlineAsm *val);
+  void VisitArgument(llvm::Argument &arg);
 
  public:
   IRToASTVisitor(clang::ASTUnit &unit, Provenance &provenance);
 
-  clang::Decl *GetOrCreateDecl(llvm::Value *val);
   clang::Expr *CreateOperandExpr(llvm::Use &val);
 
   void VisitGlobalVar(llvm::GlobalVariable &var);
   void VisitFunctionDecl(llvm::Function &func);
-  void VisitArgument(llvm::Argument &arg);
-
-  clang::Expr *visitMemCpyInst(llvm::MemCpyInst &inst);
-  clang::Expr *visitMemCpyInlineInst(llvm::MemCpyInlineInst &inst);
-  clang::Expr *visitAnyMemMoveInst(llvm::AnyMemMoveInst &inst);
-  clang::Expr *visitAnyMemSetInst(llvm::AnyMemSetInst &inst);
-  clang::Expr *visitIntrinsicInst(llvm::IntrinsicInst &inst);
-  clang::Expr *visitCallInst(llvm::CallInst &inst);
-  clang::Expr *visitGetElementPtrInst(llvm::GetElementPtrInst &inst);
-  clang::Expr *visitExtractValueInst(llvm::ExtractValueInst &inst);
-  clang::Expr *visitLoadInst(llvm::LoadInst &inst);
-  clang::Expr *visitBinaryOperator(llvm::BinaryOperator &inst);
-  clang::Expr *visitCmpInst(llvm::CmpInst &inst);
-  clang::Expr *visitCastInst(llvm::CastInst &inst);
-  clang::Expr *visitSelectInst(llvm::SelectInst &inst);
-  clang::Expr *visitFreezeInst(llvm::FreezeInst &inst);
-  clang::Expr *visitPHINode(llvm::PHINode &inst);
-  clang::Expr *visitInstruction(llvm::Instruction &inst);
+  void VisitBasicBlock(llvm::BasicBlock &block,
+                       std::vector<clang::Stmt *> &stmts);
 };
 
 }  // namespace rellic

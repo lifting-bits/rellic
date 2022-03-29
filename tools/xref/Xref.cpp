@@ -804,6 +804,9 @@ static void PrintProvenance(const httplib::Request& req,
 
   llvm::json::Array use_provenance;
   for (auto elem : session.Provenance.use_provenance) {
+    if (!elem.second) {
+      continue;
+    }
     use_provenance.push_back(
         llvm::json::Array({(unsigned long long)elem.first,
                            (unsigned long long)elem.second->get()}));

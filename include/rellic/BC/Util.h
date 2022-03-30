@@ -53,7 +53,17 @@ void RemovePHINodes(llvm::Module &module);
 
 void LowerSwitches(llvm::Module &module);
 
+// ARM backends (and probably some others) have a tendency to generate functions
+// that make use of arrays passed by value, e.g. by value array arguments and
+// using `insertvalue` to create copies with different elements. These
+// operations do not have a clear equivalent in C, and are better handled by
+// patching the bitcode to work around their semantics.
+
+// Converts `insertvalue` instructions into an equivalent `alloca`, `load` and
+// `store` sequences.
 void RemoveInsertValues(llvm::Module &module);
 
+// Converts by value array arguments and wraps them into a struct, so that
+// semantics are preserved in C
 void ConvertArrayArguments(llvm::Module &module);
 }  // namespace rellic

@@ -36,7 +36,7 @@ def run_cmd(cmd, timeout):
 def decompile(self, rellic, input, output, timeout):
     cmd = [rellic]
     cmd.extend(
-        ["--lower_switch", "--remove_phi_nodes", "--input", input, "--output", output]
+        ["--lower_switch", "--input", input, "--output", output]
     )
     p = run_cmd(cmd, timeout)
 

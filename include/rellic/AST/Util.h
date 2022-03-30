@@ -51,12 +51,14 @@ using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
+using BlockToUsesMap = std::unordered_multimap<llvm::BasicBlock *, llvm::Use *>;
 struct Provenance {
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;
   IRToTypeDeclMap type_decls;
   IRToValDeclMap value_decls;
   ArgToTempMap temp_decls;
+  BlockToUsesMap outgoing_uses;
 };
 
 template <typename TKey1, typename TKey2, typename TKey3, typename TValue>

@@ -63,7 +63,6 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
   clang::Expr *visitCastInst(llvm::CastInst &inst);
   clang::Expr *visitSelectInst(llvm::SelectInst &inst);
   clang::Expr *visitFreezeInst(llvm::FreezeInst &inst);
-  clang::Expr *visitPHINode(llvm::PHINode &inst);
 };
 
 void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
@@ -835,13 +834,6 @@ clang::Expr *ExprGen::visitFreezeInst(llvm::FreezeInst &inst) {
   return CreateOperandExpr(inst.getOperandUse(0));
 }
 
-clang::Expr *ExprGen::visitPHINode(llvm::PHINode &inst) {
-  DLOG(INFO) << "visitPHINode: " << LLVMThingToString(&inst);
-  THROW() << "Unexpected llvm::PHINode. Try running llvm's reg2mem pass "
-             "before decompiling.";
-  return nullptr;
-}
-
 // StmtGen is tasked with populating blocks with their top-level
 // statements. It delegates to IRToASTVisitor for generating the expressions
 // used by each statement.
@@ -886,6 +878,7 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
   clang::Stmt *visitAllocaInst(llvm::AllocaInst &inst);
   clang::Stmt *visitBranchInst(llvm::BranchInst &inst);
   clang::Stmt *visitUnreachableInst(llvm::UnreachableInst &inst);
+  clang::Stmt *visitPHINode(llvm::PHINode &inst);
   clang::Stmt *visitInstruction(llvm::Instruction &inst);
 };
 
@@ -957,6 +950,8 @@ clang::Stmt *StmtGen::visitUnreachableInst(llvm::UnreachableInst &inst) {
   DLOG(INFO) << "visitUnreachableInst ignored:" << LLVMThingToString(&inst);
   return nullptr;
 }
+
+clang::Stmt *StmtGen::visitPHINode(llvm::PHINode &inst) { return nullptr; }
 
 clang::Stmt *StmtGen::visitInstruction(llvm::Instruction &inst) {
   auto &var{provenance.value_decls[&inst]};
@@ -1035,7 +1030,16 @@ void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
     auto stmt{stmt_gen.visit(inst)};
     if (stmt) {
       stmts.push_back(stmt);
+      provenance.stmt_provenance[stmt] = &inst;
     }
+  }
+
+  auto uses{provenance.outgoing_uses.equal_range(&block)};
+  for (auto it{uses.first}; it != uses.second; ++it) {
+    auto use{it->second};
+    auto var{provenance.value_decls[use->getUser()]};
+    auto expr{expr_gen.CreateOperandExpr(*use)};
+    stmts.push_back(ast.CreateAssign(ast.CreateDeclRef(var), expr));
   }
 }
 
@@ -1097,7 +1101,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
           fdecl, expr_gen.GetQualType(alloca->getAllocatedType()), name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst) ||
-               llvm::isa<llvm::LoadInst>(inst)) {
+               llvm::isa<llvm::LoadInst>(inst) ||
+               llvm::isa<llvm::PHINode>(inst)) {
       if (!inst.getType()->isVoidTy()) {
         auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
         auto type{expr_gen.GetQualType(inst.getType())};
@@ -1107,6 +1112,15 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
         var = ast.CreateVarDecl(fdecl, type, name);
         fdecl->addDecl(var);
+
+        if (auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {
+          for (auto i{0U}; i < phi->getNumIncomingValues(); ++i) {
+            auto bb{phi->getIncomingBlock(i)};
+            auto &use{phi->getOperandUse(i)};
+
+            provenance.outgoing_uses.insert({bb, &use});
+          }
+        }
       }
     }
   }

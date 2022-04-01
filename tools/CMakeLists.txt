@@ -126,6 +126,8 @@ if(RELLIC_ENABLE_INSTALL)
   install(
     FILES
       "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/index.html"
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/main.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/style.css"
     DESTINATION
       "var/www/html"
   )

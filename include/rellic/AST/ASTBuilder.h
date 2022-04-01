@@ -48,7 +48,7 @@ class ASTBuilder {
   clang::CharacterLiteral *CreateCharLit(llvm::APInt val);
   clang::CharacterLiteral *CreateCharLit(unsigned val);
   clang::StringLiteral *CreateStrLit(std::string val);
-  clang::FloatingLiteral *CreateFPLit(llvm::APFloat val);
+  clang::Expr *CreateFPLit(llvm::APFloat val);
   // Casted literals
   clang::Expr *CreateAdjustedIntLit(llvm::APSInt val);
 

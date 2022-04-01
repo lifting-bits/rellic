@@ -190,10 +190,22 @@ clang::StringLiteral *ASTBuilder::CreateStrLit(std::string val) {
       /*Pascal=*/false, type, clang::SourceLocation());
 }
 
-clang::FloatingLiteral *ASTBuilder::CreateFPLit(llvm::APFloat val) {
+clang::Expr *ASTBuilder::CreateFPLit(llvm::APFloat val) {
   auto size{llvm::APFloat::getSizeInBits(val.getSemantics())};
   auto type{GetLeastRealTypeForBitWidth(size)};
   CHECK_THROW(!type.isNull()) << "Unable to infer type for given value.";
+  if (val.isNaN()) {
+    std::vector<clang::Expr *> args{CreateStrLit("")};
+    return CreateBuiltinCall(clang::Builtin::BI__builtin_nan, args);
+  } else if (val.isInfinity()) {
+    std::vector<clang::Expr *> args;
+    auto inf{CreateBuiltinCall(clang::Builtin::BI__builtin_inf, args)};
+    if (val.isNegative()) {
+      return CreateUnaryOp(clang::UO_Minus, inf);
+    } else {
+      return inf;
+    }
+  }
   return clang::FloatingLiteral::Create(ctx, val, /*isexact=*/true, type,
                                         clang::SourceLocation());
 }

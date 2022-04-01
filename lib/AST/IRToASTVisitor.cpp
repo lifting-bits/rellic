@@ -63,6 +63,7 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
   clang::Expr *visitCastInst(llvm::CastInst &inst);
   clang::Expr *visitSelectInst(llvm::SelectInst &inst);
   clang::Expr *visitFreezeInst(llvm::FreezeInst &inst);
+  clang::Expr *visitUnaryOperator(llvm::UnaryOperator &inst);
 };
 
 void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
@@ -722,6 +723,7 @@ clang::Expr *ExprGen::visitCmpInst(llvm::CmpInst &inst) {
     rhs = IntSignCast(rhs, false);
   }
   clang::Expr *res;
+  std::vector<clang::Expr *> args{lhs, rhs};
   // Where the magic happens
   switch (inst.getPredicate()) {
     case llvm::CmpInst::ICMP_UGT:
@@ -754,8 +756,43 @@ clang::Expr *ExprGen::visitCmpInst(llvm::CmpInst &inst) {
       break;
 
     case llvm::CmpInst::ICMP_NE:
-    case llvm::CmpInst::FCMP_UNE:
       res = ast.CreateNE(lhs, rhs);
+      break;
+
+    case llvm::CmpInst::FCMP_UGT:
+      res = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_isgreater, args);
+      break;
+
+    case llvm::CmpInst::FCMP_ULT:
+      res = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_isless, args);
+      break;
+
+    case llvm::CmpInst::FCMP_UGE:
+      res = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_isgreaterequal,
+                                  args);
+      break;
+
+    case llvm::CmpInst::FCMP_ULE:
+      res =
+          ast.CreateBuiltinCall(clang::Builtin::BI__builtin_islessequal, args);
+      break;
+
+    case llvm::CmpInst::FCMP_UNE:
+      res = ast.CreateBuiltinCall(clang::Builtin::BI__builtin_islessgreater,
+                                  args);
+      break;
+
+    case llvm::CmpInst::FCMP_UNO:
+      res =
+          ast.CreateBuiltinCall(clang::Builtin::BI__builtin_isunordered, args);
+      break;
+
+    case llvm::CmpInst::FCMP_TRUE:
+      res = ast.CreateTrue();
+      break;
+
+    case llvm::CmpInst::FCMP_FALSE:
+      res = ast.CreateFalse();
       break;
 
     default:
@@ -832,6 +869,16 @@ clang::Expr *ExprGen::visitFreezeInst(llvm::FreezeInst &inst) {
   DLOG(INFO) << "visitFreezeInst: " << LLVMThingToString(&inst);
 
   return CreateOperandExpr(inst.getOperandUse(0));
+}
+
+clang::Expr *ExprGen::visitUnaryOperator(llvm::UnaryOperator &inst) {
+  DLOG(INFO) << "visitUnaryOperator: " << LLVMThingToString(&inst);
+
+  THROW_IF(inst.getOpcode() != llvm::UnaryOperator::FNeg)
+      << "Unsupported UnaryOperator: " << LLVMThingToString(&inst);
+
+  auto opnd{CreateOperandExpr(inst.getOperandUse(0))};
+  return ast.CreateUnaryOp(clang::UO_Minus, opnd);
 }
 
 // StmtGen is tasked with populating blocks with their top-level

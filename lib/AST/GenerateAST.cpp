@@ -408,6 +408,9 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // structurization
   llvm::ReversePostOrderTraversal<llvm::Function *> rpo(&func);
   rpo_walk.assign(rpo.begin(), rpo.end());
+  for (auto block : rpo_walk) {
+    GetOrCreateReachingCond(block);
+  }
   // Recursively walk regions in post-order and structure
   std::function<void(llvm::Region *)> POWalkSubRegions;
   POWalkSubRegions = [&](llvm::Region *region) {

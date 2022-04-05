@@ -18,17 +18,19 @@
 namespace rellic {
 
 unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt);
-bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b);
-template <typename TFrom, typename TTo, typename TIn>
-bool Replace(clang::ASTContext &ctx, TFrom *from, TTo *to, TIn **in) {
-  if (IsEquivalent(ctx, *in, from)) {
+bool IsEquivalent(clang::Expr *a, clang::Expr *b);
+template <typename TFrom, typename TIn>
+bool Replace(TFrom *from, clang::Expr *to, TIn **in) {
+  auto from_expr{clang::cast<clang::Expr>(from)};
+  auto in_expr{clang::cast<clang::Expr>(*in)};
+  if (IsEquivalent(in_expr, from_expr)) {
     *in = to;
     return true;
   } else {
     bool changed{false};
     for (auto child{(*in)->child_begin()}; child != (*in)->child_end();
          ++child) {
-      changed |= Replace(ctx, from, to, &*child);
+      changed |= Replace(from_expr, to, &*child);
     }
     return changed;
   }

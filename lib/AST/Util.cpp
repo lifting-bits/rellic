@@ -26,31 +26,171 @@ unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
   return id.ComputeHash();
 }
 
-bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
-  if (a == b) {
-    return true;
-  }
-
-  if (a->getStmtClass() != b->getStmtClass()) {
+class EqualityVisitor
+    : public clang::StmtVisitor<EqualityVisitor, bool, clang::Expr *> {
+ private:
+ public:
+  bool VisitIntegerLiteral(clang::IntegerLiteral *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::IntegerLiteral>(other)) {
+      return expr->getValue() == other_expr->getValue();
+    }
     return false;
   }
 
-  auto child_a{a->child_begin()};
-  auto child_b{b->child_begin()};
-  while (true) {
-    bool a_end{child_a == a->child_end()};
-    bool b_end{child_b == b->child_end()};
-    if (a_end != b_end) {
-      return false;
-    } else if (a_end && b_end) {
-      return true;
-    } else if (!IsEquivalent(ctx, *child_a, *child_b)) {
-      return false;
+  bool VisitCharacterLiteral(clang::CharacterLiteral *expr,
+                             clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::CharacterLiteral>(other)) {
+      return expr->getValue() == other_expr->getValue();
     }
-
-    ++child_a;
-    ++child_b;
+    return false;
   }
+
+  bool VisitStringLiteral(clang::StringLiteral *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::StringLiteral>(other)) {
+      return expr->getString() == other_expr->getString();
+    }
+    return false;
+  }
+
+  bool VisitFloatingLiteral(clang::FloatingLiteral *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::FloatingLiteral>(other)) {
+      return expr->getValue() == other_expr->getValue();
+    }
+    return false;
+  }
+
+  bool VisitCastExpr(clang::CastExpr *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::CastExpr>(other)) {
+      return expr->getType() == other_expr->getType() &&
+             Visit(expr->getSubExpr(), other_expr->getSubExpr());
+    }
+    return false;
+  }
+
+  bool VisitImplicitCastExpr(clang::ImplicitCastExpr *expr,
+                             clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::ImplicitCastExpr>(other)) {
+      return expr->getType() == other_expr->getType() &&
+             Visit(expr->getSubExpr(), other_expr->getSubExpr());
+    }
+    return false;
+  }
+
+  bool VisitUnaryOperator(clang::UnaryOperator *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::UnaryOperator>(other)) {
+      return expr->getOpcode() == other_expr->getOpcode() &&
+             Visit(expr->getSubExpr(), other_expr->getSubExpr());
+    }
+    return false;
+  }
+
+  bool VisitBinaryOperator(clang::BinaryOperator *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::BinaryOperator>(other)) {
+      return expr->getOpcode() == other_expr->getOpcode() &&
+             Visit(expr->getLHS(), other_expr->getLHS()) &&
+             Visit(expr->getRHS(), other_expr->getRHS());
+    }
+    return false;
+  }
+
+  bool VisitConditionalOperator(clang::ConditionalOperator *expr,
+                                clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::ConditionalOperator>(other)) {
+      return Visit(expr->getCond(), other_expr->getCond()) &&
+             Visit(expr->getTrueExpr(), other_expr->getTrueExpr()) &&
+             Visit(expr->getFalseExpr(), other_expr->getFalseExpr());
+    }
+    return false;
+  }
+
+  bool VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr,
+                               clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::ArraySubscriptExpr>(other)) {
+      return Visit(expr->getBase(), other_expr->getBase()) &&
+             Visit(expr->getIdx(), other_expr->getIdx());
+    }
+    return false;
+  }
+
+  bool VisitCallExpr(clang::CallExpr *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::CallExpr>(other)) {
+      auto child_a{expr->arg_begin()};
+      auto child_b{other_expr->arg_begin()};
+      while (true) {
+        bool a_end{child_a == expr->arg_end()};
+        bool b_end{child_b == other_expr->arg_end()};
+        if (a_end != b_end) {
+          return false;
+        } else if (a_end && b_end) {
+          break;
+        } else if (!Visit(*child_a, *child_b)) {
+          return false;
+        }
+
+        ++child_a;
+        ++child_b;
+      }
+
+      return Visit(expr->getCallee(), other_expr->getCallee());
+    }
+    return false;
+  }
+
+  bool VisitMemberExpr(clang::MemberExpr *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::MemberExpr>(other)) {
+      return expr->isArrow() == other_expr->isArrow() &&
+             expr->getMemberDecl() == other_expr->getMemberDecl() &&
+             expr->getType() == other_expr->getType() &&
+             Visit(expr->getBase(), other_expr->getBase());
+    }
+    return false;
+  }
+
+  bool VisitDeclRefExpr(clang::DeclRefExpr *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::DeclRefExpr>(other)) {
+      return expr->getDecl() == other_expr->getDecl();
+    }
+    return false;
+  }
+
+  bool VisitInitListExpr(clang::InitListExpr *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::InitListExpr>(other)) {
+      if (expr->getNumInits() != other_expr->getNumInits()) {
+        return false;
+      }
+
+      auto inits{expr->getInits()};
+      auto other_inits{other_expr->getInits()};
+      for (auto i{0U}; i < expr->getNumInits(); ++i) {
+        if (!Visit(inits[i], other_inits[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  bool VisitCompoundLiteralExpr(clang::CompoundLiteralExpr *expr,
+                                clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::CompoundLiteralExpr>(other)) {
+      return expr->getType() == other_expr->getType() &&
+             Visit(expr->getInitializer(), other_expr->getInitializer());
+    }
+    return false;
+  }
+
+  bool VisitParenExpr(clang::ParenExpr *expr, clang::Expr *other) {
+    if (auto other_expr = clang::dyn_cast<clang::ParenExpr>(other)) {
+      return Visit(expr->getSubExpr(), other_expr->getSubExpr());
+    }
+    return false;
+  }
+};
+
+bool IsEquivalent(clang::Expr *a, clang::Expr *b) {
+  EqualityVisitor ev;
+  return ev.Visit(a, b);
 }
 
 class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {

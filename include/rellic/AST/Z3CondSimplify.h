@@ -45,9 +45,8 @@ class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
   };
 
   struct KeyEqual {
-    clang::ASTContext &ctx;
     bool operator()(clang::Expr *a, clang::Expr *b) const noexcept {
-      return IsEquivalent(ctx, a, b);
+      return IsEquivalent(a, b);
     }
   };
   Hash hash_adaptor;

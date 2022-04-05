@@ -22,7 +22,6 @@ Z3CondSimplify::Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit)
       z_gen(new Z3ConvVisitor(unit, z_ctx.get())),
       tactic(z3::tactic(*z_ctx, "sat")),
       hash_adaptor{ast_ctx, hashes},
-      ke_adaptor{ast_ctx},
       proven_true(10, hash_adaptor, ke_adaptor),
       proven_false(10, hash_adaptor, ke_adaptor) {}
 

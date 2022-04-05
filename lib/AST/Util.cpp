@@ -26,23 +26,12 @@ unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt) {
   return id.ComputeHash();
 }
 
-static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
-                         llvm::FoldingSetNodeID &foldingSetA,
-                         llvm::FoldingSetNodeID &foldingSetB) {
+bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
   if (a == b) {
     return true;
   }
 
   if (a->getStmtClass() != b->getStmtClass()) {
-    return false;
-  }
-
-  foldingSetA.clear();
-  foldingSetB.clear();
-  a->Profile(foldingSetA, ctx, /*Canonical=*/true);
-  b->Profile(foldingSetB, ctx, /*Canonical=*/true);
-
-  if (foldingSetA != foldingSetB) {
     return false;
   }
 
@@ -55,19 +44,13 @@ static bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b,
       return false;
     } else if (a_end && b_end) {
       return true;
-    } else if (!IsEquivalent(ctx, *child_a, *child_b, foldingSetA,
-                             foldingSetB)) {
+    } else if (!IsEquivalent(ctx, *child_a, *child_b)) {
       return false;
     }
 
     ++child_a;
     ++child_b;
   }
-}
-
-bool IsEquivalent(clang::ASTContext &ctx, clang::Stmt *a, clang::Stmt *b) {
-  llvm::FoldingSetNodeID idA, idB;
-  return IsEquivalent(ctx, a, b, idA, idB);
 }
 
 class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {

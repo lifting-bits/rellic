@@ -30,6 +30,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   Provenance &provenance;
 
   std::unordered_map<llvm::BasicBlock *, clang::Expr *> reaching_conds;
+  std::unordered_set<llvm::BasicBlock *> used_reaching_conds;
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
 
@@ -40,7 +41,8 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   std::vector<llvm::BasicBlock *> rpo_walk;
 
   clang::Expr *CreateEdgeCond(llvm::BasicBlock *from, llvm::BasicBlock *to);
-  clang::Expr *GetOrCreateReachingCond(llvm::BasicBlock *block);
+  void CreateReachingCond(llvm::BasicBlock *block);
+  clang::Expr *GetReachingCond(llvm::BasicBlock *block);
   std::vector<clang::Stmt *> CreateBasicBlockStmts(llvm::BasicBlock *block);
   std::vector<clang::Stmt *> CreateRegionStmts(llvm::Region *region);
 

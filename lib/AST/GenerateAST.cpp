@@ -204,10 +204,15 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
   return result;
 }
 
-clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
+static bool IsConstantTrue(clang::ASTContext &ast_ctx, clang::Expr *e) {
+  auto constant{e->getIntegerConstantExpr(ast_ctx)};
+  return constant.hasValue() && constant->getBoolValue();
+}
+
+void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
   auto &cond = reaching_conds[block];
   if (cond) {
-    return Clone(unit, cond, provenance.use_provenance);
+    return;
   }
   // Gather reaching conditions from predecessors of the block
   for (auto pred : llvm::predecessors(block)) {
@@ -218,9 +223,10 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
       // `reach_cond[pred] && edge_cond(pred, block)` or one of
       // the two if the other one is missing.
       clang::Expr *conj_cond{nullptr};
-      if (!pred_cond) {
+      if (!pred_cond || (edge_cond && IsConstantTrue(*ast_ctx, edge_cond))) {
         conj_cond = edge_cond;
-      } else if (!edge_cond) {
+      } else if (!edge_cond ||
+                 (pred_cond && IsConstantTrue(*ast_ctx, pred_cond))) {
         conj_cond = pred_cond;
       } else {
         conj_cond = ast.CreateLAnd(pred_cond, edge_cond);
@@ -228,15 +234,37 @@ clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
       // Append `conj_cond` to reaching conditions of other
       // predecessors via an `||`. Use `conj_cond` if there
       // is no `cond` yet.
-      cond = cond ? ast.CreateLOr(cond, conj_cond) : conj_cond;
+      if (cond) {
+        if (IsConstantTrue(*ast_ctx, cond) ||
+            IsConstantTrue(*ast_ctx, conj_cond)) {
+          cond = ast.CreateTrue();
+          break;
+        } else {
+          cond = ast.CreateLOr(cond, conj_cond);
+        }
+      } else {
+        cond = conj_cond;
+      }
     }
   }
   // Create `if(1)` in case we still don't have a reaching condition
   if (!cond) {
     cond = ast.CreateTrue();
   }
-  // Done
-  return cond;
+}
+
+clang::Expr *GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
+  auto &cond = reaching_conds[block];
+  if (cond) {
+    if (used_reaching_conds.count(block)) {
+      return Clone(unit, cond, provenance.use_provenance);
+    } else {
+      used_reaching_conds.insert(block);
+      return cond;
+    }
+  }
+  CreateReachingCond(block);
+  return CHECK_NOTNULL(cond);
 }
 
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
@@ -266,7 +294,7 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
       compound = ast.CreateCompoundStmt(block_body);
     }
     // Gate the compound behind a reaching condition
-    block_stmts[block] = ast.CreateIf(GetOrCreateReachingCond(block), compound);
+    block_stmts[block] = ast.CreateIf(GetReachingCond(block), compound);
     // Store the compound
     result.push_back(block_stmts[block]);
   }
@@ -368,8 +396,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto from = edge.first;
     auto to = edge.second;
     // Create edge condition
-    auto cond =
-        ast.CreateLAnd(GetOrCreateReachingCond(from), CreateEdgeCond(from, to));
+    auto cond = ast.CreateLAnd(GetReachingCond(from), CreateEdgeCond(from, to));
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());
@@ -453,7 +480,7 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
   // Compute reaching conditions
   for (auto block : rpo_walk) {
     if (IsRegionBlock(region, block)) {
-      GetOrCreateReachingCond(block);
+      CreateReachingCond(block);
     }
   }
   // Structure
@@ -503,7 +530,7 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   llvm::ReversePostOrderTraversal<llvm::Function *> rpo(&func);
   rpo_walk.assign(rpo.begin(), rpo.end());
   for (auto block : rpo_walk) {
-    GetOrCreateReachingCond(block);
+    CreateReachingCond(block);
   }
   // Recursively walk regions in post-order and structure
   std::function<void(llvm::Region *)> POWalkSubRegions;

@@ -536,4 +536,21 @@ clang::NullStmt *ASTBuilder::CreateNullStmt() {
   return new (ctx) clang::NullStmt(clang::SourceLocation());
 }
 
+clang::SwitchStmt *ASTBuilder::CreateSwitchStmt(clang::Expr *cond) {
+  return clang::SwitchStmt::Create(ctx, nullptr, nullptr, cond,
+                                   clang::SourceLocation(),
+                                   clang::SourceLocation());
+}
+
+clang::CaseStmt *ASTBuilder::CreateCaseStmt(clang::Expr *cond) {
+  return clang::CaseStmt::Create(ctx, cond, nullptr, clang::SourceLocation(),
+                                 clang::SourceLocation(),
+                                 clang::SourceLocation());
+}
+
+clang::DefaultStmt *ASTBuilder::CreateDefaultStmt(clang::Stmt *body) {
+  return new (ctx) clang::DefaultStmt(clang::SourceLocation(),
+                                      clang::SourceLocation(), body);
+}
+
 }  // namespace rellic

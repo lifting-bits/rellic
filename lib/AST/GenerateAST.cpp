@@ -148,6 +148,33 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
         }
       }
     } break;
+    // Switches
+    case llvm::Instruction::Switch: {
+      auto sw{llvm::cast<llvm::SwitchInst>(term)};
+      clang::Expr *edge_cond{nullptr};
+      for (auto sw_case : sw->cases()) {
+        auto cond{ast_gen.CreateOperandExpr(sw->getOperandUse(0))};
+        clang::Expr *sub;
+        if (sw_case.getCaseSuccessor() == to) {
+          sub = ast.CreateEQ(
+              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue()));
+        } else {
+          sub = ast.CreateNE(
+              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue()));
+        }
+
+        if (edge_cond) {
+          edge_cond = ast.CreateLAnd(edge_cond, sub);
+        } else {
+          edge_cond = sub;
+        }
+
+        if (sw_case.getCaseSuccessor() == to) {
+          break;
+        }
+      }
+      result = edge_cond;
+    } break;
     // Returns
     case llvm::Instruction::Ret:
       break;
@@ -346,6 +373,50 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   return ast.CreateCompoundStmt(region_body);
 }
 
+clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
+  DLOG(INFO) << "Region " << GetRegionNameStr(region)
+             << " has a switch instruction";
+  auto body{CreateBasicBlockStmts(region->getEntry())};
+  auto sw_inst{
+      llvm::cast<llvm::SwitchInst>(region->getEntry()->getTerminator())};
+  auto cond{ast_gen.CreateOperandExpr(sw_inst->getOperandUse(0))};
+  auto sw_stmt{ast.CreateSwitchStmt(cond)};
+  StmtVec sw_body;
+
+  auto default_dest{sw_inst->getDefaultDest()};
+  if (default_dest != region->getExit()) {
+    auto default_body{CreateBasicBlockStmts(default_dest)};
+    sw_body.push_back(
+        ast.CreateDefaultStmt(ast.CreateCompoundStmt(default_body)));
+    sw_body.push_back(ast.CreateBreak());
+  }
+
+  std::vector<llvm::SwitchInst::CaseHandle> cases{sw_inst->case_begin(),
+                                                  sw_inst->case_end()};
+  for (auto i{0U}; i < cases.size(); ++i) {
+    auto sw_case{cases[i]};
+    auto successor{sw_case.getCaseSuccessor()};
+    if (i + 1 < cases.size() && cases[i + 1].getCaseSuccessor() == successor) {
+      continue;
+    }
+
+    auto value{ast_gen.CreateConstantExpr(sw_case.getCaseValue())};
+    auto case_stmt{ast.CreateCaseStmt(value)};
+    if (successor != region->getExit()) {
+      auto case_body{CreateBasicBlockStmts(successor)};
+      case_stmt->setSubStmt(ast.CreateCompoundStmt(case_body));
+      sw_body.push_back(case_stmt);
+      sw_body.push_back(ast.CreateBreak());
+    } else {
+      case_stmt->setSubStmt(ast.CreateBreak());
+      sw_body.push_back(case_stmt);
+    }
+  }
+  sw_stmt->setBody(ast.CreateCompoundStmt(sw_body));
+  body.push_back(sw_stmt);
+  return ast.CreateCompoundStmt(body);
+}
+
 clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
   DLOG(INFO) << "Structuring region " << GetRegionNameStr(region);
   auto &region_stmt = region_stmts[region];
@@ -355,16 +426,24 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
                  << "; returning current region instead";
     return region_stmt;
   }
-  // Compute reaching conditions
-  for (auto block : rpo_walk) {
-    if (IsRegionBlock(region, block)) {
-      GetOrCreateReachingCond(block);
+  bool is_cyclic{loops->isLoopHeader(region->getEntry())};
+  if (llvm::isa<llvm::SwitchInst>(region->getEntry()->getTerminator()) &&
+      !GetSubregion(region, region->getEntry())) {
+    if (is_cyclic) {
+      THROW() << "Cyclic regions with switch instructions are not supported";
     }
+    region_stmt = StructureSwitchRegion(region);
+  } else {
+    // Compute reaching conditions
+    for (auto block : rpo_walk) {
+      if (IsRegionBlock(region, block)) {
+        GetOrCreateReachingCond(block);
+      }
+    }
+    // Structure
+    region_stmt = is_cyclic ? StructureCyclicRegion(region)
+                            : StructureAcyclicRegion(region);
   }
-  // Structure
-  region_stmt = loops->isLoopHeader(region->getEntry())
-                    ? StructureCyclicRegion(region)
-                    : StructureAcyclicRegion(region);
   return region_stmt;
 }
 

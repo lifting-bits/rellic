@@ -51,6 +51,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
   clang::CompoundStmt *StructureAcyclicRegion(llvm::Region *region);
   clang::CompoundStmt *StructureCyclicRegion(llvm::Region *region);
+  clang::CompoundStmt *StructureSwitchRegion(llvm::Region *region);
   clang::CompoundStmt *StructureRegion(llvm::Region *region);
 
  public:

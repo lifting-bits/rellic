@@ -317,6 +317,10 @@ class ASTBuilder {
   }
   // Null statement
   clang::NullStmt *CreateNullStmt();
+
+  clang::SwitchStmt *CreateSwitchStmt(clang::Expr *cond);
+  clang::CaseStmt *CreateCaseStmt(clang::Expr *cond);
+  clang::DefaultStmt *CreateDefaultStmt(clang::Stmt *body);
 };
 
 }  // namespace rellic

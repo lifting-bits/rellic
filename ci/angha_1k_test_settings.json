@@ -1,15 +1,15 @@
 {
-  "tests.ignore": [
-    "amd64/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
-    "amd64/os-tutorial/18-interrupts/drivers/extr_ports.c_port_word_in.bc",
-    "amd64/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc",
-    "arm64/freebsd/usr.bin/systat/extr_iostat.c_devstats.bc",
-    "arm64/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
-    "arm64/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc",
-    "armv7/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
-    "armv7/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc",
-    "x86/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
-    "x86/os-tutorial/18-interrupts/drivers/extr_ports.c_port_word_in.bc",
-    "x86/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc"
+	"tests.ignore": [
+        "amd64/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
+        "amd64/os-tutorial/18-interrupts/drivers/extr_ports.c_port_word_in.bc",
+        "amd64/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc",
+        "arm64/freebsd/usr.bin/systat/extr_iostat.c_devstats.bc",
+        "arm64/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
+        "arm64/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc",
+        "armv7/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
+        "armv7/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc",
+        "x86/linux/tools/perf/bench/extr_numa.c___bench_numa.bc",
+        "x86/os-tutorial/18-interrupts/drivers/extr_ports.c_port_word_in.bc",
+        "x86/SoftEtherVPN/src/See/extr_memory_t.h_SW_LONG_AT.bc"
   ]
 }

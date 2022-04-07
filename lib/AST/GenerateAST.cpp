@@ -146,34 +146,30 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
           CopyProvenance(result, tmp, provenance.use_provenance);
           result = tmp;
         }
+      } else {
+        result = ast.CreateTrue();
       }
     } break;
     // Switches
     case llvm::Instruction::Switch: {
       auto sw{llvm::cast<llvm::SwitchInst>(term)};
-      clang::Expr *edge_cond{nullptr};
-      for (auto sw_case : sw->cases()) {
+      if (to == sw->getDefaultDest()) {
+        for (auto sw_case : sw->cases()) {
+          auto cond{ast_gen.CreateOperandExpr(sw->getOperandUse(0))};
+          clang::Expr *sub{ast.CreateLNot(ast.CreateEQ(
+              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue())))};
+
+          if (result) {
+            result = ast.CreateLAnd(result, sub);
+          } else {
+            result = sub;
+          }
+        }
+      } else {
         auto cond{ast_gen.CreateOperandExpr(sw->getOperandUse(0))};
-        clang::Expr *sub;
-        if (sw_case.getCaseSuccessor() == to) {
-          sub = ast.CreateEQ(
-              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue()));
-        } else {
-          sub = ast.CreateNE(
-              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue()));
-        }
-
-        if (edge_cond) {
-          edge_cond = ast.CreateLAnd(edge_cond, sub);
-        } else {
-          edge_cond = sub;
-        }
-
-        if (sw_case.getCaseSuccessor() == to) {
-          break;
-        }
+        result = ast.CreateEQ(cond,
+                              ast_gen.CreateConstantExpr(sw->findCaseDest(to)));
       }
-      result = edge_cond;
     } break;
     // Returns
     case llvm::Instruction::Ret:
@@ -273,6 +269,9 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
   llvm::SmallVector<llvm::BasicBlock *, 1> exits;
   loop->getExitBlocks(exits);
   successors.insert(exits.begin(), exits.end());
+  auto header = loop->getHeader();
+  auto region = regions->getRegionFor(header);
+  auto exit = region->getExit();
   // Loop membership test
   auto IsLoopMember = [&members](llvm::BasicBlock *block) {
     return members.count(block) > 0;
@@ -282,6 +281,12 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
   while (successors.size() > 1 && !new_blocks.empty()) {
     new_blocks.clear();
     for (auto block : BBSet(successors)) {
+      if (block == exit) {
+        // Don't remove this block from the list of successors if it is the
+        // direct exit of the region
+        continue;
+      }
+
       // Check if all predecessors of `block` are loop members
       if (std::all_of(llvm::pred_begin(block), llvm::pred_end(block),
                       IsLoopMember)) {
@@ -292,8 +297,6 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
         // Add a successor of `block` to the set of discovered blocks if
         // if it is a region member, if it is NOT a loop member and if
         // the loop header dominates it.
-        auto header = loop->getHeader();
-        auto region = regions->getRegionFor(header);
         for (auto succ : llvm::successors(block)) {
           if (IsRegionBlock(region, succ) && !IsLoopMember(succ) &&
               domtree->dominates(header, succ)) {
@@ -428,10 +431,7 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
   }
   bool is_cyclic{loops->isLoopHeader(region->getEntry())};
   if (llvm::isa<llvm::SwitchInst>(region->getEntry()->getTerminator()) &&
-      !GetSubregion(region, region->getEntry())) {
-    if (is_cyclic) {
-      THROW() << "Cyclic regions with switch instructions are not supported";
-    }
+      !GetSubregion(region, region->getEntry()) && !is_cyclic) {
     region_stmt = StructureSwitchRegion(region);
   } else {
     // Compute reaching conditions

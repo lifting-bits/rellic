@@ -924,6 +924,7 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
   clang::Stmt *visitReturnInst(llvm::ReturnInst &inst);
   clang::Stmt *visitAllocaInst(llvm::AllocaInst &inst);
   clang::Stmt *visitBranchInst(llvm::BranchInst &inst);
+  clang::Stmt *visitSwitchInst(llvm::SwitchInst &inst);
   clang::Stmt *visitUnreachableInst(llvm::UnreachableInst &inst);
   clang::Stmt *visitPHINode(llvm::PHINode &inst);
   clang::Stmt *visitInstruction(llvm::Instruction &inst);
@@ -990,6 +991,11 @@ clang::Stmt *StmtGen::visitAllocaInst(llvm::AllocaInst &inst) {
 
 clang::Stmt *StmtGen::visitBranchInst(llvm::BranchInst &inst) {
   DLOG(INFO) << "visitBranchInst ignored: " << LLVMThingToString(&inst);
+  return nullptr;
+}
+
+clang::Stmt *StmtGen::visitSwitchInst(llvm::SwitchInst &inst) {
+  DLOG(INFO) << "visitSwitchInst ignored: " << LLVMThingToString(&inst);
   return nullptr;
 }
 
@@ -1176,6 +1182,11 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 clang::Expr *IRToASTVisitor::CreateOperandExpr(llvm::Use &val) {
   ExprGen expr_gen{ast_unit, provenance};
   return expr_gen.CreateOperandExpr(val);
+}
+
+clang::Expr *IRToASTVisitor::CreateConstantExpr(llvm::Constant *constant) {
+  ExprGen expr_gen{ast_unit, provenance};
+  return expr_gen.CreateConstantExpr(constant);
 }
 
 }  // namespace rellic

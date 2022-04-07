@@ -391,6 +391,8 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
 clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
   DLOG(INFO) << "Region " << GetRegionNameStr(region)
              << " has a switch instruction";
+  // TODO(frabert): find a way to do this in a refinement pass.
+  // See "No More Gotos": Condition-aware refinement
   auto body{CreateBasicBlockStmts(region->getEntry())};
   auto sw_inst{
       llvm::cast<llvm::SwitchInst>(region->getEntry()->getTerminator())};

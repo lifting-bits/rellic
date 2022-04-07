@@ -447,17 +447,18 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
   if (llvm::isa<llvm::SwitchInst>(region->getEntry()->getTerminator()) &&
       !GetSubregion(region, region->getEntry()) && !is_cyclic) {
     region_stmt = StructureSwitchRegion(region);
-  } else {
-    // Compute reaching conditions
-    for (auto block : rpo_walk) {
-      if (IsRegionBlock(region, block)) {
-        GetOrCreateReachingCond(block);
-      }
-    }
-    // Structure
-    region_stmt = is_cyclic ? StructureCyclicRegion(region)
-                            : StructureAcyclicRegion(region);
+    return region_stmt;
   }
+
+  // Compute reaching conditions
+  for (auto block : rpo_walk) {
+    if (IsRegionBlock(region, block)) {
+      GetOrCreateReachingCond(block);
+    }
+  }
+  // Structure
+  region_stmt = is_cyclic ? StructureCyclicRegion(region)
+                          : StructureAcyclicRegion(region);
   return region_stmt;
 }
 

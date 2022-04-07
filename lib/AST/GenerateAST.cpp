@@ -166,9 +166,21 @@ clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
           }
         }
       } else {
-        auto cond{ast_gen.CreateOperandExpr(sw->getOperandUse(0))};
-        result = ast.CreateEQ(cond,
-                              ast_gen.CreateConstantExpr(sw->findCaseDest(to)));
+        for (auto sw_case : sw->cases()) {
+          if (sw_case.getCaseSuccessor() != to) {
+            continue;
+          }
+
+          auto cond{ast_gen.CreateOperandExpr(sw->getOperandUse(0))};
+          clang::Expr *sub{ast.CreateEQ(
+              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue()))};
+
+          if (result) {
+            result = ast.CreateLOr(result, sub);
+          } else {
+            result = sub;
+          }
+        }
       }
     } break;
     // Returns

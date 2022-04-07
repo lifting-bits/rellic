@@ -537,7 +537,9 @@ clang::NullStmt *ASTBuilder::CreateNullStmt() {
 }
 
 clang::SwitchStmt *ASTBuilder::CreateSwitchStmt(clang::Expr *cond) {
-  return clang::SwitchStmt::Create(ctx, nullptr, nullptr, cond,
+  auto cc{sema.CheckSwitchCondition(clang::SourceLocation(), cond)};
+  CHECK(!cc.isInvalid());
+  return clang::SwitchStmt::Create(ctx, nullptr, nullptr, cc.get(),
                                    clang::SourceLocation(),
                                    clang::SourceLocation());
 }

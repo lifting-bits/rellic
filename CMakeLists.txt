@@ -124,7 +124,7 @@ if (RELLIC_ENABLE_TESTING)
 
   # Tests that survive a complete roundtrip
   add_test(NAME test_roundtrip_rebuild
-    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}"
+    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}" --timeout 5
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 

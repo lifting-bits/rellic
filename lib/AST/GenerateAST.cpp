@@ -223,10 +223,10 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       // `reach_cond[pred] && edge_cond(pred, block)` or one of
       // the two if the other one is missing.
       clang::Expr *conj_cond{nullptr};
-      if (!pred_cond || (edge_cond && IsConstantTrue(*ast_ctx, edge_cond))) {
+      if (!pred_cond || (pred_cond && IsConstantTrue(*ast_ctx, pred_cond))) {
         conj_cond = edge_cond;
       } else if (!edge_cond ||
-                 (pred_cond && IsConstantTrue(*ast_ctx, pred_cond))) {
+                 (edge_cond && IsConstantTrue(*ast_ctx, edge_cond))) {
         conj_cond = pred_cond;
       } else {
         conj_cond = ast.CreateLAnd(pred_cond, edge_cond);

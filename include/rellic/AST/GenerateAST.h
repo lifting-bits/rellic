@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <llvm/Analysis/PostDominators.h>
 #include <llvm/Analysis/RegionInfo.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
@@ -35,6 +36,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
 
   llvm::DominatorTree *domtree;
+  llvm::PostDominatorTree *postdom;
   llvm::RegionInfo *regions;
   llvm::LoopInfo *loops;
 

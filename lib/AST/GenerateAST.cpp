@@ -251,6 +251,23 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
   if (!cond) {
     cond = ast.CreateTrue();
   }
+
+  std::function<void(llvm::Region &)> WalkSubRegions;
+  WalkSubRegions = [&](llvm::Region &region) {
+    auto entry{region.getEntry()};
+    if (domtree->properlyDominates(block, entry) &&
+        postdom->properlyDominates(entry, block)) {
+      // If we find a region whose entry is dominated by this block and
+      // postdominates this block, we set its reaching conditions to the ones of
+      // this block. This saves time -and- produces smaller reaching conditions.
+      reaching_conds[entry] = cond;
+    }
+
+    for (auto &subregion : region) {
+      WalkSubRegions(*subregion);
+    }
+  };
+  WalkSubRegions(*regions->getTopLevelRegion());
 }
 
 clang::Expr *GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
@@ -521,6 +538,8 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   region_stmts.clear();
   // Get dominator tree
   domtree = &FAM.getResult<llvm::DominatorTreeAnalysis>(func);
+  // Get postdominator tree
+  postdom = &FAM.getResult<llvm::PostDominatorTreeAnalysis>(func);
   // Get single-entry, single-exit regions
   regions = &FAM.getResult<llvm::RegionInfoAnalysis>(func);
   // Get loops

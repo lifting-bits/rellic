@@ -124,19 +124,19 @@ if (RELLIC_ENABLE_TESTING)
 
   # Tests that survive a complete roundtrip
   add_test(NAME test_roundtrip_rebuild
-    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}" --timeout 30
+    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}" --timeout 10
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
   # Tests that may not roundtrip yet, but should emit C
   add_test(NAME test_roundtrip_translate_only
-    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}"
+    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}" --timeout 10
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
   # Tests that can be decompiled
   add_test(NAME test_decompile
-    COMMAND "${Python3_EXECUTABLE}" scripts/decompile.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/
+    COMMAND "${Python3_EXECUTABLE}" scripts/decompile.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ --timeout 10
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 

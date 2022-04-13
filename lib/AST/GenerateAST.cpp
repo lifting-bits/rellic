@@ -470,7 +470,20 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
         std::find(loop_body.begin(), loop_body.end(), block_epilogue[from]);
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
-    StmtVec break_stmt({block_epilogue[from], ast.CreateBreak()});
+    StmtVec break_stmt;
+    for (auto block : rpo_walk) {
+      // Check if the block is a subregion entry
+      auto subregion = GetSubregion(region, block);
+      // Ignore blocks that are neither a subregion or a region block
+      if (!subregion && !IsRegionBlock(region, block)) {
+        continue;
+      }
+
+      if (!subregion) {
+        ast_gen.PopulateEpilogue(*block, break_stmt);
+      }
+    }
+    break_stmt.push_back(ast.CreateBreak());
     auto exit_stmt = ast.CreateIf(cond, ast.CreateCompoundStmt(break_stmt));
     // Insert it after the exiting block statement
     loop_body.insert(it, exit_stmt);

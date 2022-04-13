@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <llvm/Analysis/PostDominators.h>
 #include <llvm/Analysis/RegionInfo.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>

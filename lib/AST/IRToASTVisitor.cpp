@@ -1086,7 +1086,12 @@ void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
       provenance.stmt_provenance[stmt] = &inst;
     }
   }
+}
 
+void IRToASTVisitor::PopulateEpilogue(llvm::BasicBlock &block,
+                                      std::vector<clang::Stmt *> &stmts) {
+  ExprGen expr_gen{ast_unit, provenance};
+  StmtGen stmt_gen{ast_ctx, ast, expr_gen, provenance};
   auto uses{provenance.outgoing_uses.equal_range(&block)};
   for (auto it{uses.first}; it != uses.second; ++it) {
     auto use{it->second};

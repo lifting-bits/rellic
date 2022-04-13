@@ -47,6 +47,8 @@ class IRToASTVisitor {
   void VisitFunctionDecl(llvm::Function &func);
   void VisitBasicBlock(llvm::BasicBlock &block,
                        std::vector<clang::Stmt *> &stmts);
+  void PopulateEpilogue(llvm::BasicBlock &block,
+                        std::vector<clang::Stmt *> &stmts);
 };
 
 }  // namespace rellic

@@ -470,7 +470,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
         std::find(loop_body.begin(), loop_body.end(), block_epilogue[from]);
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
-    StmtVec break_stmt({ast.CreateBreak()});
+    StmtVec break_stmt({block_epilogue[from], ast.CreateBreak()});
     auto exit_stmt = ast.CreateIf(cond, ast.CreateCompoundStmt(break_stmt));
     // Insert it after the exiting block statement
     loop_body.insert(it, exit_stmt);

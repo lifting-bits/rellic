@@ -36,6 +36,9 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
+      - name: Adding github workspace as safe directory
+        # See issue https://github.com/actions/checkout/issues/760
+        run: git config --global --add safe.directory $GITHUB_WORKSPACE
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0

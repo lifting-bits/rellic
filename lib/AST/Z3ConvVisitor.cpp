@@ -750,9 +750,21 @@ bool Z3ConvVisitor::VisitConditionalOperator(clang::ConditionalOperator *c_op) {
     return true;
   }
 
-  auto z_cond{GetZ3Expr(c_op->getCond())};
+  auto z_cond{Z3BoolCast(GetZ3Expr(c_op->getCond()))};
   auto z_then{GetZ3Expr(c_op->getTrueExpr())};
   auto z_else{GetZ3Expr(c_op->getFalseExpr())};
+
+  auto z_then_size{GetZ3SortSize(z_then)};
+  auto z_else_size{GetZ3SortSize(z_else)};
+
+  if (z_then_size > z_else_size) {
+    z_else =
+        CreateZ3BitwiseCast(z_else, z_else_size, z_then_size, /*sign=*/true);
+  } else {
+    z_then =
+        CreateZ3BitwiseCast(z_then, z_then_size, z_else_size, /*sign=*/true);
+  }
+
   InsertZ3Expr(c_op, z3::ite(z_cond, z_then, z_else));
 
   return true;

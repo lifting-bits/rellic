@@ -221,6 +221,8 @@ clang::Expr *ExprGen::CreateConstantExpr(llvm::Constant *constant) {
     provenance.use_provenance.erase(expr);
     DeleteValue(inst);
     return expr;
+  } else if (auto alias = llvm::dyn_cast<llvm::GlobalAlias>(constant)) {
+    return CreateConstantExpr(alias->getAliasee());
   } else if (auto global = llvm::dyn_cast<llvm::GlobalValue>(constant)) {
     auto decl{provenance.value_decls[global]};
     auto ref{ast.CreateDeclRef(decl)};

@@ -121,6 +121,23 @@ if (RELLIC_ENABLE_TESTING)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   message(STATUS "Python path for tests: \"${Python3_EXECUTABLE}\"")
 
+  set (TESTS_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}/rellic_tests")
+
+  add_custom_target(create_tar ALL COMMAND
+      ${CMAKE_COMMAND} -E tar "cfvz" "rellic_tests.tgz" "${TESTS_OUTPUT_PATH}")
+  
+  foreach(OPTLEVEL IN ITEMS O0 O1 O2 O3)
+    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/${OPTLEVEL}")
+
+    add_custom_target("compile_${OPTLEVEL}"
+      COMMAND
+        "${CLANG_PATH}" -S -emit-llvm -"${OPTLEVEL}" "${CMAKE_SOURCE_DIR}/tests/tools/decomp/*.c"
+      WORKING_DIRECTORY
+        "${TESTS_OUTPUT_PATH}/${OPTLEVEL}"
+    )
+
+    add_dependencies(create_tar "compile_${OPTLEVEL}")
+  endforeach()
 
   # Tests that survive a complete roundtrip
   add_test(NAME test_roundtrip_rebuild

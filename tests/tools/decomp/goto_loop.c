@@ -5,12 +5,12 @@ int main() {
   start:
   i++;
   if(i == 1) {
-    printf("1\n");
+    printf("%d\n", i);
     goto start;
   } else if(i == 2) {
-    printf("2\n");
+    printf("%d\n", i);
     goto start;
   } else if(i == 3) {
-    printf("3\n");;
+    printf("%d\n", i);;
   }
 }

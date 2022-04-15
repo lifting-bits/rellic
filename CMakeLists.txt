@@ -132,6 +132,7 @@ if (RELLIC_ENABLE_TESTING)
     file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/comp_${OPTLEVEL}")
     file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}")
     file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/recomp_${OPTLEVEL}")
+    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/asm_${OPTLEVEL}")
 
     foreach(TEST ${RELLIC_DECOMP_TESTS})
       cmake_path(GET TEST STEM TESTNAME)
@@ -151,8 +152,14 @@ if (RELLIC_ENABLE_TESTING)
         "${CLANG_PATH}" -S -emit-llvm "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}/${TESTNAME}.c" -o "${TESTS_OUTPUT_PATH}/recomp_${OPTLEVEL}/${TESTNAME}.ll"
       )
 
-      add_dependencies(create_tar "compile_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}" "recompile_test_${TESTNAME}_${OPTLEVEL}")
+      add_custom_target("recompile_asm_test_${TESTNAME}_${OPTLEVEL}"
+        COMMAND
+        "${CLANG_PATH}" -S "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}/${TESTNAME}.c" -o "${TESTS_OUTPUT_PATH}/asm_${OPTLEVEL}/${TESTNAME}.S"
+      )
+
+      add_dependencies(create_tar "compile_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}" "recompile_test_${TESTNAME}_${OPTLEVEL}" "recompile_asm_test_${TESTNAME}_${OPTLEVEL}")
       add_dependencies("recompile_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}")
+      add_dependencies("recompile_asm_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}")
       add_dependencies("decompile_test_${TESTNAME}_${OPTLEVEL}" "${RELLIC_DECOMP}")
     endforeach()
   endforeach()

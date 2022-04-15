@@ -53,7 +53,8 @@ using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
 using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
 using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
-using BlockToUsesMap = std::unordered_multimap<llvm::BasicBlock *, llvm::Use *>;
+using BlockToUsesMap =
+    std::unordered_map<llvm::BasicBlock *, std::vector<llvm::Use *>>;
 struct Provenance {
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;

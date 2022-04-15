@@ -466,8 +466,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto z_expr{GetOrCreateReachingCond(from) && GetOrCreateEdgeCond(from, to)};
     auto cond{ConvertExpr(z_expr.simplify())};
     // Find the statement corresponding to the exiting block
-    auto it =
-        std::find(loop_body.begin(), loop_body.end(), block_epilogue[from]);
+    auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
     StmtVec break_stmt;
@@ -486,7 +485,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     break_stmt.push_back(ast.CreateBreak());
     auto exit_stmt = ast.CreateIf(cond, ast.CreateCompoundStmt(break_stmt));
     // Insert it after the exiting block statement
-    loop_body.insert(it, exit_stmt);
+    loop_body.insert(std::next(it), exit_stmt);
   }
   // Create the loop statement
   auto loop_stmt =

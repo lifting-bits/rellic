@@ -1155,8 +1155,12 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // (`varname_addr` being a common name used by clang for variables used as
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
-      var = ast.CreateVarDecl(
-          fdecl, expr_gen.GetQualType(alloca->getAllocatedType()), name);
+      auto vardecl{ast.CreateVarDecl(
+          fdecl, expr_gen.GetQualType(alloca->getAllocatedType()), name)};
+      var = vardecl;
+      if (var->getType()->isIntegerType()) {
+        vardecl->setInit(ast.CreateNull());
+      }
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst) ||
                llvm::isa<llvm::LoadInst>(inst) ||
@@ -1168,7 +1172,11 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
           type = ast_ctx.getPointerType(arrayType->getElementType());
         }
 
-        var = ast.CreateVarDecl(fdecl, type, name);
+        auto vardecl{ast.CreateVarDecl(fdecl, type, name)};
+        var = vardecl;
+        if (vardecl->getType()->isIntegerType()) {
+          vardecl->setInit(ast.CreateNull());
+        }
         fdecl->addDecl(var);
 
         if (auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {

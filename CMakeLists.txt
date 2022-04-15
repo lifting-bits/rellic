@@ -125,18 +125,36 @@ if (RELLIC_ENABLE_TESTING)
 
   add_custom_target(create_tar ALL COMMAND
       ${CMAKE_COMMAND} -E tar "cfvz" "rellic_tests.tgz" "${TESTS_OUTPUT_PATH}")
-  
+
+  file(GLOB RELLIC_DECOMP_TESTS "${CMAKE_SOURCE_DIR}/tests/tools/decomp/*.c")
+
   foreach(OPTLEVEL IN ITEMS O0 O1 O2 O3)
-    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/${OPTLEVEL}")
+    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/comp_${OPTLEVEL}")
+    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}")
+    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/recomp_${OPTLEVEL}")
 
-    add_custom_target("compile_${OPTLEVEL}"
-      COMMAND
-        "${CLANG_PATH}" -S -emit-llvm -"${OPTLEVEL}" "${CMAKE_SOURCE_DIR}/tests/tools/decomp/*.c"
-      WORKING_DIRECTORY
-        "${TESTS_OUTPUT_PATH}/${OPTLEVEL}"
-    )
+    foreach(TEST ${RELLIC_DECOMP_TESTS})
+      cmake_path(GET TEST STEM TESTNAME)
 
-    add_dependencies(create_tar "compile_${OPTLEVEL}")
+      add_custom_target("compile_test_${TESTNAME}_${OPTLEVEL}"
+        COMMAND
+          "${CLANG_PATH}" -S -emit-llvm -"${OPTLEVEL}" "${TEST}" -o "${TESTS_OUTPUT_PATH}/comp_${OPTLEVEL}/${TESTNAME}.ll"
+      )
+
+      add_custom_target("decompile_test_${TESTNAME}_${OPTLEVEL}"
+        COMMAND
+          "$<TARGET_FILE:${RELLIC_DECOMP}>" --logtostderr=1 --input "${TESTS_OUTPUT_PATH}/comp_${OPTLEVEL}/${TESTNAME}.ll" --output "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}/${TESTNAME}.c"
+      )
+
+      add_custom_target("recompile_test_${TESTNAME}_${OPTLEVEL}"
+        COMMAND
+        "${CLANG_PATH}" -S -emit-llvm "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}/${TESTNAME}.c" -o "${TESTS_OUTPUT_PATH}/recomp_${OPTLEVEL}/${TESTNAME}.c"
+      )
+
+      add_dependencies(create_tar "compile_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}" "recompile_test_${TESTNAME}_${OPTLEVEL}")
+      add_dependencies("recompile_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}")
+      add_dependencies("decompile_test_${TESTNAME}_${OPTLEVEL}" "${RELLIC_DECOMP}")
+    endforeach()
   endforeach()
 
   # Tests that survive a complete roundtrip

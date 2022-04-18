@@ -153,11 +153,6 @@ jobs:
         run: |
           # Test with CMake provided test
           env CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --target test
-      - uses: actions/upload-artifact@v3
-        if: failure()
-        with:
-          name: rellic-tests-macos
-          path: rellic-build/rellic_tests.tgz
 
       - name: Locate the packages
         id: package_names

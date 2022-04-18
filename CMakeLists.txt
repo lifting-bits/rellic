@@ -121,49 +121,6 @@ if (RELLIC_ENABLE_TESTING)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   message(STATUS "Python path for tests: \"${Python3_EXECUTABLE}\"")
 
-  set (TESTS_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}/rellic_tests")
-
-  add_custom_target(create_tar ALL COMMAND
-      ${CMAKE_COMMAND} -E tar "cfvz" "rellic_tests.tgz" "${TESTS_OUTPUT_PATH}")
-
-  file(GLOB RELLIC_DECOMP_TESTS "${CMAKE_SOURCE_DIR}/tests/tools/decomp/*.c")
-
-  foreach(OPTLEVEL IN ITEMS O0 O1 O2 O3)
-    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/comp_${OPTLEVEL}")
-    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}")
-    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/recomp_${OPTLEVEL}")
-    file(MAKE_DIRECTORY "${TESTS_OUTPUT_PATH}/asm_${OPTLEVEL}")
-
-    foreach(TEST ${RELLIC_DECOMP_TESTS})
-      cmake_path(GET TEST STEM TESTNAME)
-
-      add_custom_target("compile_test_${TESTNAME}_${OPTLEVEL}"
-        COMMAND
-          "${CLANG_PATH}" -S -emit-llvm -"${OPTLEVEL}" "${TEST}" -o "${TESTS_OUTPUT_PATH}/comp_${OPTLEVEL}/${TESTNAME}.ll"
-      )
-
-      add_custom_target("decompile_test_${TESTNAME}_${OPTLEVEL}"
-        COMMAND
-          "$<TARGET_FILE:${RELLIC_DECOMP}>" --logtostderr=1 --input "${TESTS_OUTPUT_PATH}/comp_${OPTLEVEL}/${TESTNAME}.ll" --output "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}/${TESTNAME}.c"
-      )
-
-      add_custom_target("recompile_test_${TESTNAME}_${OPTLEVEL}"
-        COMMAND
-        "${CLANG_PATH}" -S -emit-llvm "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}/${TESTNAME}.c" -o "${TESTS_OUTPUT_PATH}/recomp_${OPTLEVEL}/${TESTNAME}.ll"
-      )
-
-      add_custom_target("recompile_asm_test_${TESTNAME}_${OPTLEVEL}"
-        COMMAND
-        "${CLANG_PATH}" -S "${TESTS_OUTPUT_PATH}/decomp_${OPTLEVEL}/${TESTNAME}.c" -o "${TESTS_OUTPUT_PATH}/asm_${OPTLEVEL}/${TESTNAME}.S"
-      )
-
-      add_dependencies(create_tar "compile_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}" "recompile_test_${TESTNAME}_${OPTLEVEL}" "recompile_asm_test_${TESTNAME}_${OPTLEVEL}")
-      add_dependencies("recompile_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}")
-      add_dependencies("recompile_asm_test_${TESTNAME}_${OPTLEVEL}" "decompile_test_${TESTNAME}_${OPTLEVEL}")
-      add_dependencies("decompile_test_${TESTNAME}_${OPTLEVEL}" "${RELLIC_DECOMP}")
-    endforeach()
-  endforeach()
-
   # Tests that survive a complete roundtrip
   add_test(NAME test_roundtrip_rebuild
     COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}" --timeout 30

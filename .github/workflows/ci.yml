@@ -135,6 +135,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Adding github workspace as safe directory
+        # See issue https://github.com/actions/checkout/issues/760
+        run: git config --global --add safe.directory $GITHUB_WORKSPACE
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
@@ -172,6 +175,9 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
 
     steps:
+      - name: Adding github workspace as safe directory
+        # See issue https://github.com/actions/checkout/issues/760
+        run: git config --global --add safe.directory $GITHUB_WORKSPACE
       - name: Clone the rellic repository
         uses: actions/checkout@v2
         with:

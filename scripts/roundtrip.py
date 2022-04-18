@@ -118,6 +118,9 @@ if __name__ == "__main__":
     def test_generator(path):
         def test(self):
             roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only)
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, ["-O1"])
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, ["-O2"])
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, ["-O3"])
             roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, ["-g3"])
 
         return test

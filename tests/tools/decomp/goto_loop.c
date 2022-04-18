@@ -1,16 +1,16 @@
-int puts(const char*);
+int printf(const char*, ...);
 
 int main() {
   int i = 0;
   start:
   i++;
   if(i == 1) {
-    puts("1\n");
+    printf("%d\n", i);
     goto start;
   } else if(i == 2) {
-    puts("2\n");
+    printf("%d\n", i);
     goto start;
   } else if(i == 3) {
-    puts("3\n");;
+    printf("%d\n", i);;
   }
 }

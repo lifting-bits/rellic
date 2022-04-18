@@ -1089,9 +1089,9 @@ void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
     }
   }
 
-  auto uses{provenance.outgoing_uses.equal_range(&block)};
-  for (auto it{uses.first}; it != uses.second; ++it) {
-    auto use{it->second};
+  auto &uses{provenance.outgoing_uses[&block]};
+  for (auto it{uses.rbegin()}; it != uses.rend(); ++it) {
+    auto use{*it};
     auto var{provenance.value_decls[use->getUser()]};
     auto expr{expr_gen.CreateOperandExpr(*use)};
     stmts.push_back(ast.CreateAssign(ast.CreateDeclRef(var), expr));
@@ -1173,7 +1173,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
             auto bb{phi->getIncomingBlock(i)};
             auto &use{phi->getOperandUse(i)};
 
-            provenance.outgoing_uses.insert({bb, &use});
+            provenance.outgoing_uses[bb].push_back(&use);
           }
         }
       }

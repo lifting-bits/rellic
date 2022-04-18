@@ -83,7 +83,7 @@ bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   if (iter != parent_conds.end()) {
     auto child_expr{ifstmt->getCond()};
     auto parent_expr{iter->second};
-    changed = Replace(ast_ctx, /*from=*/parent_expr,
+    changed = Replace(/*from=*/parent_expr,
                       /*to=*/ast.CreateTrue(), /*in=*/&child_expr);
     ifstmt->setCond(child_expr);
   }
@@ -110,7 +110,7 @@ bool NestedCondProp::VisitWhileStmt(clang::WhileStmt *stmt) {
   if (iter != parent_conds.end()) {
     auto child_expr{stmt->getCond()};
     auto parent_expr{iter->second};
-    changed = Replace(ast_ctx, /*from=*/parent_expr,
+    changed = Replace(/*from=*/parent_expr,
                       /*to=*/ast.CreateTrue(), /*in=*/&child_expr);
     stmt->setCond(child_expr);
   }

@@ -20,6 +20,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
 #include <vector>
@@ -128,121 +129,204 @@ std::string GetRegionNameStr(llvm::Region *region) {
 
 }  // namespace
 
-clang::Expr *GenerateAST::CreateEdgeCond(llvm::BasicBlock *from,
-                                         llvm::BasicBlock *to) {
-  // Construct the edge condition for CFG edge `(from, to)`
-  clang::Expr *result = nullptr;
-  auto term = from->getTerminator();
-  switch (term->getOpcode()) {
-    // Conditional branches
-    case llvm::Instruction::Br: {
-      auto br = llvm::cast<llvm::BranchInst>(term);
-      if (br->isConditional()) {
-        // Get the edge condition
-        result = ast_gen.CreateOperandExpr(*(br->op_end() - 3));
-        // Negate if `br` jumps to `to` when `expr` is false
-        if (to == br->getSuccessor(1)) {
-          auto tmp{ast.CreateLNot(result)};
-          CopyProvenance(result, tmp, provenance.use_provenance);
-          result = tmp;
-        }
-      } else {
-        result = ast.CreateTrue();
-      }
-    } break;
-    // Switches
-    case llvm::Instruction::Switch: {
-      auto sw{llvm::cast<llvm::SwitchInst>(term)};
-      if (to == sw->getDefaultDest()) {
-        for (auto sw_case : sw->cases()) {
-          auto cond{ast_gen.CreateOperandExpr(sw->getOperandUse(0))};
-          clang::Expr *sub{ast.CreateLNot(ast.CreateEQ(
-              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue())))};
-
-          if (result) {
-            result = ast.CreateLAnd(result, sub);
-          } else {
-            result = sub;
-          }
-        }
-      } else {
-        for (auto sw_case : sw->cases()) {
-          if (sw_case.getCaseSuccessor() != to) {
-            continue;
-          }
-
-          auto cond{ast_gen.CreateOperandExpr(sw->getOperandUse(0))};
-          clang::Expr *sub{ast.CreateEQ(
-              cond, ast_gen.CreateConstantExpr(sw_case.getCaseValue()))};
-
-          if (result) {
-            result = ast.CreateLOr(result, sub);
-          } else {
-            result = sub;
-          }
-        }
-      }
-    } break;
-    // Returns
-    case llvm::Instruction::Ret:
-      break;
-    // Exceptions
-    case llvm::Instruction::Invoke:
-    case llvm::Instruction::Resume:
-    case llvm::Instruction::CatchSwitch:
-    case llvm::Instruction::CatchRet:
-    case llvm::Instruction::CleanupRet:
-      THROW() << "Exception terminator '" << term->getOpcodeName()
-              << "' is not supported yet";
-      break;
-    // Unknown
-    default:
-      THROW() << "Unsupported terminator instruction: "
-              << term->getOpcodeName();
-      break;
-  }
-  return result;
+static std::string GetName(llvm::Value *v) {
+  std::string s{"h"};
+  llvm::raw_string_ostream os(s);
+  os.write_hex((unsigned long long)v);
+  return s;
 }
 
-clang::Expr *GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
-  auto &cond = reaching_conds[block];
-  if (cond) {
-    return Clone(unit, cond, provenance.use_provenance);
-  }
-  // Gather reaching conditions from predecessors of the block
-  for (auto pred : llvm::predecessors(block)) {
-    auto pred_cond{reaching_conds[pred]};
-    auto edge_cond{CreateEdgeCond(pred, block)};
-    if (pred_cond || edge_cond) {
-      // Construct reaching condition from `pred` to `block` as
-      // `reach_cond[pred] && edge_cond(pred, block)` or one of
-      // the two if the other one is missing.
-      clang::Expr *conj_cond{nullptr};
-      if (!pred_cond) {
-        conj_cond = edge_cond;
-      } else if (!edge_cond) {
-        conj_cond = pred_cond;
-      } else {
-        conj_cond = ast.CreateLAnd(pred_cond, edge_cond);
-      }
-      // Append `conj_cond` to reaching conditions of other
-      // predecessors via an `||`. Use `conj_cond` if there
-      // is no `cond` yet.
-      cond = cond ? ast.CreateLOr(cond, conj_cond) : conj_cond;
+z3::expr GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
+                                               bool cond) {
+  if (z_br_edges.find({inst, cond}) == z_br_edges.end()) {
+    if (cond) {
+      auto name{GetName(inst)};
+      auto edge{z_ctx->bool_const(name.c_str())};
+      z_br_edges[{inst, cond}] = z_exprs.size();
+      z_exprs.push_back(edge);
+      z_br_edges_inv[edge.id()] = {inst, true};
+    } else {
+      auto edge{!(GetOrCreateEdgeForBranch(inst, true))};
+      z_br_edges[{inst, cond}] = z_exprs.size();
+      z_exprs.push_back(edge);
     }
   }
-  // Create `if(1)` in case we still don't have a reaching condition
-  if (!cond) {
-    cond = ast.CreateTrue();
+
+  return z_exprs[z_br_edges[{inst, cond}]];
+}
+
+z3::expr GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
+                                               llvm::ConstantInt *c) {
+  if (z_sw_edges.find({inst, c}) == z_sw_edges.end()) {
+    if (c) {
+      auto name{GetName(inst) +
+                GetName(inst->findCaseValue(c)->getCaseSuccessor())};
+      auto edge{z_ctx->bool_const(name.c_str())};
+      z_sw_edges_inv[edge.id()] = {inst, c};
+
+      z_sw_edges[{inst, c}] = z_exprs.size();
+      z_exprs.push_back(edge);
+    } else {
+      // Default case
+      auto edge{z_ctx->bool_val(true)};
+      for (auto sw_case : inst->cases()) {
+        edge = edge && !GetOrCreateEdgeForSwitch(inst, sw_case.getCaseValue());
+      }
+      edge = edge.simplify();
+      z_sw_edges[{inst, c}] = z_exprs.size();
+      z_exprs.push_back(edge);
+    }
   }
-  // Done
-  return cond;
+
+  return z_exprs[z_sw_edges[{inst, c}]];
+}
+
+z3::expr GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
+                                          llvm::BasicBlock *to) {
+  if (z_edges.find({from, to}) == z_edges.end()) {
+    // Construct the edge condition for CFG edge `(from, to)`
+    auto result{z_ctx->bool_val(true)};
+    auto term = from->getTerminator();
+    switch (term->getOpcode()) {
+      // Conditional branches
+      case llvm::Instruction::Br: {
+        auto br = llvm::cast<llvm::BranchInst>(term);
+        if (br->isConditional()) {
+          result = GetOrCreateEdgeForBranch(br, to == br->getSuccessor(0));
+        }
+      } break;
+      // Switches
+      case llvm::Instruction::Switch: {
+        auto sw{llvm::cast<llvm::SwitchInst>(term)};
+        if (to == sw->getDefaultDest()) {
+          result = GetOrCreateEdgeForSwitch(sw, nullptr);
+        } else {
+          result = z_ctx->bool_val(false);
+          for (auto sw_case : sw->cases()) {
+            if (sw_case.getCaseSuccessor() == to) {
+              result = result ||
+                       GetOrCreateEdgeForSwitch(sw, sw_case.getCaseValue());
+            }
+          }
+        }
+      } break;
+      // Returns
+      case llvm::Instruction::Ret:
+        break;
+      // Exceptions
+      case llvm::Instruction::Invoke:
+      case llvm::Instruction::Resume:
+      case llvm::Instruction::CatchSwitch:
+      case llvm::Instruction::CatchRet:
+      case llvm::Instruction::CleanupRet:
+        THROW() << "Exception terminator '" << term->getOpcodeName()
+                << "' is not supported yet";
+        break;
+      // Unknown
+      default:
+        THROW() << "Unsupported terminator instruction: "
+                << term->getOpcodeName();
+        break;
+    }
+
+    z_edges[{from, to}] = z_exprs.size();
+    z_exprs.push_back(result.simplify());
+  }
+
+  return z_exprs[z_edges[{from, to}]];
+}
+
+z3::expr GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
+  if (reaching_conds.find(block) == reaching_conds.end()) {
+    if (block->hasNPredecessorsOrMore(1)) {
+      auto cond{z_ctx->bool_val(false)};
+      // Gather reaching conditions from predecessors of the block
+      for (auto pred : llvm::predecessors(block)) {
+        auto has_pred_cond{reaching_conds.find(pred) != reaching_conds.end()};
+        auto edge_cond{GetOrCreateEdgeCond(pred, block)};
+        // Construct reaching condition from `pred` to `block` as
+        // `reach_cond[pred] && edge_cond(pred, block)` or one of
+        // the two if the other one is missing.
+        auto conj_cond{has_pred_cond
+                           ? (z_exprs[reaching_conds[pred]] && edge_cond)
+                           : edge_cond};
+        // Append `conj_cond` to reaching conditions of other
+        // predecessors via an `||`. Use `conj_cond` if there
+        // is no `cond` yet.
+        cond = cond || conj_cond;
+      }
+
+      reaching_conds[block] = z_exprs.size();
+      z_exprs.push_back(cond.simplify());
+    } else {
+      auto cond{z_ctx->bool_val(true)};
+      reaching_conds[block] = z_exprs.size();
+      z_exprs.push_back(cond);
+    }
+  }
+
+  return z_exprs[reaching_conds[block]];
 }
 
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   StmtVec result;
   ast_gen.VisitBasicBlock(*block, result);
   return result;
+}
+
+clang::Expr *GenerateAST::ConvertExpr(z3::expr expr) {
+  auto hash{expr.id()};
+  if (z_br_edges_inv.find(hash) != z_br_edges_inv.end()) {
+    auto edge{z_br_edges_inv[hash]};
+    CHECK(edge.second) << "Inverse map should only be populated for branches "
+                          "taken when condition is true";
+    return ast_gen.CreateOperandExpr(*(edge.first->op_end() - 3));
+  }
+
+  if (z_sw_edges_inv.find(hash) != z_sw_edges_inv.end()) {
+    auto edge{z_sw_edges_inv[hash]};
+    CHECK(edge.second)
+        << "Inverse map should only be populated for not-default switch cases";
+
+    auto opnd{ast_gen.CreateOperandExpr(edge.first->getOperandUse(0))};
+    return ast.CreateEQ(opnd, ast_gen.CreateConstantExpr(edge.second));
+  }
+
+  std::vector<clang::Expr *> args;
+  for (auto i{0U}; i < expr.num_args(); ++i) {
+    args.push_back(ConvertExpr(expr.arg(i)));
+  }
+
+  switch (expr.decl().decl_kind()) {
+    case Z3_OP_TRUE:
+      CHECK_EQ(args.size(), 0) << "True cannot have arguments";
+      return ast.CreateTrue();
+    case Z3_OP_FALSE:
+      CHECK_EQ(args.size(), 0) << "False cannot have arguments";
+      return ast.CreateFalse();
+    case Z3_OP_AND: {
+      CHECK_GE(args.size(), 2) << "And must have at least 2 arguments";
+      clang::Expr *res{args[0]};
+      for (auto i{1U}; i < args.size(); ++i) {
+        res = ast.CreateLAnd(res, args[i]);
+      }
+      return res;
+    }
+    case Z3_OP_OR: {
+      CHECK_GE(args.size(), 2) << "Or must have at least 2 arguments";
+      clang::Expr *res{args[0]};
+      for (auto i{1U}; i < args.size(); ++i) {
+        res = ast.CreateLOr(res, args[i]);
+      }
+      return res;
+    }
+    case Z3_OP_NOT:
+      CHECK_EQ(args.size(), 1) << "Not must have one argument";
+      return ast.CreateLNot(args[0]);
+    default:
+      LOG(FATAL) << "Invalid z3 op";
+  }
+  return nullptr;
 }
 
 StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
@@ -258,6 +342,7 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     // the subregion otherwise create a new compound and gate it behind a
     // reaching condition.
     clang::CompoundStmt *compound = nullptr;
+    StmtVec epi_body;
     if (subregion) {
       CHECK(compound = region_stmts[subregion]);
     } else {
@@ -266,7 +351,8 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
       compound = ast.CreateCompoundStmt(block_body);
     }
     // Gate the compound behind a reaching condition
-    block_stmts[block] = ast.CreateIf(GetOrCreateReachingCond(block), compound);
+    auto z_expr{GetOrCreateReachingCond(block)};
+    block_stmts[block] = ast.CreateIf(ConvertExpr(z_expr), compound);
     // Store the compound
     result.push_back(block_stmts[block]);
   }
@@ -368,8 +454,8 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto from = edge.first;
     auto to = edge.second;
     // Create edge condition
-    auto cond =
-        ast.CreateLAnd(GetOrCreateReachingCond(from), CreateEdgeCond(from, to));
+    auto z_expr{GetOrCreateReachingCond(from) && GetOrCreateEdgeCond(from, to)};
+    auto cond{ConvertExpr(z_expr.simplify())};
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());
@@ -469,7 +555,9 @@ GenerateAST::GenerateAST(Provenance &provenance, clang::ASTUnit &unit)
       unit(unit),
       provenance(provenance),
       ast_gen(unit, provenance),
-      ast(unit) {}
+      ast(unit),
+      z_ctx(new z3::context()),
+      z_exprs(*z_ctx) {}
 
 GenerateAST::Result GenerateAST::run(llvm::Module &module,
                                      llvm::ModuleAnalysisManager &MAM) {
@@ -502,6 +590,7 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // structurization
   llvm::ReversePostOrderTraversal<llvm::Function *> rpo(&func);
   rpo_walk.assign(rpo.begin(), rpo.end());
+  GetOrCreateReachingCond(rpo_walk[0]);
   // Recursively walk regions in post-order and structure
   std::function<void(llvm::Region *)> POWalkSubRegions;
   POWalkSubRegions = [&](llvm::Region *region) {

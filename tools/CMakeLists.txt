@@ -51,7 +51,7 @@ set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 include(FetchContent)
 FetchContent_Declare(httplib
   GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-  GIT_TAG        bb00a23116f5c9f64f1e257ecf5b97a49d0be44e
+  GIT_TAG        d87abeecf0ca2bd2899140208523413bef6fc523
 )
 FetchContent_MakeAvailable(httplib)
 

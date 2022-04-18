@@ -1086,12 +1086,7 @@ void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
       provenance.stmt_provenance[stmt] = &inst;
     }
   }
-}
 
-void IRToASTVisitor::PopulateEpilogue(llvm::BasicBlock &block,
-                                      std::vector<clang::Stmt *> &stmts) {
-  ExprGen expr_gen{ast_unit, provenance};
-  StmtGen stmt_gen{ast_ctx, ast, expr_gen, provenance};
   auto &uses{provenance.outgoing_uses[&block]};
   for (auto it{uses.rbegin()}; it != uses.rend(); ++it) {
     auto use{*it};
@@ -1155,12 +1150,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // (`varname_addr` being a common name used by clang for variables used as
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
-      auto vardecl{ast.CreateVarDecl(
-          fdecl, expr_gen.GetQualType(alloca->getAllocatedType()), name)};
-      var = vardecl;
-      if (var->getType()->isIntegerType()) {
-        vardecl->setInit(ast.CreateNull());
-      }
+      var = ast.CreateVarDecl(
+          fdecl, expr_gen.GetQualType(alloca->getAllocatedType()), name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst) ||
                llvm::isa<llvm::LoadInst>(inst) ||
@@ -1172,11 +1163,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
           type = ast_ctx.getPointerType(arrayType->getElementType());
         }
 
-        auto vardecl{ast.CreateVarDecl(fdecl, type, name)};
-        var = vardecl;
-        if (vardecl->getType()->isIntegerType()) {
-          vardecl->setInit(ast.CreateNull());
-        }
+        var = ast.CreateVarDecl(fdecl, type, name);
         fdecl->addDecl(var);
 
         if (auto phi = llvm::dyn_cast<llvm::PHINode>(&inst)) {

@@ -48,7 +48,6 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   std::map<BBEdge, unsigned> z_edges;
   std::unordered_map<llvm::BasicBlock *, unsigned> reaching_conds;
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
-  std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_epilogue;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
 
   llvm::DominatorTree *domtree;

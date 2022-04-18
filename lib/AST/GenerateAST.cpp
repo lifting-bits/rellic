@@ -349,16 +349,12 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
       // Create a compound, wrapping the block
       auto block_body = CreateBasicBlockStmts(block);
       compound = ast.CreateCompoundStmt(block_body);
-      ast_gen.PopulateEpilogue(*block, epi_body);
     }
     // Gate the compound behind a reaching condition
     auto z_expr{GetOrCreateReachingCond(block)};
     block_stmts[block] = ast.CreateIf(ConvertExpr(z_expr), compound);
-    block_epilogue[block] =
-        ast.CreateIf(ConvertExpr(z_expr), ast.CreateCompoundStmt(epi_body));
     // Store the compound
     result.push_back(block_stmts[block]);
-    result.push_back(block_epilogue[block]);
   }
   return result;
 }
@@ -441,11 +437,6 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
         auto it = std::find(region_body.begin(), region_body.end(), stmt);
         region_body.erase(it);
         loop_body.push_back(stmt);
-
-        auto epilogue = block_epilogue[block];
-        it = std::find(region_body.begin(), region_body.end(), epilogue);
-        region_body.erase(it);
-        loop_body.push_back(epilogue);
       }
     }
   }
@@ -469,20 +460,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
-    StmtVec break_stmt;
-    for (auto block : rpo_walk) {
-      // Check if the block is a subregion entry
-      auto subregion = GetSubregion(region, block);
-      // Ignore blocks that are neither a subregion or a region block
-      if (!subregion && !IsRegionBlock(region, block)) {
-        continue;
-      }
-
-      if (!subregion) {
-        ast_gen.PopulateEpilogue(*block, break_stmt);
-      }
-    }
-    break_stmt.push_back(ast.CreateBreak());
+    StmtVec break_stmt({ast.CreateBreak()});
     auto exit_stmt = ast.CreateIf(cond, ast.CreateCompoundStmt(break_stmt));
     // Insert it after the exiting block statement
     loop_body.insert(std::next(it), exit_stmt);
@@ -502,7 +480,6 @@ clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
   // TODO(frabert): find a way to do this in a refinement pass.
   // See "No More Gotos": Condition-aware refinement
   auto body{CreateBasicBlockStmts(region->getEntry())};
-  ast_gen.PopulateEpilogue(*region->getEntry(), body);
   auto sw_inst{
       llvm::cast<llvm::SwitchInst>(region->getEntry()->getTerminator())};
   auto cond{ast_gen.CreateOperandExpr(sw_inst->getOperandUse(0))};
@@ -512,7 +489,6 @@ clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
   auto default_dest{sw_inst->getDefaultDest()};
   if (default_dest != region->getExit()) {
     auto default_body{CreateBasicBlockStmts(default_dest)};
-    ast_gen.PopulateEpilogue(*default_dest, default_body);
     sw_body.push_back(
         ast.CreateDefaultStmt(ast.CreateCompoundStmt(default_body)));
     sw_body.push_back(ast.CreateBreak());
@@ -531,7 +507,6 @@ clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
     auto case_stmt{ast.CreateCaseStmt(value)};
     if (successor != region->getExit()) {
       auto case_body{CreateBasicBlockStmts(successor)};
-      ast_gen.PopulateEpilogue(*successor, case_body);
       case_stmt->setSubStmt(ast.CreateCompoundStmt(case_body));
       sw_body.push_back(case_stmt);
       sw_body.push_back(ast.CreateBreak());

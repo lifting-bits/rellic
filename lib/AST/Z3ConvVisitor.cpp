@@ -760,7 +760,7 @@ bool Z3ConvVisitor::VisitConditionalOperator(clang::ConditionalOperator *c_op) {
   if (z_then_size > z_else_size) {
     z_else =
         CreateZ3BitwiseCast(z_else, z_else_size, z_then_size, /*sign=*/true);
-  } else {
+  } else if (z_then_size < z_else_size) {
     z_then =
         CreateZ3BitwiseCast(z_then, z_then_size, z_else_size, /*sign=*/true);
   }

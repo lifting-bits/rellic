@@ -8,9 +8,6 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
-#include <clang/AST/Stmt.h>
-#include <llvm/ADT/APInt.h>
-
 #include "Util.h"
 
 namespace {

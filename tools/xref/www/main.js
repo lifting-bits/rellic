@@ -76,6 +76,13 @@ Vue.component('tree-view', {
             selected: null
         }
     },
+    computed: {
+        sortedEntries() {
+            return this.entries.slice().sort((a, b) => {
+                return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1
+            })
+        }
+    },
     template: "#tree-view"
 })
 

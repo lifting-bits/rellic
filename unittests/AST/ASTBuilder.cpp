@@ -8,6 +8,9 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
+#include <clang/AST/Stmt.h>
+#include <llvm/ADT/APInt.h>
+
 #include "Util.h"
 
 namespace {
@@ -188,6 +191,14 @@ TEST_SUITE("ASTBuilder::CreateCharLit") {
       GIVEN("8 bit wide unsigned llvm::APInt") {
         llvm::APInt api(8U, 'x', /*isSigned=*/false);
         auto lit{ast.CreateCharLit(api)};
+        THEN("return a int typed character literal") {
+          REQUIRE(lit != nullptr);
+          CHECK(clang::isa<clang::CharacterLiteral>(lit));
+          CHECK(lit->getType() == ctx.IntTy);
+        }
+      }
+      GIVEN("c char value") {
+        auto lit{ast.CreateCharLit('x')};
         THEN("return a int typed character literal") {
           REQUIRE(lit != nullptr);
           CHECK(clang::isa<clang::CharacterLiteral>(lit));
@@ -1286,6 +1297,65 @@ TEST_SUITE("ASTBuilder::CreateReturn") {
         REQUIRE(ret_stmt != nullptr);
         CHECK(clang::isa<clang::ReturnStmt>(ret_stmt));
         CHECK(ret_stmt->getRetValue() == lit);
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateNullStmt") {
+  SCENARIO("Create a null statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit("")};
+      rellic::ASTBuilder ast(*unit);
+      THEN("return a ;") {
+        auto null_stmt{ast.CreateNullStmt()};
+        REQUIRE(null_stmt != nullptr);
+        CHECK(clang::isa<clang::NullStmt>(null_stmt));
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateCaseStmt") {
+  SCENARIO("Create a case statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit("")};
+      rellic::ASTBuilder ast(*unit);
+      THEN("return a case 0") {
+        auto case_0{ast.CreateCaseStmt(ast.CreateIntLit(llvm::APInt(32, 0)))};
+        REQUIRE(case_0 != nullptr);
+        CHECK(clang::isa<clang::CaseStmt>(case_0));
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateDefaultStmt") {
+  SCENARIO("Create a default statement") {
+    GIVEN("Empty translation unit") {
+      auto unit{GetASTUnit("")};
+      rellic::ASTBuilder ast(*unit);
+      THEN("return a default: break") {
+        auto default_0{ast.CreateDefaultStmt(ast.CreateBreak())};
+        REQUIRE(default_0 != nullptr);
+        CHECK(clang::isa<clang::DefaultStmt>(default_0));
+      }
+    }
+  }
+}
+
+TEST_SUITE("ASTBuilder::CreateSwitchStmt") {
+  SCENARIO("Create a switch statement") {
+    GIVEN("Global variable int x") {
+      auto unit{GetASTUnit("int x;")};
+      auto &ctx{unit->getASTContext()};
+      rellic::ASTBuilder ast(*unit);
+      auto tudecl{ctx.getTranslationUnitDecl()};
+      THEN("return a switch(x)") {
+        auto ref_a{GetDeclRef<clang::VarDecl>(ast, tudecl, "x")};
+        auto switch_x{ast.CreateSwitchStmt(ref_a)};
+        REQUIRE(switch_x != nullptr);
+        CHECK(clang::isa<clang::SwitchStmt>(switch_x));
       }
     }
   }

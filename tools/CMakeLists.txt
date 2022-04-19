@@ -48,13 +48,6 @@ set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 # rellic-xref
 #
 
-include(FetchContent)
-FetchContent_Declare(httplib
-  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-  GIT_TAG        d87abeecf0ca2bd2899140208523413bef6fc523
-)
-FetchContent_MakeAvailable(httplib)
-
 set(RELLIC_XREF "${PROJECT_NAME}-xref")
 
 add_executable(${RELLIC_XREF}
@@ -64,12 +57,14 @@ add_executable(${RELLIC_XREF}
   "xref/Xref.cpp"
 )
 
+find_path(CPP_HTTPLIB_INCLUDE_DIRS "httplib.h")
+target_include_directories(${RELLIC_XREF} PRIVATE ${CPP_HTTPLIB_INCLUDE_DIRS})
+
 target_link_libraries(${RELLIC_XREF}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
     gflags::gflags
-    httplib::httplib
 )
 
 set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
@@ -78,6 +73,7 @@ set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
 # rellic-repl
 #
 
+include(FetchContent)
 FetchContent_Declare(linenoise
   GIT_REPOSITORY https://github.com/antirez/linenoise.git
   GIT_TAG        97d2850af13c339369093b78abe5265845d78220

@@ -45,7 +45,7 @@ static void InitOptPasses(void) {
   initializeCore(pr);
   initializeAnalysis(pr);
 }
-};  // namespace
+}  // namespace
 
 template <typename TKey, typename TValue>
 static void CopyMap(const std::unordered_map<TKey*, TValue*>& from,

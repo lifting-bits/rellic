@@ -1159,7 +1159,18 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
                llvm::isa<llvm::LoadInst>(inst) ||
                llvm::isa<llvm::PHINode>(inst)) {
       if (!inst.getType()->isVoidTy()) {
-        auto name{"val" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+        auto GetPrefix{[&](llvm::Instruction *inst) {
+          if (llvm::isa<llvm::CallInst>(inst)) {
+            return "call";
+          } else if (llvm::isa<llvm::PHINode>(inst)) {
+            return "phi";
+          } else {
+            return "val";
+          }
+        }};
+
+        auto name{GetPrefix(&inst) +
+                  std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
         auto type{expr_gen.GetQualType(inst.getType())};
         if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
           type = ast_ctx.getPointerType(arrayType->getElementType());

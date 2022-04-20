@@ -48,7 +48,7 @@
     <template id="tree-view">
         <details class="dir-entry">
             <summary>{{ name }}</summary>
-            <template v-for="entry in entries">
+            <template v-for="entry in sortedEntries">
                 <tree-view v-if="entry.entries" :name="entry.name" :entries="entry.entries">
                 </tree-view>
                 <button v-if="!entry.entries" :value="entry.path" class="file-entry">{{ entry.name }}</button>
@@ -67,7 +67,7 @@
             </form>
         </dialog>
         <header>
-            <span class="logo">rellic</span>
+            <span class="logo">Rellic</span>
             <input type="file" accept=".bc,.ll" @change="selectFile">
             <input type="button" @click="upload" value="Submit" :disabled="!file">
             <input type="button" @click="decompile" value="Decompile" :disabled="!module">

@@ -100,10 +100,12 @@ class DoWhileRule : public InferenceRule {
     auto cond{ifstmt->getCond()};
     std::vector<clang::Stmt *> new_body(comp->body_begin(),
                                         comp->body_end() - 1);
-    if (auto else_stmt = ifstmt->getElse()) {
-      new_body.push_back(else_stmt);
-    }
     ASTBuilder ast(unit);
+    if (auto else_stmt = ifstmt->getElse()) {
+      auto cond_inv{ast.CreateLNot(cond)};
+      CopyProvenance(cond, cond_inv, provenance.use_provenance);
+      new_body.push_back(ast.CreateIf(cond_inv, else_stmt));
+    }
     auto cond_inv{ast.CreateLNot(cond)};
     CopyProvenance(cond, cond_inv, provenance.use_provenance);
     return ast.CreateDo(cond_inv, ast.CreateCompoundStmt(new_body));
@@ -147,11 +149,13 @@ class NestedDoWhileRule : public InferenceRule {
 
     std::vector<clang::Stmt *> do_body(comp->body_begin(),
                                        comp->body_end() - 1);
+    ASTBuilder ast(unit);
     if (auto else_stmt = cond->getElse()) {
-      do_body.push_back(else_stmt);
+      auto cond_inv{ast.CreateLNot(cond->getCond())};
+      CopyProvenance(cond->getCond(), cond_inv, provenance.use_provenance);
+      do_body.push_back(ast.CreateIf(cond_inv, else_stmt));
     }
 
-    ASTBuilder ast(unit);
     auto do_cond{ast.CreateLNot(cond->getCond())};
     CopyProvenance(cond->getCond(), do_cond, provenance.use_provenance);
     auto do_stmt{ast.CreateDo(do_cond, ast.CreateCompoundStmt(do_body))};

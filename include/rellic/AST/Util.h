@@ -15,6 +15,8 @@
 
 #include <unordered_map>
 
+#include "rellic/AST/ASTBuilder.h"
+
 namespace rellic {
 
 unsigned GetHash(clang::ASTContext &ctx, clang::Stmt *stmt);
@@ -72,6 +74,9 @@ void CopyProvenance(TKey1 *from, TKey2 *to,
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
                    ExprToUseMap &provenance);
+
+// Negates an expression while stripping parentheses and double negations
+clang::Expr *Negate(ASTBuilder &ast, clang::Expr *expr);
 
 std::string ClangThingToString(clang::Stmt *stmt);
 

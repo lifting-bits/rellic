@@ -47,6 +47,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
   std::map<BBEdge, unsigned> z_edges;
   std::unordered_map<llvm::BasicBlock *, unsigned> reaching_conds;
+  bool reaching_conds_changed{true};
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
 
@@ -61,7 +62,8 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
                                     llvm::ConstantInt *c);
 
   z3::expr GetOrCreateEdgeCond(llvm::BasicBlock *from, llvm::BasicBlock *to);
-  z3::expr GetOrCreateReachingCond(llvm::BasicBlock *block);
+  z3::expr GetReachingCond(llvm::BasicBlock *block);
+  void CreateReachingCond(llvm::BasicBlock *block);
 
   clang::Expr *ConvertExpr(z3::expr expr);
 

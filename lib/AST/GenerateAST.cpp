@@ -604,6 +604,34 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // structurization
   llvm::ReversePostOrderTraversal<llvm::Function *> rpo(&func);
   rpo_walk.assign(rpo.begin(), rpo.end());
+  // Computing reaching conditions is necessary in some cyclic regions:
+  //
+  //          %0
+  //         /  \
+  //        v    \
+  //        %6    \
+  //        |      |
+  //        V      |
+  //    --->%7     |
+  //    |  /  \    |
+  //    | v    v   |
+  //    %10    %15 |
+  //             | |
+  //             V V
+  //             %16
+  //              |
+  //              V
+  //         --->%17
+  //         |  /   \
+  //         | v     v
+  //         %20    %2
+  //
+  // In this example, the reaching condition for %7 is dependent on
+  // the reaching condition for %10 being computed first. If we recursively
+  // computed the conditions, we would be stuck in an infinite loop. Instead,
+  // reaching conditions are memoized, or `false` if not yet computed.
+  // Unfortunately, this means that a single pass of computation might not
+  // produce complete reaching conditions.
   do {
     reaching_conds_changed = false;
     for (auto block : rpo_walk) {

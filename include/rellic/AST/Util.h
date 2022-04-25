@@ -12,6 +12,7 @@
 #include <clang/AST/Stmt.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <llvm/IR/Value.h>
+#include <z3++.h>
 
 #include <unordered_map>
 
@@ -74,5 +75,9 @@ clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
                    ExprToUseMap &provenance);
 
 std::string ClangThingToString(clang::Stmt *stmt);
+
+z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic, z3::expr expr);
+
+bool Prove(z3::context &ctx, z3::expr expr);
 
 }  // namespace rellic

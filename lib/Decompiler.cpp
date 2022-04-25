@@ -109,12 +109,6 @@ Result<DecompilationResult, DecompilationError> Decompile(
     }
     if (!options.disable_z3) {
       auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
-      // Simplifier to use during condition-based refinement
-      z3::tactic tactic{zcs->GetZ3Context(), "skip"};
-      for (auto name : options.condition_based_refinement.z3_tactics) {
-        tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
-      }
-      zcs->SetZ3Tactic(tactic);
       if (options.condition_based_refinement.z3_cond_simplify) {
         cbr_passes.push_back(std::move(zcs));
       }
@@ -167,12 +161,6 @@ Result<DecompilationResult, DecompilationError> Decompile(
     auto& scope_passes{pass_scope.GetPasses()};
     if (!options.disable_z3) {
       auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
-      // Simplifier to use during condition-based refinement
-      z3::tactic tactic{zcs->GetZ3Context(), "skip"};
-      for (auto name : options.condition_based_refinement.z3_tactics) {
-        tactic = tactic & z3::tactic{zcs->GetZ3Context(), name.c_str()};
-      }
-      zcs->SetZ3Tactic(tactic);
       if (options.condition_based_refinement.z3_cond_simplify) {
         scope_passes.push_back(std::move(zcs));
       }

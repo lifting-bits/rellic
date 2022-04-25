@@ -20,7 +20,6 @@ Z3CondSimplify::Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit)
     : TransformVisitor<Z3CondSimplify>(provenance, unit),
       z_ctx(new z3::context()),
       z_gen(new Z3ConvVisitor(unit, z_ctx.get())),
-      tactic(z3::tactic(*z_ctx, "sat")),
       hash_adaptor{ast_ctx, hashes},
       proven_true(10, hash_adaptor, ke_adaptor),
       proven_false(10, hash_adaptor, ke_adaptor) {}
@@ -28,7 +27,7 @@ Z3CondSimplify::Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit)
 bool Z3CondSimplify::IsProvenTrue(clang::Expr *e) {
   auto it{proven_true.find(e)};
   if (it == proven_true.end()) {
-    proven_true[e] = Prove(ToZ3(e));
+    proven_true[e] = Prove(*z_ctx, ToZ3(e));
   }
   return proven_true[e];
 }
@@ -36,17 +35,9 @@ bool Z3CondSimplify::IsProvenTrue(clang::Expr *e) {
 bool Z3CondSimplify::IsProvenFalse(clang::Expr *e) {
   auto it{proven_false.find(e)};
   if (it == proven_false.end()) {
-    proven_false[e] = Prove(!ToZ3(e));
+    proven_false[e] = Prove(*z_ctx, !ToZ3(e));
   }
   return proven_false[e];
-}
-
-bool Z3CondSimplify::Prove(z3::expr e) {
-  z3::goal goal(*z_ctx);
-  goal.add((!e).simplify());
-  auto app{tactic.apply(goal)};
-  CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-  return app[0].is_decided_unsat();
 }
 
 z3::expr Z3CondSimplify::ToZ3(clang::Expr *e) {

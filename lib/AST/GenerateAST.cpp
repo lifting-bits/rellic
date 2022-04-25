@@ -245,16 +245,8 @@ z3::expr GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
 }
 
 void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
-  auto Prove{[this](z3::expr expr) {
-    z3::goal goal(*z_ctx);
-    goal.add((!expr).simplify());
-    auto app{z3::tactic(*z_ctx, "sat").apply(goal)};
-    CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-    return app[0].is_decided_unsat();
-  }};
-
-  auto Simplify{[this, &Prove](z3::expr expr) {
-    if (Prove(expr)) {
+  auto Simplify{[this](z3::expr expr) {
+    if (Prove(*z_ctx, expr)) {
       return z_ctx->bool_val(true);
     }
 
@@ -262,11 +254,7 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
     z3::tactic simplify(*z_ctx, "simplify");
     z3::tactic ctx_solver_simplify(*z_ctx, "ctx-solver-simplify");
     auto tactic{simplify & aig & ctx_solver_simplify};
-    z3::goal goal(*z_ctx);
-    goal.add(expr);
-    auto app{tactic.apply(goal)};
-    CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-    return app[0].as_expr();
+    return ApplyTactic(*z_ctx, tactic, expr).as_expr();
   }};
 
   auto old_cond{GetReachingCond(block)};
@@ -286,7 +274,7 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       cond = Simplify(cond || conj_cond);
     }
 
-    if (!Prove(old_cond == cond)) {
+    if (!Prove(*z_ctx, old_cond == cond)) {
       reaching_conds[block] = z_exprs.size();
       z_exprs.push_back(cond);
       reaching_conds_changed = true;

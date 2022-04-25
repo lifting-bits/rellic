@@ -236,36 +236,56 @@ z3::expr GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
   return z_exprs[z_edges[{from, to}]];
 }
 
-z3::expr GenerateAST::GetOrCreateReachingCond(llvm::BasicBlock *block) {
+z3::expr GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
   if (reaching_conds.find(block) == reaching_conds.end()) {
-    if (block->hasNPredecessorsOrMore(1)) {
-      auto cond{z_ctx->bool_val(false)};
-      // Gather reaching conditions from predecessors of the block
-      for (auto pred : llvm::predecessors(block)) {
-        auto has_pred_cond{reaching_conds.find(pred) != reaching_conds.end()};
-        auto edge_cond{GetOrCreateEdgeCond(pred, block)};
-        // Construct reaching condition from `pred` to `block` as
-        // `reach_cond[pred] && edge_cond(pred, block)` or one of
-        // the two if the other one is missing.
-        auto conj_cond{has_pred_cond
-                           ? (z_exprs[reaching_conds[pred]] && edge_cond)
-                           : edge_cond};
-        // Append `conj_cond` to reaching conditions of other
-        // predecessors via an `||`. Use `conj_cond` if there
-        // is no `cond` yet.
-        cond = cond || conj_cond;
-      }
-
-      reaching_conds[block] = z_exprs.size();
-      z_exprs.push_back(cond.simplify());
-    } else {
-      auto cond{z_ctx->bool_val(true)};
-      reaching_conds[block] = z_exprs.size();
-      z_exprs.push_back(cond);
-    }
+    return z_ctx->bool_val(false);
   }
 
   return z_exprs[reaching_conds[block]];
+}
+
+void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
+  auto Simplify{[this](z3::expr expr) {
+    if (Prove(*z_ctx, expr)) {
+      return z_ctx->bool_val(true);
+    }
+
+    z3::tactic aig(*z_ctx, "aig");
+    z3::tactic simplify(*z_ctx, "simplify");
+    z3::tactic ctx_solver_simplify(*z_ctx, "ctx-solver-simplify");
+    auto tactic{simplify & aig & ctx_solver_simplify};
+    return ApplyTactic(*z_ctx, tactic, expr).as_expr();
+  }};
+
+  auto old_cond{GetReachingCond(block)};
+  if (block->hasNPredecessorsOrMore(1)) {
+    // Gather reaching conditions from predecessors of the block
+    auto cond{z_ctx->bool_val(false)};
+    for (auto pred : llvm::predecessors(block)) {
+      auto pred_cond{GetReachingCond(pred)};
+      auto edge_cond{GetOrCreateEdgeCond(pred, block)};
+      // Construct reaching condition from `pred` to `block` as
+      // `reach_cond[pred] && edge_cond(pred, block)` or one of
+      // the two if the other one is missing.
+      auto conj_cond{Simplify(pred_cond && edge_cond)};
+      // Append `conj_cond` to reaching conditions of other
+      // predecessors via an `||`. Use `conj_cond` if there
+      // is no `cond` yet.
+      cond = Simplify(cond || conj_cond);
+    }
+
+    if (!Prove(*z_ctx, old_cond == cond)) {
+      reaching_conds[block] = z_exprs.size();
+      z_exprs.push_back(cond);
+      reaching_conds_changed = true;
+    }
+  } else {
+    if (reaching_conds.find(block) == reaching_conds.end()) {
+      reaching_conds[block] = z_exprs.size();
+      z_exprs.push_back(z_ctx->bool_val(true));
+      reaching_conds_changed = true;
+    }
+  }
 }
 
 StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
@@ -351,7 +371,7 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
       compound = ast.CreateCompoundStmt(block_body);
     }
     // Gate the compound behind a reaching condition
-    auto z_expr{GetOrCreateReachingCond(block)};
+    auto z_expr{GetReachingCond(block)};
     block_stmts[block] = ast.CreateIf(ConvertExpr(z_expr), compound);
     // Store the compound
     result.push_back(block_stmts[block]);
@@ -454,7 +474,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto from = edge.first;
     auto to = edge.second;
     // Create edge condition
-    auto z_expr{GetOrCreateReachingCond(from) && GetOrCreateEdgeCond(from, to)};
+    auto z_expr{GetReachingCond(from) && GetOrCreateEdgeCond(from, to)};
     auto cond{ConvertExpr(z_expr.simplify())};
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
@@ -536,12 +556,6 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
     return region_stmt;
   }
 
-  // Compute reaching conditions
-  for (auto block : rpo_walk) {
-    if (IsRegionBlock(region, block)) {
-      GetOrCreateReachingCond(block);
-    }
-  }
   // Structure
   region_stmt = is_cyclic ? StructureCyclicRegion(region)
                           : StructureAcyclicRegion(region);
@@ -590,7 +604,40 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // structurization
   llvm::ReversePostOrderTraversal<llvm::Function *> rpo(&func);
   rpo_walk.assign(rpo.begin(), rpo.end());
-  GetOrCreateReachingCond(rpo_walk[0]);
+  // Computing reaching conditions is necessary in some cyclic regions:
+  //
+  //          %0
+  //         /  \
+  //        v    \
+  //        %6    \
+  //        |      |
+  //        V      |
+  //    --->%7     |
+  //    |  /  \    |
+  //    | v    v   |
+  //    %10    %15 |
+  //             | |
+  //             V V
+  //             %16
+  //              |
+  //              V
+  //         --->%17
+  //         |  /   \
+  //         | v     v
+  //         %20    %2
+  //
+  // In this example, the reaching condition for %7 is dependent on
+  // the reaching condition for %10 being computed first. If we recursively
+  // computed the conditions, we would be stuck in an infinite loop. Instead,
+  // reaching conditions are memoized, or `false` if not yet computed.
+  // Unfortunately, this means that a single pass of computation might not
+  // produce complete reaching conditions.
+  do {
+    reaching_conds_changed = false;
+    for (auto block : rpo_walk) {
+      CreateReachingCond(block);
+    }
+  } while (reaching_conds_changed);
   // Recursively walk regions in post-order and structure
   std::function<void(llvm::Region *)> POWalkSubRegions;
   POWalkSubRegions = [&](llvm::Region *region) {

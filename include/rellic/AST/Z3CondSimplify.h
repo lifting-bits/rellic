@@ -25,9 +25,6 @@ class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
   std::unique_ptr<z3::context> z_ctx;
   std::unique_ptr<rellic::Z3ConvVisitor> z_gen;
 
-  z3::tactic tactic;
-
-  bool Prove(z3::expr e);
   z3::expr ToZ3(clang::Expr *e);
 
   std::unordered_map<clang::Expr *, unsigned> hashes;
@@ -67,8 +64,6 @@ class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
   Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit);
 
   z3::context &GetZ3Context() { return *z_ctx; }
-
-  void SetZ3Tactic(z3::tactic t) { tactic = t; };
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *loop);

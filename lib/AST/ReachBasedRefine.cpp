@@ -32,16 +32,7 @@ static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
 ReachBasedRefine::ReachBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
     : TransformVisitor<ReachBasedRefine>(provenance, unit),
       z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
-      z3_solver(*z3_ctx, "sat") {}
-
-bool ReachBasedRefine::Prove(z3::expr expr) {
-  z3::goal goal(*z3_ctx);
-  goal.add((!expr).simplify());
-  auto app = z3_solver(goal);
-  CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-  return app[0].is_decided_unsat();
-}
+      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
 
 z3::expr ReachBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
   auto cond = ifstmt->getCond();
@@ -57,12 +48,12 @@ void ReachBasedRefine::CreateIfElseStmts(IfStmtVec stmts) {
   // Test that determines if a new IfStmts is not
   // reachable from the already gathered IfStmts.
   auto IsUnrechable = [this, &conds](z3::expr cond) {
-    return Prove(!(cond && z3::mk_or(conds)));
+    return Prove(*z3_ctx, !(cond && z3::mk_or(conds)));
   };
   // Test to determine if we have enough candidate
   // IfStmts to form an else-if cascade.
   auto IsTautology = [this, &conds] {
-    return Prove(z3::mk_or(conds) == z3_ctx->bool_val(true));
+    return Prove(*z3_ctx, z3::mk_or(conds) == z3_ctx->bool_val(true));
   };
 
   // Gather else-if candidates

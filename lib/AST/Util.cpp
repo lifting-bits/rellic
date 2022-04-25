@@ -335,4 +335,17 @@ std::string ClangThingToString(clang::Stmt *stmt) {
   stmt->printPretty(os, nullptr, clang::PrintingPolicy(clang::LangOptions()));
   return s;
 }
+
+z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic,
+                     z3::expr expr) {
+  z3::goal goal(ctx);
+  goal.add(expr.simplify());
+  auto app{tactic(goal)};
+  CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
+  return app[0];
+}
+
+bool Prove(z3::context &ctx, z3::expr expr) {
+  return ApplyTactic(ctx, z3::tactic(ctx, "sat"), !expr).is_decided_unsat();
+}
 }  // namespace rellic

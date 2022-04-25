@@ -35,14 +35,6 @@ CondBasedRefine::CondBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
       z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
       z3_solver(*z3_ctx, "sat") {}
 
-bool CondBasedRefine::Prove(z3::expr expr) {
-  z3::goal goal(*z3_ctx);
-  goal.add((!expr).simplify());
-  auto app = z3_solver(goal);
-  CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
-  return app[0].is_decided_unsat();
-}
-
 z3::expr CondBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
   auto cond = ifstmt->getCond();
   auto expr = z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(cond));
@@ -58,11 +50,11 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
   };
 
   auto ThenTest = [this](z3::expr lhs, z3::expr rhs) {
-    return Prove(lhs == rhs);
+    return Prove(*z3_ctx, lhs == rhs);
   };
 
   auto ElseTest = [this](z3::expr lhs, z3::expr rhs) {
-    return Prove(lhs == !rhs);
+    return Prove(*z3_ctx, lhs == !rhs);
   };
 
   while (!worklist.empty()) {

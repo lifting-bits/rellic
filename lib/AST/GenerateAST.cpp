@@ -252,8 +252,8 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
 
     z3::tactic aig(*z_ctx, "aig");
     z3::tactic simplify(*z_ctx, "simplify");
-    z3::tactic ctx_solver_simplify(*z_ctx, "ctx-solver-simplify");
-    auto tactic{simplify & aig & ctx_solver_simplify};
+    z3::tactic solve_eqs(*z_ctx, "solve-eqs");
+    auto tactic{simplify & aig & solve_eqs};
     return ApplyTactic(*z_ctx, tactic, expr).as_expr();
   }};
 

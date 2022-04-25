@@ -36,9 +36,6 @@ namespace rellic {
  */
 class NestedCondProp : public TransformVisitor<NestedCondProp> {
  private:
-  std::unique_ptr<z3::context> z3_ctx;
-  std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
-
   std::unordered_map<clang::Stmt *, clang::Expr *> parent_conds;
 
  protected:

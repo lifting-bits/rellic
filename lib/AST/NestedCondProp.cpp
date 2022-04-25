@@ -30,23 +30,7 @@ static std::vector<clang::IfStmt *> GetIfStmts(clang::CompoundStmt *compound) {
 }  // namespace
 
 NestedCondProp::NestedCondProp(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<NestedCondProp>(provenance, unit),
-      z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
-
-static clang::Expr *Negate(rellic::ASTBuilder &ast, clang::Expr *expr) {
-  if (auto binop = clang::dyn_cast<clang::BinaryOperator>(expr)) {
-    if (binop->isComparisonOp()) {
-      auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
-      return ast.CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
-    }
-  } else if (auto unop = clang::dyn_cast<clang::UnaryOperator>(expr)) {
-    if (unop->getOpcode() == clang::UO_LNot) {
-      return unop->getSubExpr();
-    }
-  }
-  return ast.CreateLNot(expr);
-}
+    : TransformVisitor<NestedCondProp>(provenance, unit) {}
 
 bool NestedCondProp::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";

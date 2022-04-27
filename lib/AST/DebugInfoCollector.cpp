@@ -30,7 +30,11 @@ void DebugInfoCollector::visitDbgDeclareInst(llvm::DbgDeclareInst& inst) {
   scopes[loc] = var->getScope();
   valtypes[loc] = var->getType();
 
-  WalkType(loc->getType(), var->getType());
+  if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(loc)) {
+    WalkType(alloca->getAllocatedType(), var->getType());
+  } else {
+    WalkType(loc->getType(), var->getType());
+  }
 }
 
 void DebugInfoCollector::visitInstruction(llvm::Instruction& inst) {

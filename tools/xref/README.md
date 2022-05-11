@@ -7,12 +7,19 @@ It also provides visual feedback regarding the way the original bitcode has been
 
 ## How do I use it?
 
-After compiling Rellic, you can launch the `rellic-xref` executable supplying the following arguments:
+After compiling Rellic, launch the `rellic-xref` executable:
 
+    $ rellic-xref --port=8080 --home=/path/to/rellic/tools/xref/www
+
+This will spawn a server on port 8080 that will serve a web interface to the Rellic decompilation engine.
+
+The complete list of available command line options is:
 * `--address`: Tells `rellic-xref` to listen for connections from a specific address. Defaults to `0.0.0.0`, which means all addresses are considered valid.
 * `--port`: TCP port on which the HTTP server will listen. Defaults to `80`.
 * `--home`: Path where `rellic-xref`'s assets are found. Should point to the `www` directory that is supplied alongside this README.
 * `--angha`: Path to a directory containing AnghaBench test files. Supplying the files allows the server to load them directly without uploading through the interface. If not needed, point this to an empty directory.
+
+`rellic-xref` will also accept any arguments from `gflags` and `glog` like `--logtostderr` and `--help`.
 
 As an example, at Trail of Bits we have an instance of `rellic-xref` running on a private VPS. To provide automatic restarts in the event of crashes, it is configured as a `systemd` service. The following is an example of what such a service file would look like:
 

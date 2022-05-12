@@ -84,7 +84,8 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     return;
   }
 
-  auto type{llvm::cast<llvm::PointerType>(gvar.getType())->getElementType()};
+  auto type{
+      llvm::cast<llvm::PointerType>(gvar.getType())->getPointerElementType()};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto name{gvar.getName().str()};
   if (name.empty()) {
@@ -145,7 +146,8 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
 
     case llvm::Type::PointerTyID: {
       auto ptr{llvm::cast<llvm::PointerType>(type)};
-      result = ast_ctx.getPointerType(GetQualType(ptr->getElementType()));
+      result =
+          ast_ctx.getPointerType(GetQualType(ptr->getPointerElementType()));
     } break;
 
     case llvm::Type::ArrayTyID: {
@@ -389,7 +391,6 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
     ASSERT_ON_VALUE_TYPE(llvm::GlobalVariable);
     ASSERT_ON_VALUE_TYPE(llvm::GlobalAlias);
     ASSERT_ON_VALUE_TYPE(llvm::GlobalIFunc);
-    ASSERT_ON_VALUE_TYPE(llvm::GlobalIndirectSymbol);
     ASSERT_ON_VALUE_TYPE(llvm::GlobalObject);
     ASSERT_ON_VALUE_TYPE(llvm::FPMathOperator);
     ASSERT_ON_VALUE_TYPE(llvm::Operator);
@@ -481,7 +482,7 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
   DLOG(INFO) << "visitCallInst: " << LLVMThingToString(&inst);
 
   std::vector<clang::Expr *> args;
-  for (auto i{0U}; i < inst.getNumArgOperands(); ++i) {
+  for (auto i{0U}; i < inst.arg_size(); ++i) {
     auto &arg{inst.getArgOperandUse(i)};
     auto opnd{CreateOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
@@ -522,8 +523,8 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         CHECK(idx == *inst.idx_begin())
             << "Indexing an llvm::PointerType is only valid at first index";
         base = ast.CreateArraySub(base, CreateOperandExpr(idx));
-        indexed_type =
-            llvm::cast<llvm::PointerType>(indexed_type)->getElementType();
+        indexed_type = llvm::cast<llvm::PointerType>(indexed_type)
+                           ->getPointerElementType();
       } break;
       // Arrays
       case llvm::Type::ArrayTyID: {
@@ -1067,7 +1068,7 @@ static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
   for (auto &arg : func.args()) {
     if (arg.hasByValAttr()) {
       auto ptrtype{llvm::cast<llvm::PointerType>(arg.getType())};
-      new_arg_types.push_back(ptrtype->getElementType());
+      new_arg_types.push_back(ptrtype->getPointerElementType());
     } else {
       new_arg_types.push_back(arg.getType());
     }

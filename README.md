@@ -16,7 +16,7 @@ If you are experiencing undocumented problems with Rellic then ask for help in t
 
 ## Supported Platforms
 
-Rellic is supported on Linux platforms and has been tested on Ubuntu 16.04 and 18.04.
+Rellic is supported on Linux platforms and has been tested on Ubuntu 20.04.
 
 ## Dependencies
 
@@ -28,8 +28,8 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | [CMake](https://cmake.org/) | 3.21+ |
 | [Google Flags](https://github.com/google/glog) | Latest |
 | [Google Log](https://github.com/google/glog) | Latest |
-| [LLVM](http://llvm.org/) | 13|
-| [Clang](http://clang.llvm.org/) | 13|
+| [LLVM](http://llvm.org/) | 14|
+| [Clang](http://clang.llvm.org/) | 14|
 | [Z3](https://github.com/Z3Prover/z3) | 4.7.1+ |
 
 ## Pre-made Docker Images
@@ -74,7 +74,7 @@ Finally, we build and package Rellic. This script will create another directory,
 
 ```shell
 cd rellic
-./scripts/build.sh --llvm-version 13
+./scripts/build.sh --llvm-version 14
 # to install the deb package, then do:
 sudo dpkg -i rellic-build/*.deb
 ```
@@ -83,14 +83,14 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 
 ```shell
 # Create some sample bitcode or your own
-clang-13 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-14 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 ./rellic-build/tools/rellic-decomp --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 ### On macOS
 
-Make sure to have the latest release of cxx-common for LLVM 13. Then, build with
+Make sure to have the latest release of cxx-common for LLVM 14. Then, build with
 
 ```shell
 cmake \
@@ -109,10 +109,10 @@ make -j8
 
 The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
 
-To build the docker image using LLVM 13 for Ubuntu 18.04 on amd64 you can run the following command:
+To build the docker image using LLVM 14 for Ubuntu 20.04 on amd64 you can run the following command:
 
 ```sh
-ARCH=amd64; UBUNTU=18.04; LLVM=13; docker build . \
+ARCH=amd64; UBUNTU=20.04; LLVM=14; docker build . \
   -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
   --build-arg UBUNTU_VERSION=${UBUNTU} \
@@ -124,13 +124,13 @@ To run the decompiler, the entrypoint has already been set, but make sure the bi
 
 ```sh
 # Get the bc file
-clang-13 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-14 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 # Decompile
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic:llvm13-ubuntu18.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm14-ubuntu20.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 To explain the above command more:

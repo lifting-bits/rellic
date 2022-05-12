@@ -477,8 +477,11 @@ clang::IfStmt *ASTBuilder::CreateIf(clang::Expr *cond, clang::Stmt *then_val,
   auto cr{sema.ActOnCondition(/*Scope=*/nullptr, clang::SourceLocation(), cond,
                               clang::Sema::ConditionKind::Boolean)};
   CHECK(!cr.isInvalid());
-  auto if_stmt{CreateIfStmt(ctx, cr.get().second, then_val)};
+  auto if_stmt{clang::IfStmt::CreateEmpty(ctx, true, false, false)};
+  if_stmt->setCond(cr.get().second);
+  if_stmt->setThen(then_val);
   if_stmt->setElse(else_val);
+  if_stmt->setStatementKind(clang::IfStatementKind::Ordinary);
   return if_stmt;
 }
 

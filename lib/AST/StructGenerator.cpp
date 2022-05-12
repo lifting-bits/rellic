@@ -399,7 +399,7 @@ clang::QualType StructGenerator::BuildBasic(llvm::DIBasicType* b,
   }
 
   if (b->getEncoding() == llvm::dwarf::DW_ATE_float) {
-    return ast_ctx.getRealTypeForBitwidth(b->getSizeInBits(), false);
+    return GetRealTypeForBitwidth(ast_ctx, b->getSizeInBits());
   } else {
     if (char_size == b_size && char_signed == b_signed) {
       return ast_ctx.CharTy;

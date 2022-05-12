@@ -159,7 +159,7 @@ void DebugInfoCollector::WalkType(llvm::Type* type, llvm::DIType* ditype) {
             << "Associated type " << LLVMThingToString(type)
             << " is not a pointer";
 
-        auto basetype{ptrtype ? ptrtype->getElementType() : nullptr};
+        auto basetype{ptrtype ? ptrtype->getPointerElementType() : nullptr};
         types[type] = ditype;
         WalkType(basetype, baseditype);
       } break;

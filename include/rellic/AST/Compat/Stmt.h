@@ -17,9 +17,6 @@ namespace rellic {
 clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
                                   clang::Stmt *body);
 
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then);
-
 clang::CompoundStmt *CreateCompoundStmt(clang::ASTContext &ctx,
                                         std::vector<clang::Stmt *> &stmts);
 

@@ -244,6 +244,21 @@ void StmtPrinter::VisitAttributedStmt(AttributedStmt *Node) {
 }
 
 void StmtPrinter::PrintRawIfStmt(IfStmt *If) {
+  if (If->isConsteval()) {
+    OS << "<span class=\"clang keyword\">if</span> ";
+    if (If->isNegatedConsteval()) OS << "!";
+    OS << "<span class=\"clang keyword\">consteval</span>";
+    OS << NL;
+    PrintStmt(If->getThen());
+    if (Stmt *Else = If->getElse()) {
+      Indent();
+      OS << "<span class=\"clang keyword\">else</span>";
+      PrintStmt(Else);
+      OS << NL;
+    }
+    return;
+  }
+
   OS << "<span class=\"clang keyword\">if</span> (";
   if (If->getInit()) PrintInitStmt(If->getInit(), 4);
   if (const DeclStmt *DS = If->getConditionVariableDeclStmt())
@@ -501,12 +516,9 @@ void StmtPrinter::VisitObjCAtTryStmt(ObjCAtTryStmt *Node) {
     OS << NL;
   }
 
-  for (unsigned I = 0, N = Node->getNumCatchStmts(); I != N; ++I) {
-    ObjCAtCatchStmt *catchStmt = Node->getCatchStmt(I);
+  for (ObjCAtCatchStmt *catchStmt : Node->catch_stmts()) {
     Indent() << "<span class=\"clang keyword objective-c\">@catch</span>(";
-    if (catchStmt->getCatchParamDecl()) {
-      if (Decl *DS = catchStmt->getCatchParamDecl()) PrintRawDecl(DS);
-    }
+    if (Decl *DS = catchStmt->getCatchParamDecl()) PrintRawDecl(DS);
     OS << ")";
     if (auto *CS = dyn_cast<CompoundStmt>(catchStmt->getCatchBody())) {
       PrintRawCompoundStmt(CS);
@@ -651,6 +663,12 @@ void StmtPrinter::PrintOMPExecutableDirective(OMPExecutableDirective *S,
     }
   OS << NL;
   if (!ForceNoStmt && S->hasAssociatedStmt()) PrintStmt(S->getRawStmt());
+}
+
+void StmtPrinter::VisitOMPMetaDirective(OMPMetaDirective *Node) {
+  Indent()
+      << "<span class=\"clang preprocessor\">#pragma</span> omp metadirective";
+  PrintOMPExecutableDirective(Node);
 }
 
 void StmtPrinter::VisitOMPParallelDirective(OMPParallelDirective *Node) {
@@ -1012,6 +1030,11 @@ void StmtPrinter::VisitOMPTargetTeamsDistributeSimdDirective(
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPGenericLoopDirective(OMPGenericLoopDirective *Node) {
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp loop";
+  PrintOMPExecutableDirective(Node);
+}
+
 //===----------------------------------------------------------------------===//
 //  Expr printing methods.
 //===----------------------------------------------------------------------===//
@@ -1038,7 +1061,12 @@ void StmtPrinter::VisitDeclRefExpr(DeclRefExpr *Node) {
     Qualifier->print(OS, Policy);
   if (Node->hasTemplateKeyword())
     OS << "<span class=\"clang keyword\">template</span> ";
-  OS << Node->getNameInfo();
+  if (Policy.CleanUglifiedParameters &&
+      isa<ParmVarDecl, NonTypeTemplateParmDecl>(Node->getDecl()) &&
+      Node->getDecl()->getIdentifier())
+    OS << Node->getDecl()->getIdentifier()->deuglifiedName();
+  else
+    Node->getNameInfo().printName(OS, Policy);
   if (Node->hasExplicitTemplateArgs())
     printTemplateArgumentList(OS, Node->template_arguments(), Policy);
 }
@@ -1333,6 +1361,8 @@ static void PrintFloatingLiteral(raw_ostream &OS, FloatingLiteral *Node,
       llvm_unreachable("Unexpected type for float literal!");
     case BuiltinType::Half:
       break;  // FIXME: suffix?
+    case BuiltinType::Ibm128:
+      break;  // FIXME: No suffix for imp128 literal
     case BuiltinType::Double:
       break;  // no suffix.
     case BuiltinType::Float16:
@@ -1944,7 +1974,8 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
   PrintExpr(Node->getPtr());
   if (Node->getOp() != AtomicExpr::AO__c11_atomic_load &&
       Node->getOp() != AtomicExpr::AO__atomic_load_n &&
-      Node->getOp() != AtomicExpr::AO__opencl_atomic_load) {
+      Node->getOp() != AtomicExpr::AO__opencl_atomic_load &&
+      Node->getOp() != AtomicExpr::AO__hip_atomic_load) {
     OS << ", ";
     PrintExpr(Node->getVal1());
   }
@@ -2309,7 +2340,10 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
       } else {
         NeedComma = true;
       }
-      std::string ParamStr = P->getNameAsString();
+      std::string ParamStr =
+          (Policy.CleanUglifiedParameters && P->getIdentifier())
+              ? P->getIdentifier()->deuglifiedName().str()
+              : P->getNameAsString();
       PrintType(P->getOriginalType(), OS, Policy, ParamStr);
     }
     if (Method->isVariadic()) {

@@ -84,8 +84,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     return;
   }
 
-  auto type{
-      llvm::cast<llvm::PointerType>(gvar.getType())->getPointerElementType()};
+  auto type{gvar.getValueType()};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto name{gvar.getName().str()};
   if (name.empty()) {
@@ -523,8 +522,9 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         CHECK(idx == *inst.idx_begin())
             << "Indexing an llvm::PointerType is only valid at first index";
         base = ast.CreateArraySub(base, CreateOperandExpr(idx));
-        indexed_type = llvm::cast<llvm::PointerType>(indexed_type)
-                           ->getPointerElementType();
+        std::vector<uint64_t> indices({0});
+        indexed_type = llvm::GetElementPtrInst::getIndexedType(
+            inst.getSourceElementType(), indices);
       } break;
       // Arrays
       case llvm::Type::ArrayTyID: {
@@ -910,7 +910,7 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
     auto tudecl{ast_ctx.getTranslationUnitDecl()};
     auto name{"asm_" +
               std::to_string(GetNumDecls<clang::FunctionDecl>(tudecl))};
-    auto type{expr_gen.GetQualType(val->getType()->getPointerElementType())};
+    auto type{expr_gen.GetQualType(val->getFunctionType())};
     decl = ast.CreateFunctionDecl(tudecl, type, name);
   }
 
@@ -1067,8 +1067,7 @@ static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
 
   for (auto &arg : func.args()) {
     if (arg.hasByValAttr()) {
-      auto ptrtype{llvm::cast<llvm::PointerType>(arg.getType())};
-      new_arg_types.push_back(ptrtype->getPointerElementType());
+      new_arg_types.push_back(arg.getParamByValType());
     } else {
       new_arg_types.push_back(arg.getType());
     }

@@ -126,6 +126,11 @@ class DerefAddrOfConditionalRule : public InferenceRule {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
+
+    if (deref->getValueKind() == clang::ExprValueKind::VK_LValue) {
+      return deref;
+    }
+
     auto subexpr = deref->getSubExpr()->IgnoreParenImpCasts();
     auto conditional = clang::cast<clang::ConditionalOperator>(subexpr);
     auto addr_of1 =

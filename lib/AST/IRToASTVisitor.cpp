@@ -144,9 +144,7 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
     } break;
 
     case llvm::Type::PointerTyID: {
-      auto ptr{llvm::cast<llvm::PointerType>(type)};
-      result =
-          ast_ctx.getPointerType(GetQualType(ptr->getPointerElementType()));
+      result = ast_ctx.VoidPtrTy;
     } break;
 
     case llvm::Type::ArrayTyID: {
@@ -485,7 +483,9 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto &arg{inst.getArgOperandUse(i)};
     auto opnd{CreateOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
-      opnd = ast.CreateDeref(opnd);
+      auto ptrType{
+          ast_ctx.getPointerType(GetQualType(inst.getParamByValType(i)))};
+      opnd = ast.CreateDeref(ast.CreateCStyleCast(ptrType, opnd));
       provenance.use_provenance[opnd] = &arg;
     }
     args.push_back(opnd);
@@ -500,7 +500,9 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto fdecl{provenance.value_decls[iasm]->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);
   } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
-    callexpr = ast.CreateCall(CreateOperandExpr(callee), args);
+    auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
+    auto cast{ast.CreateCStyleCast(funcPtr, CreateOperandExpr(callee))};
+    callexpr = ast.CreateCall(cast, args);
   } else {
     LOG(FATAL) << "Callee is not a function";
   }
@@ -515,7 +517,12 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto base{
       CreateOperandExpr(inst.getOperandUse(inst.getPointerOperandIndex()))};
 
+  auto ptrType{
+      ast_ctx.getPointerType(GetQualType(inst.getSourceElementType()))};
+  base = ast.CreateCStyleCast(ptrType, base);
+
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
+    GetQualType(indexed_type);
     switch (indexed_type->getTypeID()) {
       // Initial pointer
       case llvm::Type::PointerTyID: {
@@ -580,6 +587,7 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
   auto indexed_type{inst.getAggregateOperand()->getType()};
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
+    GetQualType(indexed_type);
     switch (indexed_type->getTypeID()) {
       // Arrays
       case llvm::Type::ArrayTyID: {
@@ -613,7 +621,10 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  return ast.CreateDeref(CreateOperandExpr(inst.getOperandUse(0)));
+  auto ptrType{ast_ctx.getPointerType(GetQualType(inst.getType()))};
+  auto cast{
+      ast.CreateCStyleCast(ptrType, CreateOperandExpr(inst.getOperandUse(0)))};
+  return ast.CreateDeref(cast);
 }
 
 clang::Expr *ExprGen::visitBinaryOperator(llvm::BinaryOperator &inst) {
@@ -935,12 +946,15 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
 
 clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   DLOG(INFO) << "visitStoreInst: " << LLVMThingToString(&inst);
-  // Stores in LLVM IR correspond to value assignments in C
-  // Get the operand we're assigning to
-  auto lhs{expr_gen.CreateOperandExpr(
-      inst.getOperandUse(inst.getPointerOperandIndex()))};
   // Get the operand we're assigning from
   auto &value_opnd{inst.getOperandUse(0)};
+  // Stores in LLVM IR correspond to value assignments in C
+  // Get the operand we're assigning to
+  auto ptrType{
+      ast_ctx.getPointerType(expr_gen.GetQualType(value_opnd->getType()))};
+  auto lhs{ast.CreateCStyleCast(
+      ptrType, expr_gen.CreateOperandExpr(
+                   inst.getOperandUse(inst.getPointerOperandIndex())))};
   if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value_opnd)) {
     DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
     return nullptr;

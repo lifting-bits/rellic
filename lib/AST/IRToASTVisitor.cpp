@@ -483,9 +483,9 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto &arg{inst.getArgOperandUse(i)};
     auto opnd{CreateOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
-      auto ptrType{
+      auto ptr_type{
           ast_ctx.getPointerType(GetQualType(inst.getParamByValType(i)))};
-      opnd = ast.CreateDeref(ast.CreateCStyleCast(ptrType, opnd));
+      opnd = ast.CreateDeref(ast.CreateCStyleCast(ptr_type, opnd));
       provenance.use_provenance[opnd] = &arg;
     }
     args.push_back(opnd);
@@ -517,9 +517,9 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto base{
       CreateOperandExpr(inst.getOperandUse(inst.getPointerOperandIndex()))};
 
-  auto ptrType{
+  auto ptr_type{
       ast_ctx.getPointerType(GetQualType(inst.getSourceElementType()))};
-  base = ast.CreateCStyleCast(ptrType, base);
+  base = ast.CreateCStyleCast(ptr_type, base);
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     GetQualType(indexed_type);
@@ -621,9 +621,9 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  auto ptrType{ast_ctx.getPointerType(GetQualType(inst.getType()))};
+  auto ptr_type{ast_ctx.getPointerType(GetQualType(inst.getType()))};
   auto cast{
-      ast.CreateCStyleCast(ptrType, CreateOperandExpr(inst.getOperandUse(0)))};
+      ast.CreateCStyleCast(ptr_type, CreateOperandExpr(inst.getOperandUse(0)))};
   return ast.CreateDeref(cast);
 }
 
@@ -950,11 +950,11 @@ clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   auto &value_opnd{inst.getOperandUse(0)};
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
-  auto ptrType{
+  auto ptr_type{
       ast_ctx.getPointerType(expr_gen.GetQualType(value_opnd->getType()))};
   auto lhs{ast.CreateCStyleCast(
-      ptrType, expr_gen.CreateOperandExpr(
-                   inst.getOperandUse(inst.getPointerOperandIndex())))};
+      ptr_type, expr_gen.CreateOperandExpr(
+                    inst.getOperandUse(inst.getPointerOperandIndex())))};
   if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value_opnd)) {
     DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
     return nullptr;

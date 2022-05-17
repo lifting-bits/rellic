@@ -84,7 +84,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     return;
   }
 
-  auto type{llvm::cast<llvm::PointerType>(gvar.getType())->getElementType()};
+  auto type{gvar.getValueType()};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto name{gvar.getName().str()};
   if (name.empty()) {
@@ -144,8 +144,7 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
     } break;
 
     case llvm::Type::PointerTyID: {
-      auto ptr{llvm::cast<llvm::PointerType>(type)};
-      result = ast_ctx.getPointerType(GetQualType(ptr->getElementType()));
+      result = ast_ctx.VoidPtrTy;
     } break;
 
     case llvm::Type::ArrayTyID: {
@@ -389,7 +388,6 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
     ASSERT_ON_VALUE_TYPE(llvm::GlobalVariable);
     ASSERT_ON_VALUE_TYPE(llvm::GlobalAlias);
     ASSERT_ON_VALUE_TYPE(llvm::GlobalIFunc);
-    ASSERT_ON_VALUE_TYPE(llvm::GlobalIndirectSymbol);
     ASSERT_ON_VALUE_TYPE(llvm::GlobalObject);
     ASSERT_ON_VALUE_TYPE(llvm::FPMathOperator);
     ASSERT_ON_VALUE_TYPE(llvm::Operator);
@@ -481,11 +479,13 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
   DLOG(INFO) << "visitCallInst: " << LLVMThingToString(&inst);
 
   std::vector<clang::Expr *> args;
-  for (auto i{0U}; i < inst.getNumArgOperands(); ++i) {
+  for (auto i{0U}; i < inst.arg_size(); ++i) {
     auto &arg{inst.getArgOperandUse(i)};
     auto opnd{CreateOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
-      opnd = ast.CreateDeref(opnd);
+      auto ptr_type{
+          ast_ctx.getPointerType(GetQualType(inst.getParamByValType(i)))};
+      opnd = ast.CreateDeref(ast.CreateCStyleCast(ptr_type, opnd));
       provenance.use_provenance[opnd] = &arg;
     }
     args.push_back(opnd);
@@ -500,7 +500,9 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto fdecl{provenance.value_decls[iasm]->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);
   } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
-    callexpr = ast.CreateCall(CreateOperandExpr(callee), args);
+    auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
+    auto cast{ast.CreateCStyleCast(funcPtr, CreateOperandExpr(callee))};
+    callexpr = ast.CreateCall(cast, args);
   } else {
     LOG(FATAL) << "Callee is not a function";
   }
@@ -515,15 +517,21 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto base{
       CreateOperandExpr(inst.getOperandUse(inst.getPointerOperandIndex()))};
 
+  auto ptr_type{
+      ast_ctx.getPointerType(GetQualType(inst.getSourceElementType()))};
+  base = ast.CreateCStyleCast(ptr_type, base);
+
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
+    GetQualType(indexed_type);
     switch (indexed_type->getTypeID()) {
       // Initial pointer
       case llvm::Type::PointerTyID: {
         CHECK(idx == *inst.idx_begin())
             << "Indexing an llvm::PointerType is only valid at first index";
         base = ast.CreateArraySub(base, CreateOperandExpr(idx));
-        indexed_type =
-            llvm::cast<llvm::PointerType>(indexed_type)->getElementType();
+        std::vector<uint64_t> indices({0});
+        indexed_type = llvm::GetElementPtrInst::getIndexedType(
+            inst.getSourceElementType(), indices);
       } break;
       // Arrays
       case llvm::Type::ArrayTyID: {
@@ -579,6 +587,7 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
   auto indexed_type{inst.getAggregateOperand()->getType()};
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
+    GetQualType(indexed_type);
     switch (indexed_type->getTypeID()) {
       // Arrays
       case llvm::Type::ArrayTyID: {
@@ -612,7 +621,10 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  return ast.CreateDeref(CreateOperandExpr(inst.getOperandUse(0)));
+  auto ptr_type{ast_ctx.getPointerType(GetQualType(inst.getType()))};
+  auto cast{
+      ast.CreateCStyleCast(ptr_type, CreateOperandExpr(inst.getOperandUse(0)))};
+  return ast.CreateDeref(cast);
 }
 
 clang::Expr *ExprGen::visitBinaryOperator(llvm::BinaryOperator &inst) {
@@ -909,7 +921,7 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
     auto tudecl{ast_ctx.getTranslationUnitDecl()};
     auto name{"asm_" +
               std::to_string(GetNumDecls<clang::FunctionDecl>(tudecl))};
-    auto type{expr_gen.GetQualType(val->getType()->getPointerElementType())};
+    auto type{expr_gen.GetQualType(val->getFunctionType())};
     decl = ast.CreateFunctionDecl(tudecl, type, name);
   }
 
@@ -934,12 +946,15 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
 
 clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   DLOG(INFO) << "visitStoreInst: " << LLVMThingToString(&inst);
-  // Stores in LLVM IR correspond to value assignments in C
-  // Get the operand we're assigning to
-  auto lhs{expr_gen.CreateOperandExpr(
-      inst.getOperandUse(inst.getPointerOperandIndex()))};
   // Get the operand we're assigning from
   auto &value_opnd{inst.getOperandUse(0)};
+  // Stores in LLVM IR correspond to value assignments in C
+  // Get the operand we're assigning to
+  auto ptr_type{
+      ast_ctx.getPointerType(expr_gen.GetQualType(value_opnd->getType()))};
+  auto lhs{ast.CreateCStyleCast(
+      ptr_type, expr_gen.CreateOperandExpr(
+                    inst.getOperandUse(inst.getPointerOperandIndex())))};
   if (auto undef = llvm::dyn_cast<llvm::UndefValue>(value_opnd)) {
     DLOG(INFO) << "Invalid store ignored: " << LLVMThingToString(&inst);
     return nullptr;
@@ -1066,8 +1081,7 @@ static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
 
   for (auto &arg : func.args()) {
     if (arg.hasByValAttr()) {
-      auto ptrtype{llvm::cast<llvm::PointerType>(arg.getType())};
-      new_arg_types.push_back(ptrtype->getElementType());
+      new_arg_types.push_back(arg.getParamByValType());
     } else {
       new_arg_types.push_back(arg.getType());
     }

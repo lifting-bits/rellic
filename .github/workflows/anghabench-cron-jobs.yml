@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["13"]
+        llvm: ["14"]
     steps:
     - uses: actions/checkout@v2
       with:

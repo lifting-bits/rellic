@@ -24,7 +24,7 @@ jobs:
         image:
           - { name: 'ubuntu', tag: '20.04' }
         llvm: [
-          '13'
+          '14'
           ]
 
     runs-on: ubuntu-20.04
@@ -47,8 +47,8 @@ jobs:
         run: |
           # TODO some of these should probably live in the Docker build image
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-          echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main" >> /etc/apt/sources.list
-          echo "deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main" >> /etc/apt/sources.list
+          echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main" >> /etc/apt/sources.list
+          echo "deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main" >> /etc/apt/sources.list
           apt-get update
           apt-get install -y pixz xz-utils make rpm python3.8
           update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 100
@@ -93,8 +93,8 @@ jobs:
         run: |
           rellic-decomp --version
 
-      - name: Run Integration Tests (AnghaBench 1K, LLVM 13)
-        if: ${{ matrix.llvm == '13' && matrix.image.tag == '20.04' }}
+      - name: Run Integration Tests (AnghaBench 1K, LLVM 14)
+        if: ${{ matrix.llvm == '14' && matrix.image.tag == '20.04' }}
         shell: bash
         run: |
           apt-get install -y clang-${{ matrix.llvm }}
@@ -128,7 +128,7 @@ jobs:
           'macos-11'
           ]
         llvm: [
-          '13'
+          '14'
           ]
 
     runs-on: ${{ matrix.os }}
@@ -243,7 +243,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["13"]
+        llvm: ["14"]
         ubuntu: ["20.04"]
     steps:
     - uses: actions/checkout@v2

@@ -8,6 +8,8 @@
 
 #include "rellic/AST/Compat/ASTContext.h"
 
+#include <clang/Basic/TargetInfo.h>
+
 #include "rellic/BC/Version.h"
 
 namespace rellic {
@@ -15,24 +17,15 @@ namespace rellic {
 clang::QualType GetConstantArrayType(clang::ASTContext &ast_ctx,
                                      clang::QualType elm_type,
                                      const uint64_t arr_size) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(10, 0)
   return ast_ctx.getConstantArrayType(
       elm_type, llvm::APInt(64, arr_size), nullptr,
       clang::ArrayType::ArraySizeModifier::Normal, 0);
-#else
-  return ast_ctx.getConstantArrayType(
-      elm_type, llvm::APInt(64, arr_size),
-      clang::ArrayType::ArraySizeModifier::Normal, 0);
-#endif
 }
 
 clang::QualType GetRealTypeForBitwidth(clang::ASTContext &ast_ctx,
                                        unsigned dest_width) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)
-  return ast_ctx.getRealTypeForBitwidth(dest_width, /*ExplicitIEEE=*/false);
-#else
-  return ast_ctx.getRealTypeForBitwidth(dest_width);
-#endif
+  return ast_ctx.getRealTypeForBitwidth(dest_width,
+                                        clang::FloatModeKind::Float);
 }
 
 }  // namespace rellic

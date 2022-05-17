@@ -79,7 +79,7 @@ clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
 // Negates an expression while stripping parentheses and double negations
 clang::Expr *Negate(ASTBuilder &ast, clang::Expr *expr);
 
-std::string ClangThingToString(clang::Stmt *stmt);
+std::string ClangThingToString(const clang::Stmt *stmt);
 
 z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic, z3::expr expr);
 

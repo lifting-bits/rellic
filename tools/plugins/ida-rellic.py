@@ -40,7 +40,7 @@ class rellic_decompile_function_t(ida_kernwin.action_handler_t):
         if opt_path is None:
             return False
 
-        llvm_version_list = ["13"]
+        llvm_version_list = ["14"]
 
         for llvm_version in llvm_version_list:
             anvill_decompile_json_path = which(

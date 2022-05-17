@@ -126,6 +126,11 @@ class DerefAddrOfConditionalRule : public InferenceRule {
     auto deref = clang::cast<clang::UnaryOperator>(stmt);
     CHECK(deref == match)
         << "Substituted UnaryOperator is not the matched UnaryOperator!";
+
+    if (deref->getValueKind() == clang::ExprValueKind::VK_LValue) {
+      return deref;
+    }
+
     auto subexpr = deref->getSubExpr()->IgnoreParenImpCasts();
     auto conditional = clang::cast<clang::ConditionalOperator>(subexpr);
     auto addr_of1 =
@@ -177,6 +182,26 @@ class ParenDeclRefExprStripRule : public InferenceRule {
       : InferenceRule(
             parenExpr(stmt().bind("paren"),
                       has(ignoringImpCasts(declRefExpr(to(varDecl())))))) {}
+
+  void run(const MatchFinder::MatchResult &result) override {
+    match = result.Nodes.getNodeAs<clang::ParenExpr>("paren");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
+                                       clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) override {
+    auto paren = clang::cast<clang::ParenExpr>(stmt);
+    CHECK(paren == match)
+        << "Substituted ParenExpr is not the matched ParenExpr!";
+    return paren->getSubExpr();
+  }
+};
+
+// Matches `((expr))` and subs it for `(expr)`
+class DoubleParenStripRule : public InferenceRule {
+ public:
+  DoubleParenStripRule()
+      : InferenceRule(parenExpr(stmt().bind("paren"), has(parenExpr()))) {}
 
   void run(const MatchFinder::MatchResult &result) override {
     match = result.Nodes.getNodeAs<clang::ParenExpr>("paren");
@@ -401,6 +426,11 @@ ExprCombine::ExprCombine(Provenance &provenance, clang::ASTUnit &u)
 bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
   // TODO(frabert): Re-enable nullptr casts simplification
 
+  if (cast->getCastKind() == clang::CastKind::CK_NoOp) {
+    substitutions[cast] = cast->getSubExpr();
+    return true;
+  }
+
   clang::Expr::EvalResult result;
   if (cast->EvaluateAsRValue(result, ast_ctx)) {
     if (result.HasSideEffects || result.HasUndefinedBehavior) {
@@ -501,6 +531,7 @@ bool ExprCombine::VisitParenExpr(clang::ParenExpr *expr) {
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new ParenDeclRefExprStripRule);
+  rules.emplace_back(new DoubleParenStripRule);
 
   auto sub{ApplyFirstMatchingRule(provenance, ast_unit, expr, rules)};
   if (sub != expr) {

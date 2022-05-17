@@ -329,7 +329,7 @@ clang::Expr *Negate(rellic::ASTBuilder &ast, clang::Expr *expr) {
   return ApplyLNot(ast, expr->IgnoreParens())->IgnoreParens();
 }
 
-std::string ClangThingToString(clang::Stmt *stmt) {
+std::string ClangThingToString(const clang::Stmt *stmt) {
   std::string s;
   llvm::raw_string_ostream os(s);
   stmt->printPretty(os, nullptr, clang::PrintingPolicy(clang::LangOptions()));

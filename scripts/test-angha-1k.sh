@@ -2,7 +2,7 @@
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 SRC_DIR=$( cd "$( dirname "${DIR}" )" && pwd )
 
-LLVM_VERSION=13
+LLVM_VERSION=14
 RELLIC_DECOMPILE="rellic-decomp-${LLVM_VERSION}.0"
 function Help
 {

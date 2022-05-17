@@ -14,23 +14,6 @@
 
 namespace rellic {
 
-clang::IfStmt *CreateIfStmt(clang::ASTContext &ctx, clang::Expr *cond,
-                            clang::Stmt *then) {
-#if LLVM_VERSION_NUMBER >= LLVM_VERSION(8, 0)
-  auto ifstmt = clang::IfStmt::CreateEmpty(ctx, /*HasElse=*/true,
-                                           /*HasVar=*/false, /*HasInit=*/false);
-  ifstmt->setCond(cond);
-  ifstmt->setThen(then);
-  ifstmt->setElse(nullptr);
-  return ifstmt;
-#else
-  return new (ctx)
-      clang::IfStmt(ctx, clang::SourceLocation(), /*IsConstexpr=*/false,
-                    /*init=*/nullptr,
-                    /*var=*/nullptr, cond, then);
-#endif
-}
-
 clang::WhileStmt *CreateWhileStmt(clang::ASTContext &ctx, clang::Expr *cond,
                                   clang::Stmt *body) {
 #if LLVM_VERSION_NUMBER >= LLVM_VERSION(11, 0)

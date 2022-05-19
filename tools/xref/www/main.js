@@ -175,6 +175,20 @@ const app = new Vue({
                 }
             })
         }
+
+        const decls = document.querySelectorAll('.clang.decl[data-name]');
+        for(let decl of decls) {
+            decl.addEventListener('dblclick', e => {
+                let name = e.target.getAttribute('data-name')
+                if(name) {
+                    name = prompt(`New name for '${name}'`, name)
+                    if(name) {
+                        this.renameDecl(e.target.id, name);
+                    }
+                    e.stopImmediatePropagation();
+                }
+            })
+        }
     },
     methods: {
         async loadModule() {
@@ -323,10 +337,8 @@ const app = new Vue({
             this.$refs.anghaDialog.showModal()
         },
         anghaClosed(event) {
-            console.log("anghaClosed", event.returnValue)
             if (event.returnValue) {
                 const path = this.$refs.anghaDialog.returnValue;
-                console.log("path: ", path);
                 (async () => {
                     try {
                         this.status = `Loading ${path}...`
@@ -408,6 +420,28 @@ const app = new Vue({
                     if (res.status != 200) {
                         throw (await res.json()).message
                     }
+                } catch (e) {
+                    this.status = e
+                }
+            })()
+        },
+        renameDecl(id, name) {
+            console.log(id, name);
+            (async () => {
+                try {
+                    this.status = "Renaming..."
+                    let res = await fetch("/action/set-decl-name", {
+                        credentials: "include",
+                        body: JSON.stringify({id: id, name: name}),
+                        method: "POST"
+                    })
+                    if (res.status != 200) {
+                        throw (await res.json()).message
+                    }
+                    this.status = (await res.json()).message
+                    await this.loadAST()
+                    this.provenance = {}
+                    await this.loadProvenance()
                 } catch (e) {
                     this.status = e
                 }

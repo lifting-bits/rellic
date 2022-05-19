@@ -40,6 +40,7 @@
 #include <utility>
 
 #include "Printer.h"
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/ASTPass.h"
 #include "rellic/AST/CondBasedRefine.h"
 #include "rellic/AST/DeadStmtElim.h"
@@ -821,6 +822,67 @@ static void PrintProvenance(const httplib::Request& req,
   res.status = 200;
 }
 
+static void SetDeclName(const httplib::Request& req, httplib::Response& res) {
+  auto& session{GetSession(req)};
+  read_lock load_mutex(session.LoadMutex);
+  write_lock mutation_mutex(session.MutationMutex, std::try_to_lock);
+
+  if (!mutation_mutex.owns_lock()) {
+    llvm::json::Object msg{{"message", "Server busy."}};
+    res.status = 400;
+    SendJSON(res, msg);
+    return;
+  }
+
+  if (!session.Module) {
+    llvm::json::Object msg{{"message", "No module loaded."}};
+    res.status = 400;
+    SendJSON(res, msg);
+    return;
+  }
+
+  if (!session.Unit) {
+    llvm::json::Object msg{{"message", "No AST available."}};
+    res.status = 400;
+    SendJSON(res, msg);
+    return;
+  }
+
+  auto json{llvm::json::parse(req.body)};
+  if (!json) {
+    llvm::json::Object msg{{"message", "Invalid request: cannot parse."}};
+    SendJSON(res, msg);
+    res.status = 400;
+    return;
+  }
+
+  auto obj{json->getAsObject()};
+  std::string message{"Ok."};
+  int status{200};
+  if (auto id_str = obj->getString("id")) {
+    auto id{std::stoull(id_str->str(), 0, 16)};
+    if (auto name = obj->getString("name")) {
+      auto decl{(clang::NamedDecl*)id};
+      rellic::ASTBuilder ast{*session.Unit};
+      auto ident{ast.CreateIdentifier(name->str())};
+      decl->setDeclName(ident);
+      for (auto redecl : decl->redecls()) {
+        clang::cast<clang::NamedDecl>(redecl)->setDeclName(ident);
+      }
+    } else {
+      message = "Invalid request: invalid decl name.";
+      status = 400;
+    }
+  } else {
+    message = "Invalid request: invalid decl id.";
+    status = 400;
+  }
+
+  llvm::json::Object payload{{"message", message}};
+  SendJSON(res, payload);
+  res.status = status;
+}
+
 int main(int argc, char* argv[]) {
   std::stringstream usage;
   usage << std::endl
@@ -853,6 +915,7 @@ int main(int argc, char* argv[]) {
   svr.Post("/action/fixpoint", Fixpoint);
   svr.Post("/action/stop", Stop);
   svr.Post("/action/loadAngha", LoadAngha);
+  svr.Post("/action/set-decl-name", SetDeclName);
 
   svr.Get("/action/module", PrintModule);
   svr.Get("/action/ast", PrintAST);

@@ -129,7 +129,11 @@ class DeclPrinter : public DeclVisitor<DeclPrinter> {
 void DeclPrinter::Visit(Decl *D) {
   Out << "<span class=\"clang decl\" id=\"";
   Out.write_hex((unsigned long long)D);
-  Out << "\">";
+  Out << '"';
+  if (auto named = dyn_cast<NamedDecl>(D)) {
+    Out << " data-name=\"" << named->getName() << '"';
+  }
+  Out << '>';
   DeclVisitor<DeclPrinter>::Visit(D);
   Out << "</span>";
 }

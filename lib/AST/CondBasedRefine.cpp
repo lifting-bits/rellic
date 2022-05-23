@@ -57,6 +57,10 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
     return Prove(*z3_ctx, lhs == !rhs);
   };
 
+  auto CombineTest = [this](z3::expr lhs, z3::expr rhs) {
+    return Prove(*z3_ctx, z3::implies(rhs, lhs));
+  };
+
   while (!worklist.empty()) {
     auto lhs = *worklist.begin();
     RemoveFromWorkList(lhs);
@@ -68,9 +72,9 @@ void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
     std::vector<clang::Stmt *> thens({lhs}), elses;
     for (auto rhs : worklist) {
       auto rcond = GetZ3Cond(rhs);
-      if (ThenTest(lcond, rcond)) {
+      if (ThenTest(lcond, rcond) || CombineTest(lcond, rcond)) {
         thens.push_back(rhs);
-      } else if (ElseTest(lcond, rcond)) {
+      } else if (ElseTest(lcond, rcond) || CombineTest(!lcond, rcond)) {
         elses.push_back(rhs);
       }
     }

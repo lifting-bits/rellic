@@ -60,3 +60,6 @@ rellic-angha-test-1k
 
 # VIM
 *.swp
+
+# Diff files from testing
+*.diff

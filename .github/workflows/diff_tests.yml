@@ -35,10 +35,10 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
-      - name: Fetch HEAD
+      - name: Fetch base branch
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.base_ref }}
           fetch-depth: 0
           submodules: true
           path: old

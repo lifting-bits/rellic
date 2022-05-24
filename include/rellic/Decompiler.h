@@ -33,6 +33,7 @@ struct DecompilationOptions {
   struct {
     bool loop_refine = true;
     bool nested_scope_combine = true;
+    bool loop_cond_propagate = true;
     bool expression_normalize = false;
   } loop_refinement;
   struct {

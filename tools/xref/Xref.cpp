@@ -48,6 +48,7 @@
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
+#include "rellic/AST/LoopCondProp.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
@@ -404,6 +405,9 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(
     } else if (str == "zcs") {
       return std::make_unique<rellic::Z3CondSimplify>(session.Provenance,
                                                       *session.Unit);
+    } else if (str == "lcp") {
+      return std::make_unique<rellic::LoopCondProp>(session.Provenance,
+                                                    *session.Unit);
     } else {
       LOG(ERROR) << "Request contains invalid pass id";
       return nullptr;

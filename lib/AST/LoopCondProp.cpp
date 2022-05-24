@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {

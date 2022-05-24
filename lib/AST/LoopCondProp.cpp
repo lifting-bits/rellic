@@ -48,7 +48,6 @@ class CompoundVisitor
   }
 
   bool VisitWhileStmt(clang::WhileStmt* whileStmt, ExprVec& trueExprs) {
-    LOG(INFO) << ClangThingToString(whileStmt);
     bool changed{false};
     auto cond{whileStmt->getCond()};
     for (auto trueExpr : trueExprs) {
@@ -67,7 +66,6 @@ class CompoundVisitor
   }
 
   bool VisitDoStmt(clang::DoStmt* doStmt, ExprVec& trueExprs) {
-    LOG(INFO) << ClangThingToString(doStmt);
     bool changed{false};
     auto cond{doStmt->getCond()};
     for (auto trueExpr : trueExprs) {
@@ -83,7 +81,6 @@ class CompoundVisitor
   }
 
   bool VisitIfStmt(clang::IfStmt* ifStmt, ExprVec& trueExprs) {
-    LOG(INFO) << ClangThingToString(ifStmt);
     bool changed{false};
     auto cond{ifStmt->getCond()};
     for (auto trueExpr : trueExprs) {

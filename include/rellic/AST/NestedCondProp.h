@@ -8,11 +8,7 @@
 
 #pragma once
 
-#include <clang/AST/RecursiveASTVisitor.h>
-#include <z3++.h>
-
 #include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
 

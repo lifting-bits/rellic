@@ -28,6 +28,7 @@
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
+#include "rellic/AST/LoopCondProp.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
@@ -148,6 +149,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
     if (options.loop_refinement.nested_scope_combine) {
       loop_passes.push_back(
           std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
+    }
+    if (options.loop_refinement.loop_cond_propagate) {
+      loop_passes.push_back(
+          std::make_unique<rellic::LoopCondProp>(provenance, *ast_unit));
     }
     if (options.loop_refinement.expression_normalize) {
       loop_passes.push_back(

@@ -31,6 +31,7 @@ set(AST_HEADERS
   "${include_dir}/AST/IRToASTVisitor.h"
   "${include_dir}/AST/InferenceRule.h"
   "${include_dir}/AST/LocalDeclRenamer.h"
+  "${include_dir}/AST/LoopCondProp.h"
   "${include_dir}/AST/LoopRefine.h"
   "${include_dir}/AST/NestedCondProp.h"
   "${include_dir}/AST/NestedScopeCombine.h"
@@ -95,6 +96,7 @@ set(AST_SOURCES
   AST/GenerateAST.cpp
   AST/IRToASTVisitor.cpp
   AST/LocalDeclRenamer.cpp
+  AST/LoopCondProp.cpp
   AST/LoopRefine.cpp
   AST/NestedCondProp.cpp
   AST/NestedScopeCombine.cpp

@@ -13,7 +13,7 @@ C_DIFFS		:=	$(patsubst %.c,%.diff,$(wildcard *.c))
 CPP_DIFFS	:=	$(patsubst %.cpp,%.diff,$(wildcard *.cpp))
 LL_DIFFS	:=	$(patsubst %.ll,%.diff,$(wildcard *.ll))
 
-.PHONY: all clean $(OUTPUT_FILE)
+.PHONY: all clean
 
 %.bc : %.c $(OLD_RELLIC) $(NEW_RELLIC)
 	@$(CLANG) $(CLANG_FLAGS) -o $@ $< > /dev/null

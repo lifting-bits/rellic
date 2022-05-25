@@ -28,7 +28,6 @@
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
-#include "rellic/AST/LoopCondProp.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
@@ -146,13 +145,13 @@ Result<DecompilationResult, DecompilationError> Decompile(
       loop_passes.push_back(
           std::make_unique<rellic::LoopRefine>(provenance, *ast_unit));
     }
+    if (options.loop_refinement.nested_cond_propagate) {
+      loop_passes.push_back(
+          std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
+    }
     if (options.loop_refinement.nested_scope_combine) {
       loop_passes.push_back(
           std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
-    if (options.loop_refinement.loop_cond_propagate) {
-      loop_passes.push_back(
-          std::make_unique<rellic::LoopCondProp>(provenance, *ast_unit));
     }
     if (options.loop_refinement.expression_normalize) {
       loop_passes.push_back(
@@ -198,6 +197,24 @@ Result<DecompilationResult, DecompilationError> Decompile(
           std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
     }
     while (pass_ec.Run()) {
+      ;
+    }
+
+    rellic::CompositeASTPass pass_final{provenance, *ast_unit};
+    auto& final_passes{pass_final.GetPasses()};
+    if (options.final_refinement.z3_cond_simplify) {
+      final_passes.push_back(
+          std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit));
+    }
+    if (options.final_refinement.nested_cond_propagate) {
+      final_passes.push_back(
+          std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
+    }
+    if (options.final_refinement.nested_scope_combine) {
+      final_passes.push_back(
+          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
+    }
+    while (pass_final.Run()) {
       ;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-present, Trail of Bits, Inc.
+ * Copyright (c) 2022-present, Trail of Bits, Inc.
  * All rights reserved.
  *
  * This source code is licensed in accordance with the terms specified in
@@ -8,42 +8,53 @@
 
 #pragma once
 
-#include "rellic/AST/TransformVisitor.h"
+#include "rellic/AST/ASTPass.h"
 
 namespace rellic {
 
 /*
- * This pass propagates the condition of an outer if or while statement into the
- * conditions of its inner if statements. For example,
+ * This pass propagates the condition of a while or do-while statement to all
+ * subsequent if, while and do-while statements in the same lexical scope.
  *
- *   if(cond_a) {
- *     if(cond_a && cond_b) {
- *       body;
+ *   while(a) {
+ *     foo();
+ *   }
+ *   if(a) {
+ *     bar();
+ *   }
+ *
+ * turns into
+ *
+ *   while(a) {
+ *     foo();
+ *   }
+ *   if(1U) {
+ *     bar();
+ *   }
+ *
+ * It also propagates the conditions of if and while statements to their nested
+ * statements.
+ *
+ *   if(a) {
+ *     if(a && b) {
+ *       foo();
  *     }
  *   }
  *
  * turns into
  *
- *   if(cond_a) {
- *     if(1U && cond_b) {
- *       body;
+ *   if(a) {
+ *     if(1U && b) {
+ *       foo();
  *     }
  *   }
  */
-class NestedCondProp : public TransformVisitor<NestedCondProp> {
- private:
-  std::unordered_map<clang::Stmt *, clang::Expr *> parent_conds;
-
+class NestedCondProp : public ASTPass {
  protected:
   void RunImpl() override;
 
  public:
-  bool shouldTraversePostOrder() override { return false; }
-
   NestedCondProp(Provenance &provenance, clang::ASTUnit &unit);
-
-  bool VisitIfStmt(clang::IfStmt *stmt);
-  bool VisitWhileStmt(clang::WhileStmt *stmt);
 };
 
 }  // namespace rellic

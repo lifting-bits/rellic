@@ -36,10 +36,6 @@ const nc = {
     id: "nc",
     label: "Condition normalization"
 }
-const lcp = {
-    id: "lcp",
-    label: "Loop condition propagation"
-}
 
 Vue.component('list-comp', {
     props: ["items", "availableCommands", "showDelete", "title"],
@@ -110,8 +106,7 @@ const app = new Vue({
             rbr,
             lr,
             ec,
-            nc,
-            lcp
+            nc
         ],
         actions: [
             {
@@ -319,9 +314,10 @@ const app = new Vue({
             this.commands = [
                 dse,
                 [zcs, ncp, nsc, cbr, rbr],
-                [lr, nsc, lcp],
+                [lr, nsc],
                 [zcs, ncp, nsc],
-                ec
+                ec,
+                [zcs, ncp, nsc]
             ]
         },
         openAngha() {

@@ -40,7 +40,6 @@
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
-#include "rellic/AST/LoopCondProp.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
@@ -94,8 +93,8 @@ static void SetVersion(void) {
   google::SetVersionString(version.str());
 }
 
-static const char* available_passes[] = {"cbr", "dse", "ec",  "lr",  "ncp",
-                                         "nsc", "nc",  "rbr", "zcs", "lcp"};
+static const char* available_passes[] = {"cbr", "dse", "ec",  "lr", "ncp",
+                                         "nsc", "nc",  "rbr", "zcs"};
 
 static bool diff = false;
 
@@ -165,8 +164,6 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(const std::string& name) {
     return std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit);
   } else if (name == "zcs") {
     return std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit);
-  } else if (name == "lcp") {
-    return std::make_unique<rellic::LoopCondProp>(provenance, *ast_unit);
   } else {
     return nullptr;
   }

@@ -31,6 +31,23 @@ namespace rellic {
  *   if(1U) {
  *     bar();
  *   }
+ *
+ * It also propagates the conditions of if and while statements to their nested
+ * statements.
+ *
+ *   if(a) {
+ *     if(a && b) {
+ *       foo();
+ *     }
+ *   }
+ *
+ * turns into
+ *
+ *   if(a) {
+ *     if(1U && b) {
+ *       foo();
+ *     }
+ *   }
  */
 class NestedCondProp : public ASTPass {
  protected:

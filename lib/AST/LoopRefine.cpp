@@ -16,6 +16,7 @@
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/InferenceRule.h"
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 
@@ -70,6 +71,43 @@ class WhileRule : public InferenceRule {
   }
 };
 
+class ElseWhileRule : public InferenceRule {
+ public:
+  ElseWhileRule()
+      : InferenceRule(whileStmt(
+            stmt().bind("while"), cond_true,
+            hasBody(compoundStmt(
+                has(ifStmt(stmt().bind("if"), hasElse(comp_break))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) override {
+    auto loop{result.Nodes.getNodeAs<clang::WhileStmt>("while")};
+    auto body{clang::cast<clang::CompoundStmt>(loop->getBody())};
+    auto ifstmt{result.Nodes.getNodeAs<clang::IfStmt>("if")};
+    if (body->body_front() == ifstmt) {
+      match = loop;
+    }
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
+                                       clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) override {
+    auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
+
+    CHECK(loop && loop == match)
+        << "Substituted WhileStmt is not the matched WhileStmt!";
+
+    auto comp{clang::cast<clang::CompoundStmt>(loop->getBody())};
+    auto ifstmt{clang::cast<clang::IfStmt>(comp->body_front())};
+    auto cond{ifstmt->getCond()};
+    std::vector<clang::Stmt *> new_body;
+    new_body.push_back(ifstmt->getThen());
+    std::copy(comp->body_begin() + 1, comp->body_end(),
+              std::back_inserter(new_body));
+    ASTBuilder ast(unit);
+    return ast.CreateWhile(cond, ast.CreateCompoundStmt(new_body));
+  }
+};
+
 class DoWhileRule : public InferenceRule {
  public:
   DoWhileRule()
@@ -109,6 +147,46 @@ class DoWhileRule : public InferenceRule {
     auto cond_inv{ast.CreateLNot(cond)};
     CopyProvenance(cond, cond_inv, provenance.use_provenance);
     return ast.CreateDo(cond_inv, ast.CreateCompoundStmt(new_body));
+  }
+};
+
+class ElseDoWhileRule : public InferenceRule {
+ public:
+  ElseDoWhileRule()
+      : InferenceRule(whileStmt(
+            stmt().bind("while"), cond_true,
+            hasBody(compoundStmt(
+                has(ifStmt(stmt().bind("if"), hasElse(comp_break))))))) {}
+
+  void run(const MatchFinder::MatchResult &result) override {
+    auto loop{result.Nodes.getNodeAs<clang::WhileStmt>("while")};
+    auto body{clang::cast<clang::CompoundStmt>(loop->getBody())};
+    auto ifstmt{result.Nodes.getNodeAs<clang::IfStmt>("if")};
+    if (body->body_back() == ifstmt) {
+      match = loop;
+    }
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
+                                       clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) override {
+    auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
+
+    CHECK(loop && loop == match)
+        << "Substituted WhileStmt is not the matched WhileStmt!";
+
+    auto comp{clang::cast<clang::CompoundStmt>(loop->getBody())};
+    auto ifstmt{clang::cast<clang::IfStmt>(comp->body_back())};
+    auto cond{ifstmt->getCond()};
+    std::vector<clang::Stmt *> new_body(comp->body_begin(),
+                                        comp->body_end() - 1);
+    ASTBuilder ast(unit);
+
+    ifstmt->setElse(nullptr);
+    new_body.push_back(ifstmt);
+
+    auto cond_clone{Clone(unit, cond, provenance.use_provenance)};
+    return ast.CreateDo(cond_clone, ast.CreateCompoundStmt(new_body));
   }
 };
 
@@ -316,6 +394,8 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   rules.emplace_back(new LoopToSeq);
   rules.emplace_back(new WhileRule);
   rules.emplace_back(new DoWhileRule);
+  rules.emplace_back(new ElseWhileRule);
+  rules.emplace_back(new ElseDoWhileRule);
 
   auto sub{ApplyFirstMatchingRule(provenance, ast_unit, loop, rules)};
   if (sub != loop) {

@@ -32,8 +32,8 @@ struct DecompilationOptions {
   } condition_based_refinement;
   struct {
     bool loop_refine = true;
+    bool nested_cond_propagate = true;
     bool nested_scope_combine = true;
-    bool loop_cond_propagate = true;
     bool expression_normalize = false;
   } loop_refinement;
   struct {
@@ -44,6 +44,11 @@ struct DecompilationOptions {
   } scope_refinement;
   bool expression_normalize = false;
   bool expression_combine = true;
+  struct {
+    bool z3_cond_simplify = true;
+    bool nested_cond_propagate = true;
+    bool nested_scope_combine = true;
+  } final_refinement;
 };
 
 struct DecompilationResult {

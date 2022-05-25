@@ -8,6 +8,8 @@
 
 #include "rellic/AST/Z3ConvVisitor.h"
 
+#include <z3++.h>
+
 #include "Util.h"
 
 TEST_SUITE("Z3ConvVisitor::VisitFunctionDecl") {

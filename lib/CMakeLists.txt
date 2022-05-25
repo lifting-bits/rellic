@@ -144,6 +144,7 @@ target_link_libraries("${PROJECT_NAME}"
   PUBLIC
     "${PROJECT_NAME}_cxx_settings"
     glog::glog
+    z3::libz3
     llvm
     clangIndex
     clangCodeGen

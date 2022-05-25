@@ -15,6 +15,7 @@ add_executable(${RELLIC_UNITTEST}
 target_link_libraries(${RELLIC_UNITTEST} PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
+    z3::libz3
     thirdparty_doctest
 )
 

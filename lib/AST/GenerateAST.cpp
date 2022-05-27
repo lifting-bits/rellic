@@ -340,9 +340,12 @@ clang::Expr *GenerateAST::ConvertExpr(z3::expr expr) {
       }
       return res;
     }
-    case Z3_OP_NOT:
+    case Z3_OP_NOT: {
       CHECK_EQ(args.size(), 1) << "Not must have one argument";
-      return ast.CreateLNot(args[0]);
+      auto neg{ast.CreateLNot(args[0])};
+      CopyProvenance(args[0], neg, provenance.use_provenance);
+      return neg;
+    }
     default:
       LOG(FATAL) << "Invalid z3 op";
   }

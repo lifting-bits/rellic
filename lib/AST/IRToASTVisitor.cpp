@@ -144,7 +144,13 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
     } break;
 
     case llvm::Type::PointerTyID: {
-      result = ast_ctx.VoidPtrTy;
+      auto ptr_type{llvm::cast<llvm::PointerType>(type)};
+      if (ptr_type->isOpaque()) {
+        result = ast_ctx.VoidPtrTy;
+      } else {
+        result = ast_ctx.getPointerType(
+            GetQualType(ptr_type->getNonOpaquePointerElementType()));
+      }
     } break;
 
     case llvm::Type::ArrayTyID: {

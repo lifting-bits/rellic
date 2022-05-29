@@ -418,6 +418,34 @@ class CStyleZeroToPtrCastElimRule : public InferenceRule {
   }
 };
 
+// Matches (type)const and subs it for const directly converted to be type
+class CStyleConstElimRule : public InferenceRule {
+ public:
+  CStyleConstElimRule()
+      : InferenceRule(cStyleCastExpr(has(ignoringImpCasts(integerLiteral())))
+                          .bind("cast")) {}
+
+  void run(const MatchFinder::MatchResult &result) override {
+    match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
+                                       clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) override {
+    auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
+    CHECK(cast == match)
+        << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
+
+    auto int_lit{clang::cast<clang::IntegerLiteral>(
+        cast->getSubExpr()->IgnoreParenImpCasts())};
+    auto type{cast->getType()};
+    auto size{unit.getASTContext().getTypeSize(type)};
+    auto value{int_lit->getValue().trunc(size)};
+    return ASTBuilder(unit).CreateIntLit(
+        llvm::APSInt(value, !type->isSignedIntegerType()));
+  }
+};
+
 }  // namespace
 
 ExprCombine::ExprCombine(Provenance &provenance, clang::ASTUnit &u)
@@ -456,6 +484,7 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
 
   rules.emplace_back(new UnsignedToSignedCStyleCastRule);
   rules.emplace_back(new TripleCStyleCastElimRule);
+  rules.emplace_back(new CStyleConstElimRule);
 
   auto sub{ApplyFirstMatchingRule(provenance, ast_unit, cast, rules)};
   if (sub != cast) {

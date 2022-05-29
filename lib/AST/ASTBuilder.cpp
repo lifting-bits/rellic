@@ -19,6 +19,7 @@
 
 #include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/AST/Compat/Stmt.h"
+#include "rellic/AST/Util.h"
 #include "rellic/Exception.h"
 
 namespace rellic {
@@ -51,7 +52,8 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
       clang::isa<clang::FloatingLiteral>(op) ||
       clang::isa<clang::InitListExpr>(op) ||
       clang::isa<clang::CompoundLiteralExpr>(op) ||
-      clang::isa<clang::ParenExpr>(op)) {
+      clang::isa<clang::ParenExpr>(op) ||
+      clang::isa<clang::StringLiteral>(op)) {
     return CExprPrecedence::Value;
   }
 
@@ -77,7 +79,7 @@ static unsigned GetOperatorPrecedence(clang::Expr *op) {
     return CExprPrecedence::CondOp;
   }
 
-  THROW() << "Unknown clang::Expr";
+  THROW() << "Unknown clang::Expr " << ClangThingToString(op);
 
   return 0U;
 }

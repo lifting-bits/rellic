@@ -215,8 +215,8 @@ static void do_load(std::istream& is) {
     return;
   }
 
-  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
-                                module->getTargetTriple()};
+  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-Wno-pointer-sign",
+                                "-target", module->getTargetTriple()};
   ast_unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
   provenance = {};
 

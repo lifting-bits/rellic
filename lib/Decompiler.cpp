@@ -78,7 +78,8 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::DebugInfoCollector dic;
     dic.visit(*module);
 
-    std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
+    std::vector<std::string> args{"-Wno-pointer-to-int-cast",
+                                  "-Wno-pointer-sign", "-target",
                                   module->getTargetTriple()};
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 

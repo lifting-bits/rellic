@@ -93,8 +93,8 @@ int main(int argc, char* argv[]) {
   auto module{rellic::LoadModuleFromFile(llvm_ctx.get(), FLAGS_input)};
   auto dic{std::make_unique<rellic::DebugInfoCollector>()};
   dic->visit(module);
-  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
-                                module->getTargetTriple()};
+  std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-Wno-pointer-sign",
+                                "-target", module->getTargetTriple()};
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
   rellic::StructGenerator strctgen(*ast_unit);
   rellic::SubprogramGenerator subgen(*ast_unit, strctgen);

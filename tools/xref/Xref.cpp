@@ -250,7 +250,8 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
 
   try {
     session.Provenance = {};
-    std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-target",
+    std::vector<std::string> args{"-Wno-pointer-to-int-cast",
+                                  "-Wno-pointer-sign", "-target",
                                   session.Module->getTargetTriple()};
     session.Unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
     rellic::DebugInfoCollector dic;

@@ -72,6 +72,8 @@ DEFINE_string(angha, "./anghabench", "Path for anghabench files");
 
 using namespace std::chrono_literals;
 
+static constexpr auto SessionPersistenceTime{30min};
+
 static void SetVersion(void) {
   std::stringstream version;
 
@@ -152,6 +154,22 @@ static std::unordered_map<std::string, std::string> GetCookies(
   return res;
 }
 
+static void RemoveOldSessions() {
+  auto now{std::chrono::system_clock::now()};
+
+  bool old_sessions_erased{false};
+  do {
+    old_sessions_erased = false;
+    for (auto it{sessions.begin()}; it != sessions.end(); ++it) {
+      if (now - it->second.LastAccess > SessionPersistenceTime) {
+        sessions.erase(it);
+        old_sessions_erased = true;
+        break;
+      }
+    }
+  } while (old_sessions_erased);
+}
+
 static Session& GetSession(const httplib::Request& req) {
   std::unique_lock<std::mutex> lock(sessions_mutex);
   auto now{std::chrono::system_clock::now()};
@@ -167,6 +185,8 @@ static Session& GetSession(const httplib::Request& req) {
       session.Id = id;
       session.Context = std::make_unique<llvm::LLVMContext>();
     }
+
+    RemoveOldSessions();
     return session;
   }
 
@@ -178,12 +198,7 @@ static Session& GetSession(const httplib::Request& req) {
   session.LastAccess = now;
   session.Context = std::make_unique<llvm::LLVMContext>();
 
-  for (auto it{sessions.begin()}; it != sessions.end(); ++it) {
-    if (now - it->second.LastAccess > 30min) {
-      sessions.erase(it);
-    }
-  }
-
+  RemoveOldSessions();
   return session;
 }
 

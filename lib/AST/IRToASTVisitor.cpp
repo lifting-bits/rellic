@@ -520,8 +520,66 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   DLOG(INFO) << "visitGetElementPtrInst: " << LLVMThingToString(&inst);
 
   auto indexed_type{inst.getPointerOperandType()};
-  auto base{
-      CreateOperandExpr(inst.getOperandUse(inst.getPointerOperandIndex()))};
+  auto &ptr_opnd{inst.getOperandUse(inst.getPointerOperandIndex())};
+
+  auto is_string_access = [&]() -> bool {
+    if (inst.getNumIndices() != 2) {
+      return false;
+    }
+
+    for (auto &idx : inst.indices()) {
+      auto const_int{llvm::dyn_cast<llvm::ConstantInt>(idx)};
+      if (!const_int) {
+        return false;
+      }
+
+      if (!const_int->isZero()) {
+        return false;
+      }
+    }
+
+    auto gvar{llvm::dyn_cast<llvm::GlobalVariable>(ptr_opnd)};
+    if (!gvar) {
+      return false;
+    }
+
+    auto constant{gvar->getInitializer()};
+    if (!constant) {
+      return false;
+    }
+
+    // Check if constant can be considered a string literal
+    auto arr_type{llvm::dyn_cast<llvm::ArrayType>(constant->getType())};
+    if (!arr_type) {
+      return false;
+    }
+
+    auto elm_type{arr_type->getElementType()};
+    if (!elm_type->isIntegerTy(8U)) {
+      return false;
+    }
+
+    auto arr{llvm::dyn_cast<llvm::ConstantDataArray>(constant)};
+    if (!arr) {
+      return false;
+    }
+
+    auto init{arr->getAsString().str()};
+    if (init.find('\0') != init.size() - 1) {
+      return false;
+    }
+
+    return true;
+  };
+
+  // Maybe we're inspecting a string reference
+  if (is_string_access()) {
+    auto gvar{llvm::cast<llvm::GlobalVariable>(ptr_opnd)};
+    auto arr{llvm::cast<llvm::ConstantDataArray>(gvar->getInitializer())};
+    return ast.CreateStrLit(arr->getAsString().str().c_str());
+  }
+
+  auto base{CreateOperandExpr(ptr_opnd)};
 
   auto ptr_type{
       ast_ctx.getPointerType(GetQualType(inst.getSourceElementType()))};

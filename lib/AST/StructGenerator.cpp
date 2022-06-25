@@ -162,11 +162,11 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
 
 void StructGenerator::DefineNonPackedStruct(
     clang::RecordDecl* decl, std::vector<OffsetDIDerivedType>& fields) {
-  unsigned field_count{0U};
+  std::unordered_set<std::string> visible_field_names;
   for (auto& field : fields) {
     auto type{
         BuildType(field.type->getBaseType(), field.type->getSizeInBits())};
-    auto name{MakeValid(field.type->getName().str(), field_count++)};
+    auto name{GetUniqueName(field.type->getName().str(), visible_field_names)};
     clang::FieldDecl* fdecl;
     if (field.type->getFlags() & llvm::DINode::DIFlags::FlagBitField) {
       fdecl = ast.CreateFieldDecl(decl, type, name);
@@ -222,6 +222,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
     decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
   }
 
+  std::unordered_set<std::string> visible_field_names;
   for (auto elem : elems) {
     auto curr_offset{isUnion ? 0 : GetStructSize(ast_ctx, ast, fields)};
     DLOG(INFO) << "Field " << elem.type->getName().str()
@@ -236,7 +237,8 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
       decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, info));
     }
 
-    std::string name{MakeValid(elem.type->getName().str(), field_count++)};
+    auto name{GetUniqueName(elem.type->getName().str(), visible_field_names)};
+    ++field_count;
     auto type{BuildType(elem.type->getBaseType(), elem.type->getSizeInBits())};
     CHECK(!type.isNull());
     FieldInfo field{};
@@ -357,7 +359,7 @@ clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
       auto& tdef_decl{typedef_decls[d]};
       if (!tdef_decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
-        auto name{MakeValid(d->getName().str(), decl_count++)};
+        auto name{GetUniqueName(d->getName().str(), visible_tdefs)};
         tdef_decl = ast.CreateTypedefDecl(
             tudecl, name, BuildType(d->getBaseType(), sizeHint));
         tudecl->addDecl(tdef_decl);
@@ -441,10 +443,12 @@ clang::RecordDecl* StructGenerator::GetRecordDecl(llvm::DICompositeType* t) {
     switch (t->getTag()) {
       case llvm::dwarf::DW_TAG_class_type:
       case llvm::dwarf::DW_TAG_structure_type:
-        decl = ast.CreateStructDecl(tudecl, GetUniqueName(t));
+        decl = ast.CreateStructDecl(
+            tudecl, GetUniqueName(t->getName().str(), visible_structs));
         break;
       case llvm::dwarf::DW_TAG_union_type:
-        decl = ast.CreateUnionDecl(tudecl, GetUniqueName(t));
+        decl = ast.CreateUnionDecl(
+            tudecl, GetUniqueName(t->getName().str(), visible_unions));
         break;
       default:
         LOG(FATAL) << "Invalid DICompositeType: " << LLVMThingToString(t);
@@ -462,13 +466,13 @@ clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
 
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto base{BuildType(t->getBaseType())};
-  auto name{GetUniqueName(t)};
+  auto name{GetUniqueName(t->getName().str(), visible_enums)};
   if (base == ast_ctx.IntTy || base == ast_ctx.UnsignedIntTy) {
     auto decl{ast.CreateEnumDecl(tudecl, name)};
-    auto i{0U};
     for (auto elem : t->getElements()) {
       if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-        auto elem_name{MakeValid(enumerator->getName().str(), i++)};
+        auto elem_name{
+            GetUniqueName(enumerator->getName().str(), visible_values)};
         auto cdecl{ast.CreateEnumConstantDecl(
             decl, elem_name, ast.CreateIntLit(enumerator->getValue()))};
         decl->addDecl(cdecl);
@@ -486,7 +490,8 @@ clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
     auto i{0U};
     for (auto elem : t->getElements()) {
       if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
-        auto elem_name{MakeValid(enumerator->getName().str(), i++)};
+        auto elem_name{
+            GetUniqueName(enumerator->getName().str(), visible_values)};
         auto vdecl{
             ast.CreateVarDecl(tudecl, type, elem_name, clang::SC_Static)};
         vdecl->setInit(ast.CreateIntLit(enumerator->getValue()));
@@ -516,8 +521,13 @@ clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
   return {};
 }
 
-std::string StructGenerator::GetUniqueName(llvm::DICompositeType* t) {
-  std::string name{MakeValid(t->getName().str(), decl_count++)};
+std::string StructGenerator::GetUniqueName(
+    const std::string& base, std::unordered_set<std::string>& names) {
+  auto name{base};
+  for (unsigned i{2}; names.find(name) != names.end(); ++i) {
+    name = MakeValid(base, i);
+  }
+  names.insert(name);
   return name;
 }
 

@@ -21,10 +21,7 @@
 #include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/BC/Util.h"
 
-static std::string MakeValid(std::string name, unsigned id) {
-  if (name == "") {
-    name = "anon";
-  }
+static std::string MakeValid(const std::string& name, unsigned id) {
   return name + "_" + std::to_string(id);
 }
 
@@ -523,7 +520,7 @@ clang::QualType StructGenerator::BuildComposite(llvm::DICompositeType* type) {
 
 std::string StructGenerator::GetUniqueName(
     const std::string& base, std::unordered_set<std::string>& names) {
-  auto name{base};
+  auto name{base == "" ? "anon" : base};
   for (unsigned i{2}; names.find(name) != names.end(); ++i) {
     name = MakeValid(base, i);
   }

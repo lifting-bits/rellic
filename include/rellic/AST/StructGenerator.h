@@ -29,14 +29,19 @@ class StructGenerator {
   std::unordered_map<llvm::DICompositeType*, clang::QualType> enum_types{};
   std::unordered_map<llvm::DIDerivedType*, clang::TypedefNameDecl*>
       typedef_decls{};
-  unsigned decl_count{0};
+  std::unordered_set<std::string> visible_structs;
+  std::unordered_set<std::string> visible_unions;
+  std::unordered_set<std::string> visible_enums;
+  std::unordered_set<std::string> visible_tdefs;
+  std::unordered_set<std::string> visible_values;
 
   using DeclToDbgInfo =
       std::unordered_map<clang::FieldDecl*, OffsetDIDerivedType>;
   void VisitFields(clang::RecordDecl* decl, llvm::DICompositeType* s,
                    DeclToDbgInfo& map, bool isUnion);
 
-  std::string GetUniqueName(llvm::DICompositeType* t);
+  std::string GetUniqueName(const std::string& name,
+                            std::unordered_set<std::string>& names);
   clang::RecordDecl* GetRecordDecl(llvm::DICompositeType* t);
   clang::QualType GetEnumDecl(llvm::DICompositeType* t);
 
@@ -65,6 +70,7 @@ class StructGenerator {
 
   template <typename It>
   void GenerateDecls(It begin, It end) {
+    std::unordered_set<std::string> visible_types;
     std::vector<llvm::DICompositeType*> sorted_types{};
     std::unordered_set<llvm::DIType*> visited_types{};
     for (auto i{begin}; i != end; ++i) {

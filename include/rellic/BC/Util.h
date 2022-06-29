@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <string>
+#include <llvm/IR/IntrinsicInst.h>
 
-#include "rellic/BC/Compat/IntrinsicInst.h"
+#include <string>
 
 namespace llvm {
 class Module;
@@ -18,6 +18,7 @@ class Type;
 class Value;
 class LLVMContext;
 class GlobalObject;
+class DIType;
 }  // namespace llvm
 
 namespace rellic {

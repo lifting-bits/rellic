@@ -19,6 +19,8 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Verifier.h>
+#include <llvm/IRReader/IRReader.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/MemoryBuffer.h>
@@ -30,10 +32,6 @@
 #include <llvm/Transforms/Utils/LowerSwitch.h>
 
 #include <unordered_map>
-
-#include "rellic/BC/Compat/Error.h"
-#include "rellic/BC/Compat/IRReader.h"
-#include "rellic/BC/Compat/Verifier.h"
 
 namespace rellic {
 

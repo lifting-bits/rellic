@@ -20,9 +20,6 @@
 #include <iterator>
 
 #include "rellic/AST/IRToASTVisitor.h"
-#include "rellic/BC/Compat/DerivedTypes.h"
-#include "rellic/BC/Compat/IntrinsicInst.h"
-#include "rellic/BC/Compat/Value.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -199,9 +196,9 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
 
     default: {
       if (type->isVectorTy()) {
-        auto vtype{llvm::cast<llvm::VectorType>(type)};
+        auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
         auto etype{GetQualType(vtype->getElementType())};
-        auto ecnt{GetNumElements(vtype)};
+        auto ecnt{vtype->getNumElements()};
         auto vkind{clang::VectorType::GenericVector};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
       } else {
@@ -224,7 +221,7 @@ clang::Expr *ExprGen::CreateConstantExpr(llvm::Constant *constant) {
     auto inst{cexpr->getAsInstruction()};
     auto expr{visit(inst)};
     provenance.use_provenance.erase(expr);
-    DeleteValue(inst);
+    inst->deleteValue();
     return expr;
   } else if (auto alias = llvm::dyn_cast<llvm::GlobalAlias>(constant)) {
     return CreateConstantExpr(alias->getAliasee());

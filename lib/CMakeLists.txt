@@ -57,15 +57,6 @@ set(BC_HEADERS
   "${include_dir}/BC/Version.h"
 )
 
-set(BC_COMPAT_HEADERS
-  "${include_dir}/BC/Compat/DerivedTypes.h"
-  "${include_dir}/BC/Compat/Error.h"
-  "${include_dir}/BC/Compat/IntrinsicInst.h"
-  "${include_dir}/BC/Compat/IRReader.h"
-  "${include_dir}/BC/Compat/Value.h"
-  "${include_dir}/BC/Compat/Verifier.h"
-)
-
 set(VERSION_HEADERS
   "${include_dir}/Version.h"
 )
@@ -74,7 +65,6 @@ set(public_HEADERS
   ${AST_HEADERS}
   ${AST_COMPAT_HEADERS}
   ${BC_HEADERS}
-  ${BC_COMPAT_HEADERS}
   ${VERSION_HEADERS}
 )
 
@@ -112,17 +102,12 @@ set(BC_SOURCES
   BC/Util.cpp
 )
 
-set(BC_COMPAT_SOURCES
-  BC/Compat/Value.cpp
-)
-
 
 add_library("${PROJECT_NAME}" STATIC
   ${public_HEADERS}
   ${AST_SOURCES}
   ${AST_COMPAT_SOURCES}
   ${BC_SOURCES}
-  ${BC_COMPAT_SOURCES}
 
   Decompiler.cpp
   Exception.cpp

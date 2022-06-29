@@ -45,13 +45,6 @@ set(AST_HEADERS
   "${include_dir}/AST/Z3ConvVisitor.h"
 )
 
-set(AST_COMPAT_HEADERS
-  "${include_dir}/AST/Compat/ASTContext.h"
-  "${include_dir}/AST/Compat/Mangle.h"
-  "${include_dir}/AST/Compat/Stmt.h"
-  "${include_dir}/AST/Compat/Type.h"
-)
-
 set(BC_HEADERS
   "${include_dir}/BC/Util.h"
   "${include_dir}/BC/Version.h"
@@ -63,15 +56,8 @@ set(VERSION_HEADERS
 
 set(public_HEADERS
   ${AST_HEADERS}
-  ${AST_COMPAT_HEADERS}
   ${BC_HEADERS}
   ${VERSION_HEADERS}
-)
-
-set(AST_COMPAT_SOURCES
-  AST/Compat/ASTContext.cpp
-  AST/Compat/Mangle.cpp
-  AST/Compat/Stmt.cpp
 )
 
 set(AST_SOURCES
@@ -106,7 +92,6 @@ set(BC_SOURCES
 add_library("${PROJECT_NAME}" STATIC
   ${public_HEADERS}
   ${AST_SOURCES}
-  ${AST_COMPAT_SOURCES}
   ${BC_SOURCES}
 
   Decompiler.cpp

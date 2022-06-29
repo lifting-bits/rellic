@@ -9,12 +9,10 @@
 #include "rellic/AST/CXXToCDecl.h"
 
 #include <clang/AST/Mangle.h>
+#include <clang/AST/Type.h>
 #include <clang/Frontend/ASTUnit.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-
-#include "rellic/AST/Compat/Mangle.h"
-#include "rellic/AST/Compat/Type.h"
 
 namespace rellic {
 
@@ -29,11 +27,9 @@ static std::string GetMangledName(clang::NamedDecl *decl) {
       auto type = clang::QualType(type_decl->getTypeForDecl(), 0);
       mangler->mangleTypeName(type, os);
     } else if (auto cst = clang::dyn_cast<clang::CXXConstructorDecl>(decl)) {
-      MangleNameCXXCtor(mangler, cst, os);
-      // mangler->mangleCXXCtor(cst, clang::Ctor_Complete, os);
+      mangler->mangleName(clang::GlobalDecl(cst), os);
     } else if (auto dst = clang::dyn_cast<clang::CXXDestructorDecl>(decl)) {
-      MangleNameCXXDtor(mangler, dst, os);
-      // mangler->mangleCXXDtor(dst, clang::Dtor_Complete, os);
+      mangler->mangleName(clang::GlobalDecl(dst), os);
     } else {
       mangler->mangleName(decl, os);
     }
@@ -60,7 +56,8 @@ clang::QualType CXXToCDeclVisitor::GetAsCType(clang::QualType type) {
     auto pointee = GetAsCType(ref->getPointeeType());
     auto ptr = ast_ctx.getPointerType(pointee);
     // Add `_Nonnull` attribute
-    auto attr_type = ast_ctx.getAttributedType(attr_nonnull, ptr, ptr);
+    auto attr_type =
+        ast_ctx.getAttributedType(clang::attr::TypeNonNull, ptr, ptr);
     result = attr_type.getTypePtr();
   } else if (auto cls = type->getAsCXXRecordDecl()) {
     // Handle class-type attributes by translating to struct types

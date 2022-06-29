@@ -23,7 +23,6 @@
 #include <unordered_map>
 
 #include "rellic/AST/ASTBuilder.h"
-#include "rellic/AST/Compat/ASTContext.h"
 
 namespace rellic {
 class IRToASTVisitor {

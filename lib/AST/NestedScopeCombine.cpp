@@ -11,8 +11,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Compat/Stmt.h"
-
 namespace rellic {
 
 NestedScopeCombine::NestedScopeCombine(Provenance &provenance,
@@ -23,7 +21,7 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
-  auto if_const_expr = rellic::GetIntegerConstantExprFromIf(ifstmt, ast_ctx);
+  auto if_const_expr = ifstmt->getCond()->getIntegerConstantExpr(ast_ctx);
   bool is_const = if_const_expr.hasValue();
   if (is_const && if_const_expr->getBoolValue()) {
     substitutions[ifstmt] = ifstmt->getThen();

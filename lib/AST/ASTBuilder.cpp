@@ -17,8 +17,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
-#include "rellic/AST/Compat/ASTContext.h"
-#include "rellic/AST/Compat/Stmt.h"
 #include "rellic/AST/Util.h"
 #include "rellic/Exception.h"
 
@@ -110,7 +108,7 @@ clang::QualType ASTBuilder::GetLeastIntTypeForBitWidth(unsigned size,
 }
 
 clang::QualType ASTBuilder::GetLeastRealTypeForBitWidth(unsigned size) {
-  auto result{GetRealTypeForBitwidth(ctx, size)};
+  auto result{ctx.getRealTypeForBitwidth(size, clang::FloatModeKind::Float)};
   if (!result.isNull()) {
     return result;
   }
@@ -461,7 +459,8 @@ clang::CompoundStmt *ASTBuilder::CreateCompoundStmt(
   // sema.ActOnFinishOfCompoundStmt();
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::CompoundStmt>();
-  return rellic::CreateCompoundStmt(ctx, stmts);
+  return clang::CompoundStmt::Create(ctx, stmts, clang::SourceLocation(),
+                                     clang::SourceLocation());
 }
 
 clang::CompoundLiteralExpr *ASTBuilder::CreateCompoundLit(clang::QualType type,
@@ -497,7 +496,9 @@ clang::WhileStmt *ASTBuilder::CreateWhile(clang::Expr *cond,
   CHECK(cond != nullptr) << "Should not be null in CreateWhile.";
   auto cer{sema.CheckBooleanCondition(clang::SourceLocation(), cond)};
   CHECK(!cer.isInvalid());
-  return CreateWhileStmt(ctx, cer.get(), body);
+  return clang::WhileStmt::Create(
+      ctx, nullptr, cond, body, clang::SourceLocation(),
+      clang::SourceLocation(), clang::SourceLocation());
 }
 
 clang::DoStmt *ASTBuilder::CreateDo(clang::Expr *cond, clang::Stmt *body) {
@@ -526,7 +527,8 @@ clang::ReturnStmt *ASTBuilder::CreateReturn(clang::Expr *retval) {
   // auto sr{sema.BuildReturnStmt(clang::SourceLocation(), retval)};
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::ReturnStmt>();
-  return CreateReturnStmt(ctx, retval);
+  return clang::ReturnStmt::Create(ctx, clang::SourceLocation(), retval,
+                                   nullptr);
 }
 
 clang::TypedefDecl *ASTBuilder::CreateTypedefDecl(clang::DeclContext *decl_ctx,

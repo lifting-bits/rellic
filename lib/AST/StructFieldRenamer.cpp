@@ -15,8 +15,6 @@
 
 #include <unordered_set>
 
-#include "rellic/AST/Compat/Stmt.h"
-
 namespace rellic {
 
 StructFieldRenamer::StructFieldRenamer(Provenance &provenance,

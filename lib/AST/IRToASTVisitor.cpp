@@ -153,7 +153,9 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
     case llvm::Type::ArrayTyID: {
       auto arr{llvm::cast<llvm::ArrayType>(type)};
       auto elm{GetQualType(arr->getElementType())};
-      result = GetConstantArrayType(ast_ctx, elm, arr->getNumElements());
+      result = ast_ctx.getConstantArrayType(
+          elm, llvm::APInt(64, arr->getNumElements()), nullptr,
+          clang::ArrayType::ArraySizeModifier::Normal, 0);
     } break;
 
     case llvm::Type::StructTyID: {

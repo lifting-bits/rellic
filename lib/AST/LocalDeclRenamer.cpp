@@ -14,8 +14,6 @@
 
 #include <ios>
 
-#include "rellic/AST/Compat/Stmt.h"
-
 namespace rellic {
 
 LocalDeclRenamer::LocalDeclRenamer(Provenance &provenance, clang::ASTUnit &unit,

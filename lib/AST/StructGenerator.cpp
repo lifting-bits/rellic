@@ -12,13 +12,13 @@
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/RecordLayout.h>
+#include <clang/Basic/TargetInfo.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
 #include <string>
 #include <unordered_set>
 
-#include "rellic/AST/Compat/ASTContext.h"
 #include "rellic/BC/Util.h"
 
 static std::string MakeValid(const std::string& name, unsigned id) {
@@ -116,8 +116,9 @@ static FieldInfo CreatePadding(clang::ASTContext& ast_ctx,
     return {name, ast_ctx.LongLongTy, needed_padding};
   } else {
     auto padding_count{needed_padding / type_size};
-    auto padding_arr_type{
-        rellic::GetConstantArrayType(ast_ctx, padding_type, padding_count)};
+    auto padding_arr_type{ast_ctx.getConstantArrayType(
+        padding_type, llvm::APInt(64, padding_count), nullptr,
+        clang::ArrayType::ArraySizeModifier::Normal, 0)};
     return {name, padding_arr_type, 0};
   }
 }
@@ -332,7 +333,9 @@ clang::QualType StructGenerator::BuildArray(llvm::DICompositeType* a) {
   auto base{BuildType(a->getBaseType())};
   auto subrange{llvm::cast<llvm::DISubrange>(a->getElements()[0])};
   auto* ci = subrange->getCount().get<llvm::ConstantInt*>();
-  return rellic::GetConstantArrayType(ast_ctx, base, ci->getZExtValue());
+  return ast_ctx.getConstantArrayType(
+      base, llvm::APInt(64, ci->getZExtValue()), nullptr,
+      clang::ArrayType::ArraySizeModifier::Normal, 0);
 }
 
 clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
@@ -398,7 +401,8 @@ clang::QualType StructGenerator::BuildBasic(llvm::DIBasicType* b,
   }
 
   if (b->getEncoding() == llvm::dwarf::DW_ATE_float) {
-    return GetRealTypeForBitwidth(ast_ctx, b->getSizeInBits());
+    return ast_ctx.getRealTypeForBitwidth(b->getSizeInBits(),
+                                          clang::FloatModeKind::Float);
   } else {
     if (char_size == b_size && char_signed == b_signed) {
       return ast_ctx.CharTy;

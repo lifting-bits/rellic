@@ -29,6 +29,7 @@
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
 #include "rellic/AST/LoopRefine.h"
+#include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
 #include "rellic/AST/NormalizeCond.h"
@@ -86,6 +87,9 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     rellic::Provenance provenance;
     rellic::GenerateAST::run(*module, provenance, *ast_unit);
+    ASTBuilder ast{*ast_unit};
+    provenance.marker_expr =
+        ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse());
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
@@ -190,6 +194,8 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     rellic::CompositeASTPass pass_ec{provenance, *ast_unit};
     auto& ec_passes{pass_ec.GetPasses()};
+    ec_passes.push_back(
+        std::make_unique<rellic::MaterializeConds>(provenance, *ast_unit));
     if (options.expression_combine) {
       ec_passes.push_back(
           std::make_unique<rellic::ExprCombine>(provenance, *ast_unit));

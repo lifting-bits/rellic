@@ -18,53 +18,67 @@
 namespace rellic {
 
 CondBasedRefine::CondBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<CondBasedRefine>(provenance, unit),
-      z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())),
-      z3_solver(*z3_ctx, "sat") {}
+    : TransformVisitor<CondBasedRefine>(provenance, unit) {}
 
-z3::expr CondBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
-  auto cond = ifstmt->getCond();
-  auto expr = z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(cond));
-  return expr.simplify();
-}
+void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
+  auto RemoveFromWorkList = [&worklist](clang::Stmt *stmt) {
+    auto it = std::find(worklist.begin(), worklist.end(), stmt);
+    if (it != worklist.end()) {
+      worklist.erase(it);
+    }
+  };
 
-bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
-  std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
-  bool did_something{false};
-  for (size_t i{0}; i + 1 < body.size() && !Stopped(); ++i) {
-    auto if_a{clang::dyn_cast<clang::IfStmt>(body[i])};
-    auto if_b{clang::dyn_cast<clang::IfStmt>(body[i + 1])};
+  auto ThenTest = [this](z3::expr lhs, z3::expr rhs) {
+    return Prove(provenance.z3_ctx, lhs == rhs);
+  };
 
-    if (!if_a || !if_b) {
+  auto ElseTest = [this](z3::expr lhs, z3::expr rhs) {
+    return Prove(provenance.z3_ctx, lhs == !rhs);
+  };
+
+  auto CombineTest = [this](z3::expr lhs, z3::expr rhs) {
+    return Prove(provenance.z3_ctx, z3::implies(rhs, lhs));
+  };
+
+  while (!worklist.empty()) {
+    auto lhs = *worklist.begin();
+    RemoveFromWorkList(lhs);
+    // Prepare conditions according to which we're going to
+    // cluster statements according to the whole `lhs`
+    // condition.
+    auto lcond = provenance.z3_exprs[provenance.conds[lhs]];
+    // Get branch candidates wrt `clause`
+    std::vector<clang::Stmt *> thens({lhs}), elses;
+    for (auto rhs : worklist) {
+      auto rcond = provenance.z3_exprs[provenance.conds[rhs]];
+      if (ThenTest(lcond, rcond) || CombineTest(lcond, rcond)) {
+        thens.push_back(rhs);
+      } else if (ElseTest(lcond, rcond) || CombineTest(!lcond, rcond)) {
+        elses.push_back(rhs);
+      }
+    }
+
+    // Check if we have enough statements to work with
+    if (thens.size() + elses.size() < 2) {
       continue;
     }
 
-    auto then_a{if_a->getThen()};
-    auto then_b{if_b->getThen()};
-
-    auto else_a{if_a->getElse()};
-    auto else_b{if_b->getElse()};
-
-    auto cond_a{GetZ3Cond(if_a)};
-    auto cond_b{GetZ3Cond(if_b)};
-
-    clang::IfStmt *new_if{};
-    std::vector<clang::Stmt *> new_then_body{then_a};
-    if (Prove(*z3_ctx, cond_a == cond_b)) {
-      new_then_body.push_back(then_b);
-      auto new_then{ast.CreateCompoundStmt(new_then_body)};
-      new_if = ast.CreateIf(if_a->getCond(), new_then);
-
-      if (else_a || else_b) {
-        std::vector<clang::Stmt *> new_else_body;
-        if (else_a) {
-          new_else_body.push_back(else_a);
-        }
-        if (else_b) {
-          new_else_body.push_back(else_b);
-        }
-        new_if->setElse(ast.CreateCompoundStmt(new_else_body));
+    // Erase then statements from the AST and `worklist`
+    for (auto stmt : thens) {
+      RemoveFromWorkList(stmt);
+      substitutions[stmt] = nullptr;
+    }
+    // Create our new if-then
+    auto sub =
+        ast.CreateIf(provenance.marker_expr, ast.CreateCompoundStmt(thens));
+    provenance.conds[sub] = provenance.z3_exprs.size();
+    provenance.z3_exprs.push_back(lcond);
+    // Create an else branch if possible
+    if (!elses.empty()) {
+      // Erase else statements from the AST and `worklist`
+      for (auto stmt : elses) {
+        RemoveFromWorkList(stmt);
+        substitutions[stmt] = nullptr;
       }
     } else if (Prove(*z3_ctx, cond_a == !cond_b)) {
       if (else_b) {

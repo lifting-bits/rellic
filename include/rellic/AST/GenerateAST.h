@@ -25,28 +25,15 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   friend llvm::AnalysisInfoMixin<GenerateAST>;
   static llvm::AnalysisKey Key;
 
+  constexpr static unsigned POISON_IDX = static_cast<unsigned>(-1);
+
   // Need to use `map` with these instead of `unordered_map`, because
   // `std::pair` doesn't have a default hash implementation
-  using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
-  using BrEdge = std::pair<llvm::BranchInst *, bool>;
-  using SwEdge = std::pair<llvm::SwitchInst *, llvm::ConstantInt *>;
   clang::ASTUnit &unit;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor ast_gen;
   rellic::ASTBuilder ast;
-  z3::context *z_ctx;
-
   Provenance &provenance;
-
-  z3::expr_vector z_exprs;
-  std::unordered_map<unsigned, BrEdge> z_br_edges_inv;
-  std::map<BrEdge, unsigned> z_br_edges;
-
-  std::unordered_map<unsigned, SwEdge> z_sw_edges_inv;
-  std::map<SwEdge, unsigned> z_sw_edges;
-
-  std::map<BBEdge, unsigned> z_edges;
-  std::unordered_map<llvm::BasicBlock *, unsigned> reaching_conds;
   bool reaching_conds_changed{true};
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
@@ -57,15 +44,13 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
   std::vector<llvm::BasicBlock *> rpo_walk;
 
-  z3::expr GetOrCreateEdgeForBranch(llvm::BranchInst *inst, bool cond);
-  z3::expr GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
+  unsigned GetOrCreateEdgeForBranch(llvm::BranchInst *inst, bool cond);
+  unsigned GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                     llvm::ConstantInt *c);
 
-  z3::expr GetOrCreateEdgeCond(llvm::BasicBlock *from, llvm::BasicBlock *to);
-  z3::expr GetReachingCond(llvm::BasicBlock *block);
+  unsigned GetOrCreateEdgeCond(llvm::BasicBlock *from, llvm::BasicBlock *to);
+  unsigned GetReachingCond(llvm::BasicBlock *block);
   void CreateReachingCond(llvm::BasicBlock *block);
-
-  clang::Expr *ConvertExpr(z3::expr expr);
 
   std::vector<clang::Stmt *> CreateBasicBlockStmts(llvm::BasicBlock *block);
   std::vector<clang::Stmt *> CreateRegionStmts(llvm::Region *region);

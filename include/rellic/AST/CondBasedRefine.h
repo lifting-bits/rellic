@@ -35,12 +35,9 @@ namespace rellic {
  */
 class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
  private:
-  std::unique_ptr<z3::context> z3_ctx;
-  std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
+  using IfStmtVec = std::vector<clang::IfStmt *>;
 
-  z3::tactic z3_solver;
-
-  z3::expr GetZ3Cond(clang::IfStmt *ifstmt);
+  void CreateIfThenElseStmts(IfStmtVec stmts);
 
  protected:
   void RunImpl() override;

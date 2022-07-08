@@ -136,76 +136,97 @@ static std::string GetName(llvm::Value *v) {
   return s;
 }
 
-z3::expr GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
+unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
                                                bool cond) {
-  if (z_br_edges.find({inst, cond}) == z_br_edges.end()) {
+  auto ToExpr = [&](unsigned idx) {
+    if (idx == POISON_IDX) {
+      return provenance.z3_ctx.bool_val(false);
+    }
+    return provenance.z3_exprs[idx];
+  };
+  if (provenance.z3_br_edges.find({inst, cond}) ==
+      provenance.z3_br_edges.end()) {
     if (cond) {
       auto name{GetName(inst)};
-      auto edge{z_ctx->bool_const(name.c_str())};
-      z_br_edges[{inst, cond}] = z_exprs.size();
-      z_exprs.push_back(edge);
-      z_br_edges_inv[edge.id()] = {inst, true};
+      auto edge{provenance.z3_ctx.bool_const(name.c_str())};
+      provenance.z3_br_edges[{inst, cond}] = provenance.z3_exprs.size();
+      provenance.z3_exprs.push_back(edge);
+      provenance.z3_br_edges_inv[edge.id()] = {inst, true};
     } else {
-      auto edge{!(GetOrCreateEdgeForBranch(inst, true))};
-      z_br_edges[{inst, cond}] = z_exprs.size();
-      z_exprs.push_back(edge);
+      auto edge{!(ToExpr(GetOrCreateEdgeForBranch(inst, true)))};
+      provenance.z3_br_edges[{inst, cond}] = provenance.z3_exprs.size();
+      provenance.z3_exprs.push_back(edge);
     }
   }
 
-  return z_exprs[z_br_edges[{inst, cond}]];
+  return provenance.z3_br_edges[{inst, cond}];
 }
 
-z3::expr GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
+unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                                llvm::ConstantInt *c) {
-  if (z_sw_edges.find({inst, c}) == z_sw_edges.end()) {
+  auto ToExpr = [&](unsigned idx) {
+    if (idx == POISON_IDX) {
+      return provenance.z3_ctx.bool_val(false);
+    }
+    return provenance.z3_exprs[idx];
+  };
+  if (provenance.z3_sw_edges.find({inst, c}) == provenance.z3_sw_edges.end()) {
     if (c) {
       auto name{GetName(inst) +
                 GetName(inst->findCaseValue(c)->getCaseSuccessor())};
-      auto edge{z_ctx->bool_const(name.c_str())};
-      z_sw_edges_inv[edge.id()] = {inst, c};
+      auto edge{provenance.z3_ctx.bool_const(name.c_str())};
+      provenance.z3_sw_edges_inv[edge.id()] = {inst, c};
 
-      z_sw_edges[{inst, c}] = z_exprs.size();
-      z_exprs.push_back(edge);
+      provenance.z3_sw_edges[{inst, c}] = provenance.z3_exprs.size();
+      provenance.z3_exprs.push_back(edge);
     } else {
       // Default case
-      auto edge{z_ctx->bool_val(true)};
+      auto edge{provenance.z3_ctx.bool_val(true)};
       for (auto sw_case : inst->cases()) {
-        edge = edge && !GetOrCreateEdgeForSwitch(inst, sw_case.getCaseValue());
+        edge = edge &&
+               !ToExpr(GetOrCreateEdgeForSwitch(inst, sw_case.getCaseValue()));
       }
       edge = edge.simplify();
-      z_sw_edges[{inst, c}] = z_exprs.size();
-      z_exprs.push_back(edge);
+      provenance.z3_sw_edges[{inst, c}] = provenance.z3_exprs.size();
+      provenance.z3_exprs.push_back(edge);
     }
   }
 
-  return z_exprs[z_sw_edges[{inst, c}]];
+  return provenance.z3_sw_edges[{inst, c}];
 }
 
-z3::expr GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
+unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
                                           llvm::BasicBlock *to) {
-  if (z_edges.find({from, to}) == z_edges.end()) {
+  auto ToExpr = [&](unsigned idx) {
+    if (idx == POISON_IDX) {
+      return provenance.z3_ctx.bool_val(false);
+    }
+    return provenance.z3_exprs[idx];
+  };
+  if (provenance.z3_edges.find({from, to}) == provenance.z3_edges.end()) {
     // Construct the edge condition for CFG edge `(from, to)`
-    auto result{z_ctx->bool_val(true)};
+    auto result{provenance.z3_ctx.bool_val(true)};
     auto term = from->getTerminator();
     switch (term->getOpcode()) {
       // Conditional branches
       case llvm::Instruction::Br: {
         auto br = llvm::cast<llvm::BranchInst>(term);
         if (br->isConditional()) {
-          result = GetOrCreateEdgeForBranch(br, to == br->getSuccessor(0));
+          result =
+              ToExpr(GetOrCreateEdgeForBranch(br, to == br->getSuccessor(0)));
         }
       } break;
       // Switches
       case llvm::Instruction::Switch: {
         auto sw{llvm::cast<llvm::SwitchInst>(term)};
         if (to == sw->getDefaultDest()) {
-          result = GetOrCreateEdgeForSwitch(sw, nullptr);
+          result = ToExpr(GetOrCreateEdgeForSwitch(sw, nullptr));
         } else {
-          result = z_ctx->bool_val(false);
+          result = provenance.z3_ctx.bool_val(false);
           for (auto sw_case : sw->cases()) {
             if (sw_case.getCaseSuccessor() == to) {
-              result = result ||
-                       GetOrCreateEdgeForSwitch(sw, sw_case.getCaseValue());
+              result = result || ToExpr(GetOrCreateEdgeForSwitch(
+                                     sw, sw_case.getCaseValue()));
             }
           }
         }
@@ -229,60 +250,57 @@ z3::expr GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
         break;
     }
 
-    z_edges[{from, to}] = z_exprs.size();
-    z_exprs.push_back(result.simplify());
+    provenance.z3_edges[{from, to}] = provenance.z3_exprs.size();
+    provenance.z3_exprs.push_back(result.simplify());
   }
 
-  return z_exprs[z_edges[{from, to}]];
+  return provenance.z3_edges[{from, to}];
 }
 
-z3::expr GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
-  if (reaching_conds.find(block) == reaching_conds.end()) {
-    return z_ctx->bool_val(false);
+unsigned GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
+  if (provenance.reaching_conds.find(block) ==
+      provenance.reaching_conds.end()) {
+    return POISON_IDX;
   }
 
-  return z_exprs[reaching_conds[block]];
+  return provenance.reaching_conds[block];
 }
 
 void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
-  auto Simplify{[this](z3::expr expr) {
-    if (Prove(*z_ctx, expr)) {
-      return z_ctx->bool_val(true);
+  auto ToExpr = [&](unsigned idx) {
+    if (idx == POISON_IDX) {
+      return provenance.z3_ctx.bool_val(false);
     }
+    return provenance.z3_exprs[idx];
+  };
 
-    z3::tactic aig(*z_ctx, "aig");
-    z3::tactic simplify(*z_ctx, "simplify");
-    z3::tactic ctx_solver_simplify(*z_ctx, "ctx-solver-simplify");
-    auto tactic{simplify & aig & ctx_solver_simplify};
-    return ApplyTactic(*z_ctx, tactic, expr).as_expr();
-  }};
-
-  auto old_cond{GetReachingCond(block)};
+  auto old_cond{ToExpr(GetReachingCond(block))};
   if (block->hasNPredecessorsOrMore(1)) {
     // Gather reaching conditions from predecessors of the block
-    auto cond{z_ctx->bool_val(false)};
+    auto cond{provenance.z3_ctx.bool_val(false)};
     for (auto pred : llvm::predecessors(block)) {
-      auto pred_cond{GetReachingCond(pred)};
-      auto edge_cond{GetOrCreateEdgeCond(pred, block)};
+      auto pred_cond{ToExpr(GetReachingCond(pred))};
+      auto edge_cond{ToExpr(GetOrCreateEdgeCond(pred, block))};
       // Construct reaching condition from `pred` to `block` as
       // `reach_cond[pred] && edge_cond(pred, block)` or one of
       // the two if the other one is missing.
-      auto conj_cond{Simplify(pred_cond && edge_cond)};
+      auto conj_cond{HeavySimplify(provenance.z3_ctx, pred_cond && edge_cond)};
       // Append `conj_cond` to reaching conditions of other
       // predecessors via an `||`. Use `conj_cond` if there
       // is no `cond` yet.
-      cond = Simplify(cond || conj_cond);
+      cond = HeavySimplify(provenance.z3_ctx, cond || conj_cond);
     }
 
-    if (!Prove(*z_ctx, old_cond == cond)) {
-      reaching_conds[block] = z_exprs.size();
-      z_exprs.push_back(cond);
+    if (!Prove(provenance.z3_ctx, old_cond == cond)) {
+      provenance.reaching_conds[block] = provenance.z3_exprs.size();
+      provenance.z3_exprs.push_back(cond);
       reaching_conds_changed = true;
     }
   } else {
-    if (reaching_conds.find(block) == reaching_conds.end()) {
-      reaching_conds[block] = z_exprs.size();
-      z_exprs.push_back(z_ctx->bool_val(true));
+    if (provenance.reaching_conds.find(block) ==
+        provenance.reaching_conds.end()) {
+      provenance.reaching_conds[block] = provenance.z3_exprs.size();
+      provenance.z3_exprs.push_back(provenance.z3_ctx.bool_val(true));
       reaching_conds_changed = true;
     }
   }
@@ -294,65 +312,13 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
   return result;
 }
 
-clang::Expr *GenerateAST::ConvertExpr(z3::expr expr) {
-  auto hash{expr.id()};
-  if (z_br_edges_inv.find(hash) != z_br_edges_inv.end()) {
-    auto edge{z_br_edges_inv[hash]};
-    CHECK(edge.second) << "Inverse map should only be populated for branches "
-                          "taken when condition is true";
-    return ast_gen.CreateOperandExpr(*(edge.first->op_end() - 3));
-  }
-
-  if (z_sw_edges_inv.find(hash) != z_sw_edges_inv.end()) {
-    auto edge{z_sw_edges_inv[hash]};
-    CHECK(edge.second)
-        << "Inverse map should only be populated for not-default switch cases";
-
-    auto opnd{ast_gen.CreateOperandExpr(edge.first->getOperandUse(0))};
-    return ast.CreateEQ(opnd, ast_gen.CreateConstantExpr(edge.second));
-  }
-
-  std::vector<clang::Expr *> args;
-  for (auto i{0U}; i < expr.num_args(); ++i) {
-    args.push_back(ConvertExpr(expr.arg(i)));
-  }
-
-  switch (expr.decl().decl_kind()) {
-    case Z3_OP_TRUE:
-      CHECK_EQ(args.size(), 0) << "True cannot have arguments";
-      return ast.CreateTrue();
-    case Z3_OP_FALSE:
-      CHECK_EQ(args.size(), 0) << "False cannot have arguments";
-      return ast.CreateFalse();
-    case Z3_OP_AND: {
-      CHECK_GE(args.size(), 2) << "And must have at least 2 arguments";
-      clang::Expr *res{args[0]};
-      for (auto i{1U}; i < args.size(); ++i) {
-        res = ast.CreateLAnd(res, args[i]);
-      }
-      return res;
-    }
-    case Z3_OP_OR: {
-      CHECK_GE(args.size(), 2) << "Or must have at least 2 arguments";
-      clang::Expr *res{args[0]};
-      for (auto i{1U}; i < args.size(); ++i) {
-        res = ast.CreateLOr(res, args[i]);
-      }
-      return res;
-    }
-    case Z3_OP_NOT: {
-      CHECK_EQ(args.size(), 1) << "Not must have one argument";
-      auto neg{ast.CreateLNot(args[0])};
-      CopyProvenance(args[0], neg, provenance.use_provenance);
-      return neg;
-    }
-    default:
-      LOG(FATAL) << "Invalid z3 op";
-  }
-  return nullptr;
-}
-
 StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
+  auto ToExpr = [&](unsigned idx) {
+    if (idx == POISON_IDX) {
+      return provenance.z3_ctx.bool_val(false);
+    }
+    return provenance.z3_exprs[idx];
+  };
   StmtVec result;
   for (auto block : rpo_walk) {
     // Check if the block is a subregion entry
@@ -375,7 +341,8 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     }
     // Gate the compound behind a reaching condition
     auto z_expr{GetReachingCond(block)};
-    block_stmts[block] = ast.CreateIf(ConvertExpr(z_expr), compound);
+    block_stmts[block] = ast.CreateIf(provenance.marker_expr, compound);
+    provenance.conds[block_stmts[block]] = z_expr;
     // Store the compound
     result.push_back(block_stmts[block]);
   }
@@ -437,6 +404,12 @@ clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
 }
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
+  auto ToExpr = [&](unsigned idx) {
+    if (idx == POISON_IDX) {
+      return provenance.z3_ctx.bool_val(false);
+    }
+    return provenance.z3_exprs[idx];
+  };
   DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is cyclic";
   auto region_body = CreateRegionStmts(region);
   // Get the loop for which the entry block of the region is a header
@@ -476,15 +449,18 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   for (auto edge : exits) {
     auto from = edge.first;
     auto to = edge.second;
-    // Create edge condition
-    auto z_expr{GetReachingCond(from) && GetOrCreateEdgeCond(from, to)};
-    auto cond{ConvertExpr(z_expr.simplify())};
     // Find the statement corresponding to the exiting block
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
     StmtVec break_stmt({ast.CreateBreak()});
-    auto exit_stmt = ast.CreateIf(cond, ast.CreateCompoundStmt(break_stmt));
+    auto exit_stmt = ast.CreateIf(provenance.marker_expr,
+                                  ast.CreateCompoundStmt(break_stmt));
+    provenance.conds[exit_stmt] = provenance.z3_exprs.size();
+    // Create edge condition
+    provenance.z3_exprs.push_back(
+        (ToExpr(GetReachingCond(from)) && ToExpr(GetOrCreateEdgeCond(from, to)))
+            .simplify());
     // Insert it after the exiting block statement
     loop_body.insert(std::next(it), exit_stmt);
   }
@@ -572,9 +548,7 @@ GenerateAST::GenerateAST(Provenance &provenance, clang::ASTUnit &unit)
       unit(unit),
       provenance(provenance),
       ast_gen(unit, provenance),
-      ast(unit),
-      z_ctx(new z3::context()),
-      z_exprs(*z_ctx) {}
+      ast(unit) {}
 
 GenerateAST::Result GenerateAST::run(llvm::Module &module,
                                      llvm::ModuleAnalysisManager &MAM) {

@@ -38,10 +38,9 @@ namespace rellic {
  */
 class ReachBasedRefine : public TransformVisitor<ReachBasedRefine> {
  private:
-  std::unique_ptr<z3::context> z3_ctx;
-  std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
+  using IfStmtVec = std::vector<clang::IfStmt *>;
 
-  z3::expr GetZ3Cond(clang::IfStmt *ifstmt);
+  void CreateIfElseStmts(IfStmtVec stmts);
 
  protected:
   void RunImpl() override;

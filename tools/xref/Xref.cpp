@@ -49,11 +49,13 @@
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
 #include "rellic/AST/LoopRefine.h"
+#include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
 #include "rellic/AST/NormalizeCond.h"
 #include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
+#include "rellic/AST/Util.h"
 #include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Decompiler.h"
@@ -110,7 +112,7 @@ struct Session {
   std::unique_ptr<llvm::Module> Module;
   std::unique_ptr<clang::ASTUnit> Unit;
   std::unique_ptr<rellic::ASTPass> Pass;
-  rellic::Provenance Provenance;
+  std::unique_ptr<rellic::Provenance> Provenance;
   // Must always be acquired in this order and released all at once
   std::shared_mutex LoadMutex, MutationMutex;
 };
@@ -266,18 +268,21 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
   }
 
   try {
-    session.Provenance = {};
+    session.Provenance = std::make_unique<rellic::Provenance>();
     std::vector<std::string> args{"-Wno-pointer-to-int-cast",
                                   "-Wno-pointer-sign", "-target",
                                   session.Module->getTargetTriple()};
     session.Unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
+    rellic::ASTBuilder ast{*session.Unit};
+    session.Provenance->marker_expr =
+        ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse());
     rellic::DebugInfoCollector dic;
     dic.visit(*session.Module);
-    rellic::GenerateAST::run(*session.Module, session.Provenance,
+    rellic::GenerateAST::run(*session.Module, *session.Provenance,
                              *session.Unit);
-    rellic::LocalDeclRenamer ldr{session.Provenance, *session.Unit,
+    rellic::LocalDeclRenamer ldr{*session.Provenance, *session.Unit,
                                  dic.GetIRToNameMap()};
-    rellic::StructFieldRenamer sfr{session.Provenance, *session.Unit,
+    rellic::StructFieldRenamer sfr{*session.Provenance, *session.Unit,
                                    dic.GetIRTypeToDITypeMap()};
     ldr.Run();
     sfr.Run();
@@ -396,38 +401,42 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(
     auto str{name->str()};
 
     if (str == "cbr") {
-      return std::make_unique<rellic::CondBasedRefine>(session.Provenance,
+      return std::make_unique<rellic::CondBasedRefine>(*session.Provenance,
                                                        *session.Unit);
     } else if (str == "dse") {
-      return std::make_unique<rellic::DeadStmtElim>(session.Provenance,
+      return std::make_unique<rellic::DeadStmtElim>(*session.Provenance,
                                                     *session.Unit);
     } else if (str == "ec") {
-      return std::make_unique<rellic::ExprCombine>(session.Provenance,
+      return std::make_unique<rellic::ExprCombine>(*session.Provenance,
                                                    *session.Unit);
     } else if (str == "lr") {
-      return std::make_unique<rellic::LoopRefine>(session.Provenance,
+      return std::make_unique<rellic::LoopRefine>(*session.Provenance,
                                                   *session.Unit);
+    } else if (str == "mc") {
+      return std::make_unique<rellic::MaterializeConds>(*session.Provenance,
+                                                        *session.Unit);
     } else if (str == "ncp") {
-      return std::make_unique<rellic::NestedCondProp>(session.Provenance,
+      return std::make_unique<rellic::NestedCondProp>(*session.Provenance,
                                                       *session.Unit);
     } else if (str == "nsc") {
-      return std::make_unique<rellic::NestedScopeCombine>(session.Provenance,
+      return std::make_unique<rellic::NestedScopeCombine>(*session.Provenance,
                                                           *session.Unit);
     } else if (str == "nc") {
-      return std::make_unique<rellic::NormalizeCond>(session.Provenance,
+      return std::make_unique<rellic::NormalizeCond>(*session.Provenance,
                                                      *session.Unit);
     } else if (str == "rbr") {
-      return std::make_unique<rellic::ReachBasedRefine>(session.Provenance,
+      return std::make_unique<rellic::ReachBasedRefine>(*session.Provenance,
                                                         *session.Unit);
     } else if (str == "zcs") {
-      return std::make_unique<rellic::Z3CondSimplify>(session.Provenance,
+      return std::make_unique<rellic::Z3CondSimplify>(*session.Provenance,
                                                       *session.Unit);
     } else {
       LOG(ERROR) << "Request contains invalid pass id";
       return nullptr;
     }
   } else if (auto arr = val.getAsArray()) {
-    auto fix{std::make_unique<FixpointPass>(session.Provenance, *session.Unit)};
+    auto fix{
+        std::make_unique<FixpointPass>(*session.Provenance, *session.Unit)};
     for (auto& pass : *arr) {
       auto p{CreatePass(session, pass)};
       if (!p) {
@@ -509,7 +518,7 @@ static void Run(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(session.Provenance,
+  auto composite{std::make_unique<rellic::CompositeASTPass>(*session.Provenance,
                                                             *session.Unit)};
   for (auto& obj : *json->getAsArray()) {
     auto pass{CreatePass(session, obj)};
@@ -579,7 +588,7 @@ static void Fixpoint(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(session.Provenance,
+  auto composite{std::make_unique<rellic::CompositeASTPass>(*session.Provenance,
                                                             *session.Unit)};
   for (auto& obj : *json->getAsArray()) {
     auto pass{CreatePass(session, obj)};
@@ -712,11 +721,12 @@ static void PrintAST(const httplib::Request& req, httplib::Response& res) {
   rellic::DecompilationResult::IRToTypeDeclMap type_to_decl_map;
   rellic::DecompilationResult::TypeDeclToIRMap type_provenance_map;
 
-  CopyMap(session.Provenance.stmt_provenance, stmt_provenance_map,
+  CopyMap(session.Provenance->stmt_provenance, stmt_provenance_map,
           value_to_stmt_map);
-  CopyMap(session.Provenance.value_decls, value_to_decl_map,
+  CopyMap(session.Provenance->value_decls, value_to_decl_map,
           decl_provenance_map);
-  CopyMap(session.Provenance.type_decls, type_to_decl_map, type_provenance_map);
+  CopyMap(session.Provenance->type_decls, type_to_decl_map,
+          type_provenance_map);
 
   std::string s;
   llvm::raw_string_ostream os(s);
@@ -797,31 +807,31 @@ static void PrintProvenance(const httplib::Request& req,
   }
 
   llvm::json::Array stmt_provenance;
-  for (auto elem : session.Provenance.stmt_provenance) {
+  for (auto elem : session.Provenance->stmt_provenance) {
     stmt_provenance.push_back(llvm::json::Array(
         {(unsigned long long)elem.first, (unsigned long long)elem.second}));
   }
 
   llvm::json::Array type_decls;
-  for (auto elem : session.Provenance.type_decls) {
+  for (auto elem : session.Provenance->type_decls) {
     type_decls.push_back(llvm::json::Array(
         {(unsigned long long)elem.first, (unsigned long long)elem.second}));
   }
 
   llvm::json::Array value_decls;
-  for (auto elem : session.Provenance.value_decls) {
+  for (auto elem : session.Provenance->value_decls) {
     value_decls.push_back(llvm::json::Array(
         {(unsigned long long)elem.first, (unsigned long long)elem.second}));
   }
 
   llvm::json::Array temp_decls;
-  for (auto elem : session.Provenance.temp_decls) {
+  for (auto elem : session.Provenance->temp_decls) {
     temp_decls.push_back(llvm::json::Array(
         {(unsigned long long)elem.first, (unsigned long long)elem.second}));
   }
 
   llvm::json::Array use_provenance;
-  for (auto elem : session.Provenance.use_provenance) {
+  for (auto elem : session.Provenance->use_provenance) {
     if (!elem.second) {
       continue;
     }

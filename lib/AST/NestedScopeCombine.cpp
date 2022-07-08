@@ -11,6 +11,9 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Compat/Stmt.h"
+#include "rellic/AST/Util.h"
+
 namespace rellic {
 
 NestedScopeCombine::NestedScopeCombine(Provenance &provenance,
@@ -21,17 +24,11 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
-  auto if_const_expr = ifstmt->getCond()->getIntegerConstantExpr(ast_ctx);
-  bool is_const = if_const_expr.hasValue();
-  if (is_const && if_const_expr->getBoolValue()) {
+  auto cond{provenance.z3_exprs[provenance.conds[ifstmt]]};
+  if (Prove(provenance.z3_ctx, cond)) {
     substitutions[ifstmt] = ifstmt->getThen();
-  } else if (is_const && !if_const_expr->getBoolValue()) {
-    if (auto else_stmt = ifstmt->getElse()) {
-      substitutions[ifstmt] = else_stmt;
-    } else {
-      std::vector<clang::Stmt *> body;
-      substitutions[ifstmt] = ast.CreateCompoundStmt(body);
-    }
+  } else if (Prove(provenance.z3_ctx, !cond) && ifstmt->getElse()) {
+    substitutions[ifstmt] = ifstmt->getElse();
   }
   return !Stopped();
 }

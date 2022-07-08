@@ -61,6 +61,66 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
   clang::Expr *visitUnaryOperator(llvm::UnaryOperator &inst);
 };
 
+clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
+  auto hash{expr.id()};
+  if (provenance.z3_br_edges_inv.find(hash) !=
+      provenance.z3_br_edges_inv.end()) {
+    auto edge{provenance.z3_br_edges_inv[hash]};
+    CHECK(edge.second) << "Inverse map should only be populated for branches "
+                          "taken when condition is true";
+    return CreateOperandExpr(*(edge.first->op_end() - 3));
+  }
+
+  if (provenance.z3_sw_edges_inv.find(hash) !=
+      provenance.z3_sw_edges_inv.end()) {
+    auto edge{provenance.z3_sw_edges_inv[hash]};
+    CHECK(edge.second)
+        << "Inverse map should only be populated for not-default switch cases";
+
+    auto opnd{CreateOperandExpr(edge.first->getOperandUse(0))};
+    return ast.CreateEQ(opnd, CreateConstantExpr(edge.second));
+  }
+
+  std::vector<clang::Expr *> args;
+  for (auto i{0U}; i < expr.num_args(); ++i) {
+    args.push_back(ConvertExpr(expr.arg(i)));
+  }
+
+  switch (expr.decl().decl_kind()) {
+    case Z3_OP_TRUE:
+      CHECK_EQ(args.size(), 0) << "True cannot have arguments";
+      return ast.CreateTrue();
+    case Z3_OP_FALSE:
+      CHECK_EQ(args.size(), 0) << "False cannot have arguments";
+      return ast.CreateFalse();
+    case Z3_OP_AND: {
+      CHECK_GE(args.size(), 2) << "And must have at least 2 arguments";
+      clang::Expr *res{args[0]};
+      for (auto i{1U}; i < args.size(); ++i) {
+        res = ast.CreateLAnd(res, args[i]);
+      }
+      return res;
+    }
+    case Z3_OP_OR: {
+      CHECK_GE(args.size(), 2) << "Or must have at least 2 arguments";
+      clang::Expr *res{args[0]};
+      for (auto i{1U}; i < args.size(); ++i) {
+        res = ast.CreateLOr(res, args[i]);
+      }
+      return res;
+    }
+    case Z3_OP_NOT: {
+      CHECK_EQ(args.size(), 1) << "Not must have one argument";
+      auto neg{ast.CreateLNot(args[0])};
+      CopyProvenance(args[0], neg, provenance.use_provenance);
+      return neg;
+    }
+    default:
+      LOG(FATAL) << "Invalid z3 op";
+  }
+  return nullptr;
+}
+
 void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   DLOG(INFO) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
   auto &var{provenance.value_decls[&gvar]};

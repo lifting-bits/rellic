@@ -10,6 +10,7 @@
 
 #include <clang/AST/ASTContext.h>
 
+#include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
 #include "rellic/AST/Util.h"
 
@@ -19,13 +20,15 @@ namespace rellic {
  * This pass simplifies conditions using Z3 by trying to remove terms that are
  * trivially true or false
  */
-class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
+class MaterializeConds : public TransformVisitor<MaterializeConds> {
  private:
+  IRToASTVisitor ast_gen;
+
  protected:
   void RunImpl() override;
 
  public:
-  Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit);
+  MaterializeConds(Provenance &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *loop);

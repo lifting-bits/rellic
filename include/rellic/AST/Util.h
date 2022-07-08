@@ -11,6 +11,7 @@
 #include <clang/AST/DeclBase.h>
 #include <clang/AST/Stmt.h>
 #include <clang/Frontend/ASTUnit.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Value.h>
 #include <z3++.h>
 
@@ -58,6 +59,11 @@ using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
 using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
 using BlockToUsesMap =
     std::unordered_map<llvm::BasicBlock *, std::vector<llvm::Use *>>;
+using Z3CondMap = std::unordered_map<clang::Stmt *, unsigned>;
+
+using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
+using BrEdge = std::pair<llvm::BranchInst *, bool>;
+using SwEdge = std::pair<llvm::SwitchInst *, llvm::ConstantInt *>;
 struct Provenance {
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;
@@ -65,6 +71,20 @@ struct Provenance {
   IRToValDeclMap value_decls;
   ArgToTempMap temp_decls;
   BlockToUsesMap outgoing_uses;
+  z3::context z3_ctx;
+  z3::expr_vector z3_exprs{z3_ctx};
+  Z3CondMap conds;
+
+  clang::Expr *marker_expr;
+
+  std::unordered_map<unsigned, BrEdge> z3_br_edges_inv;
+  std::map<BrEdge, unsigned> z3_br_edges;
+
+  std::unordered_map<unsigned, SwEdge> z3_sw_edges_inv;
+  std::map<SwEdge, unsigned> z3_sw_edges;
+
+  std::map<BBEdge, unsigned> z3_edges;
+  std::unordered_map<llvm::BasicBlock *, unsigned> reaching_conds;
 
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
@@ -88,4 +108,5 @@ z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic, z3::expr expr);
 
 bool Prove(z3::context &ctx, z3::expr expr);
 
+z3::expr HeavySimplify(z3::context &ctx, z3::expr expr);
 }  // namespace rellic

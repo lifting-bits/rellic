@@ -65,10 +65,8 @@ jobs:
           cp rellic-build/tools/rellic-decomp rellic-build/tools/rellic-decomp-old
 
       - name: Checkout merge branch
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          submodules: true
+        shell: bash
+        run: git checkout ${{ github.event.pull_request.head.ref }}
 
       - name: Build new rellic
         shell: bash

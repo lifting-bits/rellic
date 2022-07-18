@@ -170,8 +170,10 @@ class NegComparisonRule : public InferenceRule {
     auto subexpr = op->getSubExpr()->IgnoreParenImpCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
-    return ASTBuilder(unit).CreateBinaryOp(opc, binop->getLHS(),
+    auto res = ASTBuilder(unit).CreateBinaryOp(opc, binop->getLHS(),
                                            binop->getRHS());
+    CopyProvenance(op, res, provenance.stmt_provenance);
+    return res;
   }
 };
 

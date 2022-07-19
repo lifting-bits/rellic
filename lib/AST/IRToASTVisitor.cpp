@@ -542,11 +542,11 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
       return false;
     }
 
-    auto constant{gvar->getInitializer()};
-    if (!constant) {
+    if (!gvar->hasInitializer()) {
       return false;
     }
 
+    auto constant{gvar->getInitializer()};
     // Check if constant can be considered a string literal
     auto arr_type{llvm::dyn_cast<llvm::ArrayType>(constant->getType())};
     if (!arr_type) {
@@ -648,6 +648,9 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
   auto base{CreateOperandExpr(inst.getOperandUse(0))};
   auto indexed_type{inst.getAggregateOperand()->getType()};
+  if (clang::isa<clang::InitListExpr>(base)) {
+    base = ast.CreateCompoundLit(GetQualType(indexed_type), base);
+  }
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
     GetQualType(indexed_type);

@@ -170,8 +170,8 @@ class NegComparisonRule : public InferenceRule {
     auto subexpr = op->getSubExpr()->IgnoreParenImpCasts();
     auto binop = clang::cast<clang::BinaryOperator>(subexpr);
     auto opc = clang::BinaryOperator::negateComparisonOp(binop->getOpcode());
-    auto res = ASTBuilder(unit).CreateBinaryOp(opc, binop->getLHS(),
-                                           binop->getRHS());
+    auto res =
+        ASTBuilder(unit).CreateBinaryOp(opc, binop->getLHS(), binop->getRHS());
     CopyProvenance(op, res, provenance.stmt_provenance);
     return res;
   }
@@ -396,6 +396,41 @@ class TripleCStyleCastElimRule : public InferenceRule {
   }
 };
 
+// Matches `(type *)(void *)expr` and subs it for `(type *)expr`
+class VoidToTypePtrCastElimRule : public InferenceRule {
+ public:
+  VoidToTypePtrCastElimRule()
+      : InferenceRule(
+            cStyleCastExpr(stmt().bind("cast"), hasType(pointerType()),
+                           has(ignoringParenImpCasts(
+                               cStyleCastExpr(hasType(pointerType())))))) {}
+
+  void run(const MatchFinder::MatchResult &result) override {
+    match = result.Nodes.getNodeAs<clang::CStyleCastExpr>("cast");
+  }
+
+  clang::Stmt *GetOrCreateSubstitution(Provenance &provenance,
+                                       clang::ASTUnit &unit,
+                                       clang::Stmt *stmt) override {
+    auto cast{clang::cast<clang::CStyleCastExpr>(stmt)};
+    CHECK(cast == match)
+        << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
+
+    auto &ctx{unit.getASTContext()};
+
+    auto subcast{clang::cast<clang::CStyleCastExpr>(
+        cast->getSubExpr()->IgnoreParenImpCasts())};
+
+    if (cast->getType()->isPointerType() &&
+        subcast->getType()->isVoidPointerType()) {
+      return ASTBuilder(unit).CreateCStyleCast(
+          cast->getType(), subcast->getSubExpr()->IgnoreParenImpCasts());
+    }
+
+    return cast;
+  }
+};
+
 // Matches (type *)0U and subs it for 0U
 class CStyleZeroToPtrCastElimRule : public InferenceRule {
  public:
@@ -458,6 +493,16 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
 
   if (cast->getCastKind() == clang::CastKind::CK_NoOp) {
     substitutions[cast] = cast->getSubExpr();
+    return true;
+  }
+
+  std::vector<std::unique_ptr<InferenceRule>> pre_rules;
+
+  pre_rules.emplace_back(new VoidToTypePtrCastElimRule);
+
+  auto pre_sub{ApplyFirstMatchingRule(provenance, ast_unit, cast, pre_rules)};
+  if (pre_sub != cast) {
+    substitutions[cast] = pre_sub;
     return true;
   }
 

@@ -187,7 +187,7 @@ class CompoundVisitor
     Visit(do_stmt->getBody(), inner);
 
     auto simplified_cond{SimplifyWithAssumptions(cond, true_exprs)};
-    AddExpr(simplified_cond, true_exprs);
+    AddExpr(!simplified_cond, true_exprs);
     return changed;
   }
 

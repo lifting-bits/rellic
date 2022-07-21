@@ -52,20 +52,17 @@ class CompoundVisitor
     auto true_expr{z3::mk_and(true_exprs)};
     auto decl_kind{expr.decl().decl_kind()};
 
-    if (!expr.is_app() || decl_kind == Z3_OP_UNINTERPRETED ||
-        decl_kind == Z3_OP_NOT) {
-      if (Prove(provenance.z3_ctx, z3::implies(true_expr, expr))) {
-        return provenance.z3_ctx.bool_val(true);
-      }
-
-      if (Prove(provenance.z3_ctx, z3::implies(true_expr, !expr))) {
-        return provenance.z3_ctx.bool_val(false);
-      }
-
-      return expr;
+    if (Prove(provenance.z3_ctx, z3::implies(true_expr, expr))) {
+      return provenance.z3_ctx.bool_val(true);
     }
 
-    if (decl_kind == Z3_OP_TRUE || decl_kind == Z3_OP_FALSE) {
+    if (Prove(provenance.z3_ctx, z3::implies(true_expr, !expr))) {
+      return provenance.z3_ctx.bool_val(false);
+    }
+
+    if (!expr.is_app() || decl_kind == Z3_OP_UNINTERPRETED ||
+        decl_kind == Z3_OP_NOT || decl_kind == Z3_OP_TRUE ||
+        decl_kind == Z3_OP_FALSE) {
       return expr;
     }
 

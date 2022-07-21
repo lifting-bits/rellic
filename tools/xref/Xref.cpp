@@ -184,6 +184,7 @@ static Session& GetSession(const httplib::Request& req) {
     if (kvp == sessions.end()) {
       session.Id = id;
       session.Context = std::make_unique<llvm::LLVMContext>();
+      session.Context->enableOpaquePointers();
     }
 
     RemoveOldSessions();

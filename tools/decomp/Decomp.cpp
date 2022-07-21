@@ -111,6 +111,7 @@ int main(int argc, char* argv[]) {
   }
 
   std::unique_ptr<llvm::LLVMContext> llvm_ctx(new llvm::LLVMContext);
+  llvm_ctx->enableOpaquePointers();
 
   auto module{std::unique_ptr<llvm::Module>(
       rellic::LoadModuleFromFile(llvm_ctx.get(), FLAGS_input))};

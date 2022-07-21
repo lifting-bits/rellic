@@ -496,6 +496,7 @@ int main(int argc, char* argv[]) {
   SetVersion();
   google::ParseCommandLineFlags(&argc, &argv, true);
 
+  llvm_ctx.enableOpaquePointers();
   auto& pr{*llvm::PassRegistry::getPassRegistry()};
   initializeCore(pr);
   initializeAnalysis(pr);

@@ -32,7 +32,6 @@
 #include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
-#include "rellic/AST/NormalizeCond.h"
 #include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
@@ -85,21 +84,19 @@ Result<DecompilationResult, DecompilationError> Decompile(
                                   module->getTargetTriple()};
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
 
-    rellic::Provenance provenance;
-    rellic::GenerateAST::run(*module, provenance, *ast_unit);
     ASTBuilder ast{*ast_unit};
+    rellic::Provenance provenance;
     provenance.marker_expr =
         ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse());
+    rellic::GenerateAST::run(*module, provenance, *ast_unit);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
     rellic::CompositeASTPass pass_ast(provenance, *ast_unit);
     auto& ast_passes{pass_ast.GetPasses()};
 
-    if (options.dead_stmt_elimination) {
-      ast_passes.push_back(
-          std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit));
-    }
+    ast_passes.push_back(
+        std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit));
     ast_passes.push_back(std::make_unique<rellic::LocalDeclRenamer>(
         provenance, *ast_unit, dic.GetIRToNameMap()));
     ast_passes.push_back(std::make_unique<rellic::StructFieldRenamer>(
@@ -109,36 +106,18 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::CompositeASTPass pass_cbr(provenance, *ast_unit);
     auto& cbr_passes{pass_cbr.GetPasses()};
 
-    if (options.condition_based_refinement.expression_normalize) {
-      cbr_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
-    if (!options.disable_z3) {
-      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
-      if (options.condition_based_refinement.z3_cond_simplify) {
-        cbr_passes.push_back(std::move(zcs));
-      }
-      if (options.condition_based_refinement.nested_cond_propagate) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
-      }
-    }
+    cbr_passes.push_back(
+        std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit));
+    cbr_passes.push_back(
+        std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
 
-    if (options.condition_based_refinement.nested_scope_combine) {
-      cbr_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
+    cbr_passes.push_back(
+        std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
 
-    if (!options.disable_z3) {
-      if (options.condition_based_refinement.cond_base_refine) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit));
-      }
-      if (options.condition_based_refinement.reach_based_refine) {
-        cbr_passes.push_back(
-            std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
-      }
-    }
+    cbr_passes.push_back(
+        std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit));
+    cbr_passes.push_back(
+        std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
 
     while (pass_cbr.Run()) {
       ;
@@ -147,47 +126,27 @@ Result<DecompilationResult, DecompilationError> Decompile(
     rellic::CompositeASTPass pass_loop{provenance, *ast_unit};
     auto& loop_passes{pass_loop.GetPasses()};
 
-    if (options.loop_refinement.loop_refine) {
-      loop_passes.push_back(
-          std::make_unique<rellic::LoopRefine>(provenance, *ast_unit));
-    }
-    if (options.loop_refinement.nested_cond_propagate) {
-      loop_passes.push_back(
-          std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
-    }
-    if (options.loop_refinement.nested_scope_combine) {
-      loop_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
-    if (options.loop_refinement.expression_normalize) {
-      loop_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
+    loop_passes.push_back(
+        std::make_unique<rellic::LoopRefine>(provenance, *ast_unit));
+    loop_passes.push_back(
+        std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
+    loop_passes.push_back(
+        std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
+
     while (pass_loop.Run()) {
       ;
     }
 
     rellic::CompositeASTPass pass_scope{provenance, *ast_unit};
     auto& scope_passes{pass_scope.GetPasses()};
-    if (!options.disable_z3) {
-      auto zcs{std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit)};
-      if (options.condition_based_refinement.z3_cond_simplify) {
-        scope_passes.push_back(std::move(zcs));
-      }
-      if (options.condition_based_refinement.nested_cond_propagate) {
-        scope_passes.push_back(
-            std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
-      }
-    }
+    scope_passes.push_back(
+        std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit));
+    scope_passes.push_back(
+        std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
 
-    if (options.scope_refinement.nested_scope_combine) {
-      scope_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
-    if (options.scope_refinement.expression_normalize) {
-      scope_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
+    scope_passes.push_back(
+        std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
+
     while (pass_scope.Run()) {
       ;
     }
@@ -196,35 +155,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
     auto& ec_passes{pass_ec.GetPasses()};
     ec_passes.push_back(
         std::make_unique<rellic::MaterializeConds>(provenance, *ast_unit));
-    if (options.expression_combine) {
-      ec_passes.push_back(
-          std::make_unique<rellic::ExprCombine>(provenance, *ast_unit));
-    }
-    if (options.expression_normalize) {
-      ec_passes.push_back(
-          std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit));
-    }
-    while (pass_ec.Run()) {
-      ;
-    }
+    ec_passes.push_back(
+        std::make_unique<rellic::ExprCombine>(provenance, *ast_unit));
 
-    rellic::CompositeASTPass pass_final{provenance, *ast_unit};
-    auto& final_passes{pass_final.GetPasses()};
-    if (options.final_refinement.z3_cond_simplify) {
-      final_passes.push_back(
-          std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit));
-    }
-    if (options.final_refinement.nested_cond_propagate) {
-      final_passes.push_back(
-          std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit));
-    }
-    if (options.final_refinement.nested_scope_combine) {
-      final_passes.push_back(
-          std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit));
-    }
-    while (pass_final.Run()) {
-      ;
-    }
+    pass_ec.Run();
 
     DecompilationResult result{};
     result.ast = std::move(ast_unit);

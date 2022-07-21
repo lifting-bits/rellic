@@ -20,35 +20,6 @@ namespace rellic {
 struct DecompilationOptions {
   bool lower_switches = false;
   bool remove_phi_nodes = false;
-  bool disable_z3 = false;
-  bool dead_stmt_elimination = true;
-  struct {
-    bool z3_cond_simplify = true;
-    bool nested_cond_propagate = true;
-    bool nested_scope_combine = true;
-    bool cond_base_refine = true;
-    bool reach_based_refine = true;
-    bool expression_normalize = false;
-  } condition_based_refinement;
-  struct {
-    bool loop_refine = true;
-    bool nested_cond_propagate = true;
-    bool nested_scope_combine = true;
-    bool expression_normalize = false;
-  } loop_refinement;
-  struct {
-    bool z3_cond_simplify = true;
-    bool nested_cond_propagate = true;
-    bool nested_scope_combine = true;
-    bool expression_normalize = false;
-  } scope_refinement;
-  bool expression_normalize = false;
-  bool expression_combine = true;
-  struct {
-    bool z3_cond_simplify = true;
-    bool nested_cond_propagate = true;
-    bool nested_scope_combine = true;
-  } final_refinement;
 };
 
 struct DecompilationResult {

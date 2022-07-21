@@ -109,4 +109,5 @@ z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic, z3::expr expr);
 bool Prove(z3::context &ctx, z3::expr expr);
 
 z3::expr HeavySimplify(z3::context &ctx, z3::expr expr);
+z3::expr_vector Clone(z3::expr_vector &vec);
 }  // namespace rellic

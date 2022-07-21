@@ -94,7 +94,6 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
       CHECK_EQ(args.size(), 0) << "False cannot have arguments";
       return ast.CreateFalse();
     case Z3_OP_AND: {
-      CHECK_GE(args.size(), 2) << "And must have at least 2 arguments";
       clang::Expr *res{args[0]};
       for (auto i{1U}; i < args.size(); ++i) {
         res = ast.CreateLAnd(res, args[i]);
@@ -102,7 +101,6 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
       return res;
     }
     case Z3_OP_OR: {
-      CHECK_GE(args.size(), 2) << "Or must have at least 2 arguments";
       clang::Expr *res{args[0]};
       for (auto i{1U}; i < args.size(); ++i) {
         res = ast.CreateLOr(res, args[i]);

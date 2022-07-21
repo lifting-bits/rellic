@@ -14,6 +14,7 @@
 #include <clang/AST/StmtVisitor.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <z3++.h>
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/Exception.h"
@@ -360,5 +361,14 @@ z3::expr HeavySimplify(z3::context &ctx, z3::expr expr) {
   z3::tactic ctx_solver_simplify(ctx, "ctx-solver-simplify");
   auto tactic{simplify & aig & ctx_solver_simplify};
   return ApplyTactic(ctx, tactic, expr).as_expr();
+}
+
+z3::expr_vector Clone(z3::expr_vector &vec) {
+  z3::expr_vector clone{vec.ctx()};
+  for (auto expr : vec) {
+    clone.push_back(expr);
+  }
+
+  return clone;
 }
 }  // namespace rellic

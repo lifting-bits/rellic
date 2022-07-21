@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/AST/Util.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -288,7 +289,29 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       // Append `conj_cond` to reaching conditions of other
       // predecessors via an `||`. Use `conj_cond` if there
       // is no `cond` yet.
-      cond = HeavySimplify(provenance.z3_ctx, cond || conj_cond);
+      z3::expr_vector left_exprs{provenance.z3_ctx};
+      z3::expr_vector right_exprs{provenance.z3_ctx};
+
+      if (cond.is_app() && cond.decl().decl_kind() == Z3_OP_AND) {
+        left_exprs = cond.args();
+      } else {
+        left_exprs.push_back(cond);
+      }
+
+      if (conj_cond.is_app() && conj_cond.decl().decl_kind() == Z3_OP_AND) {
+        right_exprs = conj_cond.args();
+      } else {
+        right_exprs.push_back(conj_cond);
+      }
+
+      z3::expr_vector res_cond{provenance.z3_ctx};
+      for (auto expr_a : left_exprs) {
+        for (auto expr_b : right_exprs) {
+          res_cond.push_back((expr_a || expr_b).simplify());
+        }
+      }
+
+      cond = z3::mk_and(res_cond);
     }
 
     if (!Prove(provenance.z3_ctx, old_cond == cond)) {

@@ -38,6 +38,7 @@ class NestedScopeCombine : public TransformVisitor<NestedScopeCombine> {
   NestedScopeCombine(Provenance &provenance, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
+  bool VisitWhileStmt(clang::WhileStmt *stmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };
 

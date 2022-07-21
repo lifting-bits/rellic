@@ -32,6 +32,19 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   return !Stopped();
 }
 
+bool NestedScopeCombine::VisitWhileStmt(clang::WhileStmt *stmt) {
+  auto cond{provenance.z3_exprs[provenance.conds[stmt]]};
+  if (Prove(provenance.z3_ctx, cond)) {
+    auto body{clang::cast<clang::CompoundStmt>(stmt->getBody())};
+    if (clang::isa<clang::BreakStmt>(body->body_back())) {
+      std::vector<clang::Stmt *> new_body{body->body_begin(),
+                                          body->body_end() - 1};
+      substitutions[stmt] = ast.CreateCompoundStmt(new_body);
+    }
+  }
+  return !Stopped();
+}
+
 bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   // DLOG(INFO) << "VisitCompoundStmt";
   bool has_compound = false;

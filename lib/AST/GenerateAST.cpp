@@ -147,7 +147,13 @@ unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
   };
   if (provenance.z3_br_edges.find({inst, cond}) ==
       provenance.z3_br_edges.end()) {
-    if (cond) {
+    if (auto constant =
+            llvm::dyn_cast<llvm::ConstantInt>(inst->getCondition())) {
+      provenance.z3_br_edges[{inst, cond}] = provenance.z3_exprs.size();
+      auto edge{provenance.z3_ctx.bool_val(constant->isOne() == cond)};
+      provenance.z3_exprs.push_back(edge);
+      provenance.z3_br_edges_inv[edge.id()] = {inst, true};
+    } else if (cond) {
       auto name{GetName(inst)};
       auto edge{provenance.z3_ctx.bool_const(name.c_str())};
       provenance.z3_br_edges[{inst, cond}] = provenance.z3_exprs.size();
@@ -223,13 +229,14 @@ unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
         if (to == sw->getDefaultDest()) {
           result = ToExpr(GetOrCreateEdgeForSwitch(sw, nullptr));
         } else {
-          result = provenance.z3_ctx.bool_val(false);
+          z3::expr_vector or_vec{provenance.z3_ctx};
           for (auto sw_case : sw->cases()) {
             if (sw_case.getCaseSuccessor() == to) {
-              result = result || ToExpr(GetOrCreateEdgeForSwitch(
-                                     sw, sw_case.getCaseValue()));
+              or_vec.push_back(
+                  ToExpr(GetOrCreateEdgeForSwitch(sw, sw_case.getCaseValue())));
             }
           }
+          result = HeavySimplify(provenance.z3_ctx, z3::mk_or(or_vec));
         }
       } break;
       // Returns
@@ -292,13 +299,13 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       z3::expr_vector left_exprs{provenance.z3_ctx};
       z3::expr_vector right_exprs{provenance.z3_ctx};
 
-      if (cond.is_app() && cond.decl().decl_kind() == Z3_OP_AND) {
+      if (cond.decl().decl_kind() == Z3_OP_AND) {
         left_exprs = cond.args();
       } else {
         left_exprs.push_back(cond);
       }
 
-      if (conj_cond.is_app() && conj_cond.decl().decl_kind() == Z3_OP_AND) {
+      if (conj_cond.decl().decl_kind() == Z3_OP_AND) {
         right_exprs = conj_cond.args();
       } else {
         right_exprs.push_back(conj_cond);
@@ -307,7 +314,8 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       z3::expr_vector res_cond{provenance.z3_ctx};
       for (auto expr_a : left_exprs) {
         for (auto expr_b : right_exprs) {
-          res_cond.push_back((expr_a || expr_b).simplify());
+          res_cond.push_back(
+              HeavySimplify(provenance.z3_ctx, expr_a || expr_b));
         }
       }
 

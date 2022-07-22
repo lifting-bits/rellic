@@ -386,6 +386,21 @@ LoopRefine::LoopRefine(Provenance &provenance, clang::ASTUnit &u)
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
+
+  // If a while statements has an unconditional break in it, it can be
+  // substituted for an if statement and all statements after the break can be
+  // ignored.
+  auto body{clang::cast<clang::CompoundStmt>(loop->getBody())};
+  auto break_stmt{std::find_if(
+      body->body_begin(), body->body_end(),
+      [](auto stmt) { return clang::isa<clang::BreakStmt>(stmt); })};
+  if (break_stmt != body->body_end()) {
+    std::vector<clang::Stmt *> new_body_stmts{body->body_begin(), break_stmt};
+    substitutions[loop] =
+        ast.CreateIf(loop->getCond(), ast.CreateCompoundStmt(new_body_stmts));
+    return !Stopped();
+  }
+
   std::vector<std::unique_ptr<InferenceRule>> rules;
 
   rules.emplace_back(new CondToSeqRule);

@@ -124,6 +124,10 @@ const app = new Vue({
             {
                 url: "/action/remove-insertvalue",
                 desc: "Remove insertvalue",
+            },
+            {
+                url: "/action/type-inference",
+                desc: "Perform type inference",
             }
         ],
         commands: [],

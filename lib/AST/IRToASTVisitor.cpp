@@ -8,6 +8,7 @@
 
 #include <clang/Basic/Builtins.h>
 #include <llvm/IR/InstIterator.h>
+#include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 
@@ -39,7 +40,7 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
       : ast_ctx(unit.getASTContext()), ast(unit), provenance(provenance) {}
 
   void VisitGlobalVar(llvm::GlobalVariable &gvar);
-  clang::QualType GetQualType(llvm::Type *type);
+  clang::QualType GetQualType(llvm::Type *type, bool is_signed = false);
 
   clang::Expr *CreateConstantExpr(llvm::Constant *constant);
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
@@ -62,6 +63,10 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
   clang::Expr *visitFreezeInst(llvm::FreezeInst &inst);
   clang::Expr *visitUnaryOperator(llvm::UnaryOperator &inst);
 };
+
+static bool IsSigned(llvm::Instruction &inst) {
+  return inst.getMetadata("rellic.signed");
+}
 
 void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   DLOG(INFO) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
@@ -97,7 +102,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 }
 
-clang::QualType ExprGen::GetQualType(llvm::Type *type) {
+clang::QualType ExprGen::GetQualType(llvm::Type *type, bool is_signed) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
 
   clang::QualType result;
@@ -125,7 +130,7 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
     case llvm::Type::IntegerTyID: {
       auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/0);
+      result = ast.GetLeastIntTypeForBitWidth(size, is_signed);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -687,7 +692,8 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  auto ptr_type{ast_ctx.getPointerType(GetQualType(inst.getType()))};
+  auto ptr_type{
+      ast_ctx.getPointerType(GetQualType(inst.getType(), IsSigned(inst)))};
   auto cast{
       ast.CreateCStyleCast(ptr_type, CreateOperandExpr(inst.getOperandUse(0)))};
   return ast.CreateDeref(cast);
@@ -888,7 +894,7 @@ clang::Expr *ExprGen::visitCastInst(llvm::CastInst &inst) {
   // Get a C-language expression of the operand
   auto operand{CreateOperandExpr(inst.getOperandUse(0))};
   // Get destination type
-  auto type{GetQualType(inst.getType())};
+  auto type{GetQualType(inst.getType(), IsSigned(inst))};
   // Adjust type
   switch (inst.getOpcode()) {
     case llvm::CastInst::Trunc: {
@@ -1016,8 +1022,8 @@ clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   auto &value_opnd{inst.getOperandUse(0)};
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
-  auto ptr_type{
-      ast_ctx.getPointerType(expr_gen.GetQualType(value_opnd->getType()))};
+  auto ptr_type{ast_ctx.getPointerType(
+      expr_gen.GetQualType(value_opnd->getType(), IsSigned(inst)))};
   auto lhs{ast.CreateCStyleCast(
       ptr_type, expr_gen.CreateOperandExpr(
                     inst.getOperandUse(inst.getPointerOperandIndex())))};
@@ -1233,7 +1239,9 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
       var = ast.CreateVarDecl(
-          fdecl, expr_gen.GetQualType(alloca->getAllocatedType()), name);
+          fdecl,
+          expr_gen.GetQualType(alloca->getAllocatedType(), IsSigned(*alloca)),
+          name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst) ||
                llvm::isa<llvm::LoadInst>(inst) ||
@@ -1251,7 +1259,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
         auto name{GetPrefix(&inst) +
                   std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-        auto type{expr_gen.GetQualType(inst.getType())};
+        auto type{expr_gen.GetQualType(inst.getType(), IsSigned(inst))};
         if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
           type = ast_ctx.getPointerType(arrayType->getElementType());
         }

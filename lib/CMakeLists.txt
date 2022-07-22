@@ -85,6 +85,7 @@ set(AST_SOURCES
 )
 
 set(BC_SOURCES
+  BC/TypeInference.cpp
   BC/Util.cpp
 )
 

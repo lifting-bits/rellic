@@ -67,4 +67,6 @@ void RemoveInsertValues(llvm::Module &module);
 // Converts by value array arguments and wraps them into a struct, so that
 // semantics are preserved in C
 void ConvertArrayArguments(llvm::Module &module);
+
+void PerformTypeInference(llvm::Module &module);
 }  // namespace rellic

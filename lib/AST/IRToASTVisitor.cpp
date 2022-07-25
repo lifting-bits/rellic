@@ -11,6 +11,7 @@
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
+#include <llvm/IR/Value.h>
 
 #include <vector>
 #define GOOGLE_STRIP_LOG 1
@@ -68,6 +69,10 @@ static bool IsSigned(llvm::Instruction &inst) {
   return inst.getMetadata("rellic.signed");
 }
 
+static bool IsSigned(llvm::GlobalVariable &var) {
+  return var.getMetadata("rellic.signed");
+}
+
 void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   DLOG(INFO) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
   auto &var{provenance.value_decls[&gvar]};
@@ -94,7 +99,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 
   // Create a variable declaration
-  var = ast.CreateVarDecl(tudecl, GetQualType(type), name);
+  var = ast.CreateVarDecl(tudecl, GetQualType(type, IsSigned(gvar)), name);
   // Add to translation unit
   tudecl->addDecl(var);
   if (init) {

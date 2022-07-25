@@ -11,7 +11,9 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
@@ -46,10 +48,10 @@ static void MarkAsSigned(llvm::Instruction* inst) {
   inst->setMetadata("rellic.signed", llvm::MDNode::get(ctx, {}));
 }
 
-/*static void MarkAsSigned(llvm::Function* func) {
-    auto& ctx{func->getContext()};
-    func->setMetadata("rellic.signed", llvm::MDNode::get(ctx, {}));
-}*/
+static void MarkAsSigned(llvm::GlobalVariable* var) {
+  auto& ctx{var->getContext()};
+  var->setMetadata("rellic.signed", llvm::MDNode::get(ctx, {}));
+}
 
 static void DoTypeInference(llvm::Function& func) {
   std::unordered_set<llvm::Value*> signed_integers;
@@ -124,6 +126,10 @@ static void DoTypeInference(llvm::Function& func) {
   for (auto value : signed_integers) {
     if (auto inst = llvm::dyn_cast<llvm::Instruction>(value)) {
       MarkAsSigned(inst);
+    }
+
+    if (auto var = llvm::dyn_cast<llvm::GlobalVariable>(value)) {
+      MarkAsSigned(var);
     }
   }
 }

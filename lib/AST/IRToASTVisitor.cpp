@@ -41,7 +41,10 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
       : ast_ctx(unit.getASTContext()), ast(unit), provenance(provenance) {}
 
   void VisitGlobalVar(llvm::GlobalVariable &gvar);
-  clang::QualType GetQualType(llvm::Type *type, bool is_signed = false);
+  bool GetQualType(const llvm::MDNode *type_metadata,
+                   clang::QualType &out_type);
+  clang::QualType GetQualType(llvm::Type *type,
+                              llvm::MDNode *type_metadata = nullptr);
 
   clang::Expr *CreateConstantExpr(llvm::Constant *constant);
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
@@ -98,8 +101,24 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     name = "gvar" + std::to_string(GetNumDecls<clang::VarDecl>(tudecl));
   }
 
+  auto mdnode{gvar.getMetadata("rellic.type")};
+  if (mdnode) {
+    auto &md{*mdnode->getOperand(0)};
+    auto value{llvm::cast<llvm::ConstantAsMetadata>(&md)};
+    auto type{static_cast<AbstractType>(
+        value->getValue()->getUniqueInteger().getZExtValue())};
+    switch (type) {
+      case AbstractType::Pointer:
+        mdnode = llvm::cast<llvm::MDNode>(mdnode->getOperand(1));
+        break;
+      default:
+        LOG(INFO) << "Conflicting type";
+        mdnode = nullptr;
+        break;
+    }
+  }
   // Create a variable declaration
-  var = ast.CreateVarDecl(tudecl, GetQualType(type, IsSigned(gvar)), name);
+  var = ast.CreateVarDecl(tudecl, GetQualType(type, mdnode), name);
   // Add to translation unit
   tudecl->addDecl(var);
   if (init) {
@@ -107,7 +126,49 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 }
 
-clang::QualType ExprGen::GetQualType(llvm::Type *type, bool is_signed) {
+bool ExprGen::GetQualType(const llvm::MDNode *type_metadata,
+                          clang::QualType &out_type) {
+  auto &opnd{*type_metadata->getOperand(0)};
+  auto tag{llvm::cast<llvm::ConstantAsMetadata>(&opnd)};
+  auto type{static_cast<AbstractType>(
+      tag->getValue()->getUniqueInteger().getZExtValue())};
+  switch (type) {
+    case AbstractType::Unsigned: {
+      auto &opnd1{*type_metadata->getOperand(1)};
+      auto size{llvm::cast<llvm::ConstantAsMetadata>(&opnd1)
+                    ->getValue()
+                    ->getUniqueInteger()
+                    .getZExtValue()};
+      out_type = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/true);
+      return true;
+    }
+    case AbstractType::Signed: {
+      auto &opnd1{*type_metadata->getOperand(1)};
+      auto size{llvm::cast<llvm::ConstantAsMetadata>(&opnd1)
+                    ->getValue()
+                    ->getUniqueInteger()
+                    .getZExtValue()};
+      out_type = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/false);
+      return true;
+    }
+    case AbstractType::Pointer: {
+      auto &opnd1{*type_metadata->getOperand(1)};
+      clang::QualType sub;
+      if (GetQualType(llvm::cast<llvm::MDNode>(&opnd1), sub)) {
+        out_type = ast_ctx.getPointerType(sub);
+        return true;
+      }
+
+      out_type = ast_ctx.VoidPtrTy;
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+clang::QualType ExprGen::GetQualType(llvm::Type *type,
+                                     llvm::MDNode *type_metadata) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
 
   clang::QualType result;
@@ -135,7 +196,10 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type, bool is_signed) {
     case llvm::Type::IntegerTyID: {
       auto size{type->getIntegerBitWidth()};
       CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = ast.GetLeastIntTypeForBitWidth(size, is_signed);
+      if (type_metadata && GetQualType(type_metadata, result)) {
+        break;
+      }
+      result = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/false);
     } break;
 
     case llvm::Type::FunctionTyID: {
@@ -151,6 +215,10 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type, bool is_signed) {
     } break;
 
     case llvm::Type::PointerTyID: {
+      if (type_metadata && GetQualType(type_metadata, result)) {
+        break;
+      }
+
       auto ptr_type{llvm::cast<llvm::PointerType>(type)};
       if (ptr_type->isOpaque()) {
         result = ast_ctx.VoidPtrTy;
@@ -697,8 +765,23 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  auto ptr_type{
-      ast_ctx.getPointerType(GetQualType(inst.getType(), IsSigned(inst)))};
+  auto mdnode{inst.getMetadata("rellic.type")};
+  if (mdnode) {
+    auto &md{*mdnode->getOperand(0)};
+    auto value{llvm::cast<llvm::ConstantAsMetadata>(&md)};
+    auto type{static_cast<AbstractType>(
+        value->getValue()->getUniqueInteger().getZExtValue())};
+    switch (type) {
+      case AbstractType::Pointer:
+        mdnode = llvm::cast<llvm::MDNode>(mdnode->getOperand(1));
+        break;
+      default:
+        LOG(INFO) << "Conflicting type";
+        mdnode = nullptr;
+        break;
+    }
+  }
+  auto ptr_type{ast_ctx.getPointerType(GetQualType(inst.getType(), mdnode))};
   auto cast{
       ast.CreateCStyleCast(ptr_type, CreateOperandExpr(inst.getOperandUse(0)))};
   return ast.CreateDeref(cast);
@@ -899,7 +982,7 @@ clang::Expr *ExprGen::visitCastInst(llvm::CastInst &inst) {
   // Get a C-language expression of the operand
   auto operand{CreateOperandExpr(inst.getOperandUse(0))};
   // Get destination type
-  auto type{GetQualType(inst.getType(), IsSigned(inst))};
+  auto type{GetQualType(inst.getType(), inst.getMetadata("rellic.type"))};
   // Adjust type
   switch (inst.getOpcode()) {
     case llvm::CastInst::Trunc: {
@@ -1027,8 +1110,22 @@ clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   auto &value_opnd{inst.getOperandUse(0)};
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
-  auto ptr_type{ast_ctx.getPointerType(
-      expr_gen.GetQualType(value_opnd->getType(), IsSigned(inst)))};
+  clang::QualType ptr_type;
+  llvm::MDNode *metadata_type{};
+  auto ptr_opnd{inst.getPointerOperand()};
+  if (auto gobj = llvm::dyn_cast<llvm::GlobalObject>(ptr_opnd)) {
+    metadata_type = gobj->getMetadata("rellic.type");
+  }
+
+  if (auto inst = llvm::dyn_cast<llvm::Instruction>(ptr_opnd)) {
+    metadata_type = inst->getMetadata("rellic.type");
+  }
+
+  if (!metadata_type || !expr_gen.GetQualType(metadata_type, ptr_type)) {
+    ptr_type =
+        ast_ctx.getPointerType(expr_gen.GetQualType(value_opnd->getType()));
+  }
+
   auto lhs{ast.CreateCStyleCast(
       ptr_type, expr_gen.CreateOperandExpr(
                     inst.getOperandUse(inst.getPointerOperandIndex())))};
@@ -1243,9 +1340,25 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // (`varname_addr` being a common name used by clang for variables used as
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
+      auto mdnode{alloca->getMetadata("rellic.type")};
+      if (mdnode) {
+        auto &md{*mdnode->getOperand(0)};
+        auto value{llvm::cast<llvm::ConstantAsMetadata>(&md)};
+        auto type{static_cast<AbstractType>(
+            value->getValue()->getUniqueInteger().getZExtValue())};
+        switch (type) {
+          case AbstractType::Pointer:
+            mdnode = llvm::cast<llvm::MDNode>(mdnode->getOperand(1));
+            break;
+          default:
+            LOG(INFO) << "Conflicting type";
+            mdnode = nullptr;
+            break;
+        }
+      }
+
       var = ast.CreateVarDecl(
-          fdecl,
-          expr_gen.GetQualType(alloca->getAllocatedType(), IsSigned(*alloca)),
+          fdecl, expr_gen.GetQualType(alloca->getAllocatedType(), mdnode),
           name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst) ||
@@ -1264,7 +1377,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
         auto name{GetPrefix(&inst) +
                   std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-        auto type{expr_gen.GetQualType(inst.getType(), IsSigned(inst))};
+        auto type{expr_gen.GetQualType(inst.getType(),
+                                       inst.getMetadata("rellic.type"))};
         if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
           type = ast_ctx.getPointerType(arrayType->getElementType());
         }

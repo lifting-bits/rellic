@@ -11,10 +11,12 @@
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constant.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/InstIterator.h>
 #include <llvm/IR/InstVisitor.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
@@ -24,6 +26,7 @@
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Operator.h>
+#include <llvm/IR/Use.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Passes/PassBuilder.h>
@@ -48,364 +51,125 @@
 #include "rellic/BC/Util.h"
 
 namespace rellic {
-namespace {
-namespace AbstractTypes {
-struct Top {};
-constexpr bool operator<(const Top&, const Top&) { return false; }
-constexpr bool operator>(const Top&, const Top&) { return false; }
-constexpr bool operator<=(const Top&, const Top&) { return true; }
-constexpr bool operator>=(const Top&, const Top&) { return true; }
-constexpr bool operator==(const Top&, const Top&) { return true; }
-constexpr bool operator!=(const Top&, const Top&) { return false; }
+struct Integer;
+
+struct Signed {
+  constexpr bool operator==(const Signed&) const { return true; }
+  constexpr bool operator!=(const Signed&) const { return false; }
+};
+
+struct Unsigned {
+  constexpr bool operator==(const Unsigned&) const { return true; }
+  constexpr bool operator!=(const Unsigned&) const { return false; }
+};
+
+struct Pointer;
+
+using Term = std::variant<std::string, Integer, Pointer, Signed, Unsigned>;
+
+struct Pointer {
+  std::shared_ptr<Term> pointed;
+  Pointer(const Term& t) : pointed(std::make_shared<Term>(t)) {}
+};
 
 struct Integer {
   unsigned size;
+  std::shared_ptr<Term> kind;
+  Integer(unsigned size, const Term& t)
+      : size(size), kind(std::make_shared<Term>(t)) {}
 };
-constexpr bool operator<(const Integer& a, const Integer& b) {
-  return a.size < b.size;
+
+constexpr bool operator==(const Pointer& a, const Pointer& b) {
+  return a.pointed == b.pointed;
 }
-constexpr bool operator>(const Integer& a, const Integer& b) {
-  return a.size > b.size;
+
+constexpr bool operator!=(const Pointer& a, const Pointer& b) {
+  return !(a == b);
 }
-constexpr bool operator<=(const Integer& a, const Integer& b) {
-  return a.size <= b.size;
-}
-constexpr bool operator>=(const Integer& a, const Integer& b) {
-  return a.size >= b.size;
-}
+
 constexpr bool operator==(const Integer& a, const Integer& b) {
-  return a.size == b.size;
+  return a.size == b.size && a.kind == b.kind;
 }
+
 constexpr bool operator!=(const Integer& a, const Integer& b) {
-  return a.size != b.size;
+  return !(a == b);
 }
 
-struct Signed {
-  unsigned size;
-};
-constexpr bool operator<(const Signed& a, const Signed& b) {
-  return a.size < b.size;
-}
-constexpr bool operator>(const Signed& a, const Signed& b) {
-  return a.size > b.size;
-}
-constexpr bool operator<=(const Signed& a, const Signed& b) {
-  return a.size <= b.size;
-}
-constexpr bool operator>=(const Signed& a, const Signed& b) {
-  return a.size >= b.size;
-}
-constexpr bool operator==(const Signed& a, const Signed& b) {
-  return a.size == b.size;
-}
-constexpr bool operator!=(const Signed& a, const Signed& b) {
-  return a.size != b.size;
-}
-
-struct Unsigned {
-  unsigned size;
-};
-constexpr bool operator<(const Unsigned& a, const Unsigned& b) {
-  return a.size < b.size;
-}
-constexpr bool operator>(const Unsigned& a, const Unsigned& b) {
-  return a.size > b.size;
-}
-constexpr bool operator<=(const Unsigned& a, const Unsigned& b) {
-  return a.size <= b.size;
-}
-constexpr bool operator>=(const Unsigned& a, const Unsigned& b) {
-  return a.size >= b.size;
-}
-constexpr bool operator==(const Unsigned& a, const Unsigned& b) {
-  return a.size == b.size;
-}
-constexpr bool operator!=(const Unsigned& a, const Unsigned& b) {
-  return a.size != b.size;
-}
-
-struct BiSigned {
-  unsigned size;
-};
-constexpr bool operator<(const BiSigned& a, const BiSigned& b) {
-  return a.size < b.size;
-}
-constexpr bool operator>(const BiSigned& a, const BiSigned& b) {
-  return a.size > b.size;
-}
-constexpr bool operator<=(const BiSigned& a, const BiSigned& b) {
-  return a.size <= b.size;
-}
-constexpr bool operator>=(const BiSigned& a, const BiSigned& b) {
-  return a.size >= b.size;
-}
-constexpr bool operator==(const BiSigned& a, const BiSigned& b) {
-  return a.size == b.size;
-}
-constexpr bool operator!=(const BiSigned& a, const BiSigned& b) {
-  return a.size != b.size;
-}
-
-struct Bottom {};
-constexpr bool operator<(const Bottom&, const Bottom&) { return false; }
-constexpr bool operator>(const Bottom&, const Bottom&) { return false; }
-constexpr bool operator<=(const Bottom&, const Bottom&) { return true; }
-constexpr bool operator>=(const Bottom&, const Bottom&) { return true; }
-constexpr bool operator==(const Bottom&, const Bottom&) { return true; }
-constexpr bool operator!=(const Bottom&, const Bottom&) { return false; }
-
-template <typename Var>
-struct Pointer;
-
-template <typename Var>
-using Type = std::variant<Bottom, Integer, Pointer<Var>, Signed, Unsigned,
-                          BiSigned, Top, Var>;
-
-template <typename Var>
-struct Pointer {
-  std::shared_ptr<Type<Var>> pointed;
-
-  constexpr bool operator<(const Pointer& b) const {
-    return std::less<Type<Var>>()(*pointed, *b.pointed);
-  }
-  constexpr bool operator>(const Pointer& b) const {
-    return std::greater<Type<Var>>()(*pointed, *b.pointed);
-  }
-  constexpr bool operator<=(const Pointer& b) const {
-    return std::greater_equal<Type<Var>>()(*pointed, *b.pointed);
-  }
-  constexpr bool operator>=(const Pointer& b) const {
-    return std::less_equal<Type<Var>>()(*pointed, *b.pointed);
-  }
-  constexpr bool operator==(const Pointer& b) const {
-    return std::equal_to<Type<Var>>()(*pointed, *b.pointed);
-  }
-  constexpr bool operator!=(const Pointer& b) const {
-    return std::not_equal_to<Type<Var>>()(*pointed, *b.pointed);
-  }
-};
-
-template <typename Var>
-Type<Var> LeastUpperBound(Type<Var> a, Type<Var> b) {
-  if (std::holds_alternative<Top>(a) || std::holds_alternative<Top>(b)) {
-    return Top{};
-  }
-
-  if (std::holds_alternative<Bottom>(a)) {
-    return b;
-  }
-
-  if (std::holds_alternative<Bottom>(b)) {
-    return a;
-  }
-
-  if (std::holds_alternative<Integer>(a)) {
-    auto int_a{std::get<Integer>(a)};
-    if (std::holds_alternative<Signed>(b)) {
-      auto int_b{std::get<Signed>(b)};
-      return Signed{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Unsigned>(b)) {
-      auto int_b{std::get<Unsigned>(b)};
-      return Unsigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<BiSigned>(b)) {
-      auto int_b{std::get<BiSigned>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Integer>(b)) {
-      auto int_b{std::get<Integer>(b)};
-      return Integer{std::max({int_a.size, int_b.size})};
-    }
-  }
-
-  if (std::holds_alternative<Signed>(a)) {
-    auto int_a{std::get<Signed>(a)};
-    if (std::holds_alternative<Signed>(b)) {
-      auto int_b{std::get<Signed>(b)};
-      return Signed{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Unsigned>(b)) {
-      auto int_b{std::get<Unsigned>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<BiSigned>(b)) {
-      auto int_b{std::get<BiSigned>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Integer>(b)) {
-      auto int_b{std::get<Integer>(b)};
-      return Signed{std::max({int_a.size, int_b.size})};
-    }
-  }
-
-  if (std::holds_alternative<Unsigned>(a)) {
-    auto int_a{std::get<Unsigned>(a)};
-    if (std::holds_alternative<Signed>(b)) {
-      auto int_b{std::get<Signed>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Unsigned>(b)) {
-      auto int_b{std::get<Unsigned>(b)};
-      return Unsigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<BiSigned>(b)) {
-      auto int_b{std::get<BiSigned>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Integer>(b)) {
-      auto int_b{std::get<Integer>(b)};
-      return Unsigned{std::max({int_a.size, int_b.size})};
-    }
-  }
-
-  if (std::holds_alternative<BiSigned>(a)) {
-    auto int_a{std::get<BiSigned>(a)};
-    if (std::holds_alternative<Signed>(b)) {
-      auto int_b{std::get<Signed>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Unsigned>(b)) {
-      auto int_b{std::get<Unsigned>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<BiSigned>(b)) {
-      auto int_b{std::get<BiSigned>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-
-    if (std::holds_alternative<Integer>(b)) {
-      auto int_b{std::get<Integer>(b)};
-      return BiSigned{std::max({int_a.size, int_b.size})};
-    }
-  }
-
-  if (std::holds_alternative<Pointer<Var>>(a) &&
-      std::holds_alternative<Pointer<Var>>(b)) {
-    auto ptr_a{std::get<Pointer<Var>>(a)};
-    auto ptr_b{std::get<Pointer<Var>>(b)};
-    return Pointer<Var>{std::make_shared<Type<Var>>(
-        LeastUpperBound(*ptr_a.pointed, *ptr_b.pointed))};
-  }
-
-  if (std::holds_alternative<Var>(a) && std::holds_alternative<Var>(b)) {
-    auto var_a{std::get<Var>(a)};
-    auto var_b{std::get<Var>(b)};
-    if (std::equal_to<Var>()(var_a, var_b)) {
-      return var_a;
-    }
-  }
-
-  return Top{};
-}
-
-template <typename Var>
-llvm::MDNode* MakeNode(llvm::LLVMContext& ctx, Type<Var>& t) {
-  auto GetConstant = [&ctx](unsigned value) {
+llvm::MDNode* MakeNode(llvm::LLVMContext& ctx, const Term& t) {
+  auto GetConstant = [&ctx](auto value) {
     return llvm::ConstantAsMetadata::get(llvm::ConstantInt::getIntegerValue(
-        llvm::Type::getInt32Ty(ctx), llvm::APInt(32, value)));
+        llvm::Type::getInt32Ty(ctx),
+        llvm::APInt(32, static_cast<unsigned>(value))));
   };
 
-  if (std::holds_alternative<Top>(t)) {
-    return nullptr;
-  }
-
-  if (std::holds_alternative<Bottom>(t)) {
-    return llvm::MDNode::get(
-        ctx, {GetConstant(static_cast<unsigned>(AbstractType::Bottom))});
-  }
-
   if (std::holds_alternative<Integer>(t)) {
-    auto integer{std::get<Integer>(t)};
+    auto& integer{std::get<Integer>(t)};
+    if (std::holds_alternative<Signed>(*integer.kind)) {
+      return llvm::MDNode::get(
+          ctx, {GetConstant(AbstractType::Signed), GetConstant(integer.size)});
+    }
+
+    if (std::holds_alternative<Unsigned>(*integer.kind)) {
+      return llvm::MDNode::get(ctx, {GetConstant(AbstractType::Unsigned),
+                                     GetConstant(integer.size)});
+    }
+
     return llvm::MDNode::get(
-        ctx, {GetConstant(static_cast<unsigned>(AbstractType::Unsigned)),
-              GetConstant(integer.size)});
+        ctx, {GetConstant(AbstractType::Unsigned), GetConstant(integer.size)});
   }
 
-  if (std::holds_alternative<Signed>(t)) {
-    auto integer{std::get<Signed>(t)};
-    return llvm::MDNode::get(
-        ctx, {GetConstant(static_cast<unsigned>(AbstractType::Signed)),
-              GetConstant(integer.size)});
-  }
+  if (std::holds_alternative<Pointer>(t)) {
+    auto& ptr{std::get<Pointer>(t)};
+    auto sub{MakeNode(ctx, *ptr.pointed)};
+    if (sub) {
+      return llvm::MDNode::get(ctx, {GetConstant(AbstractType::Pointer), sub});
+    }
 
-  if (std::holds_alternative<Unsigned>(t)) {
-    auto integer{std::get<Unsigned>(t)};
-    return llvm::MDNode::get(
-        ctx, {GetConstant(static_cast<unsigned>(AbstractType::Unsigned)),
-              GetConstant(integer.size)});
-  }
-
-  if (std::holds_alternative<BiSigned>(t)) {
-    auto integer{std::get<BiSigned>(t)};
-    return llvm::MDNode::get(
-        ctx, {GetConstant(static_cast<unsigned>(AbstractType::Unsigned)),
-              GetConstant(integer.size)});
-  }
-
-  CHECK(!std::holds_alternative<Var>(t)) << "Cannot create node for variable";
-
-  auto ptr{std::get<Pointer<Var>>(t)};
-  auto sub{MakeNode(ctx, *ptr.pointed)};
-  if (sub) {
-    return llvm::MDNode::get(
-        ctx, {GetConstant(static_cast<unsigned>(AbstractType::Pointer)), sub});
+    return llvm::MDNode::get(ctx, {GetConstant(AbstractType::Pointer)});
   }
 
   return nullptr;
 }
 
-template <typename Var>
-bool ContainsVar(const Type<Var>& t, const Var& v) {
-  if (std::holds_alternative<Var>(t)) {
-    return std::equal_to<Var>()(std::get<Var>(t), v);
+bool ContainsVar(const Term& t, const std::string& v) {
+  if (std::holds_alternative<std::string>(t)) {
+    return std::get<std::string>(t) == v;
   }
 
-  if (std::holds_alternative<Pointer<Var>>(t)) {
-    auto ptr{std::get<Pointer<Var>>(t)};
+  if (std::holds_alternative<Pointer>(t)) {
+    auto& ptr{std::get<Pointer>(t)};
     return ContainsVar(*ptr.pointed, v);
   }
 
   return false;
 }
 
-template <typename Var>
-bool IsFree(const Type<Var>& t) {
-  if (std::holds_alternative<Var>(t)) {
-    return false;
+bool ContainsFreeVariables(const Term& t) {
+  if (std::holds_alternative<std::string>(t)) {
+    return true;
   }
 
-  if (std::holds_alternative<Pointer<Var>>(t)) {
-    auto ptr{std::get<Pointer<Var>>(t)};
-    return IsFree(*ptr.pointed);
+  if (std::holds_alternative<Pointer>(t)) {
+    auto& ptr{std::get<Pointer>(t)};
+    return ContainsFreeVariables(*ptr.pointed);
   }
 
-  return true;
+  return false;
 }
 
-template <typename Var>
-std::string ToString(const Type<Var>& t) {
-  if (std::holds_alternative<Var>(t)) {
-    return "var";
+std::string ToString(const Term& t) {
+  if (std::holds_alternative<std::string>(t)) {
+    return std::get<std::string>(t);
   }
 
-  if (std::holds_alternative<Pointer<Var>>(t)) {
-    return "ptr(" + ToString<Var>(*std::get<Pointer<Var>>(t).pointed) + ")";
+  if (std::holds_alternative<Pointer>(t)) {
+    return "ptr(" + ToString(*std::get<Pointer>(t).pointed) + ")";
   }
 
   if (std::holds_alternative<Integer>(t)) {
-    return "integer";
+    auto& integer{std::get<Integer>(t)};
+    return "integer(" + ToString(*integer.kind) + ", " +
+           std::to_string(integer.size) + ")";
   }
 
   if (std::holds_alternative<Signed>(t)) {
@@ -416,277 +180,341 @@ std::string ToString(const Type<Var>& t) {
     return "unsigned";
   }
 
-  if (std::holds_alternative<Top>(t)) {
-    return "top";
-  }
-
+  CHECK(false);
   return "bottom";
 }
-}  // namespace AbstractTypes
-
-template <typename Var>
-AbstractTypes::Type<Var> AbstractTypeFromLLVM(llvm::Type* type) {
-  if (type->isIntegerTy()) {
-    return AbstractTypes::Integer{type->getScalarSizeInBits()};
-  }
-
-  if (type->isPointerTy()) {
-    return AbstractTypes::Pointer<Var>{
-        std::make_shared<AbstractTypes::Type<Var>>(AbstractTypes::Bottom{})};
-  }
-
-  /*if (type->isArrayTy()) {
-    return AbstractTypeFromLLVM<Var>(type->getArrayElementType());
-  }
-
-  if (type->isVectorTy()) {
-    return AbstractTypeFromLLVM<Var>(type->getScalarType());
-  }*/
-
-  return AbstractTypes::Top{};
-}
-}  // namespace
-
-using Term = AbstractTypes::Type<llvm::Value*>;
 
 class Equalities {
  private:
-  std::set<std::pair<Term, Term>> eqs;
-  std::unordered_map<llvm::Value*, Term> assignments;
+  using Eq = std::pair<Term, Term>;
 
-  Term ApplyAssignments(const Term& t) {
-    using namespace AbstractTypes;
+  std::vector<Eq> eqs;
+  std::unordered_map<std::string, Term> assignments;
+  unsigned num_vars{};
 
-    if (std::holds_alternative<llvm::Value*>(t)) {
-      auto var{std::get<llvm::Value*>(t)};
-      return assignments[var];
+  static Term Substitute(const Term& t, const std::string& v, const Term& sub) {
+    if (std::holds_alternative<std::string>(t)) {
+      auto var{std::get<std::string>(t)};
+      if (var == v) {
+        return sub;
+      }
     }
 
-    if (std::holds_alternative<Pointer<llvm::Value*>>(t)) {
-      auto ptr{std::get<Pointer<llvm::Value*>>(t)};
-      return Pointer<llvm::Value*>{
-          std::make_shared<Term>(ApplyAssignments(*ptr.pointed))};
+    if (std::holds_alternative<Pointer>(t)) {
+      auto& ptr{std::get<Pointer>(t)};
+      return Pointer{Substitute(*ptr.pointed, v, sub)};
     }
 
     return t;
   }
 
+  static bool TryUnify(std::vector<Eq>& eqs,
+                       std::unordered_map<std::string, Term>& assignments) {
+    auto remove = [](std::vector<Eq>& vec, size_t i) {
+      if (vec.size() > 1) {
+        std::iter_swap(vec.begin() + i, vec.end() - 1);
+        vec.pop_back();
+      } else {
+        vec.clear();
+      }
+    };
+
+    size_t i{0};
+    while (i < eqs.size()) {
+      auto [lhs, rhs] = eqs[i];
+
+      if (lhs == rhs) {
+        // Delete
+        remove(eqs, i);
+        i = 0;
+        continue;
+      }
+
+      if (std::holds_alternative<Integer>(lhs) &&
+          std::holds_alternative<Integer>(rhs)) {
+        auto int_l{std::get<Integer>(lhs)};
+        auto int_r{std::get<Integer>(rhs)};
+        if (int_l.size != int_r.size) {
+          return false;
+        }
+
+        // Decompose
+        remove(eqs, i);
+        eqs.push_back({*int_l.kind, *int_r.kind});
+        i = 0;
+        continue;
+      }
+
+      if (std::holds_alternative<Pointer>(lhs) &&
+          std::holds_alternative<Pointer>(rhs)) {
+        // Decompose
+        auto ptr_l{std::get<Pointer>(lhs)};
+        auto ptr_r{std::get<Pointer>(rhs)};
+        remove(eqs, i);
+        eqs.push_back({*ptr_l.pointed, *ptr_l.pointed});
+        i = 0;
+        continue;
+      }
+
+      if (std::holds_alternative<std::string>(lhs)) {
+        auto var{std::get<std::string>(lhs)};
+        if (ContainsVar(rhs, var)) {
+          // Occurs-check
+          return false;
+        }
+
+        // Eliminate
+        remove(eqs, i);
+
+        std::vector<Eq> new_eqs;
+        auto new_assignments = assignments;
+        for (auto [eq_l, eq_r] : eqs) {
+          new_eqs.push_back(
+              {Substitute(eq_l, var, rhs), Substitute(eq_r, var, rhs)});
+        }
+
+        new_assignments[var] = rhs;
+        for (auto& [k, v] : new_assignments) {
+          v = Substitute(v, var, rhs);
+        }
+        if (TryUnify(new_eqs, new_assignments)) {
+          eqs = new_eqs;
+          assignments = new_assignments;
+        }
+
+        i = 0;
+        continue;
+      }
+
+      if (std::holds_alternative<std::string>(rhs)) {
+        // Swap
+        remove(eqs, i);
+        eqs.push_back({rhs, lhs});
+        i = 0;
+        continue;
+      }
+
+      return false;
+
+      ++i;
+    }
+    return true;
+  }
+
  public:
-  const std::set<std::pair<Term, Term>>& GetEqualities() const { return eqs; }
-  const std::unordered_map<llvm::Value*, Term>& GetAssignments() const {
+  Term FreshVar() { return "T" + std::to_string(num_vars++); }
+
+  const std::vector<std::pair<Term, Term>>& GetEqualities() const {
+    return eqs;
+  }
+  const std::unordered_map<std::string, Term>& GetAssignments() const {
     return assignments;
   }
 
-  void Add(std::pair<Term, Term> eq) { eqs.insert(eq); }
+  void Add(std::pair<Term, Term> eq) { eqs.push_back(eq); }
 
-  void Unify() {
-    using namespace AbstractTypes;
-    while (!eqs.empty()) {
-      // Delete
-      auto it{eqs.begin()};
-      while (it != eqs.end()) {
-        if (it->first == it->second) {
-          eqs.erase(it);
-          it = eqs.begin();
-          continue;
-        }
-        ++it;
-      }
-
-      // Decompose
-      it = eqs.begin();
-      while (it != eqs.end()) {
-        if (std::holds_alternative<Pointer<llvm::Value*>>(it->first) &&
-            std::holds_alternative<Pointer<llvm::Value*>>(it->second)) {
-          auto ptr_a{std::get<Pointer<llvm::Value*>>(it->first)};
-          auto ptr_b{std::get<Pointer<llvm::Value*>>(it->second)};
-          eqs.erase(it);
-          eqs.insert({ptr_a, ptr_b});
-          it = eqs.begin();
-          continue;
-        }
-        ++it;
-      }
-
-      // Swap
-      it = eqs.begin();
-      while (it != eqs.end()) {
-        if (IsFree(it->first) && !IsFree(it->second)) {
-          auto a{it->first};
-          auto b{it->second};
-          eqs.erase(it);
-          eqs.insert({b, a});
-          it = eqs.begin();
-          continue;
-        }
-        ++it;
-      }
-
-      // Eliminate
-      it = eqs.begin();
-      while (it != eqs.end()) {
-        if (std::holds_alternative<llvm::Value*>(it->first) &&
-            IsFree(it->second)) {
-          auto var{std::get<llvm::Value*>(it->first)};
-          assignments[var] = LeastUpperBound(assignments[var], it->second);
-          eqs.erase(it);
-          it = eqs.begin();
-          continue;
-        }
-        ++it;
-      }
-
-      // Occurs-check
-      it = eqs.begin();
-      while (it != eqs.end()) {
-        if (std::holds_alternative<llvm::Value*>(it->first)) {
-          auto var{std::get<llvm::Value*>(it->first)};
-          if (ContainsVar(it->second, var)) {
-            assignments[var] = Top{};
-            eqs.erase(it);
-            it = eqs.begin();
-            continue;
-          }
-        }
-        ++it;
-      }
-
-      // Substitution
-      it = eqs.begin();
-      while (it != eqs.end()) {
-        if (std::holds_alternative<llvm::Value*>(it->first) &&
-            !IsFree(it->second)) {
-          auto var{std::get<llvm::Value*>(it->first)};
-          auto new_term{ApplyAssignments(it->second)};
-          eqs.erase(it);
-          eqs.insert({var, new_term});
-          it = eqs.begin();
-          continue;
-        }
-        ++it;
-      }
-    }
+  std::string CreateTerm(const llvm::Value* var) {
+    return "H" + std::to_string((unsigned long long)var);
   }
+
+  void Unify() { TryUnify(eqs, assignments); }
 };
 
 class EqualitiesGenerator : public llvm::InstVisitor<EqualitiesGenerator> {
  private:
   Equalities& equalities;
 
+  Term MakeVar(llvm::Value* val) { return equalities.CreateTerm(val); }
+
+  Term MakeVar() { return equalities.FreshVar(); }
+
+  Term AbstractTypeFromLLVM(llvm::Type* type) {
+    if (type->isIntegerTy()) {
+      return Integer{type->getScalarSizeInBits(), MakeVar()};
+    }
+
+    if (type->isPointerTy()) {
+      return Pointer{MakeVar()};
+    }
+
+    return MakeVar();
+  }
+
  public:
   EqualitiesGenerator(Equalities& equalities) : equalities(equalities) {}
 
   void visitFPToSIInst(llvm::FPToSIInst& inst) {
-    equalities.Add(
-        {&inst, AbstractTypes::Signed{inst.getType()->getScalarSizeInBits()}});
+    equalities.Add({MakeVar(&inst),
+                    Integer{inst.getType()->getScalarSizeInBits(), Signed{}}});
   }
 
   void visitFPToUIInst(llvm::FPToUIInst& inst) {
-    equalities.Add({&inst, AbstractTypes::Unsigned{
-                               inst.getType()->getScalarSizeInBits()}});
+    equalities.Add(
+        {MakeVar(&inst),
+         Integer{inst.getType()->getScalarSizeInBits(), Unsigned{}}});
   }
 
   void visitSIToFPInst(llvm::SIToFPInst& inst) {
-    equalities.Add({inst.getOperand(0), AbstractTypes::Signed{}});
+    auto opnd0{inst.getOperand(0)};
+    if (!llvm::isa<llvm::Constant>(opnd0)) {
+      equalities.Add(
+          {MakeVar(opnd0),
+           Integer{opnd0->getType()->getScalarSizeInBits(), Signed{}}});
+    }
   }
 
   void visitUIToFPInst(llvm::UIToFPInst& inst) {
-    equalities.Add({inst.getOperand(0), AbstractTypes::Unsigned{}});
+    auto opnd0{inst.getOperand(0)};
+    equalities.Add(
+        {MakeVar(opnd0),
+         Integer{opnd0->getType()->getScalarSizeInBits(), Unsigned{}}});
   }
 
   void visitICmpInst(llvm::ICmpInst& inst) {
     if (inst.isSigned()) {
-      equalities.Add({inst.getOperand(0), AbstractTypes::Signed{}});
-      equalities.Add({inst.getOperand(1), AbstractTypes::Signed{}});
+      auto opnd0{inst.getOperand(0)};
+      if (!llvm::isa<llvm::Constant>(opnd0)) {
+        equalities.Add(
+            {MakeVar(opnd0),
+             Integer{opnd0->getType()->getScalarSizeInBits(), Signed{}}});
+      }
+      auto opnd1{inst.getOperand(1)};
+      if (!llvm::isa<llvm::Constant>(opnd1)) {
+        equalities.Add(
+            {MakeVar(opnd1),
+             Integer{opnd1->getType()->getScalarSizeInBits(), Signed{}}});
+      }
     }
   }
 
   void visitSExtInst(llvm::SExtInst& inst) {
-    equalities.Add({inst.getOperand(0), AbstractTypes::Signed{}});
+    auto opnd0{inst.getOperand(0)};
+    if (!llvm::isa<llvm::Constant>(opnd0)) {
+      equalities.Add(
+          {MakeVar(opnd0),
+           Integer{opnd0->getType()->getScalarSizeInBits(), Signed{}}});
+    }
   }
 
   void visitBinaryOperator(llvm::BinaryOperator& inst) {
     switch (inst.getOpcode()) {
       case llvm::BinaryOperator::SRem:
-      case llvm::BinaryOperator::SDiv:
-        equalities.Add({&inst, AbstractTypes::Signed{
-                                   inst.getType()->getScalarSizeInBits()}});
-        equalities.Add({inst.getOperand(0), AbstractTypes::Signed{}});
-        equalities.Add({inst.getOperand(1), AbstractTypes::Signed{}});
-        break;
+      case llvm::BinaryOperator::SDiv: {
+        equalities.Add(
+            {MakeVar(&inst),
+             Integer{inst.getType()->getScalarSizeInBits(), Signed{}}});
+        auto opnd0{inst.getOperand(0)};
+        if (!llvm::isa<llvm::Constant>(opnd0)) {
+          equalities.Add(
+              {MakeVar(opnd0),
+               Integer{opnd0->getType()->getScalarSizeInBits(), Signed{}}});
+        }
+        auto opnd1{inst.getOperand(1)};
+        if (!llvm::isa<llvm::Constant>(opnd1)) {
+          equalities.Add(
+              {MakeVar(opnd1),
+               Integer{opnd1->getType()->getScalarSizeInBits(), Signed{}}});
+        }
+      } break;
       case llvm::BinaryOperator::URem:
-      case llvm::BinaryOperator::UDiv:
-        equalities.Add({&inst, AbstractTypes::Unsigned{
-                                   inst.getType()->getScalarSizeInBits()}});
-        equalities.Add({inst.getOperand(0), AbstractTypes::Integer{}});
-        equalities.Add({inst.getOperand(1), AbstractTypes::Integer{}});
-        break;
+      case llvm::BinaryOperator::UDiv: {
+        equalities.Add(
+            {MakeVar(&inst),
+             Integer{inst.getType()->getScalarSizeInBits(), Unsigned{}}});
+        auto opnd0{inst.getOperand(0)};
+        if (!llvm::isa<llvm::Constant>(opnd0)) {
+          equalities.Add(
+              {MakeVar(opnd0),
+               Integer{opnd0->getType()->getScalarSizeInBits(), MakeVar()}});
+        }
+        auto opnd1{inst.getOperand(1)};
+        if (!llvm::isa<llvm::Constant>(opnd1)) {
+          equalities.Add(
+              {MakeVar(opnd1),
+               Integer{opnd1->getType()->getScalarSizeInBits(), MakeVar()}});
+        }
+      } break;
       case llvm::BinaryOperator::Add:
       case llvm::BinaryOperator::Sub:
-      case llvm::BinaryOperator::Mul:
-        equalities.Add({&inst, inst.getOperand(0)});
-        equalities.Add({&inst, inst.getOperand(1)});
+      case llvm::BinaryOperator::Mul: {
+        auto opnd0{inst.getOperand(0)};
+        if (!llvm::isa<llvm::Constant>(opnd0)) {
+          equalities.Add({MakeVar(&inst), MakeVar(opnd0)});
+        }
+
+        auto opnd1{inst.getOperand(1)};
+        if (!llvm::isa<llvm::Constant>(opnd1)) {
+          equalities.Add({MakeVar(&inst), MakeVar(opnd1)});
+        }
+      }
       default:
         break;
     }
   }
 
   void visitCallInst(llvm::CallInst& inst) {
-    equalities.Add({&inst, inst.getCalledFunction()});
+    equalities.Add({MakeVar(&inst), MakeVar(inst.getCalledFunction())});
+  }
+
+  void visitReturnInst(llvm::ReturnInst& inst) {
+    auto retval{inst.getReturnValue()};
+    if (retval && !llvm::isa<llvm::Constant>(retval)) {
+      equalities.Add({MakeVar(retval), MakeVar(inst.getFunction())});
+    }
   }
 
   void visitAllocaInst(llvm::AllocaInst& inst) {
-    equalities.Add(
-        {&inst,
-         AbstractTypes::Pointer<llvm::Value*>{std::make_unique<Term>(
-             AbstractTypeFromLLVM<llvm::Value*>(inst.getAllocatedType()))}});
+    equalities.Add({MakeVar(&inst),
+                    Pointer{AbstractTypeFromLLVM(inst.getAllocatedType())}});
   }
 
   void visitLoadInst(llvm::LoadInst& inst) {
-    auto type{AbstractTypeFromLLVM<llvm::Value*>(inst.getType())};
-    equalities.Add({&inst, type});
+    auto type{AbstractTypeFromLLVM(inst.getType())};
+    equalities.Add({MakeVar(&inst), type});
+    equalities.Add({MakeVar(inst.getPointerOperand()), Pointer{type}});
     equalities.Add(
-        {inst.getPointerOperand(),
-         AbstractTypes::Pointer<llvm::Value*>{std::make_unique<Term>(type)}});
+        {Pointer{MakeVar(&inst)}, MakeVar(inst.getPointerOperand())});
   }
 
   void visitStoreInst(llvm::StoreInst& inst) {
-    equalities.Add({inst.getPointerOperand(),
-                    AbstractTypes::Pointer<llvm::Value*>{
-                        std::make_unique<Term>(inst.getValueOperand())}});
-    equalities.Add(
-        {inst.getValueOperand(), AbstractTypeFromLLVM<llvm::Value*>(
-                                     inst.getValueOperand()->getType())});
+    auto value_opnd{inst.getValueOperand()};
+    if (!llvm::isa<llvm::Constant>(value_opnd)) {
+      equalities.Add(
+          {MakeVar(value_opnd), AbstractTypeFromLLVM(value_opnd->getType())});
+      equalities.Add(
+          {MakeVar(inst.getPointerOperand()), Pointer{MakeVar(value_opnd)}});
+    }
   }
 
   void visitGetElementPtrInst(llvm::GetElementPtrInst& inst) {
-    auto type{AbstractTypeFromLLVM<llvm::Value*>(inst.getResultElementType())};
-    equalities.Add({&inst, AbstractTypes::Pointer<llvm::Value*>{
-                               std::make_unique<Term>(type)}});
+    auto type{AbstractTypeFromLLVM(inst.getResultElementType())};
+    equalities.Add({MakeVar(&inst), Pointer{type}});
   }
 };
 
 void PerformTypeInference(llvm::Module& module) {
-  using namespace AbstractTypes;
-
   Equalities equalities;
 
   EqualitiesGenerator gen{equalities};
   gen.visit(module);
   equalities.Unify();
-  for (auto assign : equalities.GetAssignments()) {
-    if (!assign.first) {
-      continue;
-    }
 
-    if (auto gobj = llvm::dyn_cast<llvm::GlobalObject>(assign.first)) {
-      gobj->setMetadata("rellic.type",
-                        MakeNode(module.getContext(), assign.second));
-    }
+  auto assignments{equalities.GetAssignments()};
 
-    if (auto inst = llvm::dyn_cast<llvm::Instruction>(assign.first)) {
-      inst->setMetadata("rellic.type",
-                        MakeNode(module.getContext(), assign.second));
+  for (auto& gvar : module.globals()) {
+    gvar.setMetadata("rellic.type",
+                     MakeNode(module.getContext(),
+                              assignments[equalities.CreateTerm(&gvar)]));
+  }
+
+  for (auto& func : module.functions()) {
+    func.setMetadata("rellic.type",
+                     MakeNode(module.getContext(),
+                              assignments[equalities.CreateTerm(&func)]));
+    for (auto& inst : llvm::instructions(func)) {
+      inst.setMetadata("rellic.type",
+                       MakeNode(module.getContext(),
+                                assignments[equalities.CreateTerm(&inst)]));
     }
   }
 }

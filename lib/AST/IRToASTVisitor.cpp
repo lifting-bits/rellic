@@ -109,7 +109,11 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
         value->getValue()->getUniqueInteger().getZExtValue())};
     switch (type) {
       case AbstractType::Pointer:
-        mdnode = llvm::cast<llvm::MDNode>(mdnode->getOperand(1));
+        if (mdnode->getNumOperands() > 1) {
+          mdnode = llvm::dyn_cast<llvm::MDNode>(mdnode->getOperand(1));
+        } else {
+          mdnode = nullptr;
+        }
         break;
       default:
         LOG(INFO) << "Conflicting type";
@@ -128,6 +132,9 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
 
 bool ExprGen::GetQualType(const llvm::MDNode *type_metadata,
                           clang::QualType &out_type) {
+  if (!type_metadata) {
+    return false;
+  }
   auto &opnd{*type_metadata->getOperand(0)};
   auto tag{llvm::cast<llvm::ConstantAsMetadata>(&opnd)};
   auto type{static_cast<AbstractType>(
@@ -139,7 +146,7 @@ bool ExprGen::GetQualType(const llvm::MDNode *type_metadata,
                     ->getValue()
                     ->getUniqueInteger()
                     .getZExtValue()};
-      out_type = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/true);
+      out_type = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/false);
       return true;
     }
     case AbstractType::Signed: {
@@ -148,19 +155,23 @@ bool ExprGen::GetQualType(const llvm::MDNode *type_metadata,
                     ->getValue()
                     ->getUniqueInteger()
                     .getZExtValue()};
-      out_type = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/false);
+      out_type = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/true);
       return true;
     }
     case AbstractType::Pointer: {
-      auto &opnd1{*type_metadata->getOperand(1)};
-      clang::QualType sub;
-      if (GetQualType(llvm::cast<llvm::MDNode>(&opnd1), sub)) {
+      if (type_metadata->getNumOperands() == 1) {
+        return false;
+      }
+
+      auto &opnd1{type_metadata->getOperand(1)};
+      auto &node = *opnd1;
+      clang::QualType sub{ast_ctx.VoidTy};
+      if (GetQualType(llvm::dyn_cast<llvm::MDNode>(&node), sub)) {
         out_type = ast_ctx.getPointerType(sub);
         return true;
       }
 
-      out_type = ast_ctx.VoidPtrTy;
-      return true;
+      return false;
     }
     default:
       return false;
@@ -773,7 +784,11 @@ clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
         value->getValue()->getUniqueInteger().getZExtValue())};
     switch (type) {
       case AbstractType::Pointer:
-        mdnode = llvm::cast<llvm::MDNode>(mdnode->getOperand(1));
+        if (mdnode->getNumOperands() > 1) {
+          mdnode = llvm::cast<llvm::MDNode>(mdnode->getOperand(1));
+        } else {
+          mdnode = nullptr;
+        }
         break;
       default:
         LOG(INFO) << "Conflicting type";
@@ -1348,7 +1363,11 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
             value->getValue()->getUniqueInteger().getZExtValue())};
         switch (type) {
           case AbstractType::Pointer:
-            mdnode = llvm::cast<llvm::MDNode>(mdnode->getOperand(1));
+            if (mdnode->getNumOperands() > 1) {
+              mdnode = llvm::dyn_cast<llvm::MDNode>(mdnode->getOperand(1));
+            } else {
+              mdnode = nullptr;
+            }
             break;
           default:
             LOG(INFO) << "Conflicting type";
@@ -1377,8 +1396,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
         auto name{GetPrefix(&inst) +
                   std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-        auto type{expr_gen.GetQualType(inst.getType(),
-                                       inst.getMetadata("rellic.type"))};
+        auto mdnode{inst.getMetadata("rellic.type")};
+        auto type{expr_gen.GetQualType(inst.getType(), mdnode)};
         if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
           type = ast_ctx.getPointerType(arrayType->getElementType());
         }

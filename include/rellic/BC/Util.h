@@ -68,6 +68,6 @@ void RemoveInsertValues(llvm::Module &module);
 // semantics are preserved in C
 void ConvertArrayArguments(llvm::Module &module);
 
-enum class AbstractType : unsigned { Bottom, Signed, Unsigned, Pointer };
+enum class AbstractType : unsigned { Unsigned, Signed, Pointer };
 void PerformTypeInference(llvm::Module &module);
 }  // namespace rellic

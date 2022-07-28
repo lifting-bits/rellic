@@ -79,21 +79,17 @@ struct Integer {
       : size(size), kind(std::make_shared<Term>(t)) {}
 };
 
-constexpr bool operator==(const Pointer& a, const Pointer& b) {
+bool operator==(const Pointer& a, const Pointer& b) {
   return a.pointed == b.pointed;
 }
 
-constexpr bool operator!=(const Pointer& a, const Pointer& b) {
-  return !(a == b);
-}
+bool operator!=(const Pointer& a, const Pointer& b) { return !(a == b); }
 
-constexpr bool operator==(const Integer& a, const Integer& b) {
+bool operator==(const Integer& a, const Integer& b) {
   return a.size == b.size && a.kind == b.kind;
 }
 
-constexpr bool operator!=(const Integer& a, const Integer& b) {
-  return !(a == b);
-}
+bool operator!=(const Integer& a, const Integer& b) { return !(a == b); }
 
 llvm::MDNode* MakeNode(llvm::LLVMContext& ctx, const Term& t) {
   auto GetConstant = [&ctx](auto value) {

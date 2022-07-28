@@ -1380,7 +1380,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
           fdecl, expr_gen.GetQualType(alloca->getAllocatedType(), mdnode),
           name);
       fdecl->addDecl(var);
-    } else if (inst.hasNUsesOrMore(2) || llvm::isa<llvm::CallInst>(inst) ||
+    } else if (inst.hasNUsesOrMore(2) ||
+               (inst.hasNUsesOrMore(1) && llvm::isa<llvm::CallInst>(inst)) ||
                llvm::isa<llvm::LoadInst>(inst) ||
                llvm::isa<llvm::PHINode>(inst)) {
       if (!inst.getType()->isVoidTy()) {

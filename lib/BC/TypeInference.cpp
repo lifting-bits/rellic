@@ -68,16 +68,56 @@ struct Pointer;
 using Term = std::variant<std::string, Integer, Pointer, Signed, Unsigned>;
 
 struct Pointer {
-  std::shared_ptr<Term> pointed;
-  Pointer(const Term& t) : pointed(std::make_shared<Term>(t)) {}
+  std::unique_ptr<Term> pointed;
+
+  Pointer(const Pointer& p);
+  Pointer(Pointer&& p);
+  Pointer(const Term& t) : pointed(std::make_unique<Term>(t)) {}
+
+  Pointer& operator=(const Pointer& p);
+  Pointer& operator=(Pointer&& p);
 };
 
 struct Integer {
   unsigned size;
-  std::shared_ptr<Term> kind;
+  std::unique_ptr<Term> kind;
+
+  Integer(const Integer& p);
+  Integer(Integer&& p);
   Integer(unsigned size, const Term& t)
-      : size(size), kind(std::make_shared<Term>(t)) {}
+      : size(size), kind(std::make_unique<Term>(t)) {}
+
+  Integer& operator=(const Integer& p);
+  Integer& operator=(Integer&& p);
 };
+
+Pointer::Pointer(const Pointer& p)
+    : pointed(std::make_unique<Term>(*p.pointed)) {}
+Pointer::Pointer(Pointer&& p) : pointed(std::move(p.pointed)) {}
+
+Integer::Integer(const Integer& p)
+    : size(p.size), kind(std::make_unique<Term>(*p.kind)) {}
+Integer::Integer(Integer&& p) : size(p.size), kind(std::move(p.kind)) {}
+
+Pointer& Pointer::operator=(const Pointer& p) {
+  pointed = std::make_unique<Term>(*p.pointed);
+  return *this;
+}
+Pointer& Pointer::operator=(Pointer&& p) {
+  pointed = std::move(p.pointed);
+  return *this;
+}
+
+Integer& Integer::operator=(const Integer& p) {
+  size = p.size;
+  kind = std::make_unique<Term>(*p.kind);
+  return *this;
+}
+Integer& Integer::operator=(Integer&& p) {
+  size = p.size;
+  kind = std::move(p.kind);
+  return *this;
+}
 
 bool operator==(const Pointer& a, const Pointer& b) {
   return a.pointed == b.pointed;
@@ -204,99 +244,6 @@ class Equalities {
     return t;
   }
 
-  static bool TryUnify(std::vector<Eq>& eqs,
-                       std::unordered_map<std::string, Term>& assignments) {
-    auto remove = [](std::vector<Eq>& vec, size_t i) {
-      if (vec.size() > 1) {
-        std::iter_swap(vec.begin() + i, vec.end() - 1);
-        vec.pop_back();
-      } else {
-        vec.clear();
-      }
-    };
-
-    size_t i{0};
-    while (i < eqs.size()) {
-      auto [lhs, rhs] = eqs[i];
-
-      if (lhs == rhs) {
-        // Delete
-        remove(eqs, i);
-        i = 0;
-        continue;
-      }
-
-      if (std::holds_alternative<Integer>(lhs) &&
-          std::holds_alternative<Integer>(rhs)) {
-        auto int_l{std::get<Integer>(lhs)};
-        auto int_r{std::get<Integer>(rhs)};
-        if (int_l.size != int_r.size) {
-          return false;
-        }
-
-        // Decompose
-        remove(eqs, i);
-        eqs.push_back({*int_l.kind, *int_r.kind});
-        i = 0;
-        continue;
-      }
-
-      if (std::holds_alternative<Pointer>(lhs) &&
-          std::holds_alternative<Pointer>(rhs)) {
-        // Decompose
-        auto ptr_l{std::get<Pointer>(lhs)};
-        auto ptr_r{std::get<Pointer>(rhs)};
-        remove(eqs, i);
-        eqs.push_back({*ptr_l.pointed, *ptr_l.pointed});
-        i = 0;
-        continue;
-      }
-
-      if (std::holds_alternative<std::string>(lhs)) {
-        auto var{std::get<std::string>(lhs)};
-        if (ContainsVar(rhs, var)) {
-          // Occurs-check
-          return false;
-        }
-
-        // Eliminate
-        remove(eqs, i);
-
-        std::vector<Eq> new_eqs;
-        auto new_assignments = assignments;
-        for (auto [eq_l, eq_r] : eqs) {
-          new_eqs.push_back(
-              {Substitute(eq_l, var, rhs), Substitute(eq_r, var, rhs)});
-        }
-
-        new_assignments[var] = rhs;
-        for (auto& [k, v] : new_assignments) {
-          v = Substitute(v, var, rhs);
-        }
-        if (TryUnify(new_eqs, new_assignments)) {
-          eqs = new_eqs;
-          assignments = new_assignments;
-        }
-
-        i = 0;
-        continue;
-      }
-
-      if (std::holds_alternative<std::string>(rhs)) {
-        // Swap
-        remove(eqs, i);
-        eqs.push_back({rhs, lhs});
-        i = 0;
-        continue;
-      }
-
-      return false;
-
-      ++i;
-    }
-    return true;
-  }
-
  public:
   Term FreshVar() { return "T" + std::to_string(num_vars++); }
 
@@ -313,7 +260,86 @@ class Equalities {
     return "H" + std::to_string((unsigned long long)var);
   }
 
-  void Unify() { TryUnify(eqs, assignments); }
+  void Unify() {
+    while (!eqs.empty()) {
+      auto [lhs, rhs] = eqs.back();
+
+      if (lhs == rhs) {
+        // Delete
+        eqs.pop_back();
+        continue;
+      }
+
+      if (std::holds_alternative<Integer>(lhs) &&
+          std::holds_alternative<Integer>(rhs)) {
+        auto int_l{std::get<Integer>(lhs)};
+        auto int_r{std::get<Integer>(rhs)};
+        CHECK_EQ(int_l.size, int_r.size)
+            << "Conflicting integer sizes during unification";
+
+        // Decompose
+        eqs.pop_back();
+        eqs.push_back({*int_l.kind, *int_r.kind});
+        continue;
+      }
+
+      if (std::holds_alternative<Pointer>(lhs) &&
+          std::holds_alternative<Pointer>(rhs)) {
+        // Decompose
+        auto ptr_l{std::get<Pointer>(lhs)};
+        auto ptr_r{std::get<Pointer>(rhs)};
+        eqs.pop_back();
+        eqs.push_back({*ptr_l.pointed, *ptr_l.pointed});
+        continue;
+      }
+
+      if (std::holds_alternative<std::string>(lhs)) {
+        auto var{std::get<std::string>(lhs)};
+
+        CHECK(!ContainsVar(rhs, var))
+            << "Occurs-check during unification: " << ToString(lhs) << " = "
+            << ToString(rhs);
+
+        // Eliminate
+        eqs.pop_back();
+
+        for (auto& [eq_l, eq_r] : eqs) {
+          eq_l = Substitute(eq_l, var, rhs);
+          eq_r = Substitute(eq_r, var, rhs);
+        }
+
+        assignments[var] = rhs;
+        for (auto& [k, v] : assignments) {
+          v = Substitute(v, var, rhs);
+        }
+        continue;
+      }
+
+      if (std::holds_alternative<std::string>(rhs)) {
+        // Swap
+        eqs.pop_back();
+        eqs.push_back({rhs, lhs});
+        continue;
+      }
+
+      if (std::holds_alternative<Signed>(lhs) &&
+          std::holds_alternative<Unsigned>(rhs)) {
+        // Ignore conflict
+        eqs.pop_back();
+        continue;
+      }
+
+      if (std::holds_alternative<Unsigned>(lhs) &&
+          std::holds_alternative<Signed>(rhs)) {
+        // Ignore conflict
+        eqs.pop_back();
+        continue;
+      }
+
+      LOG(FATAL) << "Conflict during unification: " << ToString(lhs) << " = "
+                 << ToString(rhs);
+    }
+  }
 };
 
 class EqualitiesGenerator : public llvm::InstVisitor<EqualitiesGenerator> {
@@ -467,18 +493,21 @@ class EqualitiesGenerator : public llvm::InstVisitor<EqualitiesGenerator> {
   void visitLoadInst(llvm::LoadInst& inst) {
     auto type{AbstractTypeFromLLVM(inst.getType())};
     equalities.Add({MakeVar(&inst), type});
-    equalities.Add({MakeVar(inst.getPointerOperand()), Pointer{type}});
-    equalities.Add(
-        {Pointer{MakeVar(&inst)}, MakeVar(inst.getPointerOperand())});
+    auto ptr_opnd{inst.getPointerOperand()};
+    if (!llvm::isa<llvm::Constant>(ptr_opnd)) {
+      equalities.Add({Pointer{MakeVar(&inst)}, MakeVar(ptr_opnd)});
+    }
   }
 
   void visitStoreInst(llvm::StoreInst& inst) {
     auto value_opnd{inst.getValueOperand()};
+    auto ptr_opnd{inst.getPointerOperand()};
     if (!llvm::isa<llvm::Constant>(value_opnd)) {
       equalities.Add(
           {MakeVar(value_opnd), AbstractTypeFromLLVM(value_opnd->getType())});
-      equalities.Add(
-          {MakeVar(inst.getPointerOperand()), Pointer{MakeVar(value_opnd)}});
+      if (!llvm::isa<llvm::Constant>(ptr_opnd)) {
+        equalities.Add({MakeVar(ptr_opnd), Pointer{MakeVar(value_opnd)}});
+      }
     }
   }
 

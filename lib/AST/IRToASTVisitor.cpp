@@ -500,7 +500,15 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
   auto &callee{*(inst.op_end() - 1)};
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
     auto fdecl{provenance.value_decls[func]->getAsFunction()};
-    callexpr = ast.CreateCall(fdecl, args);
+    if (func->getFunctionType() == inst.getFunctionType()) {
+      callexpr = ast.CreateCall(fdecl, args);
+    } else {
+      // Cast function type to match the one used in the call instruction
+      auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
+      auto callee{ast.CreateAddrOf(ast.CreateDeclRef(fdecl))};
+      auto cast{ast.CreateCStyleCast(funcPtr, callee)};
+      callexpr = ast.CreateCall(cast, args);
+    }
   } else if (auto iasm = llvm::dyn_cast<llvm::InlineAsm>(callee)) {
     auto fdecl{provenance.value_decls[iasm]->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);

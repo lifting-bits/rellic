@@ -285,7 +285,7 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
   auto old_cond{ToExpr(GetReachingCond(block))};
   if (block->hasNPredecessorsOrMore(1)) {
     // Gather reaching conditions from predecessors of the block
-    auto cond{provenance.z3_ctx.bool_val(false)};
+    z3::expr_vector conds{provenance.z3_ctx};
     for (auto pred : llvm::predecessors(block)) {
       auto pred_cond{ToExpr(GetReachingCond(pred))};
       auto edge_cond{ToExpr(GetOrCreateEdgeCond(pred, block))};
@@ -296,32 +296,10 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       // Append `conj_cond` to reaching conditions of other
       // predecessors via an `||`. Use `conj_cond` if there
       // is no `cond` yet.
-      z3::expr_vector left_exprs{provenance.z3_ctx};
-      z3::expr_vector right_exprs{provenance.z3_ctx};
-
-      if (cond.decl().decl_kind() == Z3_OP_AND) {
-        left_exprs = cond.args();
-      } else {
-        left_exprs.push_back(cond);
-      }
-
-      if (conj_cond.decl().decl_kind() == Z3_OP_AND) {
-        right_exprs = conj_cond.args();
-      } else {
-        right_exprs.push_back(conj_cond);
-      }
-
-      z3::expr_vector res_cond{provenance.z3_ctx};
-      for (auto expr_a : left_exprs) {
-        for (auto expr_b : right_exprs) {
-          res_cond.push_back(
-              HeavySimplify(provenance.z3_ctx, expr_a || expr_b));
-        }
-      }
-
-      cond = z3::mk_and(res_cond);
+      conds.push_back(conj_cond);
     }
 
+    auto cond{HeavySimplify(provenance.z3_ctx, z3::mk_or(conds))};
     if (!Prove(provenance.z3_ctx, old_cond == cond)) {
       provenance.reaching_conds[block] = provenance.z3_exprs.size();
       provenance.z3_exprs.push_back(cond);

@@ -17,33 +17,14 @@
 namespace rellic {
 
 Z3CondSimplify::Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<Z3CondSimplify>(provenance, unit) {}
-
-bool Z3CondSimplify::VisitIfStmt(clang::IfStmt *stmt) {
-  auto cond{provenance.z3_exprs[provenance.conds[stmt]]};
-  provenance.conds[stmt] = provenance.z3_exprs.size();
-  provenance.z3_exprs.push_back(HeavySimplify(provenance.z3_ctx, cond));
-  return true;
-}
-
-bool Z3CondSimplify::VisitWhileStmt(clang::WhileStmt *loop) {
-  auto cond{provenance.z3_exprs[provenance.conds[loop]]};
-  provenance.conds[loop] = provenance.z3_exprs.size();
-  provenance.z3_exprs.push_back(HeavySimplify(provenance.z3_ctx, cond));
-  return true;
-}
-
-bool Z3CondSimplify::VisitDoStmt(clang::DoStmt *loop) {
-  auto cond{provenance.z3_exprs[provenance.conds[loop]]};
-  provenance.conds[loop] = provenance.z3_exprs.size();
-  provenance.z3_exprs.push_back(HeavySimplify(provenance.z3_ctx, cond));
-  return true;
-}
+    : ASTPass(provenance, unit) {}
 
 void Z3CondSimplify::RunImpl() {
   LOG(INFO) << "Simplifying conditions using Z3";
-  TransformVisitor<Z3CondSimplify>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  for (size_t i{0}; i < provenance.z3_exprs.size() && !Stopped(); ++i) {
+    provenance.z3_exprs[i] =
+        HeavySimplify(provenance.z3_ctx, provenance.z3_exprs[i]);
+  }
 }
 
 }  // namespace rellic

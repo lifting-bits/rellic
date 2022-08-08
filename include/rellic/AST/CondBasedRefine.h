@@ -35,10 +35,6 @@ namespace rellic {
  */
 class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
  private:
-  using IfStmtVec = std::vector<clang::IfStmt *>;
-
-  void CreateIfThenElseStmts(IfStmtVec stmts);
-
  protected:
   void RunImpl() override;
 

@@ -10,6 +10,7 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <z3++.h>
 
 #include <iterator>
 
@@ -86,6 +87,37 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
 
       auto new_else{ast.CreateCompoundStmt(new_else_body)};
       new_if->setElse(new_else);
+
+      provenance.conds[new_if] = provenance.conds[if_a];
+      new_body[i] = new_if;
+      new_body.erase(std::next(new_body.begin(), i + 1));
+      did_something = true;
+      break;
+    }
+
+    if (Prove(provenance.z3_ctx, z3::implies(cond_b, cond_a))) {
+      std::vector<clang::Stmt *> new_then_body{then_a, if_b};
+      auto new_then{ast.CreateCompoundStmt(new_then_body)};
+
+      auto new_if{ast.CreateIf(provenance.marker_expr, new_then)};
+      new_if->setElse(else_a);
+
+      provenance.conds[new_if] = provenance.conds[if_a];
+      new_body[i] = new_if;
+      new_body.erase(std::next(new_body.begin(), i + 1));
+      did_something = true;
+      break;
+    }
+
+    if (Prove(provenance.z3_ctx, !(cond_a && cond_b)) &&
+        !Prove(provenance.z3_ctx, cond_a || cond_b)) {
+      auto new_if{ast.CreateIf(provenance.marker_expr, then_a)};
+      if (else_a) {
+        std::vector<clang::Stmt *> new_else_body{else_a, if_b};
+        new_if->setElse(ast.CreateCompoundStmt(new_else_body));
+      } else {
+        new_if->setElse(if_b);
+      }
 
       provenance.conds[new_if] = provenance.conds[if_a];
       new_body[i] = new_if;

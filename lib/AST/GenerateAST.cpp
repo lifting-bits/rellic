@@ -351,7 +351,8 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     // Gate the compound behind a reaching condition
     auto z_expr{GetReachingCond(block)};
     block_stmts[block] = ast.CreateIf(provenance.marker_expr, compound);
-    provenance.conds[block_stmts[block]] = z_expr;
+    provenance.conds[block_stmts[block]] = provenance.z3_exprs.size();
+    provenance.z3_exprs.push_back(provenance.z3_exprs[z_expr]);
     // Store the compound
     result.push_back(block_stmts[block]);
   }

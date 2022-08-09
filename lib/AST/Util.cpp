@@ -14,7 +14,8 @@
 #include <clang/AST/StmtVisitor.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <z3++.h>
+
+#include <numeric>
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/Exception.h"
@@ -370,5 +371,31 @@ z3::expr_vector Clone(z3::expr_vector &vec) {
   }
 
   return clone;
+}
+
+z3::expr Sort(z3::context &ctx, z3::expr expr) {
+  if (expr.is_and() || expr.is_or()) {
+    std::vector<unsigned> args_indices(expr.num_args(), 0);
+    std::iota(args_indices.begin(), args_indices.end(), 0);
+    std::sort(args_indices.begin(), args_indices.end(),
+              [&expr](unsigned a, unsigned b) {
+                return expr.arg(a).id() < expr.arg(b).id();
+              });
+    z3::expr_vector new_args{ctx};
+    for (auto idx : args_indices) {
+      new_args.push_back(Sort(ctx, expr.arg(idx)));
+    }
+    if (expr.is_and()) {
+      return z3::mk_and(new_args);
+    } else {
+      return z3::mk_or(new_args);
+    }
+  }
+
+  if (expr.is_not()) {
+    return !Sort(ctx, expr.arg(0));
+  }
+
+  return expr;
 }
 }  // namespace rellic

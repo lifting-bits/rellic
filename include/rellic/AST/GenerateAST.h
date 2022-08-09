@@ -45,6 +45,8 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   std::vector<llvm::BasicBlock *> rpo_walk;
 
   unsigned GetOrCreateEdgeForBranch(llvm::BranchInst *inst, bool cond);
+  unsigned GetOrCreateVarForSwitch(llvm::SwitchInst *inst,
+                                   llvm::ConstantInt *c);
   unsigned GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                     llvm::ConstantInt *c);
 

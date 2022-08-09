@@ -301,7 +301,8 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
     return provenance.z3_exprs[idx];
   };
 
-  auto old_cond{ToExpr(GetReachingCond(block))};
+  auto old_cond_idx{GetReachingCond(block)};
+  auto old_cond{ToExpr(old_cond_idx)};
   if (block->hasNPredecessorsOrMore(1)) {
     // Gather reaching conditions from predecessors of the block
     z3::expr_vector conds{provenance.z3_ctx};
@@ -319,7 +320,8 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
     }
 
     auto cond{HeavySimplify(provenance.z3_ctx, z3::mk_or(conds))};
-    if (!Prove(provenance.z3_ctx, old_cond == cond)) {
+    if (old_cond_idx == POISON_IDX ||
+        !Prove(provenance.z3_ctx, old_cond == cond)) {
       provenance.reaching_conds[block] = provenance.z3_exprs.size();
       provenance.z3_exprs.push_back(cond);
       reaching_conds_changed = true;

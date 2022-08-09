@@ -22,7 +22,7 @@ Z3CondSimplify::Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit)
 void Z3CondSimplify::RunImpl() {
   LOG(INFO) << "Simplifying conditions using Z3";
   for (size_t i{0}; i < provenance.z3_exprs.size() && !Stopped(); ++i) {
-    auto simpl{HeavySimplify(provenance.z3_ctx, provenance.z3_exprs[i])};
+    auto simpl{Sort(provenance.z3_ctx, provenance.z3_exprs[i].simplify())};
     provenance.z3_exprs.set(i, simpl);
   }
 }

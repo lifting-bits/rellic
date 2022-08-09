@@ -11,10 +11,7 @@
 #include <clang/AST/StmtVisitor.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <z3++.h>
 
-#include <algorithm>
-#include <numeric>
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
@@ -76,9 +73,35 @@ struct KnownExprs {
     CHECK_EQ(src.size(), dst.size());
   }
 
-  z3::expr ApplyAssumptions(z3::expr expr) {
-    auto res{expr.substitute(src, dst)};
-    return res;
+  z3::expr ApplyAssumptions(z3::expr expr, bool& found) {
+    if (IsConstant(expr)) {
+      return expr;
+    }
+
+    for (unsigned i{0}; i < dst.size(); ++i) {
+      if (z3::eq(expr, src[i])) {
+        found = true;
+        return dst[i];
+      }
+    }
+
+    if (expr.is_and() || expr.is_or()) {
+      z3::expr_vector args{src.ctx()};
+      for (auto arg : expr.args()) {
+        args.push_back(ApplyAssumptions(arg, found));
+      }
+      if (expr.is_and()) {
+        return z3::mk_and(args);
+      } else {
+        return z3::mk_or(args);
+      }
+    }
+
+    if (expr.is_not()) {
+      return !ApplyAssumptions(expr.arg(0), found);
+    }
+
+    return expr;
   }
 };
 
@@ -89,36 +112,6 @@ class CompoundVisitor
   ASTBuilder& ast;
   clang::ASTContext& ctx;
 
-  z3::expr Simplify(z3::expr expr) {
-    return HeavySimplify(provenance.z3_ctx, expr);
-  }
-
-  z3::expr Sort(z3::expr expr) {
-    if (expr.is_and() || expr.is_or()) {
-      std::vector<unsigned> args_indices(expr.num_args(), 0);
-      std::iota(args_indices.begin(), args_indices.end(), 0);
-      std::sort(args_indices.begin(), args_indices.end(),
-                [&expr](unsigned a, unsigned b) {
-                  return expr.arg(a).id() < expr.arg(b).id();
-                });
-      z3::expr_vector new_args{provenance.z3_ctx};
-      for (auto idx : args_indices) {
-        new_args.push_back(Sort(expr.arg(idx)));
-      }
-      if (expr.is_and()) {
-        return z3::mk_and(new_args);
-      } else {
-        return z3::mk_or(new_args);
-      }
-    }
-
-    if (expr.is_not()) {
-      return !Sort(expr.arg(0));
-    }
-
-    return expr;
-  }
-
  public:
   CompoundVisitor(Provenance& provenance, ASTBuilder& ast,
                   clang::ASTContext& ctx)
@@ -126,72 +119,79 @@ class CompoundVisitor
 
   bool VisitCompoundStmt(clang::CompoundStmt* compound,
                          KnownExprs& known_exprs) {
-    bool changed{false};
     for (auto stmt : compound->body()) {
-      changed |= Visit(stmt, known_exprs);
+      if (Visit(stmt, known_exprs)) {
+        return true;
+      }
     }
 
-    return changed;
+    return false;
   }
 
   bool VisitWhileStmt(clang::WhileStmt* while_stmt, KnownExprs& known_exprs) {
     auto cond_idx{provenance.conds[while_stmt]};
-    auto old_cond{Sort(provenance.z3_exprs[cond_idx])};
-    auto new_cond{Sort(known_exprs.ApplyAssumptions(old_cond))};
-    if (while_stmt->getCond() != provenance.marker_expr &&
-        !z3::eq(old_cond, new_cond)) {
+    bool changed{false};
+    auto old_cond{provenance.z3_exprs[cond_idx]};
+    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
+    if (while_stmt->getCond() != provenance.marker_expr && changed) {
       provenance.z3_exprs.set(cond_idx, new_cond);
       return true;
     }
 
-    bool changed{false};
     auto inner{known_exprs.Clone()};
     inner.AddExpr(new_cond, true);
-    changed |= Visit(while_stmt->getBody(), inner);
-
     known_exprs.AddExpr(new_cond, false);
-    return changed;
+
+    if (Visit(while_stmt->getBody(), inner)) {
+      return true;
+    }
+    return false;
   }
 
   bool VisitDoStmt(clang::DoStmt* do_stmt, KnownExprs& known_exprs) {
     auto cond_idx{provenance.conds[do_stmt]};
-    auto old_cond{Sort(provenance.z3_exprs[cond_idx])};
-    auto new_cond{Sort(known_exprs.ApplyAssumptions(old_cond))};
-    if (do_stmt->getCond() == provenance.marker_expr &&
-        !z3::eq(old_cond, new_cond)) {
+    bool changed{false};
+    auto old_cond{provenance.z3_exprs[cond_idx]};
+    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
+    if (do_stmt->getCond() == provenance.marker_expr && changed) {
       provenance.z3_exprs.set(cond_idx, new_cond);
       return true;
     }
 
-    bool changed{false};
     auto inner{known_exprs.Clone()};
-    changed |= Visit(do_stmt->getBody(), inner);
-
     known_exprs.AddExpr(new_cond, false);
-    return changed;
+
+    if (Visit(do_stmt->getBody(), inner)) {
+      return true;
+    }
+
+    return false;
   }
 
   bool VisitIfStmt(clang::IfStmt* if_stmt, KnownExprs& known_exprs) {
     auto cond_idx{provenance.conds[if_stmt]};
-    auto old_cond{Sort(provenance.z3_exprs[cond_idx])};
-    auto new_cond{Sort(known_exprs.ApplyAssumptions(old_cond))};
-    if (if_stmt->getCond() == provenance.marker_expr &&
-        !z3::eq(old_cond, new_cond)) {
+    bool changed{false};
+    auto old_cond{provenance.z3_exprs[cond_idx]};
+    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
+    if (if_stmt->getCond() == provenance.marker_expr && changed) {
       provenance.z3_exprs.set(cond_idx, new_cond);
       return true;
     }
 
-    bool changed{false};
     auto inner_then{known_exprs.Clone()};
     inner_then.AddExpr(new_cond, true);
-    changed |= Visit(if_stmt->getThen(), inner_then);
+    if (Visit(if_stmt->getThen(), inner_then)) {
+      return true;
+    }
 
     if (if_stmt->getElse()) {
       auto inner_else{known_exprs.Clone()};
       inner_else.AddExpr(new_cond, false);
-      changed |= Visit(if_stmt->getElse(), inner_else);
+      if (Visit(if_stmt->getElse(), inner_else)) {
+        return true;
+      }
     }
-    return changed;
+    return false;
   }
 };
 
@@ -205,9 +205,16 @@ void NestedCondProp::RunImpl() {
 
   for (auto decl : ast_ctx.getTranslationUnitDecl()->decls()) {
     if (auto fdecl = clang::dyn_cast<clang::FunctionDecl>(decl)) {
+      if (Stopped()) {
+        return;
+      }
+
       if (fdecl->hasBody()) {
         KnownExprs known_exprs{provenance.z3_ctx};
-        changed |= visitor.Visit(fdecl->getBody(), known_exprs);
+        if (visitor.Visit(fdecl->getBody(), known_exprs)) {
+          changed = true;
+          return;
+        }
       }
     }
   }

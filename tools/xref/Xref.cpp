@@ -53,7 +53,6 @@
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
 #include "rellic/AST/NormalizeCond.h"
-#include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Util.h"
 #include "rellic/AST/Z3CondSimplify.h"
@@ -424,9 +423,6 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(
     } else if (str == "nc") {
       return std::make_unique<rellic::NormalizeCond>(*session.Provenance,
                                                      *session.Unit);
-    } else if (str == "rbr") {
-      return std::make_unique<rellic::ReachBasedRefine>(*session.Provenance,
-                                                        *session.Unit);
     } else if (str == "zcs") {
       return std::make_unique<rellic::Z3CondSimplify>(*session.Provenance,
                                                       *session.Unit);

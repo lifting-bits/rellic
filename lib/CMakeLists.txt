@@ -36,7 +36,6 @@ set(AST_HEADERS
   "${include_dir}/AST/NestedCondProp.h"
   "${include_dir}/AST/NestedScopeCombine.h"
   "${include_dir}/AST/NormalizeCond.h"
-  "${include_dir}/AST/ReachBasedRefine.h"
   "${include_dir}/AST/StructFieldRenamer.h"
   "${include_dir}/AST/StructGenerator.h"
   "${include_dir}/AST/SubprogramGenerator.h"
@@ -80,7 +79,6 @@ set(AST_SOURCES
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
   AST/Z3ConvVisitor.cpp
-  AST/ReachBasedRefine.cpp
   AST/StructFieldRenamer.cpp
   AST/StructGenerator.cpp
   AST/SubprogramGenerator.cpp

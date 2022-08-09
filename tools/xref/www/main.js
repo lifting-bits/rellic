@@ -20,10 +20,6 @@ const cbr = {
     id: "cbr",
     label: "Condition-based refinement"
 }
-const rbr = {
-    id: "rbr",
-    label: "Reach-based refinement"
-}
 const lr = {
     id: "lr",
     label: "Loop refinement"
@@ -107,7 +103,6 @@ const app = new Vue({
             ncp,
             nsc,
             cbr,
-            rbr,
             lr,
             ec,
             nc,
@@ -318,7 +313,7 @@ const app = new Vue({
         useDefaultChain() {
             this.commands = [
                 dse,
-                [zcs, ncp, nsc, cbr, rbr],
+                [zcs, ncp, nsc, cbr],
                 [lr, nsc],
                 [zcs, ncp, nsc],
                 mc, ec

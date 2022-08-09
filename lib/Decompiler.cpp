@@ -32,7 +32,6 @@
 #include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
-#include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
@@ -116,8 +115,6 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     cbr_passes.push_back(
         std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit));
-    // cbr_passes.push_back(
-    //     std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
 
     while (pass_cbr.Run()) {
       ;

@@ -45,7 +45,6 @@
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
 #include "rellic/AST/NormalizeCond.h"
-#include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
 #include "rellic/BC/Util.h"
@@ -94,8 +93,8 @@ static void SetVersion(void) {
   google::SetVersionString(version.str());
 }
 
-static const char* available_passes[] = {"cbr", "dse", "ec",  "lr", "ncp",
-                                         "nsc", "nc",  "rbr", "zcs"};
+static const char* available_passes[] = {"cbr", "dse", "ec", "lr",
+                                         "ncp", "nsc", "nc", "zcs"};
 
 static bool diff = false;
 
@@ -163,8 +162,6 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(const std::string& name) {
     return std::make_unique<rellic::NestedScopeCombine>(*provenance, *ast_unit);
   } else if (name == "nc") {
     return std::make_unique<rellic::NormalizeCond>(*provenance, *ast_unit);
-  } else if (name == "rbr") {
-    return std::make_unique<rellic::ReachBasedRefine>(*provenance, *ast_unit);
   } else if (name == "zcs") {
     return std::make_unique<rellic::Z3CondSimplify>(*provenance, *ast_unit);
   } else {
@@ -204,7 +201,6 @@ static void do_help() {
             << "  nc                 Condition normalization\n"
             << "  ncp                Nested condition propagation\n"
             << "  nsc                Nested scope combination\n"
-            << "  rbr                Reach-based refinement\n"
             << "  zcs                Z3-based condition simplification\n"
             << std::endl;
 }

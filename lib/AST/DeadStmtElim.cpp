@@ -19,8 +19,7 @@ bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   bool can_delete = false;
   if (ifstmt->getCond() == provenance.marker_expr) {
-    can_delete = Prove(provenance.z3_ctx,
-                       !provenance.z3_exprs[provenance.conds[ifstmt]]);
+    can_delete = Prove(!provenance.z3_exprs[provenance.conds[ifstmt]]);
   }
 
   auto compound = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen());

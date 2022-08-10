@@ -80,9 +80,9 @@ struct Provenance {
   std::unordered_map<unsigned, BrEdge> z3_br_edges_inv;
   std::map<BrEdge, unsigned> z3_br_edges;
 
-  std::unordered_map<unsigned, SwEdge> z3_sw_edges_inv;
+  std::unordered_map<llvm::SwitchInst *, unsigned> z3_sw_vars;
+  std::unordered_map<unsigned, llvm::SwitchInst *> z3_sw_vars_inv;
   std::map<SwEdge, unsigned> z3_sw_edges;
-  std::map<SwEdge, unsigned> z3_sw_vars;
 
   std::map<BBEdge, unsigned> z3_edges;
   std::unordered_map<llvm::BasicBlock *, unsigned> reaching_conds;
@@ -105,14 +105,14 @@ clang::Expr *Negate(ASTBuilder &ast, clang::Expr *expr);
 
 std::string ClangThingToString(const clang::Stmt *stmt);
 
-z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic, z3::expr expr);
+z3::goal ApplyTactic(const z3::tactic &tactic, z3::expr expr);
 
-bool Prove(z3::context &ctx, z3::expr expr);
+bool Prove(z3::expr expr);
 
-z3::expr HeavySimplify(z3::context &ctx, z3::expr expr);
+z3::expr HeavySimplify(z3::expr expr);
 z3::expr_vector Clone(z3::expr_vector &vec);
 
 // Tries to keep each subformula sorted by its id so that they don't get
 // shuffled around by simplification
-z3::expr Sort(z3::context &ctx, z3::expr expr);
+z3::expr Sort(z3::expr expr);
 }  // namespace rellic

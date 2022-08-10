@@ -24,9 +24,9 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
   auto cond{provenance.z3_exprs[provenance.conds[ifstmt]]};
-  if (Prove(provenance.z3_ctx, cond)) {
+  if (Prove(cond)) {
     substitutions[ifstmt] = ifstmt->getThen();
-  } else if (Prove(provenance.z3_ctx, !cond) && ifstmt->getElse()) {
+  } else if (Prove(!cond) && ifstmt->getElse()) {
     substitutions[ifstmt] = ifstmt->getElse();
   }
   return !Stopped();
@@ -34,7 +34,7 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
 
 bool NestedScopeCombine::VisitWhileStmt(clang::WhileStmt *stmt) {
   auto cond{provenance.z3_exprs[provenance.conds[stmt]]};
-  if (Prove(provenance.z3_ctx, cond)) {
+  if (Prove(cond)) {
     auto body{clang::cast<clang::CompoundStmt>(stmt->getBody())};
     if (clang::isa<clang::BreakStmt>(body->body_back())) {
       std::vector<clang::Stmt *> new_body{body->body_begin(),

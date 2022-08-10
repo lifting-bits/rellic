@@ -41,7 +41,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     auto else_a{if_a->getElse()};
     auto else_b{if_b->getElse()};
 
-    if (Prove(provenance.z3_ctx, cond_a == cond_b)) {
+    if (Prove(cond_a == cond_b)) {
       std::vector<clang::Stmt *> new_then_body{then_a, then_b};
       auto new_then{ast.CreateCompoundStmt(new_then_body)};
 
@@ -69,7 +69,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       break;
     }
 
-    if (Prove(provenance.z3_ctx, cond_a == !cond_b)) {
+    if (Prove(cond_a == !cond_b)) {
       std::vector<clang::Stmt *> new_then_body{then_a};
       if (else_b) {
         new_then_body.push_back(else_b);
@@ -95,7 +95,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       break;
     }
 
-    if (Prove(provenance.z3_ctx, z3::implies(cond_b, cond_a))) {
+    if (Prove(z3::implies(cond_b, cond_a))) {
       std::vector<clang::Stmt *> new_then_body{then_a, if_b};
       auto new_then{ast.CreateCompoundStmt(new_then_body)};
 
@@ -109,8 +109,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       break;
     }
 
-    if (Prove(provenance.z3_ctx, !(cond_a && cond_b)) &&
-        !Prove(provenance.z3_ctx, cond_a || cond_b)) {
+    if (Prove(!(cond_a && cond_b)) && !Prove(cond_a || cond_b)) {
       auto new_if{ast.CreateIf(provenance.marker_expr, then_a)};
       if (else_a) {
         std::vector<clang::Stmt *> new_else_body{else_a, if_b};

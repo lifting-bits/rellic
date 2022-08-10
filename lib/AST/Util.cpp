@@ -338,30 +338,28 @@ std::string ClangThingToString(const clang::Stmt *stmt) {
   return s;
 }
 
-z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic,
-                     z3::expr expr) {
-  z3::goal goal(ctx);
+z3::goal ApplyTactic(const z3::tactic &tactic, z3::expr expr) {
+  z3::goal goal(tactic.ctx());
   goal.add(expr.simplify());
   auto app{tactic(goal)};
   CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
   return app[0];
 }
 
-bool Prove(z3::context &ctx, z3::expr expr) {
-  return ApplyTactic(ctx, z3::tactic(ctx, "sat"), !(expr.simplify()))
-      .is_decided_unsat();
+bool Prove(z3::expr expr) {
+  return ApplyTactic(z3::tactic(expr.ctx(), "sat"), !expr).is_decided_unsat();
 }
 
-z3::expr HeavySimplify(z3::context &ctx, z3::expr expr) {
-  if (Prove(ctx, expr)) {
-    return ctx.bool_val(true);
+z3::expr HeavySimplify(z3::expr expr) {
+  if (Prove(expr)) {
+    return expr.ctx().bool_val(true);
   }
 
-  z3::tactic aig(ctx, "aig");
-  z3::tactic simplify(ctx, "simplify");
-  z3::tactic ctx_solver_simplify(ctx, "ctx-solver-simplify");
+  z3::tactic aig(expr.ctx(), "aig");
+  z3::tactic simplify(expr.ctx(), "simplify");
+  z3::tactic ctx_solver_simplify(expr.ctx(), "ctx-solver-simplify");
   auto tactic{simplify & aig & ctx_solver_simplify};
-  return ApplyTactic(ctx, tactic, expr).as_expr();
+  return ApplyTactic(tactic, expr).as_expr();
 }
 
 z3::expr_vector Clone(z3::expr_vector &vec) {
@@ -373,7 +371,7 @@ z3::expr_vector Clone(z3::expr_vector &vec) {
   return clone;
 }
 
-z3::expr Sort(z3::context &ctx, z3::expr expr) {
+z3::expr Sort(z3::expr expr) {
   if (expr.is_and() || expr.is_or()) {
     std::vector<unsigned> args_indices(expr.num_args(), 0);
     std::iota(args_indices.begin(), args_indices.end(), 0);
@@ -381,9 +379,9 @@ z3::expr Sort(z3::context &ctx, z3::expr expr) {
               [&expr](unsigned a, unsigned b) {
                 return expr.arg(a).id() < expr.arg(b).id();
               });
-    z3::expr_vector new_args{ctx};
+    z3::expr_vector new_args{expr.ctx()};
     for (auto idx : args_indices) {
-      new_args.push_back(Sort(ctx, expr.arg(idx)));
+      new_args.push_back(Sort(expr.arg(idx)));
     }
     if (expr.is_and()) {
       return z3::mk_and(new_args);
@@ -393,7 +391,7 @@ z3::expr Sort(z3::context &ctx, z3::expr expr) {
   }
 
   if (expr.is_not()) {
-    return !Sort(ctx, expr.arg(0));
+    return !Sort(expr.arg(0));
   }
 
   return expr;

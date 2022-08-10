@@ -169,18 +169,16 @@ unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
   return provenance.z3_br_edges[{inst, cond}];
 }
 
-unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst,
-                                              llvm::ConstantInt *c) {
-  if (provenance.z3_sw_vars.find({inst, c}) == provenance.z3_sw_vars.end()) {
-    auto name{GetName(inst) +
-              GetName(inst->findCaseValue(c)->getCaseSuccessor())};
-    auto var{provenance.z3_ctx.bool_const(name.c_str())};
-    provenance.z3_sw_vars[{inst, c}] = provenance.z3_exprs.size();
+unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst) {
+  if (provenance.z3_sw_vars.find(inst) == provenance.z3_sw_vars.end()) {
+    auto name{GetName(inst)};
+    auto var{provenance.z3_ctx.int_const(name.c_str())};
+    provenance.z3_sw_vars[inst] = provenance.z3_exprs.size();
     provenance.z3_exprs.push_back(var);
-    provenance.z3_sw_edges_inv[var.id()] = {inst, c};
-    return provenance.z3_sw_vars[{inst, c}];
+    provenance.z3_sw_vars_inv[var.id()] = inst;
+    return provenance.z3_sw_vars[inst];
   } else {
-    return provenance.z3_sw_vars[{inst, c}];
+    return provenance.z3_sw_vars[inst];
   }
 }
 
@@ -194,18 +192,12 @@ unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
   };
   if (provenance.z3_sw_edges.find({inst, c}) == provenance.z3_sw_edges.end()) {
     if (c) {
-      auto edge{ToExpr(GetOrCreateVarForSwitch(inst, c))};
-      z3::expr_vector vec{provenance.z3_ctx};
-      vec.push_back(edge);
-      for (auto sw_case : inst->cases()) {
-        if (c != sw_case.getCaseValue()) {
-          vec.push_back(
-              !ToExpr(GetOrCreateVarForSwitch(inst, sw_case.getCaseValue())));
-        }
-      }
+      auto sw_case{inst->findCaseValue(c)};
+      auto var{ToExpr(GetOrCreateVarForSwitch(inst))};
+      auto expr{var == provenance.z3_ctx.int_val(sw_case->getCaseIndex())};
 
       provenance.z3_sw_edges[{inst, c}] = provenance.z3_exprs.size();
-      provenance.z3_exprs.push_back(z3::mk_and(vec));
+      provenance.z3_exprs.push_back(expr);
     } else {
       // Default case
       z3::expr_vector vec{provenance.z3_ctx};
@@ -255,7 +247,7 @@ unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
                   ToExpr(GetOrCreateEdgeForSwitch(sw, sw_case.getCaseValue())));
             }
           }
-          result = HeavySimplify(provenance.z3_ctx, z3::mk_or(or_vec));
+          result = HeavySimplify(z3::mk_or(or_vec));
         }
       } break;
       // Returns
@@ -312,16 +304,15 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       // Construct reaching condition from `pred` to `block` as
       // `reach_cond[pred] && edge_cond(pred, block)` or one of
       // the two if the other one is missing.
-      auto conj_cond{HeavySimplify(provenance.z3_ctx, pred_cond && edge_cond)};
+      auto conj_cond{HeavySimplify(pred_cond && edge_cond)};
       // Append `conj_cond` to reaching conditions of other
       // predecessors via an `||`. Use `conj_cond` if there
       // is no `cond` yet.
       conds.push_back(conj_cond);
     }
 
-    auto cond{HeavySimplify(provenance.z3_ctx, z3::mk_or(conds))};
-    if (old_cond_idx == POISON_IDX ||
-        !Prove(provenance.z3_ctx, old_cond == cond)) {
+    auto cond{HeavySimplify(z3::mk_or(conds))};
+    if (old_cond_idx == POISON_IDX || !Prove(old_cond == cond)) {
       provenance.reaching_conds[block] = provenance.z3_exprs.size();
       provenance.z3_exprs.push_back(cond);
       reaching_conds_changed = true;

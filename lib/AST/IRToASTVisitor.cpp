@@ -62,6 +62,31 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
 };
 
 clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
+  if (expr.decl().decl_kind() == Z3_OP_EQ) {
+    CHECK_EQ(expr.num_args(), 2) << "Equalities must have 2 arguments";
+    auto a{expr.arg(0)};
+    auto b{expr.arg(1)};
+
+    llvm::SwitchInst *inst{provenance.z3_sw_vars_inv[a.id()]};
+    unsigned case_idx{};
+
+    if (!inst) {
+      inst = provenance.z3_sw_vars_inv[b.id()];
+      case_idx = a.get_numeral_uint();
+    } else {
+      case_idx = b.get_numeral_uint();
+    }
+
+    for (auto sw_case : inst->cases()) {
+      if (sw_case.getCaseIndex() == case_idx) {
+        return ast.CreateEQ(CreateOperandExpr(inst->getOperandUse(0)),
+                            CreateConstantExpr(sw_case.getCaseValue()));
+      }
+    }
+
+    LOG(FATAL) << "Couldn't find switch case";
+  }
+
   auto hash{expr.id()};
   if (provenance.z3_br_edges_inv.find(hash) !=
       provenance.z3_br_edges_inv.end()) {
@@ -71,14 +96,9 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
     return CreateOperandExpr(*(edge.first->op_end() - 3));
   }
 
-  if (provenance.z3_sw_edges_inv.find(hash) !=
-      provenance.z3_sw_edges_inv.end()) {
-    auto edge{provenance.z3_sw_edges_inv[hash]};
-    CHECK(edge.second)
-        << "Inverse map should only be populated for not-default switch cases";
-
-    auto opnd{CreateOperandExpr(edge.first->getOperandUse(0))};
-    return ast.CreateEQ(opnd, CreateConstantExpr(edge.second));
+  if (provenance.z3_sw_vars_inv.find(hash) != provenance.z3_sw_vars_inv.end()) {
+    auto inst{provenance.z3_sw_vars_inv[hash]};
+    return CreateOperandExpr(inst->getOperandUse(0));
   }
 
   std::vector<clang::Expr *> args;

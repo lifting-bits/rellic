@@ -12,27 +12,36 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <unordered_map>
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/Util.h"
 
+namespace std {
+template <>
+struct hash<z3::expr> {
+  size_t operator()(const z3::expr& e) const { return e.hash(); }
+};
+
+template <>
+struct equal_to<z3::expr> {
+  bool operator()(const z3::expr& a, const z3::expr& b) const {
+    return a.id() == b.id();
+  }
+};
+}  // namespace std
+
 namespace rellic {
 struct KnownExprs {
-  z3::expr_vector src;
-  z3::expr_vector dst;
-
-  KnownExprs(z3::context& ctx) : src(ctx), dst(ctx) {}
-  KnownExprs(z3::expr_vector&& src, z3::expr_vector&& dst)
-      : src(std::move(src)), dst(std::move(dst)) {}
-  KnownExprs Clone() { return {::rellic::Clone(src), ::rellic::Clone(dst)}; }
+  std::unordered_map<z3::expr, bool> values;
 
   bool IsConstant(z3::expr expr) {
-    if (Prove(src.ctx(), expr)) {
+    if (Prove(expr)) {
       return true;
     }
 
-    if (Prove(src.ctx(), !expr)) {
+    if (Prove(!expr)) {
       return true;
     }
 
@@ -68,25 +77,20 @@ struct KnownExprs {
       return;
     }
 
-    src.push_back(expr);
-    dst.push_back(dst.ctx().bool_val(value));
-    CHECK_EQ(src.size(), dst.size());
+    values[expr] = value;
   }
 
   z3::expr ApplyAssumptions(z3::expr expr, bool& found) {
-    if (IsConstant(expr)) {
+    if (IsConstant(expr) || values.empty()) {
       return expr;
     }
 
-    for (unsigned i{0}; i < dst.size(); ++i) {
-      if (z3::eq(expr, src[i])) {
-        found = true;
-        return dst[i];
-      }
+    if (values.find(expr) != values.end()) {
+      return expr.ctx().bool_val(values[expr]);
     }
 
     if (expr.is_and() || expr.is_or()) {
-      z3::expr_vector args{src.ctx()};
+      z3::expr_vector args{expr.ctx()};
       for (auto arg : expr.args()) {
         args.push_back(ApplyAssumptions(arg, found));
       }
@@ -138,7 +142,7 @@ class CompoundVisitor
       return true;
     }
 
-    auto inner{known_exprs.Clone()};
+    auto inner{known_exprs};
     inner.AddExpr(new_cond, true);
     known_exprs.AddExpr(new_cond, false);
 
@@ -158,7 +162,7 @@ class CompoundVisitor
       return true;
     }
 
-    auto inner{known_exprs.Clone()};
+    auto inner{known_exprs};
     known_exprs.AddExpr(new_cond, false);
 
     if (Visit(do_stmt->getBody(), inner)) {
@@ -178,14 +182,14 @@ class CompoundVisitor
       return true;
     }
 
-    auto inner_then{known_exprs.Clone()};
+    auto inner_then{known_exprs};
     inner_then.AddExpr(new_cond, true);
     if (Visit(if_stmt->getThen(), inner_then)) {
       return true;
     }
 
     if (if_stmt->getElse()) {
-      auto inner_else{known_exprs.Clone()};
+      auto inner_else{known_exprs};
       inner_else.AddExpr(new_cond, false);
       if (Visit(if_stmt->getElse(), inner_else)) {
         return true;
@@ -199,6 +203,7 @@ NestedCondProp::NestedCondProp(Provenance& provenance, clang::ASTUnit& unit)
     : ASTPass(provenance, unit) {}
 
 void NestedCondProp::RunImpl() {
+  LOG(INFO) << "Propagating conditions";
   changed = false;
   ASTBuilder ast{ast_unit};
   CompoundVisitor visitor{provenance, ast, ast_ctx};
@@ -210,7 +215,7 @@ void NestedCondProp::RunImpl() {
       }
 
       if (fdecl->hasBody()) {
-        KnownExprs known_exprs{provenance.z3_ctx};
+        KnownExprs known_exprs{};
         if (visitor.Visit(fdecl->getBody(), known_exprs)) {
           changed = true;
           return;

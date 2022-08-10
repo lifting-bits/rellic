@@ -475,7 +475,7 @@ static void FindRedundantLoads(llvm::Function &func) {
     if (auto load = llvm::dyn_cast<llvm::LoadInst>(&inst)) {
       for (auto &use : load->uses()) {
         auto ptr{load->getPointerOperand()};
-        if (llvm::isa<llvm::GlobalValue>(ptr)) {
+        if (!llvm::isa<llvm::AllocaInst>(ptr)) {
           continue;
         }
         if (HasStoreBeforeUse(ptr, use.getUser(), load)) {

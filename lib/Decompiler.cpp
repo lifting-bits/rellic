@@ -116,8 +116,8 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     cbr_passes.push_back(
         std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit));
-    // cbr_passes.push_back(
-    //     std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
+    cbr_passes.push_back(
+        std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit));
 
     while (pass_cbr.Run()) {
       ;

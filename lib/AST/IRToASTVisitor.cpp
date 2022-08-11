@@ -71,10 +71,6 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 
   clang::Expr *init{nullptr};
-  // Create an initalizer literal
-  if (gvar.hasInitializer()) {
-    init = CreateConstantExpr(gvar.getInitializer());
-  }
 
   if (IsGlobalMetadata(gvar)) {
     DLOG(INFO) << "Skipping global variable only used for metadata";
@@ -92,6 +88,12 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   var = ast.CreateVarDecl(tudecl, GetQualType(type), name);
   // Add to translation unit
   tudecl->addDecl(var);
+
+  // Create an initalizer literal
+  if (gvar.hasInitializer()) {
+    init = CreateConstantExpr(gvar.getInitializer());
+  }
+
   if (init) {
     clang::cast<clang::VarDecl>(var)->setInit(init);
   }

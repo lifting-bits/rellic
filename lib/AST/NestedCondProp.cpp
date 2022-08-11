@@ -21,7 +21,7 @@
 namespace std {
 template <>
 struct hash<z3::expr> {
-  size_t operator()(const z3::expr& e) const { return e.hash(); }
+  size_t operator()(const z3::expr& e) const { return e.id(); }
 };
 
 template <>
@@ -49,8 +49,12 @@ struct KnownExprs {
   }
 
   void AddExpr(z3::expr expr, bool value) {
-    if (IsConstant(expr)) {
-      return;
+    switch (expr.decl().decl_kind()) {
+      case Z3_OP_TRUE:
+      case Z3_OP_FALSE:
+        return;
+      default:
+        break;
     }
 
     if (expr.is_not()) {
@@ -81,11 +85,12 @@ struct KnownExprs {
   }
 
   z3::expr ApplyAssumptions(z3::expr expr, bool& found) {
-    if (IsConstant(expr) || values.empty()) {
+    if (values.empty()) {
       return expr;
     }
 
     if (values.find(expr) != values.end()) {
+      found = true;
       return expr.ctx().bool_val(values[expr]);
     }
 

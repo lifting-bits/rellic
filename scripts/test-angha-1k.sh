@@ -86,7 +86,7 @@ mkdir -p rellic-angha-test-1k
 pushd rellic-angha-test-1k
 
 # fetch the test set: 1K bitcode (per arch)
-${SRC_DIR}/external/lifting-tools-ci/datasets/fetch_anghabench.sh --run-size 1k --bitcode --clang 13
+${SRC_DIR}/external/lifting-tools-ci/datasets/fetch_anghabench.sh --run-size 1k --bitcode --clang 14
 # extract it
 for tarfile in *.tar.xz
 do

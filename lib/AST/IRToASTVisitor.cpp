@@ -71,10 +71,6 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 
   clang::Expr *init{nullptr};
-  // Create an initalizer literal
-  if (gvar.hasInitializer()) {
-    init = CreateConstantExpr(gvar.getInitializer());
-  }
 
   if (IsGlobalMetadata(gvar)) {
     DLOG(INFO) << "Skipping global variable only used for metadata";
@@ -92,6 +88,12 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   var = ast.CreateVarDecl(tudecl, GetQualType(type), name);
   // Add to translation unit
   tudecl->addDecl(var);
+
+  // Create an initalizer literal
+  if (gvar.hasInitializer()) {
+    init = CreateConstantExpr(gvar.getInitializer());
+  }
+
   if (init) {
     clang::cast<clang::VarDecl>(var)->setInit(init);
   }
@@ -120,6 +122,10 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
 
     case llvm::Type::X86_FP80TyID:
       result = ast_ctx.LongDoubleTy;
+      break;
+
+    case llvm::Type::FP128TyID:
+      result = ast_ctx.Float128Ty;
       break;
 
     case llvm::Type::IntegerTyID: {
@@ -986,19 +992,6 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
   ExprGen &expr_gen;
   Provenance &provenance;
 
-  void GetOrCreateIntrinsic(llvm::InlineAsm *val) {
-    auto &decl{provenance.value_decls[val]};
-    if (decl) {
-      return;
-    }
-
-    auto tudecl{ast_ctx.getTranslationUnitDecl()};
-    auto name{"asm_" +
-              std::to_string(GetNumDecls<clang::FunctionDecl>(tudecl))};
-    auto type{expr_gen.GetQualType(val->getFunctionType())};
-    decl = ast.CreateFunctionDecl(tudecl, type, name);
-  }
-
  public:
   StmtGen(clang::ASTContext &ast_ctx, ASTBuilder &ast, ExprGen &expr_gen,
           Provenance &provenance)
@@ -1276,6 +1269,37 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
             provenance.outgoing_uses[bb].push_back(&use);
           }
         }
+      }
+    }
+
+    for (auto &opnd : inst.operands()) {
+      if (auto iasm = llvm::dyn_cast<llvm::InlineAsm>(&opnd)) {
+        // TODO(frabert): We still need to find a way to embed the inline asm
+        // into the function
+        auto &decl{provenance.value_decls[iasm]};
+        if (decl) {
+          return;
+        }
+
+        auto tudecl{ast_ctx.getTranslationUnitDecl()};
+        auto name{"asm_" +
+                  std::to_string(GetNumDecls<clang::FunctionDecl>(tudecl))};
+        auto ftype{iasm->getFunctionType()};
+        auto type{expr_gen.GetQualType(ftype)};
+        decl = ast.CreateFunctionDecl(tudecl, type, name);
+
+        std::vector<clang::ParmVarDecl *> iasm_params;
+        for (auto arg : ftype->params()) {
+          auto arg_type{expr_gen.GetQualType(arg)};
+          auto name{"arg_" + std::to_string(iasm_params.size())};
+          iasm_params.push_back(
+              ast.CreateParamDecl(decl->getDeclContext(), arg_type, name));
+        }
+
+        auto fdecl{decl->getAsFunction()};
+        fdecl->setParams(params);
+
+        tudecl->addDecl(decl);
       }
     }
   }

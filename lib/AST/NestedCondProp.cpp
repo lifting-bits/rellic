@@ -36,18 +36,6 @@ namespace rellic {
 struct KnownExprs {
   std::unordered_map<z3::expr, bool> values;
 
-  bool IsConstant(z3::expr expr) {
-    if (Prove(expr)) {
-      return true;
-    }
-
-    if (Prove(!expr)) {
-      return true;
-    }
-
-    return false;
-  }
-
   void AddExpr(z3::expr expr, bool value) {
     switch (expr.decl().decl_kind()) {
       case Z3_OP_TRUE:

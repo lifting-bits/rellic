@@ -31,12 +31,16 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::IfStmt *> ifs;
   z3::expr_vector conds{*z3_ctx};
 
+  auto ResetChain = [&]() {
+    ifs.clear();
+    conds.resize(0);
+  };
+
   bool done_something{false};
-  for (size_t i{0}; i < body.size(); ++i) {
+  for (size_t i{0}; i < body.size() && !done_something; ++i) {
     auto if_stmt{clang::dyn_cast<clang::IfStmt>(body[i])};
     if (!if_stmt) {
-      ifs.clear();
-      conds.resize(0);
+      ResetChain();
       continue;
     }
 
@@ -45,8 +49,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
 
     if (if_stmt->getElse()) {
       // We cannot link `if` statements that contain `else` branches
-      ifs.clear();
-      conds.resize(0);
+      ResetChain();
       continue;
     }
 
@@ -54,8 +57,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     bool is_unreachable{Prove(*z3_ctx, !(cond && z3::mk_or(conds)))};
 
     if (!is_unreachable) {
-      ifs.clear();
-      conds.resize(0);
+      ResetChain();
       continue;
     }
 
@@ -112,7 +114,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       i - n + 1: if(cond_1) { } else if(cond_2) { } ... else if(cond_n) { }
       i - n + 2: if(cond_2) { } else if(cond_3) { } ... else if(cond_n) { }
       ...
-      i - 1    : if(cond_n-1) { } else if(cond_n) { }
+      i - 1    : if(cond_n-1) { } else { }
       i        : if(cond_n) { }
       ...
 
@@ -129,7 +131,6 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     body.erase(body.erase(std::next(body.begin(), start_delete),
                           std::next(body.begin(), end_delete)));
     done_something = true;
-    break;
   }
 
   if (done_something) {

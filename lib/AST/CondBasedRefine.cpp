@@ -50,8 +50,9 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     auto cond_b{GetZ3Cond(if_b)};
 
     clang::IfStmt *new_if{};
+    std::vector<clang::Stmt *> new_then_body{then_a};
     if (Prove(*z3_ctx, cond_a == cond_b)) {
-      std::vector<clang::Stmt *> new_then_body{then_a, then_b};
+      new_then_body.push_back(then_b);
       auto new_then{ast.CreateCompoundStmt(new_then_body)};
       new_if = ast.CreateIf(if_a->getCond(), new_then);
 
@@ -66,7 +67,6 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_if->setElse(ast.CreateCompoundStmt(new_else_body));
       }
     } else if (Prove(*z3_ctx, cond_a == !cond_b)) {
-      std::vector<clang::Stmt *> new_then_body{then_a};
       if (else_b) {
         new_then_body.push_back(else_b);
       }

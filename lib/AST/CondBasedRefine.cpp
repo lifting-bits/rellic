@@ -21,10 +21,9 @@ CondBasedRefine::CondBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
 
 bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
-  std::vector<clang::Stmt *> new_body{body};
   bool did_something{false};
 
-  for (size_t i{0}; i + 1 < body.size(); ++i) {
+  for (size_t i{0}; i + 1 < body.size() && !did_something; ++i) {
     auto if_a{clang::dyn_cast<clang::IfStmt>(body[i])};
     auto if_b{clang::dyn_cast<clang::IfStmt>(body[i + 1])};
 
@@ -41,8 +40,9 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     auto else_a{if_a->getElse()};
     auto else_b{if_b->getElse()};
 
+    std::vector<clang::Stmt *> new_then_body{then_a};
     if (Prove(cond_a == cond_b)) {
-      std::vector<clang::Stmt *> new_then_body{then_a, then_b};
+      new_then_body.push_back(then_b);
       auto new_then{ast.CreateCompoundStmt(new_then_body)};
 
       auto new_if{ast.CreateIf(provenance.marker_expr, new_then)};
@@ -63,14 +63,13 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       }
 
       provenance.conds[new_if] = provenance.conds[if_a];
-      new_body[i] = new_if;
-      new_body.erase(std::next(new_body.begin(), i + 1));
+      body[i] = new_if;
+      body.erase(std::next(body.begin(), i + 1));
       did_something = true;
       break;
     }
 
     if (Prove(cond_a == !cond_b)) {
-      std::vector<clang::Stmt *> new_then_body{then_a};
       if (else_b) {
         new_then_body.push_back(else_b);
       }
@@ -89,14 +88,13 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       new_if->setElse(new_else);
 
       provenance.conds[new_if] = provenance.conds[if_a];
-      new_body[i] = new_if;
-      new_body.erase(std::next(new_body.begin(), i + 1));
+      body[i] = new_if;
+      body.erase(std::next(body.begin(), i + 1));
       did_something = true;
-      break;
     }
   }
   if (did_something) {
-    auto new_compound{ast.CreateCompoundStmt(new_body)};
+    auto new_compound{ast.CreateCompoundStmt(body)};
     substitutions[compound] = new_compound;
   }
   return !Stopped();

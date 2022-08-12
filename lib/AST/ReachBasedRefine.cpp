@@ -27,7 +27,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   };
 
   bool done_something{false};
-  for (size_t i{0}; i < body.size(); ++i) {
+  for (size_t i{0}; i < body.size() && !done_something; ++i) {
     auto if_stmt{clang::dyn_cast<clang::IfStmt>(body[i])};
     if (!if_stmt) {
       ResetChain();
@@ -121,7 +121,6 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     body.erase(body.erase(std::next(body.begin(), start_delete),
                           std::next(body.begin(), end_delete)));
     done_something = true;
-    break;
   }
 
   if (done_something) {

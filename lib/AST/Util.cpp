@@ -346,6 +346,13 @@ z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic,
 }
 
 bool Prove(z3::context &ctx, z3::expr expr) {
-  return ApplyTactic(ctx, z3::tactic(ctx, "sat"), !expr).is_decided_unsat();
+  z3::tactic aig(ctx, "aig");
+  z3::tactic simplify(ctx, "simplify");
+  z3::tactic ctx_solver_simplify(ctx, "ctx-solver-simplify");
+  auto simpl{simplify & aig & ctx_solver_simplify};
+
+  return ApplyTactic(ctx, z3::tactic(ctx, "sat"),
+                     ApplyTactic(ctx, simpl, !expr).as_expr())
+      .is_decided_unsat();
 }
 }  // namespace rellic

@@ -347,7 +347,8 @@ z3::goal ApplyTactic(const z3::tactic &tactic, z3::expr expr) {
 }
 
 bool Prove(z3::expr expr) {
-  return ApplyTactic(z3::tactic(expr.ctx(), "sat"), !expr).is_decided_unsat();
+  return ApplyTactic(z3::tactic(expr.ctx(), "sat"), !(expr).simplify())
+      .is_decided_unsat();
 }
 
 z3::expr HeavySimplify(z3::expr expr) {

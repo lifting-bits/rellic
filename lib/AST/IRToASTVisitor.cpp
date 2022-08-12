@@ -1240,6 +1240,9 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
                (inst.hasNUsesOrMore(1) && llvm::isa<llvm::CallInst>(inst)) ||
                llvm::isa<llvm::LoadInst>(inst) ||
                llvm::isa<llvm::PHINode>(inst)) {
+      if (inst.getMetadata("rellic.notemp")) {
+        continue;
+      }
       if (!inst.getType()->isVoidTy()) {
         auto GetPrefix{[&](llvm::Instruction *inst) {
           if (llvm::isa<llvm::CallInst>(inst)) {

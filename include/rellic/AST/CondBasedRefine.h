@@ -42,10 +42,6 @@ class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
 
   z3::expr GetZ3Cond(clang::IfStmt *ifstmt);
 
-  using IfStmtVec = std::vector<clang::IfStmt *>;
-
-  void CreateIfThenElseStmts(IfStmtVec stmts);
-
  protected:
   void RunImpl() override;
 

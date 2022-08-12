@@ -43,10 +43,6 @@ class ReachBasedRefine : public TransformVisitor<ReachBasedRefine> {
 
   z3::expr GetZ3Cond(clang::IfStmt *ifstmt);
 
-  using IfStmtVec = std::vector<clang::IfStmt *>;
-
-  void CreateIfElseStmts(IfStmtVec stmts);
-
  protected:
   void RunImpl() override;
 

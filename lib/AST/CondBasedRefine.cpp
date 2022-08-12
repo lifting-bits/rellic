@@ -11,23 +11,11 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <cstddef>
+
+#include "rellic/AST/Util.h"
+
 namespace rellic {
-
-namespace {
-
-using IfStmtVec = std::vector<clang::IfStmt *>;
-
-static IfStmtVec GetIfStmts(clang::CompoundStmt *compound) {
-  IfStmtVec result;
-  for (auto stmt : compound->body()) {
-    if (auto ifstmt = clang::dyn_cast<clang::IfStmt>(stmt)) {
-      result.push_back(ifstmt);
-    }
-  }
-  return result;
-}
-
-}  // namespace
 
 CondBasedRefine::CondBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
     : TransformVisitor<CondBasedRefine>(provenance, unit),
@@ -41,85 +29,67 @@ z3::expr CondBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
   return expr.simplify();
 }
 
-void CondBasedRefine::CreateIfThenElseStmts(IfStmtVec worklist) {
-  auto RemoveFromWorkList = [&worklist](clang::Stmt *stmt) {
-    auto it = std::find(worklist.begin(), worklist.end(), stmt);
-    if (it != worklist.end()) {
-      worklist.erase(it);
-    }
-  };
+bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
+  std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
+  bool did_something{false};
+  for (size_t i{0}; i + 1 < body.size() && !Stopped(); ++i) {
+    auto if_a{clang::dyn_cast<clang::IfStmt>(body[i])};
+    auto if_b{clang::dyn_cast<clang::IfStmt>(body[i + 1])};
 
-  auto ThenTest = [this](z3::expr lhs, z3::expr rhs) {
-    return Prove(*z3_ctx, lhs == rhs);
-  };
-
-  auto ElseTest = [this](z3::expr lhs, z3::expr rhs) {
-    return Prove(*z3_ctx, lhs == !rhs);
-  };
-
-  auto CombineTest = [this](z3::expr lhs, z3::expr rhs) {
-    return Prove(*z3_ctx, z3::implies(rhs, lhs));
-  };
-
-  while (!worklist.empty()) {
-    auto lhs = *worklist.begin();
-    RemoveFromWorkList(lhs);
-    // Prepare conditions according to which we're going to
-    // cluster statements according to the whole `lhs`
-    // condition.
-    auto lcond = GetZ3Cond(lhs);
-    // Get branch candidates wrt `clause`
-    std::vector<clang::Stmt *> thens({lhs}), elses;
-    for (auto rhs : worklist) {
-      auto rcond = GetZ3Cond(rhs);
-      if (ThenTest(lcond, rcond) || CombineTest(lcond, rcond)) {
-        thens.push_back(rhs);
-      } else if (ElseTest(lcond, rcond) || CombineTest(!lcond, rcond)) {
-        elses.push_back(rhs);
-      }
-    }
-
-    // Check if we have enough statements to work with
-    if (thens.size() + elses.size() < 2) {
+    if (!if_a || !if_b) {
       continue;
     }
 
-    // Erase then statements from the AST and `worklist`
-    for (auto stmt : thens) {
-      RemoveFromWorkList(stmt);
-      substitutions[stmt] = nullptr;
-    }
-    // Create our new if-then
-    auto sub = ast.CreateIf(lhs->getCond(), ast.CreateCompoundStmt(thens));
-    // Create an else branch if possible
-    if (!elses.empty()) {
-      // Erase else statements from the AST and `worklist`
-      for (auto stmt : elses) {
-        RemoveFromWorkList(stmt);
-        substitutions[stmt] = nullptr;
-      }
-      // Add the else branch
-      sub->setElse(ast.CreateCompoundStmt(elses));
-    }
-    // Replace `lhs` with the new `sub`
-    substitutions[lhs] = sub;
-  }
-}
+    auto then_a{if_a->getThen()};
+    auto then_b{if_b->getThen()};
 
-bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
-  // DLOG(INFO) << "VisitCompoundStmt";
-  // Create if-then-else substitutions for IfStmts in `compound`
-  CreateIfThenElseStmts(GetIfStmts(compound));
-  // Apply created if-then-else substitutions and
-  // create a replacement for `compound`
-  if (ReplaceChildren(compound, substitutions)) {
-    std::vector<clang::Stmt *> new_body;
-    for (auto stmt : compound->body()) {
-      if (stmt) {
-        new_body.push_back(stmt);
+    auto else_a{if_a->getElse()};
+    auto else_b{if_b->getElse()};
+
+    auto cond_a{GetZ3Cond(if_a)};
+    auto cond_b{GetZ3Cond(if_b)};
+
+    clang::IfStmt *new_if{};
+    std::vector<clang::Stmt *> new_then_body{then_a};
+    if (Prove(*z3_ctx, cond_a == cond_b)) {
+      new_then_body.push_back(then_b);
+      auto new_then{ast.CreateCompoundStmt(new_then_body)};
+      new_if = ast.CreateIf(if_a->getCond(), new_then);
+
+      if (else_a || else_b) {
+        std::vector<clang::Stmt *> new_else_body;
+        if (else_a) {
+          new_else_body.push_back(else_a);
+        }
+        if (else_b) {
+          new_else_body.push_back(else_b);
+        }
+        new_if->setElse(ast.CreateCompoundStmt(new_else_body));
       }
+    } else if (Prove(*z3_ctx, cond_a == !cond_b)) {
+      if (else_b) {
+        new_then_body.push_back(else_b);
+      }
+      auto new_then{ast.CreateCompoundStmt(new_then_body)};
+      new_if = ast.CreateIf(if_a->getCond(), new_then);
+
+      std::vector<clang::Stmt *> new_else_body;
+      if (else_a) {
+        new_else_body.push_back(else_a);
+      }
+      new_else_body.push_back(then_b);
+      new_if->setElse(ast.CreateCompoundStmt(new_else_body));
     }
-    substitutions[compound] = ast.CreateCompoundStmt(new_body);
+
+    if (new_if) {
+      body[i] = new_if;
+      body.erase(std::next(body.begin(), i + 1));
+      did_something = true;
+    }
+  }
+
+  if (did_something) {
+    substitutions[compound] = ast.CreateCompoundStmt(body);
   }
   return !Stopped();
 }

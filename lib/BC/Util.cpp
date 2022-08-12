@@ -437,4 +437,61 @@ void ConvertArrayArguments(llvm::Module &m) {
   CHECK(VerifyModule(&m)) << "Transformation broke module correctness";
 }
 
+static void FindRedundantLoads(llvm::Function &func) {
+  auto HasStoreBeforeUse = [&](llvm::Value *ptr, llvm::User *user,
+                               llvm::LoadInst *load) {
+    std::unordered_set<llvm::BasicBlock *> visited_blocks;
+    std::vector<llvm::Instruction *> work_list;
+    auto inst{llvm::cast<llvm::Instruction>(user)};
+    work_list.push_back(inst);
+    while (!work_list.empty()) {
+      inst = work_list.back();
+      work_list.pop_back();
+      auto bb{inst->getParent()};
+      visited_blocks.insert(bb);
+
+      while (inst) {
+        if (auto store = llvm::dyn_cast<llvm::StoreInst>(inst)) {
+          if (store->getPointerOperand() == ptr) {
+            return true;
+          }
+        }
+        if (inst == load) {
+          return false;
+        }
+        inst = inst->getPrevNode();
+      }
+      for (auto pred : llvm::predecessors(bb)) {
+        if (!visited_blocks.count(pred)) {
+          work_list.push_back(pred->getTerminator());
+        }
+      }
+    }
+
+    return false;
+  };
+
+  for (auto &inst : llvm::instructions(func)) {
+    if (auto load = llvm::dyn_cast<llvm::LoadInst>(&inst)) {
+      for (auto &use : load->uses()) {
+        auto ptr{load->getPointerOperand()};
+        if (!llvm::isa<llvm::AllocaInst>(ptr)) {
+          continue;
+        }
+        if (HasStoreBeforeUse(ptr, use.getUser(), load)) {
+          continue;
+        }
+        load->setMetadata("rellic.notemp",
+                          llvm::MDNode::get(func.getContext(), {}));
+      }
+    }
+  }
+}
+
+void FindRedundantLoads(llvm::Module &module) {
+  for (auto &func : module.functions()) {
+    FindRedundantLoads(func);
+  }
+}
+
 }  // namespace rellic

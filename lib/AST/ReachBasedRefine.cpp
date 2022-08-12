@@ -30,6 +30,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
   std::vector<clang::IfStmt *> ifs;
   z3::expr_vector conds{*z3_ctx};
+
   bool done_something{false};
   for (size_t i{0}; i < body.size(); ++i) {
     auto if_stmt{clang::dyn_cast<clang::IfStmt>(body[i])};

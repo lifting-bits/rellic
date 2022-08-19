@@ -32,10 +32,6 @@ const ec = {
     id: "ec",
     label: "Expression combination"
 }
-const nc = {
-    id: "nc",
-    label: "Condition normalization"
-}
 const mc = {
     id: "mc",
     label: "Materialize conditions"
@@ -110,7 +106,6 @@ const app = new Vue({
             rbr,
             lr,
             ec,
-            nc,
             mc
         ],
         actions: [

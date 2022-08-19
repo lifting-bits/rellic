@@ -9,7 +9,6 @@
 #pragma once
 
 #include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
 

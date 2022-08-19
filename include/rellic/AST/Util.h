@@ -100,9 +100,6 @@ void CopyProvenance(TKey1 *from, TKey2 *to,
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
                    ExprToUseMap &provenance);
 
-// Negates an expression while stripping parentheses and double negations
-clang::Expr *Negate(ASTBuilder &ast, clang::Expr *expr);
-
 std::string ClangThingToString(const clang::Stmt *stmt);
 
 z3::goal ApplyTactic(const z3::tactic &tactic, z3::expr expr);

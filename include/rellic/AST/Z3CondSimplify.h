@@ -11,7 +11,6 @@
 #include <clang/AST/ASTContext.h>
 
 #include "rellic/AST/ASTPass.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 

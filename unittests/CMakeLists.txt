@@ -8,15 +8,14 @@ add_executable(${RELLIC_UNITTEST}
   AST/ASTBuilder.cpp
   AST/StructGenerator.cpp
   AST/Util.cpp
-  AST/Z3ConvVisitor.cpp
   UnitTest.cpp
 )
 
 target_link_libraries(${RELLIC_UNITTEST} PRIVATE
-    "${PROJECT_NAME}_cxx_settings"
-    "${PROJECT_NAME}"
-    z3::libz3
-    doctest::doctest
+  "${PROJECT_NAME}_cxx_settings"
+  "${PROJECT_NAME}"
+  z3::libz3
+  doctest::doctest
 )
 
 target_compile_options(${RELLIC_UNITTEST} PRIVATE -fexceptions)

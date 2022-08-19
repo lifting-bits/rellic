@@ -44,7 +44,6 @@
 #include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
-#include "rellic/AST/NormalizeCond.h"
 #include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
@@ -161,8 +160,6 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(const std::string& name) {
     return std::make_unique<rellic::NestedCondProp>(*provenance, *ast_unit);
   } else if (name == "nsc") {
     return std::make_unique<rellic::NestedScopeCombine>(*provenance, *ast_unit);
-  } else if (name == "nc") {
-    return std::make_unique<rellic::NormalizeCond>(*provenance, *ast_unit);
   } else if (name == "rbr") {
     return std::make_unique<rellic::ReachBasedRefine>(*provenance, *ast_unit);
   } else if (name == "zcs") {

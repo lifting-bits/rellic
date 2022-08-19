@@ -8,11 +8,10 @@
 
 #include "rellic/AST/Z3CondSimplify.h"
 
-#include <clang/AST/ASTContext.h>
-#include <clang/AST/Expr.h>
-#include <clang/AST/OperationKinds.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+
+#include "rellic/AST/Util.h"
 
 namespace rellic {
 

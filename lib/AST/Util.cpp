@@ -318,19 +318,6 @@ clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *expr,
   return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(expr)));
 }
 
-static clang::Expr *ApplyLNot(rellic::ASTBuilder &ast, clang::Expr *expr) {
-  if (auto unop = clang::dyn_cast<clang::UnaryOperator>(expr)) {
-    if (unop->getOpcode() == clang::UO_LNot) {
-      return unop->getSubExpr();
-    }
-  }
-  return ast.CreateLNot(expr);
-}
-
-clang::Expr *Negate(rellic::ASTBuilder &ast, clang::Expr *expr) {
-  return ApplyLNot(ast, expr->IgnoreParens())->IgnoreParens();
-}
-
 std::string ClangThingToString(const clang::Stmt *stmt) {
   std::string s;
   llvm::raw_string_ostream os(s);

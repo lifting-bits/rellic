@@ -12,13 +12,12 @@
 
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Util.h"
 
 namespace rellic {
 
 /*
- * This pass simplifies conditions using Z3 by trying to remove terms that are
- * trivially true or false
+ * This pass substitutes the marker expression in loops and `if` statements for
+ * their translation from Z3 formulas
  */
 class MaterializeConds : public TransformVisitor<MaterializeConds> {
  private:

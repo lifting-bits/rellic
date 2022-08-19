@@ -10,7 +10,6 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
-#include <z3++.h>
 
 #include <iterator>
 

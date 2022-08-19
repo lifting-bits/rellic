@@ -52,7 +52,6 @@
 #include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
-#include "rellic/AST/NormalizeCond.h"
 #include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Util.h"
@@ -421,9 +420,6 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(
     } else if (str == "nsc") {
       return std::make_unique<rellic::NestedScopeCombine>(*session.Provenance,
                                                           *session.Unit);
-    } else if (str == "nc") {
-      return std::make_unique<rellic::NormalizeCond>(*session.Provenance,
-                                                     *session.Unit);
     } else if (str == "rbr") {
       return std::make_unique<rellic::ReachBasedRefine>(*session.Provenance,
                                                         *session.Unit);

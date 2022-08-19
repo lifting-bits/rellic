@@ -11,6 +11,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Util.h"
+
 namespace rellic {
 
 ReachBasedRefine::ReachBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
@@ -44,7 +46,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
 
     // Is the current `if` statement unreachable from all the others?
-    bool is_unreachable{Prove(!(cond && z3::mk_or(conds)))};
+    bool is_unreachable{Prove(HeavySimplify(!(cond && z3::mk_or(conds))))};
 
     if (!is_unreachable) {
       ResetChain();
@@ -54,7 +56,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     conds.push_back(cond);
 
     // Do the collected statements cover all possibilities?
-    auto is_complete{Prove(z3::mk_or(conds))};
+    auto is_complete{Prove(HeavySimplify(z3::mk_or(conds)))};
 
     if (ifs.size() <= 2 || !is_complete) {
       // We need to collect more statements

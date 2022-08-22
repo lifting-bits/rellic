@@ -65,6 +65,9 @@ struct Provenance {
   IRToValDeclMap value_decls;
   ArgToTempMap temp_decls;
   BlockToUsesMap outgoing_uses;
+
+  size_t num_literal_structs = 0;
+  size_t num_declared_structs = 0;
 };
 
 template <typename TKey1, typename TKey2, typename TKey3, typename TValue>

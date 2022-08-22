@@ -31,8 +31,6 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
   ASTBuilder ast;
 
   Provenance &provenance;
-  size_t num_literal_structs = 0;
-  size_t num_declared_structs = 0;
 
  public:
   ExprGen(clang::ASTUnit &unit, Provenance &provenance)
@@ -170,11 +168,12 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
       if (!decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
         auto strct{llvm::cast<llvm::StructType>(type)};
-        auto sname{strct->isLiteral() ? ("literal_struct_" +
-                                         std::to_string(num_literal_structs++))
-                                      : strct->getName().str()};
+        auto sname{strct->isLiteral()
+                       ? ("literal_struct_" +
+                          std::to_string(provenance.num_literal_structs++))
+                       : strct->getName().str()};
         if (sname.empty()) {
-          sname = "struct" + std::to_string(num_declared_structs++);
+          sname = "struct" + std::to_string(provenance.num_declared_structs++);
         }
 
         // Create a C struct declaration

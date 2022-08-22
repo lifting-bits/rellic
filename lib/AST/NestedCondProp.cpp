@@ -105,14 +105,14 @@ struct KnownExprs {
 class CompoundVisitor
     : public clang::StmtVisitor<CompoundVisitor, bool, KnownExprs&> {
  private:
-  Provenance& provenance;
+  DecompilationContext& dec_ctx;
   ASTBuilder& ast;
   clang::ASTContext& ctx;
 
  public:
-  CompoundVisitor(Provenance& provenance, ASTBuilder& ast,
+  CompoundVisitor(DecompilationContext& dec_ctx, ASTBuilder& ast,
                   clang::ASTContext& ctx)
-      : provenance(provenance), ast(ast), ctx(ctx) {}
+      : dec_ctx(dec_ctx), ast(ast), ctx(ctx) {}
 
   bool VisitCompoundStmt(clang::CompoundStmt* compound,
                          KnownExprs& known_exprs) {
@@ -126,12 +126,12 @@ class CompoundVisitor
   }
 
   bool VisitWhileStmt(clang::WhileStmt* while_stmt, KnownExprs& known_exprs) {
-    auto cond_idx{provenance.conds[while_stmt]};
+    auto cond_idx{dec_ctx.conds[while_stmt]};
     bool changed{false};
-    auto old_cond{provenance.z3_exprs[cond_idx]};
+    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
     auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
-    if (while_stmt->getCond() != provenance.marker_expr && changed) {
-      provenance.z3_exprs.set(cond_idx, new_cond);
+    if (while_stmt->getCond() != dec_ctx.marker_expr && changed) {
+      dec_ctx.z3_exprs.set(cond_idx, new_cond);
       return true;
     }
 
@@ -146,12 +146,12 @@ class CompoundVisitor
   }
 
   bool VisitDoStmt(clang::DoStmt* do_stmt, KnownExprs& known_exprs) {
-    auto cond_idx{provenance.conds[do_stmt]};
+    auto cond_idx{dec_ctx.conds[do_stmt]};
     bool changed{false};
-    auto old_cond{provenance.z3_exprs[cond_idx]};
+    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
     auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
-    if (do_stmt->getCond() == provenance.marker_expr && changed) {
-      provenance.z3_exprs.set(cond_idx, new_cond);
+    if (do_stmt->getCond() == dec_ctx.marker_expr && changed) {
+      dec_ctx.z3_exprs.set(cond_idx, new_cond);
       return true;
     }
 
@@ -166,12 +166,12 @@ class CompoundVisitor
   }
 
   bool VisitIfStmt(clang::IfStmt* if_stmt, KnownExprs& known_exprs) {
-    auto cond_idx{provenance.conds[if_stmt]};
+    auto cond_idx{dec_ctx.conds[if_stmt]};
     bool changed{false};
-    auto old_cond{provenance.z3_exprs[cond_idx]};
+    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
     auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
-    if (if_stmt->getCond() == provenance.marker_expr && changed) {
-      provenance.z3_exprs.set(cond_idx, new_cond);
+    if (if_stmt->getCond() == dec_ctx.marker_expr && changed) {
+      dec_ctx.z3_exprs.set(cond_idx, new_cond);
       return true;
     }
 
@@ -192,14 +192,15 @@ class CompoundVisitor
   }
 };
 
-NestedCondProp::NestedCondProp(Provenance& provenance, clang::ASTUnit& unit)
-    : ASTPass(provenance, unit) {}
+NestedCondProp::NestedCondProp(DecompilationContext& dec_ctx,
+                               clang::ASTUnit& unit)
+    : ASTPass(dec_ctx, unit) {}
 
 void NestedCondProp::RunImpl() {
   LOG(INFO) << "Propagating conditions";
   changed = false;
   ASTBuilder ast{ast_unit};
-  CompoundVisitor visitor{provenance, ast, ast_ctx};
+  CompoundVisitor visitor{dec_ctx, ast, ast_ctx};
 
   for (auto decl : ast_ctx.getTranslationUnitDecl()->decls()) {
     if (auto fdecl = clang::dyn_cast<clang::FunctionDecl>(decl)) {

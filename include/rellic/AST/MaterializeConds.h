@@ -27,7 +27,7 @@ class MaterializeConds : public TransformVisitor<MaterializeConds> {
   void RunImpl() override;
 
  public:
-  MaterializeConds(Provenance &provenance, clang::ASTUnit &unit);
+  MaterializeConds(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *stmt);
   bool VisitWhileStmt(clang::WhileStmt *loop);

@@ -32,12 +32,12 @@ class IRToASTVisitor {
 
   ASTBuilder ast;
 
-  Provenance &provenance;
+  DecompilationContext &dec_ctx;
 
   void VisitArgument(llvm::Argument &arg);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit, Provenance &provenance);
+  IRToASTVisitor(clang::ASTUnit &unit, DecompilationContext &dec_ctx);
 
   clang::Expr *CreateOperandExpr(llvm::Use &val);
   clang::Expr *CreateConstantExpr(llvm::Constant *constant);

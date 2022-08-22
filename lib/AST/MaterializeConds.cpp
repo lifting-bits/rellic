@@ -15,29 +15,30 @@
 
 namespace rellic {
 
-MaterializeConds::MaterializeConds(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<MaterializeConds>(provenance, unit),
-      ast_gen(unit, provenance) {}
+MaterializeConds::MaterializeConds(DecompilationContext &dec_ctx,
+                                   clang::ASTUnit &unit)
+    : TransformVisitor<MaterializeConds>(dec_ctx, unit),
+      ast_gen(unit, dec_ctx) {}
 
 bool MaterializeConds::VisitIfStmt(clang::IfStmt *stmt) {
-  auto cond{provenance.z3_exprs[provenance.conds[stmt]]};
-  if (stmt->getCond() == provenance.marker_expr) {
+  auto cond{dec_ctx.z3_exprs[dec_ctx.conds[stmt]]};
+  if (stmt->getCond() == dec_ctx.marker_expr) {
     stmt->setCond(ast_gen.ConvertExpr(cond));
   }
   return true;
 }
 
 bool MaterializeConds::VisitWhileStmt(clang::WhileStmt *stmt) {
-  auto cond{provenance.z3_exprs[provenance.conds[stmt]]};
-  if (stmt->getCond() == provenance.marker_expr) {
+  auto cond{dec_ctx.z3_exprs[dec_ctx.conds[stmt]]};
+  if (stmt->getCond() == dec_ctx.marker_expr) {
     stmt->setCond(ast_gen.ConvertExpr(cond));
   }
   return true;
 }
 
 bool MaterializeConds::VisitDoStmt(clang::DoStmt *stmt) {
-  auto cond{provenance.z3_exprs[provenance.conds[stmt]]};
-  if (stmt->getCond() == provenance.marker_expr) {
+  auto cond{dec_ctx.z3_exprs[dec_ctx.conds[stmt]]};
+  if (stmt->getCond() == dec_ctx.marker_expr) {
     stmt->setCond(ast_gen.ConvertExpr(cond));
   }
   return true;

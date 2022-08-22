@@ -33,7 +33,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor ast_gen;
   rellic::ASTBuilder ast;
-  Provenance &provenance;
+  DecompilationContext &dec_ctx;
   bool reaching_conds_changed{true};
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
@@ -68,12 +68,12 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
  public:
   using Result = llvm::PreservedAnalyses;
-  GenerateAST(Provenance &provenance, clang::ASTUnit &unit);
+  GenerateAST(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
 
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
   Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
 
-  static void run(llvm::Module &M, Provenance &provenance,
+  static void run(llvm::Module &M, DecompilationContext &dec_ctx,
                   clang::ASTUnit &unit);
 };
 

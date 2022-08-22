@@ -15,8 +15,9 @@
 
 namespace rellic {
 
-CondBasedRefine::CondBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<CondBasedRefine>(provenance, unit) {}
+CondBasedRefine::CondBasedRefine(DecompilationContext &dec_ctx,
+                                 clang::ASTUnit &unit)
+    : TransformVisitor<CondBasedRefine>(dec_ctx, unit) {}
 
 bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
@@ -30,8 +31,8 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       continue;
     }
 
-    auto cond_a{provenance.z3_exprs[provenance.conds[if_a]]};
-    auto cond_b{provenance.z3_exprs[provenance.conds[if_b]]};
+    auto cond_a{dec_ctx.z3_exprs[dec_ctx.conds[if_a]]};
+    auto cond_b{dec_ctx.z3_exprs[dec_ctx.conds[if_b]]};
 
     auto then_a{if_a->getThen()};
     auto then_b{if_b->getThen()};
@@ -44,7 +45,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       new_then_body.push_back(then_b);
       auto new_then{ast.CreateCompoundStmt(new_then_body)};
 
-      auto new_if{ast.CreateIf(provenance.marker_expr, new_then)};
+      auto new_if{ast.CreateIf(dec_ctx.marker_expr, new_then)};
 
       if (else_a || else_b) {
         std::vector<clang::Stmt *> new_else_body{};
@@ -61,7 +62,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_if->setElse(new_else);
       }
 
-      provenance.conds[new_if] = provenance.conds[if_a];
+      dec_ctx.conds[new_if] = dec_ctx.conds[if_a];
       body[i] = new_if;
       body.erase(std::next(body.begin(), i + 1));
       did_something = true;
@@ -81,12 +82,12 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       }
       new_else_body.push_back(then_b);
 
-      auto new_if{ast.CreateIf(provenance.marker_expr, new_then)};
+      auto new_if{ast.CreateIf(dec_ctx.marker_expr, new_then)};
 
       auto new_else{ast.CreateCompoundStmt(new_else_body)};
       new_if->setElse(new_else);
 
-      provenance.conds[new_if] = provenance.conds[if_a];
+      dec_ctx.conds[new_if] = dec_ctx.conds[if_a];
       body[i] = new_if;
       body.erase(std::next(body.begin(), i + 1));
       did_something = true;

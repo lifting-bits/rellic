@@ -141,44 +141,43 @@ unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
                                                bool cond) {
   auto ToExpr = [&](unsigned idx) {
     if (idx == POISON_IDX) {
-      return provenance.z3_ctx.bool_val(false);
+      return dec_ctx.z3_ctx.bool_val(false);
     }
-    return provenance.z3_exprs[idx];
+    return dec_ctx.z3_exprs[idx];
   };
-  if (provenance.z3_br_edges.find({inst, cond}) ==
-      provenance.z3_br_edges.end()) {
+  if (dec_ctx.z3_br_edges.find({inst, cond}) == dec_ctx.z3_br_edges.end()) {
     if (auto constant =
             llvm::dyn_cast<llvm::ConstantInt>(inst->getCondition())) {
-      provenance.z3_br_edges[{inst, cond}] = provenance.z3_exprs.size();
-      auto edge{provenance.z3_ctx.bool_val(constant->isOne() == cond)};
-      provenance.z3_exprs.push_back(edge);
-      provenance.z3_br_edges_inv[edge.id()] = {inst, true};
+      dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
+      auto edge{dec_ctx.z3_ctx.bool_val(constant->isOne() == cond)};
+      dec_ctx.z3_exprs.push_back(edge);
+      dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
     } else if (cond) {
       auto name{GetName(inst)};
-      auto edge{provenance.z3_ctx.bool_const(name.c_str())};
-      provenance.z3_br_edges[{inst, cond}] = provenance.z3_exprs.size();
-      provenance.z3_exprs.push_back(edge);
-      provenance.z3_br_edges_inv[edge.id()] = {inst, true};
+      auto edge{dec_ctx.z3_ctx.bool_const(name.c_str())};
+      dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
+      dec_ctx.z3_exprs.push_back(edge);
+      dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
     } else {
       auto edge{!(ToExpr(GetOrCreateEdgeForBranch(inst, true)))};
-      provenance.z3_br_edges[{inst, cond}] = provenance.z3_exprs.size();
-      provenance.z3_exprs.push_back(edge);
+      dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
+      dec_ctx.z3_exprs.push_back(edge);
     }
   }
 
-  return provenance.z3_br_edges[{inst, cond}];
+  return dec_ctx.z3_br_edges[{inst, cond}];
 }
 
 unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst) {
-  if (provenance.z3_sw_vars.find(inst) == provenance.z3_sw_vars.end()) {
+  if (dec_ctx.z3_sw_vars.find(inst) == dec_ctx.z3_sw_vars.end()) {
     auto name{GetName(inst)};
-    auto var{provenance.z3_ctx.int_const(name.c_str())};
-    provenance.z3_sw_vars[inst] = provenance.z3_exprs.size();
-    provenance.z3_exprs.push_back(var);
-    provenance.z3_sw_vars_inv[var.id()] = inst;
-    return provenance.z3_sw_vars[inst];
+    auto var{dec_ctx.z3_ctx.int_const(name.c_str())};
+    dec_ctx.z3_sw_vars[inst] = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(var);
+    dec_ctx.z3_sw_vars_inv[var.id()] = inst;
+    return dec_ctx.z3_sw_vars[inst];
   } else {
-    return provenance.z3_sw_vars[inst];
+    return dec_ctx.z3_sw_vars[inst];
   }
 }
 
@@ -186,44 +185,44 @@ unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                                llvm::ConstantInt *c) {
   auto ToExpr = [&](unsigned idx) {
     if (idx == POISON_IDX) {
-      return provenance.z3_ctx.bool_val(false);
+      return dec_ctx.z3_ctx.bool_val(false);
     }
-    return provenance.z3_exprs[idx];
+    return dec_ctx.z3_exprs[idx];
   };
-  if (provenance.z3_sw_edges.find({inst, c}) == provenance.z3_sw_edges.end()) {
+  if (dec_ctx.z3_sw_edges.find({inst, c}) == dec_ctx.z3_sw_edges.end()) {
     if (c) {
       auto sw_case{inst->findCaseValue(c)};
       auto var{ToExpr(GetOrCreateVarForSwitch(inst))};
-      auto expr{var == provenance.z3_ctx.int_val(sw_case->getCaseIndex())};
+      auto expr{var == dec_ctx.z3_ctx.int_val(sw_case->getCaseIndex())};
 
-      provenance.z3_sw_edges[{inst, c}] = provenance.z3_exprs.size();
-      provenance.z3_exprs.push_back(expr);
+      dec_ctx.z3_sw_edges[{inst, c}] = dec_ctx.z3_exprs.size();
+      dec_ctx.z3_exprs.push_back(expr);
     } else {
       // Default case
-      z3::expr_vector vec{provenance.z3_ctx};
+      z3::expr_vector vec{dec_ctx.z3_ctx};
       for (auto sw_case : inst->cases()) {
         vec.push_back(
             !ToExpr(GetOrCreateEdgeForSwitch(inst, sw_case.getCaseValue())));
       }
-      provenance.z3_sw_edges[{inst, c}] = provenance.z3_exprs.size();
-      provenance.z3_exprs.push_back(z3::mk_and(vec));
+      dec_ctx.z3_sw_edges[{inst, c}] = dec_ctx.z3_exprs.size();
+      dec_ctx.z3_exprs.push_back(z3::mk_and(vec));
     }
   }
 
-  return provenance.z3_sw_edges[{inst, c}];
+  return dec_ctx.z3_sw_edges[{inst, c}];
 }
 
 unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
                                           llvm::BasicBlock *to) {
   auto ToExpr = [&](unsigned idx) {
     if (idx == POISON_IDX) {
-      return provenance.z3_ctx.bool_val(false);
+      return dec_ctx.z3_ctx.bool_val(false);
     }
-    return provenance.z3_exprs[idx];
+    return dec_ctx.z3_exprs[idx];
   };
-  if (provenance.z3_edges.find({from, to}) == provenance.z3_edges.end()) {
+  if (dec_ctx.z3_edges.find({from, to}) == dec_ctx.z3_edges.end()) {
     // Construct the edge condition for CFG edge `(from, to)`
-    auto result{provenance.z3_ctx.bool_val(true)};
+    auto result{dec_ctx.z3_ctx.bool_val(true)};
     auto term = from->getTerminator();
     switch (term->getOpcode()) {
       // Conditional branches
@@ -240,7 +239,7 @@ unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
         if (to == sw->getDefaultDest()) {
           result = ToExpr(GetOrCreateEdgeForSwitch(sw, nullptr));
         } else {
-          z3::expr_vector or_vec{provenance.z3_ctx};
+          z3::expr_vector or_vec{dec_ctx.z3_ctx};
           for (auto sw_case : sw->cases()) {
             if (sw_case.getCaseSuccessor() == to) {
               or_vec.push_back(
@@ -269,35 +268,34 @@ unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
         break;
     }
 
-    provenance.z3_edges[{from, to}] = provenance.z3_exprs.size();
-    provenance.z3_exprs.push_back(result.simplify());
+    dec_ctx.z3_edges[{from, to}] = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(result.simplify());
   }
 
-  return provenance.z3_edges[{from, to}];
+  return dec_ctx.z3_edges[{from, to}];
 }
 
 unsigned GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
-  if (provenance.reaching_conds.find(block) ==
-      provenance.reaching_conds.end()) {
+  if (dec_ctx.reaching_conds.find(block) == dec_ctx.reaching_conds.end()) {
     return POISON_IDX;
   }
 
-  return provenance.reaching_conds[block];
+  return dec_ctx.reaching_conds[block];
 }
 
 void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
   auto ToExpr = [&](unsigned idx) {
     if (idx == POISON_IDX) {
-      return provenance.z3_ctx.bool_val(false);
+      return dec_ctx.z3_ctx.bool_val(false);
     }
-    return provenance.z3_exprs[idx];
+    return dec_ctx.z3_exprs[idx];
   };
 
   auto old_cond_idx{GetReachingCond(block)};
   auto old_cond{ToExpr(old_cond_idx)};
   if (block->hasNPredecessorsOrMore(1)) {
     // Gather reaching conditions from predecessors of the block
-    z3::expr_vector conds{provenance.z3_ctx};
+    z3::expr_vector conds{dec_ctx.z3_ctx};
     for (auto pred : llvm::predecessors(block)) {
       auto pred_cond{ToExpr(GetReachingCond(pred))};
       auto edge_cond{ToExpr(GetOrCreateEdgeCond(pred, block))};
@@ -313,15 +311,14 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
 
     auto cond{HeavySimplify(z3::mk_or(conds))};
     if (old_cond_idx == POISON_IDX || !Prove(old_cond == cond)) {
-      provenance.reaching_conds[block] = provenance.z3_exprs.size();
-      provenance.z3_exprs.push_back(cond);
+      dec_ctx.reaching_conds[block] = dec_ctx.z3_exprs.size();
+      dec_ctx.z3_exprs.push_back(cond);
       reaching_conds_changed = true;
     }
   } else {
-    if (provenance.reaching_conds.find(block) ==
-        provenance.reaching_conds.end()) {
-      provenance.reaching_conds[block] = provenance.z3_exprs.size();
-      provenance.z3_exprs.push_back(provenance.z3_ctx.bool_val(true));
+    if (dec_ctx.reaching_conds.find(block) == dec_ctx.reaching_conds.end()) {
+      dec_ctx.reaching_conds[block] = dec_ctx.z3_exprs.size();
+      dec_ctx.z3_exprs.push_back(dec_ctx.z3_ctx.bool_val(true));
       reaching_conds_changed = true;
     }
   }
@@ -336,9 +333,9 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
 StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
   auto ToExpr = [&](unsigned idx) {
     if (idx == POISON_IDX) {
-      return provenance.z3_ctx.bool_val(false);
+      return dec_ctx.z3_ctx.bool_val(false);
     }
-    return provenance.z3_exprs[idx];
+    return dec_ctx.z3_exprs[idx];
   };
   StmtVec result;
   for (auto block : rpo_walk) {
@@ -362,9 +359,9 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     }
     // Gate the compound behind a reaching condition
     auto z_expr{GetReachingCond(block)};
-    block_stmts[block] = ast.CreateIf(provenance.marker_expr, compound);
-    provenance.conds[block_stmts[block]] = provenance.z3_exprs.size();
-    provenance.z3_exprs.push_back(provenance.z3_exprs[z_expr]);
+    block_stmts[block] = ast.CreateIf(dec_ctx.marker_expr, compound);
+    dec_ctx.conds[block_stmts[block]] = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(dec_ctx.z3_exprs[z_expr]);
     // Store the compound
     result.push_back(block_stmts[block]);
   }
@@ -428,9 +425,9 @@ clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   auto ToExpr = [&](unsigned idx) {
     if (idx == POISON_IDX) {
-      return provenance.z3_ctx.bool_val(false);
+      return dec_ctx.z3_ctx.bool_val(false);
     }
-    return provenance.z3_exprs[idx];
+    return dec_ctx.z3_exprs[idx];
   };
   DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is cyclic";
   auto region_body = CreateRegionStmts(region);
@@ -476,11 +473,11 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
     StmtVec break_stmt({ast.CreateBreak()});
-    auto exit_stmt = ast.CreateIf(provenance.marker_expr,
-                                  ast.CreateCompoundStmt(break_stmt));
-    provenance.conds[exit_stmt] = provenance.z3_exprs.size();
+    auto exit_stmt =
+        ast.CreateIf(dec_ctx.marker_expr, ast.CreateCompoundStmt(break_stmt));
+    dec_ctx.conds[exit_stmt] = dec_ctx.z3_exprs.size();
     // Create edge condition
-    provenance.z3_exprs.push_back(
+    dec_ctx.z3_exprs.push_back(
         (ToExpr(GetReachingCond(from)) && ToExpr(GetOrCreateEdgeCond(from, to)))
             .simplify());
     // Insert it after the exiting block statement
@@ -565,11 +562,11 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 llvm::AnalysisKey GenerateAST::Key;
 
-GenerateAST::GenerateAST(Provenance &provenance, clang::ASTUnit &unit)
+GenerateAST::GenerateAST(DecompilationContext &dec_ctx, clang::ASTUnit &unit)
     : ast_ctx(&unit.getASTContext()),
       unit(unit),
-      provenance(provenance),
-      ast_gen(unit, provenance),
+      dec_ctx(dec_ctx),
+      ast_gen(unit, dec_ctx),
       ast(unit) {}
 
 GenerateAST::Result GenerateAST::run(llvm::Module &module,
@@ -648,13 +645,13 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // Call the above declared bad boy
   POWalkSubRegions(regions->getTopLevelRegion());
   // Get the function declaration AST node for `func`
-  auto fdecl = clang::cast<clang::FunctionDecl>(provenance.value_decls[&func]);
+  auto fdecl = clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[&func]);
   // Create a redeclaration of `fdecl` that will serve as a definition
   auto tudecl = ast_ctx->getTranslationUnitDecl();
   auto fdefn =
       ast.CreateFunctionDecl(tudecl, fdecl->getType(), fdecl->getIdentifier());
   fdefn->setPreviousDecl(fdecl);
-  provenance.value_decls[&func] = fdefn;
+  dec_ctx.value_decls[&func] = fdefn;
   tudecl->addDecl(fdefn);
   // Set parameters to the same as the previous declaration
   fdefn->setParams(fdecl->parameters());
@@ -676,20 +673,20 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   return llvm::PreservedAnalyses::all();
 }
 
-void GenerateAST::run(llvm::Module &module, Provenance &provenance,
+void GenerateAST::run(llvm::Module &module, DecompilationContext &dec_ctx,
                       clang::ASTUnit &unit) {
   llvm::ModulePassManager mpm;
   llvm::ModuleAnalysisManager mam;
   llvm::PassBuilder pb;
-  mam.registerPass([&] { return rellic::GenerateAST(provenance, unit); });
-  mpm.addPass(rellic::GenerateAST(provenance, unit));
+  mam.registerPass([&] { return rellic::GenerateAST(dec_ctx, unit); });
+  mpm.addPass(rellic::GenerateAST(dec_ctx, unit));
   pb.registerModuleAnalyses(mam);
   mpm.run(module, mam);
 
   llvm::FunctionPassManager fpm;
   llvm::FunctionAnalysisManager fam;
-  fam.registerPass([&] { return rellic::GenerateAST(provenance, unit); });
-  fpm.addPass(rellic::GenerateAST(provenance, unit));
+  fam.registerPass([&] { return rellic::GenerateAST(dec_ctx, unit); });
+  fpm.addPass(rellic::GenerateAST(dec_ctx, unit));
   pb.registerFunctionAnalyses(fam);
   for (auto &func : module.functions()) {
     fpm.run(func, fam);

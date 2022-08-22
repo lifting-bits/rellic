@@ -64,7 +64,7 @@ using Z3CondMap = std::unordered_map<clang::Stmt *, unsigned>;
 using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
 using BrEdge = std::pair<llvm::BranchInst *, bool>;
 using SwEdge = std::pair<llvm::SwitchInst *, llvm::ConstantInt *>;
-struct Provenance {
+struct DecompilationContext {
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;
   IRToTypeDeclMap type_decls;

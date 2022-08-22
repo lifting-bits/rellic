@@ -15,13 +15,14 @@
 
 namespace rellic {
 
-ReachBasedRefine::ReachBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<ReachBasedRefine>(provenance, unit) {}
+ReachBasedRefine::ReachBasedRefine(DecompilationContext &dec_ctx,
+                                   clang::ASTUnit &unit)
+    : TransformVisitor<ReachBasedRefine>(dec_ctx, unit) {}
 
 bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
   std::vector<clang::IfStmt *> ifs;
-  z3::expr_vector conds{provenance.z3_ctx};
+  z3::expr_vector conds{dec_ctx.z3_ctx};
 
   auto ResetChain = [&]() {
     ifs.clear();
@@ -37,7 +38,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
 
     ifs.push_back(if_stmt);
-    auto cond{provenance.z3_exprs[provenance.conds[if_stmt]]};
+    auto cond{dec_ctx.z3_exprs[dec_ctx.conds[if_stmt]]};
 
     if (if_stmt->getElse()) {
       // We cannot link `if` statements that contain `else` branches

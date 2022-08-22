@@ -30,11 +30,13 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
 
   ASTBuilder ast;
 
-  Provenance &provenance;
+  DecompilationContext &dec_ctx;
+  size_t num_literal_structs = 0;
+  size_t num_declared_structs = 0;
 
  public:
-  ExprGen(clang::ASTUnit &unit, Provenance &provenance)
-      : ast_ctx(unit.getASTContext()), ast(unit), provenance(provenance) {}
+  ExprGen(clang::ASTUnit &unit, DecompilationContext &dec_ctx)
+      : ast_ctx(unit.getASTContext()), ast(unit), dec_ctx(dec_ctx) {}
 
   void VisitGlobalVar(llvm::GlobalVariable &gvar);
   clang::QualType GetQualType(llvm::Type *type);
@@ -67,11 +69,11 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
     auto a{expr.arg(0)};
     auto b{expr.arg(1)};
 
-    llvm::SwitchInst *inst{provenance.z3_sw_vars_inv[a.id()]};
+    llvm::SwitchInst *inst{dec_ctx.z3_sw_vars_inv[a.id()]};
     unsigned case_idx{};
 
     if (!inst) {
-      inst = provenance.z3_sw_vars_inv[b.id()];
+      inst = dec_ctx.z3_sw_vars_inv[b.id()];
       case_idx = a.get_numeral_uint();
     } else {
       case_idx = b.get_numeral_uint();
@@ -88,16 +90,15 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
   }
 
   auto hash{expr.id()};
-  if (provenance.z3_br_edges_inv.find(hash) !=
-      provenance.z3_br_edges_inv.end()) {
-    auto edge{provenance.z3_br_edges_inv[hash]};
+  if (dec_ctx.z3_br_edges_inv.find(hash) != dec_ctx.z3_br_edges_inv.end()) {
+    auto edge{dec_ctx.z3_br_edges_inv[hash]};
     CHECK(edge.second) << "Inverse map should only be populated for branches "
                           "taken when condition is true";
     return CreateOperandExpr(*(edge.first->op_end() - 3));
   }
 
-  if (provenance.z3_sw_vars_inv.find(hash) != provenance.z3_sw_vars_inv.end()) {
-    auto inst{provenance.z3_sw_vars_inv[hash]};
+  if (dec_ctx.z3_sw_vars_inv.find(hash) != dec_ctx.z3_sw_vars_inv.end()) {
+    auto inst{dec_ctx.z3_sw_vars_inv[hash]};
     return CreateOperandExpr(inst->getOperandUse(0));
   }
 
@@ -130,7 +131,7 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
     case Z3_OP_NOT: {
       CHECK_EQ(args.size(), 1) << "Not must have one argument";
       auto neg{ast.CreateLNot(args[0])};
-      CopyProvenance(args[0], neg, provenance.use_provenance);
+      CopyProvenance(args[0], neg, dec_ctx.use_provenance);
       return neg;
     }
     default:
@@ -141,7 +142,7 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
 
 void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   DLOG(INFO) << "VisitGlobalVar: " << LLVMThingToString(&gvar);
-  auto &var{provenance.value_decls[&gvar]};
+  auto &var{dec_ctx.value_decls[&gvar]};
   if (var) {
     return;
   }
@@ -242,16 +243,16 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
 
     case llvm::Type::StructTyID: {
       clang::RecordDecl *sdecl{nullptr};
-      auto &decl{provenance.type_decls[type]};
+      auto &decl{dec_ctx.type_decls[type]};
       if (!decl) {
         auto tudecl{ast_ctx.getTranslationUnitDecl()};
         auto strct{llvm::cast<llvm::StructType>(type)};
         auto sname{strct->isLiteral()
                        ? ("literal_struct_" +
-                          std::to_string(provenance.num_literal_structs++))
+                          std::to_string(dec_ctx.num_literal_structs++))
                        : strct->getName().str()};
         if (sname.empty()) {
-          sname = "struct" + std::to_string(provenance.num_declared_structs++);
+          sname = "struct" + std::to_string(dec_ctx.num_declared_structs++);
         }
 
         // Create a C struct declaration
@@ -305,13 +306,13 @@ clang::Expr *ExprGen::CreateConstantExpr(llvm::Constant *constant) {
   if (auto cexpr = llvm::dyn_cast<llvm::ConstantExpr>(constant)) {
     auto inst{cexpr->getAsInstruction()};
     auto expr{visit(inst)};
-    provenance.use_provenance.erase(expr);
+    dec_ctx.use_provenance.erase(expr);
     inst->deleteValue();
     return expr;
   } else if (auto alias = llvm::dyn_cast<llvm::GlobalAlias>(constant)) {
     return CreateConstantExpr(alias->getAliasee());
   } else if (auto global = llvm::dyn_cast<llvm::GlobalValue>(constant)) {
-    auto decl{provenance.value_decls[global]};
+    auto decl{dec_ctx.value_decls[global]};
     auto ref{ast.CreateDeclRef(decl)};
     return ast.CreateAddrOf(ref);
   }
@@ -421,9 +422,9 @@ clang::Expr *ExprGen::CreateLiteralExpr(llvm::Constant *constant) {
 clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
   DLOG(INFO) << "Getting Expr for " << LLVMThingToString(val);
   auto CreateRef{[this, &val] {
-    auto decl{provenance.value_decls[val]};
+    auto decl{dec_ctx.value_decls[val]};
     auto ref{ast.CreateDeclRef(decl)};
-    provenance.use_provenance[ref] = &val;
+    dec_ctx.use_provenance[ref] = &val;
     return ref;
   }};
 
@@ -445,13 +446,12 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
       // the actual argument and use it instead of the actual argument. This
       // is because `byval` arguments are pointers, so each reference to those
       // arguments assume they are dealing with pointers.
-      auto &temp{provenance.temp_decls[arg]};
+      auto &temp{dec_ctx.temp_decls[arg]};
       if (!temp) {
         auto addr_of_arg{ast.CreateAddrOf(ref)};
         auto func{arg->getParent()};
-        auto fdecl{provenance.value_decls[func]->getAsFunction()};
-        auto argdecl{
-            clang::cast<clang::ParmVarDecl>(provenance.value_decls[arg])};
+        auto fdecl{dec_ctx.value_decls[func]->getAsFunction()};
+        auto argdecl{clang::cast<clang::ParmVarDecl>(dec_ctx.value_decls[arg])};
         temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
                                  argdecl->getName().str() + "_ptr");
         temp->setInit(addr_of_arg);
@@ -464,7 +464,7 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
     }
   } else if (auto inst = llvm::dyn_cast<llvm::Instruction>(val)) {
     // Operand is a result of an expression
-    if (auto decl = provenance.value_decls[inst]) {
+    if (auto decl = dec_ctx.value_decls[inst]) {
       res = ast.CreateDeclRef(decl);
     } else {
       res = visit(inst);
@@ -485,7 +485,7 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
                << "Bitcode: [" << LLVMThingToString(val) << "]\n"
                << "Type: [" << LLVMThingToString(val->getType()) << "]\n";
   }
-  provenance.use_provenance[res] = &val;
+  dec_ctx.use_provenance[res] = &val;
   return res;
 }
 
@@ -574,7 +574,7 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
       auto ptr_type{
           ast_ctx.getPointerType(GetQualType(inst.getParamByValType(i)))};
       opnd = ast.CreateDeref(ast.CreateCStyleCast(ptr_type, opnd));
-      provenance.use_provenance[opnd] = &arg;
+      dec_ctx.use_provenance[opnd] = &arg;
     }
     args.push_back(opnd);
   }
@@ -582,7 +582,7 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
   clang::Expr *callexpr{nullptr};
   auto &callee{*(inst.op_end() - 1)};
   if (auto func = llvm::dyn_cast<llvm::Function>(callee)) {
-    auto fdecl{provenance.value_decls[func]->getAsFunction()};
+    auto fdecl{dec_ctx.value_decls[func]->getAsFunction()};
     if (func->getFunctionType() == inst.getFunctionType()) {
       callexpr = ast.CreateCall(fdecl, args);
     } else {
@@ -593,7 +593,7 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
       callexpr = ast.CreateCall(cast, args);
     }
   } else if (auto iasm = llvm::dyn_cast<llvm::InlineAsm>(callee)) {
-    auto fdecl{provenance.value_decls[iasm]->getAsFunction()};
+    auto fdecl{dec_ctx.value_decls[iasm]->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);
   } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
     auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
@@ -697,7 +697,7 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
       case llvm::Type::StructTyID: {
         auto mem_idx = llvm::dyn_cast<llvm::ConstantInt>(idx);
         CHECK(mem_idx) << "Non-constant GEP index while indexing a structure";
-        auto tdecl{provenance.type_decls[indexed_type]};
+        auto tdecl{dec_ctx.type_decls[indexed_type]};
         CHECK(tdecl) << "Structure declaration doesn't exist";
         auto record{clang::cast<clang::RecordDecl>(tdecl)};
         auto field_it{record->field_begin()};
@@ -755,7 +755,7 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
       } break;
       // Structures
       case llvm::Type::StructTyID: {
-        auto tdecl{provenance.type_decls[indexed_type]};
+        auto tdecl{dec_ctx.type_decls[indexed_type]};
         CHECK(tdecl) << "Structure declaration doesn't exist";
         auto record{clang::cast<clang::RecordDecl>(tdecl)};
         auto field_it{record->field_begin()};
@@ -879,7 +879,7 @@ clang::Expr *ExprGen::visitCmpInst(llvm::CmpInst &inst) {
       return op;
     } else {
       auto cast{ast.CreateCStyleCast(rt, op)};
-      CopyProvenance(op, cast, provenance.use_provenance);
+      CopyProvenance(op, cast, dec_ctx.use_provenance);
       return (clang::Expr *)cast;
     }
   }};
@@ -1067,15 +1067,12 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
   clang::ASTContext &ast_ctx;
   ASTBuilder &ast;
   ExprGen &expr_gen;
-  Provenance &provenance;
+  DecompilationContext &dec_ctx;
 
  public:
   StmtGen(clang::ASTContext &ast_ctx, ASTBuilder &ast, ExprGen &expr_gen,
-          Provenance &provenance)
-      : ast_ctx(ast_ctx),
-        ast(ast),
-        expr_gen(expr_gen),
-        provenance(provenance) {}
+          DecompilationContext &dec_ctx)
+      : ast_ctx(ast_ctx), ast(ast), expr_gen(expr_gen), dec_ctx(dec_ctx) {}
 
   clang::Stmt *visitStoreInst(llvm::StoreInst &inst);
   clang::Stmt *visitCallInst(llvm::CallInst &inst);
@@ -1121,13 +1118,13 @@ clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   } else {
     // Create the assignemnt itself
     auto deref{ast.CreateDeref(lhs)};
-    CopyProvenance(lhs, deref, provenance.use_provenance);
+    CopyProvenance(lhs, deref, dec_ctx.use_provenance);
     return ast.CreateAssign(deref, rhs);
   }
 }
 
 clang::Stmt *StmtGen::visitCallInst(llvm::CallInst &inst) {
-  auto &var{provenance.value_decls[&inst]};
+  auto &var{dec_ctx.value_decls[&inst]};
   auto expr{expr_gen.visit(inst)};
   if (var) {
     return ast.CreateAssign(ast.CreateDeclRef(var), expr);
@@ -1168,7 +1165,7 @@ clang::Stmt *StmtGen::visitUnreachableInst(llvm::UnreachableInst &inst) {
 clang::Stmt *StmtGen::visitPHINode(llvm::PHINode &inst) { return nullptr; }
 
 clang::Stmt *StmtGen::visitInstruction(llvm::Instruction &inst) {
-  auto &var{provenance.value_decls[&inst]};
+  auto &var{dec_ctx.value_decls[&inst]};
   if (var) {
     auto expr{expr_gen.visit(inst)};
     return ast.CreateAssign(ast.CreateDeclRef(var), expr);
@@ -1176,20 +1173,21 @@ clang::Stmt *StmtGen::visitInstruction(llvm::Instruction &inst) {
   return nullptr;
 }
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit, Provenance &provenance)
+IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit,
+                               DecompilationContext &dec_ctx)
     : ast_unit(unit),
       ast_ctx(unit.getASTContext()),
       ast(unit),
-      provenance(provenance) {}
+      dec_ctx(dec_ctx) {}
 
 void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
-  ExprGen expr_gen{ast_unit, provenance};
+  ExprGen expr_gen{ast_unit, dec_ctx};
   expr_gen.VisitGlobalVar(gvar);
 }
 
 void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   DLOG(INFO) << "VisitArgument: " << LLVMThingToString(&arg);
-  auto &parm{provenance.value_decls[&arg]};
+  auto &parm{dec_ctx.value_decls[&arg]};
   if (parm) {
     return;
   }
@@ -1198,13 +1196,13 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
                           : "arg" + std::to_string(arg.getArgNo())};
   // Get parent function declaration
   auto func{arg.getParent()};
-  auto fdecl{clang::cast<clang::FunctionDecl>(provenance.value_decls[func])};
+  auto fdecl{clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[func])};
   auto argtype{arg.getType()};
   if (arg.hasByValAttr()) {
     auto byval{arg.getAttribute(llvm::Attribute::ByVal)};
     argtype = byval.getValueAsType();
   }
-  ExprGen expr_gen{ast_unit, provenance};
+  ExprGen expr_gen{ast_unit, dec_ctx};
   // Create a declaration
   parm = ast.CreateParamDecl(fdecl, expr_gen.GetQualType(argtype), name);
 }
@@ -1237,20 +1235,20 @@ static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
 
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
                                      std::vector<clang::Stmt *> &stmts) {
-  ExprGen expr_gen{ast_unit, provenance};
-  StmtGen stmt_gen{ast_ctx, ast, expr_gen, provenance};
+  ExprGen expr_gen{ast_unit, dec_ctx};
+  StmtGen stmt_gen{ast_ctx, ast, expr_gen, dec_ctx};
   for (auto &inst : block) {
     auto stmt{stmt_gen.visit(inst)};
     if (stmt) {
       stmts.push_back(stmt);
-      provenance.stmt_provenance[stmt] = &inst;
+      dec_ctx.stmt_provenance[stmt] = &inst;
     }
   }
 
-  auto &uses{provenance.outgoing_uses[&block]};
+  auto &uses{dec_ctx.outgoing_uses[&block]};
   for (auto it{uses.rbegin()}; it != uses.rend(); ++it) {
     auto use{*it};
-    auto var{provenance.value_decls[use->getUser()]};
+    auto var{dec_ctx.value_decls[use->getUser()]};
     auto expr{expr_gen.CreateOperandExpr(*use)};
     stmts.push_back(ast.CreateAssign(ast.CreateDeclRef(var), expr));
   }
@@ -1265,14 +1263,14 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
     return;
   }
 
-  auto &decl{provenance.value_decls[&func]};
+  auto &decl{dec_ctx.value_decls[&func]};
   if (decl) {
     return;
   }
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  ExprGen expr_gen{ast_unit, provenance};
+  ExprGen expr_gen{ast_unit, dec_ctx};
   auto type{expr_gen.GetQualType(GetFixedFunctionType(func))};
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
@@ -1282,14 +1280,14 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   for (auto &arg : func.args()) {
     VisitArgument(arg);
     params.push_back(
-        clang::cast<clang::ParmVarDecl>(provenance.value_decls[&arg]));
+        clang::cast<clang::ParmVarDecl>(dec_ctx.value_decls[&arg]));
   }
 
   auto fdecl{decl->getAsFunction()};
   fdecl->setParams(params);
 
   for (auto &inst : llvm::instructions(func)) {
-    auto &var{provenance.value_decls[&inst]};
+    auto &var{dec_ctx.value_decls[&inst]};
     if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
       auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
       // TLDR: Here we discard the variable name as present in the bitcode
@@ -1346,7 +1344,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
             auto bb{phi->getIncomingBlock(i)};
             auto &use{phi->getOperandUse(i)};
 
-            provenance.outgoing_uses[bb].push_back(&use);
+            dec_ctx.outgoing_uses[bb].push_back(&use);
           }
         }
       }
@@ -1356,7 +1354,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       if (auto iasm = llvm::dyn_cast<llvm::InlineAsm>(&opnd)) {
         // TODO(frabert): We still need to find a way to embed the inline asm
         // into the function
-        auto &decl{provenance.value_decls[iasm]};
+        auto &decl{dec_ctx.value_decls[iasm]};
         if (decl) {
           return;
         }
@@ -1386,12 +1384,12 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 }
 
 clang::Expr *IRToASTVisitor::CreateOperandExpr(llvm::Use &val) {
-  ExprGen expr_gen{ast_unit, provenance};
+  ExprGen expr_gen{ast_unit, dec_ctx};
   return expr_gen.CreateOperandExpr(val);
 }
 
 clang::Expr *IRToASTVisitor::CreateConstantExpr(llvm::Constant *constant) {
-  ExprGen expr_gen{ast_unit, provenance};
+  ExprGen expr_gen{ast_unit, dec_ctx};
   return expr_gen.CreateConstantExpr(constant);
 }
 

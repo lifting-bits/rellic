@@ -24,7 +24,7 @@ class Z3CondSimplify : public ASTPass {
   void RunImpl() override;
 
  public:
-  Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit);
+  Z3CondSimplify(DecompilationContext& dec_ctx, clang::ASTUnit& unit);
 };
 
 }  // namespace rellic

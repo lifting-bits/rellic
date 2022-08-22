@@ -15,15 +15,15 @@
 
 namespace rellic {
 
-NestedScopeCombine::NestedScopeCombine(Provenance &provenance,
+NestedScopeCombine::NestedScopeCombine(DecompilationContext &dec_ctx,
                                        clang::ASTUnit &unit)
-    : TransformVisitor<NestedScopeCombine>(provenance, unit) {}
+    : TransformVisitor<NestedScopeCombine>(dec_ctx, unit) {}
 
 bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
-  auto cond{provenance.z3_exprs[provenance.conds[ifstmt]]};
+  auto cond{dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]};
   if (Prove(cond)) {
     substitutions[ifstmt] = ifstmt->getThen();
   } else if (Prove(!cond) && ifstmt->getElse()) {
@@ -33,7 +33,7 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
 }
 
 bool NestedScopeCombine::VisitWhileStmt(clang::WhileStmt *stmt) {
-  auto cond{provenance.z3_exprs[provenance.conds[stmt]]};
+  auto cond{dec_ctx.z3_exprs[dec_ctx.conds[stmt]]};
   if (Prove(cond)) {
     auto body{clang::cast<clang::CompoundStmt>(stmt->getBody())};
     if (clang::isa<clang::BreakStmt>(body->body_back())) {

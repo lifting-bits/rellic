@@ -54,7 +54,7 @@ class NestedCondProp : public ASTPass {
   void RunImpl() override;
 
  public:
-  NestedCondProp(Provenance &provenance, clang::ASTUnit &unit);
+  NestedCondProp(DecompilationContext& dec_ctx, clang::ASTUnit& unit);
 };
 
 }  // namespace rellic

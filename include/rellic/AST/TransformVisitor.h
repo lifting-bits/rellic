@@ -26,11 +26,11 @@ class TransformVisitor : public ASTPass,
   StmtSubMap substitutions;
 
   void CopyProvenance(clang::Stmt *from, clang::Stmt *to) {
-    ::rellic::CopyProvenance(from, to, provenance.stmt_provenance);
+    ::rellic::CopyProvenance(from, to, dec_ctx.stmt_provenance);
   }
 
   void CopyProvenance(clang::Expr *from, clang::Expr *to) {
-    ::rellic::CopyProvenance(from, to, provenance.use_provenance);
+    ::rellic::CopyProvenance(from, to, dec_ctx.use_provenance);
   }
 
   bool ReplaceChildren(clang::Stmt *stmt, StmtSubMap &repl_map) {
@@ -55,8 +55,8 @@ class TransformVisitor : public ASTPass,
   void RunImpl() override { substitutions.clear(); }
 
  public:
-  TransformVisitor(Provenance &provenance, clang::ASTUnit &unit)
-      : ASTPass(provenance, unit) {}
+  TransformVisitor(DecompilationContext &dec_ctx, clang::ASTUnit &unit)
+      : ASTPass(dec_ctx, unit) {}
 
   virtual bool shouldTraversePostOrder() { return true; }
 

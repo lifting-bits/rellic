@@ -12,14 +12,14 @@
 
 namespace rellic {
 
-DeadStmtElim::DeadStmtElim(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<DeadStmtElim>(provenance, unit) {}
+DeadStmtElim::DeadStmtElim(DecompilationContext &dec_ctx, clang::ASTUnit &unit)
+    : TransformVisitor<DeadStmtElim>(dec_ctx, unit) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   bool can_delete = false;
-  if (ifstmt->getCond() == provenance.marker_expr) {
-    can_delete = Prove(!provenance.z3_exprs[provenance.conds[ifstmt]]);
+  if (ifstmt->getCond() == dec_ctx.marker_expr) {
+    can_delete = Prove(!dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]);
   }
 
   auto compound = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen());

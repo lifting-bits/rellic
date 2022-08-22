@@ -15,14 +15,15 @@
 
 namespace rellic {
 
-Z3CondSimplify::Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit)
-    : ASTPass(provenance, unit) {}
+Z3CondSimplify::Z3CondSimplify(DecompilationContext& dec_ctx,
+                               clang::ASTUnit& unit)
+    : ASTPass(dec_ctx, unit) {}
 
 void Z3CondSimplify::RunImpl() {
   LOG(INFO) << "Simplifying conditions using Z3";
-  for (size_t i{0}; i < provenance.z3_exprs.size() && !Stopped(); ++i) {
-    auto simpl{Sort(provenance.z3_exprs[i].simplify())};
-    provenance.z3_exprs.set(i, simpl);
+  for (size_t i{0}; i < dec_ctx.z3_exprs.size() && !Stopped(); ++i) {
+    auto simpl{Sort(dec_ctx.z3_exprs[i].simplify())};
+    dec_ctx.z3_exprs.set(i, simpl);
   }
 }
 

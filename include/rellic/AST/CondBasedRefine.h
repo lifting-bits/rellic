@@ -38,7 +38,7 @@ class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
   void RunImpl() override;
 
  public:
-  CondBasedRefine(Provenance &provenance, clang::ASTUnit &unit);
+  CondBasedRefine(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };

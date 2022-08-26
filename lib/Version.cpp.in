@@ -29,10 +29,10 @@ namespace rellic {
 namespace Version {
 
   bool HasVersionData() {
-    return @GIT_RETRIEVED_STATE@;
+    return "@GIT_RETRIEVED_STATE@";
   }
   bool HasUncommittedChanges() {
-    return @GIT_IS_DIRTY@;
+    return "@GIT_IS_DIRTY@";
   }
   std::string GetAuthorName() {
     return "@GIT_AUTHOR_NAME@";
@@ -50,7 +50,7 @@ namespace Version {
     return "@GIT_COMMIT_SUBJECT@";
   }
   std::string GetCommitBody() {
-    return @GIT_COMMIT_BODY@;
+    return "@GIT_COMMIT_BODY@";
   }
   std::string GetVersionString() {
     return "@VERSION_STRING@";

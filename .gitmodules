@@ -1,6 +1,3 @@
-[submodule "external/doctest/src"]
-	path = external/doctest/src
-	url = https://github.com/onqtam/doctest.git
 [submodule "external/lifting-tools-ci"]
 	path = external/lifting-tools-ci
 	url = https://github.com/lifting-bits/lifting-tools-ci.git

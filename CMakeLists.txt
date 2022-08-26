@@ -51,6 +51,7 @@ endif(NOT DEFINED WIN32)
 find_package(gflags CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(Z3 4.8 CONFIG REQUIRED)
+find_package(doctest CONFIG REQUIRED)
 find_llvm(llvm)
 find_package(Clang CONFIG REQUIRED)
 
@@ -86,12 +87,6 @@ if(RELLIC_ENABLE_INSTALL)
       "${PROJECT_NAME}Targets"
   )
 endif(RELLIC_ENABLE_INSTALL)
-
-#
-# external libraries
-#
-
-add_subdirectory(external)
 
 #
 # rellic libraries

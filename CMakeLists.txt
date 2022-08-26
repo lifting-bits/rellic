@@ -16,7 +16,6 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_C_VISIBILITY_PRESET hidden) 
 set (VISIBILITY_INLINES_HIDDEN YES)
 include("cmake/settings.cmake")
-include("cmake/llvm.cmake")
 include(GNUInstallDirs)
 
 if(RELLIC_ENABLE_INSTALL)
@@ -52,7 +51,8 @@ find_package(gflags CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(Z3 4.8 CONFIG REQUIRED)
 find_package(doctest CONFIG REQUIRED)
-find_llvm(llvm)
+find_package(LLVM CONFIG REQUIRED)
+llvm_map_components_to_libnames(llvm_libs support core irreader bitreader bitwriter)
 find_package(Clang CONFIG REQUIRED)
 
 
@@ -82,7 +82,7 @@ if(RELLIC_ENABLE_INSTALL)
   )
   install(
     TARGETS
-      "llvm" "${PROJECT_NAME}_cxx_settings"
+      "${PROJECT_NAME}_cxx_settings"
     EXPORT
       "${PROJECT_NAME}Targets"
   )

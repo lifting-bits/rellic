@@ -248,7 +248,6 @@ static void LoadModule(const httplib::Request& req, httplib::Response& res) {
     return;
   }
   session.Module = std::unique_ptr<llvm::Module>(mod);
-  rellic::FindRedundantLoads(*session.Module);
   llvm::json::Object msg{{"message", "Ok."}};
   SendJSON(res, msg);
   res.status = 200;

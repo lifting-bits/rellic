@@ -18,25 +18,11 @@
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/Util.h"
 
-namespace std {
-template <>
-struct hash<z3::expr> {
-  size_t operator()(const z3::expr& e) const { return e.id(); }
-};
-
-template <>
-struct equal_to<z3::expr> {
-  bool operator()(const z3::expr& a, const z3::expr& b) const {
-    return a.id() == b.id();
-  }
-};
-}  // namespace std
-
 namespace rellic {
 // Stores a set of expression that have a known value, so that they can be
 // recognized as part of larger expressions and simplified.
 struct KnownExprs {
-  std::unordered_map<z3::expr, bool> values;
+  std::unordered_map<unsigned, bool> values;
 
   void AddExpr(z3::expr expr, bool value) {
     // When adding expressions to the set of known values, it's important that
@@ -81,7 +67,7 @@ struct KnownExprs {
       return;
     }
 
-    values[expr] = value;
+    values[expr.id()] = value;
   }
 
   // Simplify an expression `expr` using all the known values stored. Sets
@@ -91,9 +77,9 @@ struct KnownExprs {
       return expr;
     }
 
-    if (values.find(expr) != values.end()) {
+    if (values.find(expr.id()) != values.end()) {
       found = true;
-      return expr.ctx().bool_val(values[expr]);
+      return expr.ctx().bool_val(values[expr.id()]);
     }
 
     if (expr.is_and() || expr.is_or()) {

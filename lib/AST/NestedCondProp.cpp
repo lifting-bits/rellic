@@ -71,21 +71,21 @@ struct KnownExprs {
   }
 
   // Simplify an expression `expr` using all the known values stored. Sets
-  // `found` to true is any simplification has been applied.
-  z3::expr ApplyAssumptions(z3::expr expr, bool& found) {
+  // `changed` to true is any simplification has been applied.
+  z3::expr ApplyAssumptions(z3::expr expr, bool& changed) {
     if (values.empty()) {
       return expr;
     }
 
     if (values.find(expr.id()) != values.end()) {
-      found = true;
+      changed = true;
       return expr.ctx().bool_val(values[expr.id()]);
     }
 
     if (expr.is_and() || expr.is_or()) {
       z3::expr_vector args{expr.ctx()};
       for (auto arg : expr.args()) {
-        args.push_back(ApplyAssumptions(arg, found));
+        args.push_back(ApplyAssumptions(arg, changed));
       }
       if (expr.is_and()) {
         return z3::mk_and(args);
@@ -95,7 +95,7 @@ struct KnownExprs {
     }
 
     if (expr.is_not()) {
-      return !ApplyAssumptions(expr.arg(0), found);
+      return !ApplyAssumptions(expr.arg(0), changed);
     }
 
     return expr;

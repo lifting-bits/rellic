@@ -169,6 +169,9 @@ unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
 }
 
 unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst) {
+  // To aide simplification, switch instructions actually produce numerical
+  // variables instead of boolean ones, but are always compared against a
+  // constant value.
   if (dec_ctx.z3_sw_vars.find(inst) == dec_ctx.z3_sw_vars.end()) {
     auto name{GetName(inst)};
     auto var{dec_ctx.z3_ctx.int_const(name.c_str())};

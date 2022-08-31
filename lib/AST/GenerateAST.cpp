@@ -151,20 +151,17 @@ unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
   }
 
   if (auto constant = llvm::dyn_cast<llvm::ConstantInt>(inst->getCondition())) {
-    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
     auto edge{dec_ctx.z3_ctx.bool_val(constant->isOne() == cond)};
-    dec_ctx.z3_exprs.push_back(edge);
+    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.InsertZExpr(edge);
     dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
   } else if (cond) {
     auto name{GetName(inst)};
     auto edge{dec_ctx.z3_ctx.bool_const(name.c_str())};
-    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(edge);
+    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.InsertZExpr(edge);
     dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
   } else {
     auto edge{!(ToExpr(GetOrCreateEdgeForBranch(inst, true)))};
-    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(edge);
+    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.InsertZExpr(edge);
   }
 
   return dec_ctx.z3_br_edges[{inst, cond}];
@@ -180,8 +177,7 @@ unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst) {
 
   auto name{GetName(inst)};
   auto var{dec_ctx.z3_ctx.int_const(name.c_str())};
-  dec_ctx.z3_sw_vars[inst] = dec_ctx.z3_exprs.size();
-  dec_ctx.z3_exprs.push_back(var);
+  dec_ctx.z3_sw_vars[inst] = dec_ctx.InsertZExpr(var);
   dec_ctx.z3_sw_vars_inv[var.id()] = inst;
   return dec_ctx.z3_sw_vars[inst];
 }
@@ -198,8 +194,7 @@ unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
     auto var{ToExpr(GetOrCreateVarForSwitch(inst))};
     auto expr{var == dec_ctx.z3_ctx.int_val(sw_case->getCaseIndex())};
 
-    idx = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(expr);
+    idx = dec_ctx.InsertZExpr(expr);
   } else {
     // Default case
     z3::expr_vector vec{dec_ctx.z3_ctx};
@@ -207,8 +202,7 @@ unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
       vec.push_back(
           !ToExpr(GetOrCreateEdgeForSwitch(inst, sw_case.getCaseValue())));
     }
-    idx = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(z3::mk_and(vec));
+    idx = dec_ctx.InsertZExpr(z3::mk_and(vec));
   }
   dec_ctx.z3_sw_edges[{inst, c}] = idx;
   return idx;
@@ -267,8 +261,7 @@ unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
       break;
   }
 
-  dec_ctx.z3_edges[{from, to}] = dec_ctx.z3_exprs.size();
-  dec_ctx.z3_exprs.push_back(result.simplify());
+  dec_ctx.z3_edges[{from, to}] = dec_ctx.InsertZExpr(result.simplify());
   return dec_ctx.z3_edges[{from, to}];
 }
 
@@ -301,14 +294,13 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
 
     auto cond{HeavySimplify(z3::mk_or(conds))};
     if (old_cond_idx == poison_idx || !Prove(old_cond == cond)) {
-      dec_ctx.reaching_conds[block] = dec_ctx.z3_exprs.size();
-      dec_ctx.z3_exprs.push_back(cond);
+      dec_ctx.reaching_conds[block] = dec_ctx.InsertZExpr(cond);
       reaching_conds_changed = true;
     }
   } else if (dec_ctx.reaching_conds.find(block) ==
              dec_ctx.reaching_conds.end()) {
-    dec_ctx.reaching_conds[block] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(dec_ctx.z3_ctx.bool_val(true));
+    dec_ctx.reaching_conds[block] =
+        dec_ctx.InsertZExpr(dec_ctx.z3_ctx.bool_val(true));
     reaching_conds_changed = true;
   }
 }
@@ -343,8 +335,8 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     // Gate the compound behind a reaching condition
     auto z_expr{GetReachingCond(block)};
     block_stmts[block] = ast.CreateIf(dec_ctx.marker_expr, compound);
-    dec_ctx.conds[block_stmts[block]] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(dec_ctx.z3_exprs[z_expr]);
+    dec_ctx.conds[block_stmts[block]] =
+        dec_ctx.InsertZExpr(dec_ctx.z3_exprs[z_expr]);
     // Store the compound
     result.push_back(block_stmts[block]);
   }
@@ -452,9 +444,8 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     StmtVec break_stmt({ast.CreateBreak()});
     auto exit_stmt =
         ast.CreateIf(dec_ctx.marker_expr, ast.CreateCompoundStmt(break_stmt));
-    dec_ctx.conds[exit_stmt] = dec_ctx.z3_exprs.size();
     // Create edge condition
-    dec_ctx.z3_exprs.push_back(
+    dec_ctx.conds[exit_stmt] = dec_ctx.InsertZExpr(
         (ToExpr(GetReachingCond(from)) && ToExpr(GetOrCreateEdgeCond(from, to)))
             .simplify());
     // Insert it after the exiting block statement

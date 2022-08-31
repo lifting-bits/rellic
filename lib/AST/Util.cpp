@@ -385,4 +385,10 @@ z3::expr OrderById(z3::expr expr) {
 
   return expr;
 }
+
+unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
+  auto idx{z3_exprs.size()};
+  z3_exprs.push_back(e);
+  return idx;
+}
 }  // namespace rellic

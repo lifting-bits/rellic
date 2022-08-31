@@ -66,8 +66,8 @@ class WhileRule : public InferenceRule {
     ASTBuilder ast(unit);
     auto new_while{
         ast.CreateWhile(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
-    dec_ctx.conds[new_while] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(!dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]);
+    dec_ctx.conds[new_while] =
+        dec_ctx.InsertZExpr(!dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]);
     return new_while;
   }
 };
@@ -146,8 +146,7 @@ class DoWhileRule : public InferenceRule {
     }
     auto new_do{
         ast.CreateDo(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
-    dec_ctx.conds[new_do] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(!cond);
+    dec_ctx.conds[new_do] = dec_ctx.InsertZExpr(!cond);
     return new_do;
   }
 };
@@ -240,8 +239,7 @@ class NestedDoWhileRule : public InferenceRule {
 
     auto do_stmt{
         ast.CreateDo(dec_ctx.marker_expr, ast.CreateCompoundStmt(do_body))};
-    dec_ctx.conds[do_stmt] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(!cond);
+    dec_ctx.conds[do_stmt] = dec_ctx.InsertZExpr(!cond);
 
     std::vector<clang::Stmt *> while_body({do_stmt, if_stmt->getThen()});
     auto new_while{ast.CreateWhile(dec_ctx.marker_expr,
@@ -379,8 +377,7 @@ class CondToSeqNegRule : public InferenceRule {
     auto ifstmt{clang::cast<clang::IfStmt>(body->body_front())};
     auto cond{dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]};
     auto inner_loop{ast.CreateWhile(dec_ctx.marker_expr, ifstmt->getElse())};
-    dec_ctx.conds[inner_loop] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(!cond);
+    dec_ctx.conds[inner_loop] = dec_ctx.InsertZExpr(!cond);
     std::vector<clang::Stmt *> new_body({inner_loop});
     if (auto comp = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
       new_body.insert(new_body.end(), comp->body_begin(), comp->body_end());

@@ -113,7 +113,7 @@ target_link_libraries("${PROJECT_NAME}"
     "${PROJECT_NAME}_cxx_settings"
     glog::glog
     z3::libz3
-    llvm
+    "${llvm_libs}"
     clangIndex
     clangCodeGen
     clangASTMatchers

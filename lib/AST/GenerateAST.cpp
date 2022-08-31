@@ -146,24 +146,25 @@ z3::expr GenerateAST::ToExpr(unsigned idx) {
 
 unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
                                                bool cond) {
-  if (dec_ctx.z3_br_edges.find({inst, cond}) == dec_ctx.z3_br_edges.end()) {
-    if (auto constant =
-            llvm::dyn_cast<llvm::ConstantInt>(inst->getCondition())) {
-      dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
-      auto edge{dec_ctx.z3_ctx.bool_val(constant->isOne() == cond)};
-      dec_ctx.z3_exprs.push_back(edge);
-      dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
-    } else if (cond) {
-      auto name{GetName(inst)};
-      auto edge{dec_ctx.z3_ctx.bool_const(name.c_str())};
-      dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
-      dec_ctx.z3_exprs.push_back(edge);
-      dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
-    } else {
-      auto edge{!(ToExpr(GetOrCreateEdgeForBranch(inst, true)))};
-      dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
-      dec_ctx.z3_exprs.push_back(edge);
-    }
+  if (dec_ctx.z3_br_edges.find({inst, cond}) != dec_ctx.z3_br_edges.end()) {
+    return dec_ctx.z3_br_edges[{inst, cond}];
+  }
+
+  if (auto constant = llvm::dyn_cast<llvm::ConstantInt>(inst->getCondition())) {
+    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
+    auto edge{dec_ctx.z3_ctx.bool_val(constant->isOne() == cond)};
+    dec_ctx.z3_exprs.push_back(edge);
+    dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
+  } else if (cond) {
+    auto name{GetName(inst)};
+    auto edge{dec_ctx.z3_ctx.bool_const(name.c_str())};
+    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(edge);
+    dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
+  } else {
+    auto edge{!(ToExpr(GetOrCreateEdgeForBranch(inst, true)))};
+    dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(edge);
   }
 
   return dec_ctx.z3_br_edges[{inst, cond}];
@@ -304,12 +305,11 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
       dec_ctx.z3_exprs.push_back(cond);
       reaching_conds_changed = true;
     }
-  } else {
-    if (dec_ctx.reaching_conds.find(block) == dec_ctx.reaching_conds.end()) {
-      dec_ctx.reaching_conds[block] = dec_ctx.z3_exprs.size();
-      dec_ctx.z3_exprs.push_back(dec_ctx.z3_ctx.bool_val(true));
-      reaching_conds_changed = true;
-    }
+  } else if (dec_ctx.reaching_conds.find(block) ==
+             dec_ctx.reaching_conds.end()) {
+    dec_ctx.reaching_conds[block] = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(dec_ctx.z3_ctx.bool_val(true));
+    reaching_conds_changed = true;
   }
 }
 

@@ -360,7 +360,7 @@ z3::expr_vector Clone(z3::expr_vector &vec) {
   return clone;
 }
 
-z3::expr Sort(z3::expr expr) {
+z3::expr OrderById(z3::expr expr) {
   if (expr.is_and() || expr.is_or()) {
     std::vector<unsigned> args_indices(expr.num_args(), 0);
     std::iota(args_indices.begin(), args_indices.end(), 0);
@@ -370,7 +370,7 @@ z3::expr Sort(z3::expr expr) {
               });
     z3::expr_vector new_args{expr.ctx()};
     for (auto idx : args_indices) {
-      new_args.push_back(Sort(expr.arg(idx)));
+      new_args.push_back(OrderById(expr.arg(idx)));
     }
     if (expr.is_and()) {
       return z3::mk_and(new_args);
@@ -380,7 +380,7 @@ z3::expr Sort(z3::expr expr) {
   }
 
   if (expr.is_not()) {
-    return !Sort(expr.arg(0));
+    return !OrderById(expr.arg(0));
   }
 
   return expr;

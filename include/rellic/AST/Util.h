@@ -112,5 +112,5 @@ z3::expr_vector Clone(z3::expr_vector &vec);
 
 // Tries to keep each subformula sorted by its id so that they don't get
 // shuffled around by simplification
-z3::expr Sort(z3::expr expr);
+z3::expr OrderById(z3::expr expr);
 }  // namespace rellic

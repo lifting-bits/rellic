@@ -94,8 +94,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
   }
   if (did_something) {
-    auto new_compound{ast.CreateCompoundStmt(body)};
-    substitutions[compound] = new_compound;
+    substitutions[compound] = ast.CreateCompoundStmt(body);
   }
   return !Stopped();
 }

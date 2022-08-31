@@ -173,41 +173,44 @@ unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst) {
   // To aide simplification, switch instructions actually produce numerical
   // variables instead of boolean ones, but are always compared against a
   // constant value.
-  if (dec_ctx.z3_sw_vars.find(inst) == dec_ctx.z3_sw_vars.end()) {
-    auto name{GetName(inst)};
-    auto var{dec_ctx.z3_ctx.int_const(name.c_str())};
-    dec_ctx.z3_sw_vars[inst] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(var);
-    dec_ctx.z3_sw_vars_inv[var.id()] = inst;
-    return dec_ctx.z3_sw_vars[inst];
-  } else {
+  if (dec_ctx.z3_sw_vars.find(inst) != dec_ctx.z3_sw_vars.end()) {
     return dec_ctx.z3_sw_vars[inst];
   }
+
+  auto name{GetName(inst)};
+  auto var{dec_ctx.z3_ctx.int_const(name.c_str())};
+  dec_ctx.z3_sw_vars[inst] = dec_ctx.z3_exprs.size();
+  dec_ctx.z3_exprs.push_back(var);
+  dec_ctx.z3_sw_vars_inv[var.id()] = inst;
+  return dec_ctx.z3_sw_vars[inst];
 }
 
 unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                                llvm::ConstantInt *c) {
-  if (dec_ctx.z3_sw_edges.find({inst, c}) == dec_ctx.z3_sw_edges.end()) {
-    if (c) {
-      auto sw_case{inst->findCaseValue(c)};
-      auto var{ToExpr(GetOrCreateVarForSwitch(inst))};
-      auto expr{var == dec_ctx.z3_ctx.int_val(sw_case->getCaseIndex())};
-
-      dec_ctx.z3_sw_edges[{inst, c}] = dec_ctx.z3_exprs.size();
-      dec_ctx.z3_exprs.push_back(expr);
-    } else {
-      // Default case
-      z3::expr_vector vec{dec_ctx.z3_ctx};
-      for (auto sw_case : inst->cases()) {
-        vec.push_back(
-            !ToExpr(GetOrCreateEdgeForSwitch(inst, sw_case.getCaseValue())));
-      }
-      dec_ctx.z3_sw_edges[{inst, c}] = dec_ctx.z3_exprs.size();
-      dec_ctx.z3_exprs.push_back(z3::mk_and(vec));
-    }
+  if (dec_ctx.z3_sw_edges.find({inst, c}) != dec_ctx.z3_sw_edges.end()) {
+    return dec_ctx.z3_sw_edges[{inst, c}];
   }
 
-  return dec_ctx.z3_sw_edges[{inst, c}];
+  unsigned idx;
+  if (c) {
+    auto sw_case{inst->findCaseValue(c)};
+    auto var{ToExpr(GetOrCreateVarForSwitch(inst))};
+    auto expr{var == dec_ctx.z3_ctx.int_val(sw_case->getCaseIndex())};
+
+    idx = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(expr);
+  } else {
+    // Default case
+    z3::expr_vector vec{dec_ctx.z3_ctx};
+    for (auto sw_case : inst->cases()) {
+      vec.push_back(
+          !ToExpr(GetOrCreateEdgeForSwitch(inst, sw_case.getCaseValue())));
+    }
+    idx = dec_ctx.z3_exprs.size();
+    dec_ctx.z3_exprs.push_back(z3::mk_and(vec));
+  }
+  dec_ctx.z3_sw_edges[{inst, c}] = idx;
+  return idx;
 }
 
 unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,

@@ -33,6 +33,8 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
 }
 
 bool NestedScopeCombine::VisitWhileStmt(clang::WhileStmt *stmt) {
+  // Substitute while statements in the form `while(1) { sth; break; }` with
+  // just `{ sth; }`
   auto cond{dec_ctx.z3_exprs[dec_ctx.conds[stmt]]};
   if (Prove(cond)) {
     auto body{clang::cast<clang::CompoundStmt>(stmt->getBody())};

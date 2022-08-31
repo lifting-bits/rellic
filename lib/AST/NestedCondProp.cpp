@@ -109,6 +109,29 @@ class CompoundVisitor
   ASTBuilder& ast;
   clang::ASTContext& ctx;
 
+  template <bool cond_is_true_in_body, typename T>
+  bool VisitLoop(T* loop, KnownExprs& known_exprs) {
+    auto cond_idx{dec_ctx.conds[loop]};
+    bool changed{false};
+    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
+    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
+    if (loop->getCond() != dec_ctx.marker_expr && changed) {
+      dec_ctx.z3_exprs.set(cond_idx, new_cond);
+      return true;
+    }
+
+    auto inner{known_exprs};
+    if constexpr (cond_is_true_in_body) {
+      inner.AddExpr(new_cond, true);
+    }
+    known_exprs.AddExpr(new_cond, false);
+
+    if (Visit(loop->getBody(), inner)) {
+      return true;
+    }
+    return false;
+  }
+
  public:
   CompoundVisitor(DecompilationContext& dec_ctx, ASTBuilder& ast,
                   clang::ASTContext& ctx)
@@ -126,43 +149,11 @@ class CompoundVisitor
   }
 
   bool VisitWhileStmt(clang::WhileStmt* while_stmt, KnownExprs& known_exprs) {
-    auto cond_idx{dec_ctx.conds[while_stmt]};
-    bool changed{false};
-    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
-    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
-    if (while_stmt->getCond() != dec_ctx.marker_expr && changed) {
-      dec_ctx.z3_exprs.set(cond_idx, new_cond);
-      return true;
-    }
-
-    auto inner{known_exprs};
-    inner.AddExpr(new_cond, true);
-    known_exprs.AddExpr(new_cond, false);
-
-    if (Visit(while_stmt->getBody(), inner)) {
-      return true;
-    }
-    return false;
+    return VisitLoop</*cond_is_true_in_body=*/true>(while_stmt, known_exprs);
   }
 
   bool VisitDoStmt(clang::DoStmt* do_stmt, KnownExprs& known_exprs) {
-    auto cond_idx{dec_ctx.conds[do_stmt]};
-    bool changed{false};
-    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
-    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
-    if (do_stmt->getCond() == dec_ctx.marker_expr && changed) {
-      dec_ctx.z3_exprs.set(cond_idx, new_cond);
-      return true;
-    }
-
-    auto inner{known_exprs};
-    known_exprs.AddExpr(new_cond, false);
-
-    if (Visit(do_stmt->getBody(), inner)) {
-      return true;
-    }
-
-    return false;
+    return VisitLoop</*cond_is_true_in_body=*/false>(do_stmt, known_exprs);
   }
 
   bool VisitIfStmt(clang::IfStmt* if_stmt, KnownExprs& known_exprs) {

@@ -66,10 +66,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       body[i] = new_if;
       body.erase(std::next(body.begin(), i + 1));
       did_something = true;
-      break;
-    }
-
-    if (Prove(cond_a == !cond_b)) {
+    } else if (Prove(cond_a == !cond_b)) {
       if (else_b) {
         new_then_body.push_back(else_b);
       }

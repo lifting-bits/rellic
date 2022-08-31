@@ -140,7 +140,7 @@ static std::string GetName(llvm::Value *v) {
 unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
                                                bool cond) {
   auto ToExpr = [&](unsigned idx) {
-    if (idx == POISON_IDX) {
+    if (idx == poison_idx) {
       return dec_ctx.z3_ctx.bool_val(false);
     }
     return dec_ctx.z3_exprs[idx];
@@ -184,7 +184,7 @@ unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst) {
 unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                                llvm::ConstantInt *c) {
   auto ToExpr = [&](unsigned idx) {
-    if (idx == POISON_IDX) {
+    if (idx == poison_idx) {
       return dec_ctx.z3_ctx.bool_val(false);
     }
     return dec_ctx.z3_exprs[idx];
@@ -215,7 +215,7 @@ unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
 unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
                                           llvm::BasicBlock *to) {
   auto ToExpr = [&](unsigned idx) {
-    if (idx == POISON_IDX) {
+    if (idx == poison_idx) {
       return dec_ctx.z3_ctx.bool_val(false);
     }
     return dec_ctx.z3_exprs[idx];
@@ -277,7 +277,7 @@ unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
 
 unsigned GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
   if (dec_ctx.reaching_conds.find(block) == dec_ctx.reaching_conds.end()) {
-    return POISON_IDX;
+    return poison_idx;
   }
 
   return dec_ctx.reaching_conds[block];
@@ -285,7 +285,7 @@ unsigned GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
 
 void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
   auto ToExpr = [&](unsigned idx) {
-    if (idx == POISON_IDX) {
+    if (idx == poison_idx) {
       return dec_ctx.z3_ctx.bool_val(false);
     }
     return dec_ctx.z3_exprs[idx];
@@ -310,7 +310,7 @@ void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
     }
 
     auto cond{HeavySimplify(z3::mk_or(conds))};
-    if (old_cond_idx == POISON_IDX || !Prove(old_cond == cond)) {
+    if (old_cond_idx == poison_idx || !Prove(old_cond == cond)) {
       dec_ctx.reaching_conds[block] = dec_ctx.z3_exprs.size();
       dec_ctx.z3_exprs.push_back(cond);
       reaching_conds_changed = true;
@@ -332,7 +332,7 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
 
 StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
   auto ToExpr = [&](unsigned idx) {
-    if (idx == POISON_IDX) {
+    if (idx == poison_idx) {
       return dec_ctx.z3_ctx.bool_val(false);
     }
     return dec_ctx.z3_exprs[idx];
@@ -424,7 +424,7 @@ clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   auto ToExpr = [&](unsigned idx) {
-    if (idx == POISON_IDX) {
+    if (idx == poison_idx) {
       return dec_ctx.z3_ctx.bool_val(false);
     }
     return dec_ctx.z3_exprs[idx];

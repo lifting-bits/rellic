@@ -13,6 +13,7 @@
 #include <llvm/IR/PassManager.h>
 #include <z3++.h>
 
+#include <limits>
 #include <map>
 #include <unordered_set>
 
@@ -25,7 +26,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   friend llvm::AnalysisInfoMixin<GenerateAST>;
   static llvm::AnalysisKey Key;
 
-  constexpr static unsigned POISON_IDX = static_cast<unsigned>(-1);
+  constexpr static unsigned poison_idx = std::numeric_limits<unsigned>::max();
 
   // Need to use `map` with these instead of `unordered_map`, because
   // `std::pair` doesn't have a default hash implementation

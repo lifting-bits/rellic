@@ -33,10 +33,18 @@ struct equal_to<z3::expr> {
 }  // namespace std
 
 namespace rellic {
+// Stores a set of expression that have a known value, so that they can be
+// recognized as part of larger expressions and simplified.
 struct KnownExprs {
   std::unordered_map<z3::expr, bool> values;
 
   void AddExpr(z3::expr expr, bool value) {
+    // When adding expressions to the set of known values, it's important that
+    // they are added in their smallest possible form. E.g., if it's known that
+    // `A && B` is true, then both of its subexpressions are true, and we should
+    // add those instead.
+    // This is so that `A && B && C` can be used to simplify smaller
+    // expressions, like `A && B`, which would otherwise not be recognized.
     switch (expr.decl().decl_kind()) {
       case Z3_OP_TRUE:
       case Z3_OP_FALSE:
@@ -45,16 +53,19 @@ struct KnownExprs {
         break;
     }
 
+    // If !A has value V, then A has value !V, so add that instead.
     if (expr.is_not()) {
       AddExpr(expr.arg(0), !value);
       return;
     }
 
+    // A unary && or ||, just add the single subexpression
     if (expr.num_args() == 1) {
       AddExpr(expr.arg(0), value);
       return;
     }
 
+    // A true && expression means all of its subexpressions are true
     if (value && expr.is_and()) {
       for (auto e : expr.args()) {
         AddExpr(e, true);
@@ -62,6 +73,7 @@ struct KnownExprs {
       return;
     }
 
+    // A false || expression means all of its subexpressions are false
     if (!value && expr.is_or()) {
       for (auto e : expr.args()) {
         AddExpr(e, false);
@@ -72,6 +84,8 @@ struct KnownExprs {
     values[expr] = value;
   }
 
+  // Simplify an expression `expr` using all the known values stored. Sets
+  // `found` to true is any simplification has been applied.
   z3::expr ApplyAssumptions(z3::expr expr, bool& found) {
     if (values.empty()) {
       return expr;

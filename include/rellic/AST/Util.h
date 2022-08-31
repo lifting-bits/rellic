@@ -51,20 +51,21 @@ size_t GetNumDecls(clang::DeclContext *decl_ctx) {
   return result;
 }
 
-using StmtToIRMap = std::unordered_map<clang::Stmt *, llvm::Value *>;
-using ExprToUseMap = std::unordered_map<clang::Expr *, llvm::Use *>;
-using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
-using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
-using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
-using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
-using BlockToUsesMap =
-    std::unordered_map<llvm::BasicBlock *, std::vector<llvm::Use *>>;
-using Z3CondMap = std::unordered_map<clang::Stmt *, unsigned>;
-
-using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
-using BrEdge = std::pair<llvm::BranchInst *, bool>;
-using SwEdge = std::pair<llvm::SwitchInst *, llvm::ConstantInt *>;
 struct DecompilationContext {
+  using StmtToIRMap = std::unordered_map<clang::Stmt *, llvm::Value *>;
+  using ExprToUseMap = std::unordered_map<clang::Expr *, llvm::Use *>;
+  using IRToTypeDeclMap = std::unordered_map<llvm::Type *, clang::TypeDecl *>;
+  using IRToValDeclMap = std::unordered_map<llvm::Value *, clang::ValueDecl *>;
+  using IRToStmtMap = std::unordered_map<llvm::Value *, clang::Stmt *>;
+  using ArgToTempMap = std::unordered_map<llvm::Argument *, clang::VarDecl *>;
+  using BlockToUsesMap =
+      std::unordered_map<llvm::BasicBlock *, std::vector<llvm::Use *>>;
+  using Z3CondMap = std::unordered_map<clang::Stmt *, unsigned>;
+
+  using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
+  using BrEdge = std::pair<llvm::BranchInst *, bool>;
+  using SwEdge = std::pair<llvm::SwitchInst *, llvm::ConstantInt *>;
+
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;
   IRToTypeDeclMap type_decls;
@@ -98,7 +99,7 @@ void CopyProvenance(TKey1 *from, TKey2 *to,
 }
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
-                   ExprToUseMap &provenance);
+                   DecompilationContext::ExprToUseMap &provenance);
 
 std::string ClangThingToString(const clang::Stmt *stmt);
 

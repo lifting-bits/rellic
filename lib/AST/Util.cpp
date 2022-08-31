@@ -198,10 +198,11 @@ bool IsEquivalent(clang::Expr *a, clang::Expr *b) {
 class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   ASTBuilder ast;
   clang::ASTContext &ctx;
-  ExprToUseMap &provenance;
+  DecompilationContext::ExprToUseMap &provenance;
 
  public:
-  ExprCloner(clang::ASTUnit &unit, ExprToUseMap &provenance)
+  ExprCloner(clang::ASTUnit &unit,
+             DecompilationContext::ExprToUseMap &provenance)
       : ast(unit), ctx(unit.getASTContext()), provenance(provenance) {}
 
   clang::Expr *VisitIntegerLiteral(clang::IntegerLiteral *expr) {
@@ -313,7 +314,7 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
 };
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *expr,
-                   ExprToUseMap &provenance) {
+                   DecompilationContext::ExprToUseMap &provenance) {
   ExprCloner cloner{unit, provenance};
   return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(expr)));
 }

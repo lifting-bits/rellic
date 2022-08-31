@@ -41,11 +41,12 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     auto else_b{if_b->getElse()};
 
     std::vector<clang::Stmt *> new_then_body{then_a};
+    clang::IfStmt *new_if{nullptr};
     if (Prove(cond_a == cond_b)) {
       new_then_body.push_back(then_b);
       auto new_then{ast.CreateCompoundStmt(new_then_body)};
 
-      auto new_if{ast.CreateIf(dec_ctx.marker_expr, new_then)};
+      new_if = ast.CreateIf(dec_ctx.marker_expr, new_then);
 
       if (else_a || else_b) {
         std::vector<clang::Stmt *> new_else_body{};
@@ -62,9 +63,6 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_if->setElse(new_else);
       }
 
-      dec_ctx.conds[new_if] = dec_ctx.conds[if_a];
-      body[i] = new_if;
-      body.erase(std::next(body.begin(), i + 1));
       did_something = true;
     } else if (Prove(cond_a == !cond_b)) {
       if (else_b) {
@@ -79,15 +77,18 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       }
       new_else_body.push_back(then_b);
 
-      auto new_if{ast.CreateIf(dec_ctx.marker_expr, new_then)};
+      new_if = ast.CreateIf(dec_ctx.marker_expr, new_then);
 
       auto new_else{ast.CreateCompoundStmt(new_else_body)};
       new_if->setElse(new_else);
 
+      did_something = true;
+    }
+
+    if (did_something) {
       dec_ctx.conds[new_if] = dec_ctx.conds[if_a];
       body[i] = new_if;
       body.erase(std::next(body.begin(), i + 1));
-      did_something = true;
     }
   }
   if (did_something) {

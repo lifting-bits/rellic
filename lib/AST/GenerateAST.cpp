@@ -137,14 +137,15 @@ static std::string GetName(llvm::Value *v) {
   return s;
 }
 
+z3::expr GenerateAST::ToExpr(unsigned idx) {
+  if (idx == poison_idx) {
+    return dec_ctx.z3_ctx.bool_val(false);
+  }
+  return dec_ctx.z3_exprs[idx];
+}
+
 unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
                                                bool cond) {
-  auto ToExpr = [&](unsigned idx) {
-    if (idx == poison_idx) {
-      return dec_ctx.z3_ctx.bool_val(false);
-    }
-    return dec_ctx.z3_exprs[idx];
-  };
   if (dec_ctx.z3_br_edges.find({inst, cond}) == dec_ctx.z3_br_edges.end()) {
     if (auto constant =
             llvm::dyn_cast<llvm::ConstantInt>(inst->getCondition())) {
@@ -186,12 +187,6 @@ unsigned GenerateAST::GetOrCreateVarForSwitch(llvm::SwitchInst *inst) {
 
 unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                                llvm::ConstantInt *c) {
-  auto ToExpr = [&](unsigned idx) {
-    if (idx == poison_idx) {
-      return dec_ctx.z3_ctx.bool_val(false);
-    }
-    return dec_ctx.z3_exprs[idx];
-  };
   if (dec_ctx.z3_sw_edges.find({inst, c}) == dec_ctx.z3_sw_edges.end()) {
     if (c) {
       auto sw_case{inst->findCaseValue(c)};
@@ -217,12 +212,6 @@ unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
 
 unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
                                           llvm::BasicBlock *to) {
-  auto ToExpr = [&](unsigned idx) {
-    if (idx == poison_idx) {
-      return dec_ctx.z3_ctx.bool_val(false);
-    }
-    return dec_ctx.z3_exprs[idx];
-  };
   if (dec_ctx.z3_edges.find({from, to}) == dec_ctx.z3_edges.end()) {
     // Construct the edge condition for CFG edge `(from, to)`
     auto result{dec_ctx.z3_ctx.bool_val(true)};
@@ -334,12 +323,6 @@ StmtVec GenerateAST::CreateBasicBlockStmts(llvm::BasicBlock *block) {
 }
 
 StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
-  auto ToExpr = [&](unsigned idx) {
-    if (idx == poison_idx) {
-      return dec_ctx.z3_ctx.bool_val(false);
-    }
-    return dec_ctx.z3_exprs[idx];
-  };
   StmtVec result;
   for (auto block : rpo_walk) {
     // Check if the block is a subregion entry
@@ -426,12 +409,6 @@ clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
 }
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
-  auto ToExpr = [&](unsigned idx) {
-    if (idx == poison_idx) {
-      return dec_ctx.z3_ctx.bool_val(false);
-    }
-    return dec_ctx.z3_exprs[idx];
-  };
   DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is cyclic";
   auto region_body = CreateRegionStmts(region);
   // Get the loop for which the entry block of the region is a header

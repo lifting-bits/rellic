@@ -27,6 +27,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   static llvm::AnalysisKey Key;
 
   constexpr static unsigned poison_idx = std::numeric_limits<unsigned>::max();
+  z3::expr ToExpr(unsigned idx);
 
   // Need to use `map` with these instead of `unordered_map`, because
   // `std::pair` doesn't have a default hash implementation

@@ -26,7 +26,7 @@ bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   auto cond{dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]};
   if (Prove(cond)) {
     substitutions[ifstmt] = ifstmt->getThen();
-  } else if (Prove(!cond) && ifstmt->getElse()) {
+  } else if (ifstmt->getElse() && Prove(!cond)) {
     substitutions[ifstmt] = ifstmt->getElse();
   }
   return !Stopped();

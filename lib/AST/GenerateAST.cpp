@@ -215,58 +215,59 @@ unsigned GenerateAST::GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
 
 unsigned GenerateAST::GetOrCreateEdgeCond(llvm::BasicBlock *from,
                                           llvm::BasicBlock *to) {
-  if (dec_ctx.z3_edges.find({from, to}) == dec_ctx.z3_edges.end()) {
-    // Construct the edge condition for CFG edge `(from, to)`
-    auto result{dec_ctx.z3_ctx.bool_val(true)};
-    auto term = from->getTerminator();
-    switch (term->getOpcode()) {
-      // Conditional branches
-      case llvm::Instruction::Br: {
-        auto br = llvm::cast<llvm::BranchInst>(term);
-        if (br->isConditional()) {
-          result =
-              ToExpr(GetOrCreateEdgeForBranch(br, to == br->getSuccessor(0)));
-        }
-      } break;
-      // Switches
-      case llvm::Instruction::Switch: {
-        auto sw{llvm::cast<llvm::SwitchInst>(term)};
-        if (to == sw->getDefaultDest()) {
-          result = ToExpr(GetOrCreateEdgeForSwitch(sw, nullptr));
-        } else {
-          z3::expr_vector or_vec{dec_ctx.z3_ctx};
-          for (auto sw_case : sw->cases()) {
-            if (sw_case.getCaseSuccessor() == to) {
-              or_vec.push_back(
-                  ToExpr(GetOrCreateEdgeForSwitch(sw, sw_case.getCaseValue())));
-            }
-          }
-          result = HeavySimplify(z3::mk_or(or_vec));
-        }
-      } break;
-      // Returns
-      case llvm::Instruction::Ret:
-        break;
-      // Exceptions
-      case llvm::Instruction::Invoke:
-      case llvm::Instruction::Resume:
-      case llvm::Instruction::CatchSwitch:
-      case llvm::Instruction::CatchRet:
-      case llvm::Instruction::CleanupRet:
-        THROW() << "Exception terminator '" << term->getOpcodeName()
-                << "' is not supported yet";
-        break;
-      // Unknown
-      default:
-        THROW() << "Unsupported terminator instruction: "
-                << term->getOpcodeName();
-        break;
-    }
-
-    dec_ctx.z3_edges[{from, to}] = dec_ctx.z3_exprs.size();
-    dec_ctx.z3_exprs.push_back(result.simplify());
+  if (dec_ctx.z3_edges.find({from, to}) != dec_ctx.z3_edges.end()) {
+    return dec_ctx.z3_edges[{from, to}];
   }
 
+  // Construct the edge condition for CFG edge `(from, to)`
+  auto result{dec_ctx.z3_ctx.bool_val(true)};
+  auto term = from->getTerminator();
+  switch (term->getOpcode()) {
+    // Conditional branches
+    case llvm::Instruction::Br: {
+      auto br = llvm::cast<llvm::BranchInst>(term);
+      if (br->isConditional()) {
+        result =
+            ToExpr(GetOrCreateEdgeForBranch(br, to == br->getSuccessor(0)));
+      }
+    } break;
+    // Switches
+    case llvm::Instruction::Switch: {
+      auto sw{llvm::cast<llvm::SwitchInst>(term)};
+      if (to == sw->getDefaultDest()) {
+        result = ToExpr(GetOrCreateEdgeForSwitch(sw, nullptr));
+      } else {
+        z3::expr_vector or_vec{dec_ctx.z3_ctx};
+        for (auto sw_case : sw->cases()) {
+          if (sw_case.getCaseSuccessor() == to) {
+            or_vec.push_back(
+                ToExpr(GetOrCreateEdgeForSwitch(sw, sw_case.getCaseValue())));
+          }
+        }
+        result = HeavySimplify(z3::mk_or(or_vec));
+      }
+    } break;
+    // Returns
+    case llvm::Instruction::Ret:
+      break;
+    // Exceptions
+    case llvm::Instruction::Invoke:
+    case llvm::Instruction::Resume:
+    case llvm::Instruction::CatchSwitch:
+    case llvm::Instruction::CatchRet:
+    case llvm::Instruction::CleanupRet:
+      THROW() << "Exception terminator '" << term->getOpcodeName()
+              << "' is not supported yet";
+      break;
+    // Unknown
+    default:
+      THROW() << "Unsupported terminator instruction: "
+              << term->getOpcodeName();
+      break;
+  }
+
+  dec_ctx.z3_edges[{from, to}] = dec_ctx.z3_exprs.size();
+  dec_ctx.z3_exprs.push_back(result.simplify());
   return dec_ctx.z3_edges[{from, to}];
 }
 
@@ -279,13 +280,6 @@ unsigned GenerateAST::GetReachingCond(llvm::BasicBlock *block) {
 }
 
 void GenerateAST::CreateReachingCond(llvm::BasicBlock *block) {
-  auto ToExpr = [&](unsigned idx) {
-    if (idx == poison_idx) {
-      return dec_ctx.z3_ctx.bool_val(false);
-    }
-    return dec_ctx.z3_exprs[idx];
-  };
-
   auto old_cond_idx{GetReachingCond(block)};
   auto old_cond{ToExpr(old_cond_idx)};
   if (block->hasNPredecessorsOrMore(1)) {

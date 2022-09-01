@@ -79,6 +79,10 @@ struct DecompilationContext {
   clang::Expr *marker_expr;
 
   std::unordered_map<unsigned, BrEdge> z3_br_edges_inv;
+
+  // Pairs do not have a std::hash specialization so we can't use unordered maps
+  // here. If this turns out to be a performance issue, investigate adding hash
+  // specializations for these specifically
   std::map<BrEdge, unsigned> z3_br_edges;
 
   std::unordered_map<llvm::SwitchInst *, unsigned> z3_sw_vars;
@@ -91,7 +95,7 @@ struct DecompilationContext {
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
 
-  // Inserts and expression into z3_exprs and returns its index
+  // Inserts an expression into z3_exprs and returns its index
   unsigned InsertZExpr(const z3::expr &e);
 };
 

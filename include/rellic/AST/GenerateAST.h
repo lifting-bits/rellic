@@ -46,8 +46,18 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
   std::vector<llvm::BasicBlock *> rpo_walk;
 
+  // GetOrCreateEdgeForBranch(branch, true) will return the index of an
+  // expression that is true when branch is taken.
+  // Viceversa, GetOrCreateEdgeForBranch(branch, false) is an expression that
+  // will be true when branch is not taken
   unsigned GetOrCreateEdgeForBranch(llvm::BranchInst *inst, bool cond);
+
+  // Returns the index of an expression containing a numerical variable that
+  // represents the condition of a switch.
   unsigned GetOrCreateVarForSwitch(llvm::SwitchInst *inst);
+  // Returns the index of an expression that is true when a particular case of a
+  // switch is taken. If c is nullptr, the expression for the default case will
+  // be returned.
   unsigned GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                     llvm::ConstantInt *c);
 

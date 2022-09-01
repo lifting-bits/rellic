@@ -65,7 +65,7 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
 
 clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
   if (expr.decl().decl_kind() == Z3_OP_EQ) {
-    // Equalities generated for the reaching conditions of switch instructions
+    // Equalities generated form the reaching conditions of switch instructions
     // Always in the for (VAR == CONST) or (CONST == VAR)
     // VAR will uniquely identify a SwitchInst, CONST will represent the index
     // of the case taken

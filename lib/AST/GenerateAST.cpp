@@ -151,15 +151,21 @@ unsigned GenerateAST::GetOrCreateEdgeForBranch(llvm::BranchInst *inst,
   }
 
   if (auto constant = llvm::dyn_cast<llvm::ConstantInt>(inst->getCondition())) {
+    // This is a conditional branch with a constant condition, so just emit
+    // whether the condition matches the wanted value
     auto edge{dec_ctx.z3_ctx.bool_val(constant->isOne() == cond)};
     dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.InsertZExpr(edge);
     dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
   } else if (cond) {
+    // This is a conditional branch, so the expression that is true when the
+    // branch is going to be taken is just a new variable.
     auto name{GetName(inst)};
     auto edge{dec_ctx.z3_ctx.bool_const(name.c_str())};
     dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.InsertZExpr(edge);
     dec_ctx.z3_br_edges_inv[edge.id()] = {inst, true};
   } else {
+    // Like the previous case, but in this case we want to know the expression
+    // that will be true when the branch is not going to be taken
     auto edge{!(ToExpr(GetOrCreateEdgeForBranch(inst, true)))};
     dec_ctx.z3_br_edges[{inst, cond}] = dec_ctx.InsertZExpr(edge);
   }

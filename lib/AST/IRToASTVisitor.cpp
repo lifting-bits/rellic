@@ -65,6 +65,10 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
 
 clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
   if (expr.decl().decl_kind() == Z3_OP_EQ) {
+    // Equalities generated for the reaching conditions of switch instructions
+    // Always in the for (VAR == CONST) or (CONST == VAR)
+    // VAR will uniquely identify a SwitchInst, CONST will represent the index
+    // of the case taken
     CHECK_EQ(expr.num_args(), 2) << "Equalities must have 2 arguments";
     auto a{expr.arg(0)};
     auto b{expr.arg(1)};
@@ -72,6 +76,9 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
     llvm::SwitchInst *inst{dec_ctx.z3_sw_vars_inv[a.id()]};
     unsigned case_idx{};
 
+    // GenerateAST always generates equalities in the form (VAR == CONST), but
+    // there is a chance that some Z3 simplification inverts the order, so
+    // handle that here.
     if (!inst) {
       inst = dec_ctx.z3_sw_vars_inv[b.id()];
       case_idx = a.get_numeral_uint();
@@ -94,44 +101,41 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
     auto edge{dec_ctx.z3_br_edges_inv[hash]};
     CHECK(edge.second) << "Inverse map should only be populated for branches "
                           "taken when condition is true";
+    // expr is a variable that represents the condition of a branch instruction.
+
+    // FIXME(frabert): Unfortunately there is no public API in BranchInst that
+    // gives the operand of the condition. From reverse engineering LLVM code,
+    // this is the way they obtain uses internally, but it's probably not
+    // stable.
     return CreateOperandExpr(*(edge.first->op_end() - 3));
-  }
-
-  if (dec_ctx.z3_sw_vars_inv.find(hash) != dec_ctx.z3_sw_vars_inv.end()) {
-    auto inst{dec_ctx.z3_sw_vars_inv[hash]};
-    return CreateOperandExpr(inst->getOperandUse(0));
-  }
-
-  std::vector<clang::Expr *> args;
-  for (auto i{0U}; i < expr.num_args(); ++i) {
-    args.push_back(ConvertExpr(expr.arg(i)));
   }
 
   switch (expr.decl().decl_kind()) {
     case Z3_OP_TRUE:
-      CHECK_EQ(args.size(), 0) << "True cannot have arguments";
+      CHECK_EQ(expr.num_args(), 0) << "True cannot have arguments";
       return ast.CreateTrue();
     case Z3_OP_FALSE:
-      CHECK_EQ(args.size(), 0) << "False cannot have arguments";
+      CHECK_EQ(expr.num_args(), 0) << "False cannot have arguments";
       return ast.CreateFalse();
     case Z3_OP_AND: {
-      clang::Expr *res{args[0]};
-      for (auto i{1U}; i < args.size(); ++i) {
-        res = ast.CreateLAnd(res, args[i]);
+      clang::Expr *res{ConvertExpr(expr.arg(0))};
+      for (auto i{1U}; i < expr.num_args(); ++i) {
+        res = ast.CreateLAnd(res, ConvertExpr(expr.arg(i)));
       }
       return res;
     }
     case Z3_OP_OR: {
-      clang::Expr *res{args[0]};
-      for (auto i{1U}; i < args.size(); ++i) {
-        res = ast.CreateLOr(res, args[i]);
+      clang::Expr *res{ConvertExpr(expr.arg(0))};
+      for (auto i{1U}; i < expr.num_args(); ++i) {
+        res = ast.CreateLOr(res, ConvertExpr(expr.arg(i)));
       }
       return res;
     }
     case Z3_OP_NOT: {
-      CHECK_EQ(args.size(), 1) << "Not must have one argument";
-      auto neg{ast.CreateLNot(args[0])};
-      CopyProvenance(args[0], neg, dec_ctx.use_provenance);
+      CHECK_EQ(expr.num_args(), 1) << "Not must have one argument";
+      auto sub{ConvertExpr(expr.arg(0))};
+      auto neg{ast.CreateLNot(sub)};
+      CopyProvenance(sub, neg, dec_ctx.use_provenance);
       return neg;
     }
     default:

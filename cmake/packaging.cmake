@@ -31,4 +31,6 @@ if("${CPACK_GENERATOR}" STREQUAL "ZIP")
   set(CPACK_SET_DESTDIR ON)
 endif()
 
-include("CPack")
+if (NOT CPack_CMake_INCLUDED)
+  include("CPack")
+endif()

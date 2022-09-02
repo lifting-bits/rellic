@@ -29,8 +29,6 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   constexpr static unsigned poison_idx = std::numeric_limits<unsigned>::max();
   z3::expr ToExpr(unsigned idx);
 
-  // Need to use `map` with these instead of `unordered_map`, because
-  // `std::pair` doesn't have a default hash implementation
   clang::ASTUnit &unit;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor ast_gen;

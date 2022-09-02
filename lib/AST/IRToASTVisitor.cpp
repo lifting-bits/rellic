@@ -118,6 +118,9 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
       CHECK_EQ(expr.num_args(), 0) << "False cannot have arguments";
       return ast.CreateFalse();
     case Z3_OP_AND: {
+      // Since AND and OR expressions are n-ary we need to convert them to
+      // binary. If they have only one subexpression, we can forego the AND/OR
+      // altogether.
       clang::Expr *res{ConvertExpr(expr.arg(0))};
       for (auto i{1U}; i < expr.num_args(); ++i) {
         res = ast.CreateLAnd(res, ConvertExpr(expr.arg(i)));

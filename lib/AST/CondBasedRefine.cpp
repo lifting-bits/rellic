@@ -27,6 +27,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     auto if_a{clang::dyn_cast<clang::IfStmt>(body[i])};
     auto if_b{clang::dyn_cast<clang::IfStmt>(body[i + 1])};
 
+    // We need two `if` statements to combine
     if (!if_a || !if_b) {
       continue;
     }
@@ -43,12 +44,20 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     std::vector<clang::Stmt *> new_then_body{then_a};
     clang::IfStmt *new_if{nullptr};
     if (Prove(cond_a == cond_b)) {
+      // We found two consecutive `if` statements with identical conditions, so
+      // we can merge their `then` and `else` branches
+      //
+      // if(a) { X1; } else { Y1; }
+      // if(a) { X2; } else { Y2; }
+      // becomes
+      // if(a) { X1; X2; } else { Y1; Y2; }
       new_then_body.push_back(then_b);
       auto new_then{ast.CreateCompoundStmt(new_then_body)};
 
       new_if = ast.CreateIf(dec_ctx.marker_expr, new_then);
 
       if (else_a || else_b) {
+        // At least one of the two `if` statements has an `else` branch
         std::vector<clang::Stmt *> new_else_body{};
 
         if (else_a) {
@@ -65,6 +74,14 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
 
       did_something = true;
     } else if (Prove(cond_a == !cond_b)) {
+      // We found two consecutive `if` statements with opposite conditions, so
+      // we can append the else branch of the second to the then branch of the
+      // first, and viceversa
+      //
+      // if(a) { X1; } else { Y1; }
+      // if(!a) { X2; } else { Y2; }
+      // becomes
+      // if(a) { X1; Y2; } else { Y1; X2; }
       if (else_b) {
         new_then_body.push_back(else_b);
       }

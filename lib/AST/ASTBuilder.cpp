@@ -33,11 +33,11 @@ enum CExprPrecedence : unsigned {
 namespace {
 
 static unsigned GetOperatorPrecedence(clang::UnaryOperatorKind opc) {
-  return CExprPrecedence::UnaryOp + opc;
+  return static_cast<unsigned>(CExprPrecedence::UnaryOp) + static_cast<unsigned>(opc);
 }
 
 static unsigned GetOperatorPrecedence(clang::BinaryOperatorKind opc) {
-  return CExprPrecedence::BinaryOp + opc;
+  return static_cast<unsigned>(CExprPrecedence::BinaryOp) + static_cast<unsigned>(opc);
 }
 
 static unsigned GetOperatorPrecedence(clang::Expr *op) {

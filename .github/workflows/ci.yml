@@ -17,7 +17,40 @@ on:
       - '*'
 
 jobs:
-  build_linux:
+  start-runner:
+    if: github.event.workflow_run.conclusion == 'success' 
+    name: Start self-hosted EC2 runner (Linux)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ec2:
+          - { ami: ami-0610b26d76319237e, instance-type: m6i.8xlarge}
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+          ec2-image-id: ${{ matrix.ec2.ami }}
+          ec2-instance-type: ${{ matrix.ec2.instance-type }}
+          subnet-id: subnet-0deb935f0bbfe1a5d
+          security-group-id: sg-0f6a02eb80fafb982
+          aws-resource-tags: > # optional, requires additional permissions
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+  do-the-job:
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +60,7 @@ jobs:
           '14'
           ]
 
-    runs-on: ubuntu-20.04
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     container:
       image: docker.pkg.github.com/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}:${{ matrix.image.tag }}
       credentials:
@@ -119,6 +152,28 @@ jobs:
         with:
           name: ${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm${{ matrix.llvm }}_tgz_package
           path: ${{ steps.package_names.outputs.TGZ_PACKAGE_PATH }}
+
+  stop-runner:
+    name: Stop self-hosted EC2 runner (Linux)
+    needs:
+      - start-runner # required to get output from the start-runner job
+      - do-the-job # required to wait when the main job is done
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
 
   build_mac:
     strategy:

@@ -29,7 +29,7 @@ class StructFieldRenamer
   void RunImpl() override;
 
  public:
-  StructFieldRenamer(Provenance &provenance, clang::ASTUnit &unit,
+  StructFieldRenamer(DecompilationContext &dec_ctx, clang::ASTUnit &unit,
                      IRTypeToDITypeMap &types);
 
   bool VisitRecordDecl(clang::RecordDecl *decl);

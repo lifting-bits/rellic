@@ -41,9 +41,9 @@
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
 #include "rellic/AST/LoopRefine.h"
+#include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
 #include "rellic/AST/NestedScopeCombine.h"
-#include "rellic/AST/NormalizeCond.h"
 #include "rellic/AST/ReachBasedRefine.h"
 #include "rellic/AST/StructFieldRenamer.h"
 #include "rellic/AST/Z3CondSimplify.h"
@@ -61,7 +61,7 @@ DECLARE_bool(version);
 llvm::LLVMContext llvm_ctx;
 std::unique_ptr<llvm::Module> module{nullptr};
 std::unique_ptr<clang::ASTUnit> ast_unit{nullptr};
-rellic::Provenance provenance;
+std::unique_ptr<rellic::DecompilationContext> dec_ctx;
 std::unique_ptr<rellic::CompositeASTPass> global_pass{nullptr};
 
 static void SetVersion(void) {
@@ -93,8 +93,8 @@ static void SetVersion(void) {
   google::SetVersionString(version.str());
 }
 
-static const char* available_passes[] = {"cbr", "dse", "ec",  "lr", "ncp",
-                                         "nsc", "nc",  "rbr", "zcs"};
+static const char* available_passes[] = {"cbr", "dse", "ec",  "lr",
+                                         "ncp", "nsc", "rbr", "zcs"};
 
 static bool diff = false;
 
@@ -147,23 +147,23 @@ class Diff {
 
 static std::unique_ptr<rellic::ASTPass> CreatePass(const std::string& name) {
   if (name == "cbr") {
-    return std::make_unique<rellic::CondBasedRefine>(provenance, *ast_unit);
+    return std::make_unique<rellic::CondBasedRefine>(*dec_ctx, *ast_unit);
   } else if (name == "dse") {
-    return std::make_unique<rellic::DeadStmtElim>(provenance, *ast_unit);
+    return std::make_unique<rellic::DeadStmtElim>(*dec_ctx, *ast_unit);
   } else if (name == "ec") {
-    return std::make_unique<rellic::ExprCombine>(provenance, *ast_unit);
+    return std::make_unique<rellic::ExprCombine>(*dec_ctx, *ast_unit);
   } else if (name == "lr") {
-    return std::make_unique<rellic::LoopRefine>(provenance, *ast_unit);
+    return std::make_unique<rellic::LoopRefine>(*dec_ctx, *ast_unit);
+  } else if (name == "mc") {
+    return std::make_unique<rellic::MaterializeConds>(*dec_ctx, *ast_unit);
   } else if (name == "ncp") {
-    return std::make_unique<rellic::NestedCondProp>(provenance, *ast_unit);
+    return std::make_unique<rellic::NestedCondProp>(*dec_ctx, *ast_unit);
   } else if (name == "nsc") {
-    return std::make_unique<rellic::NestedScopeCombine>(provenance, *ast_unit);
-  } else if (name == "nc") {
-    return std::make_unique<rellic::NormalizeCond>(provenance, *ast_unit);
+    return std::make_unique<rellic::NestedScopeCombine>(*dec_ctx, *ast_unit);
   } else if (name == "rbr") {
-    return std::make_unique<rellic::ReachBasedRefine>(provenance, *ast_unit);
+    return std::make_unique<rellic::ReachBasedRefine>(*dec_ctx, *ast_unit);
   } else if (name == "zcs") {
-    return std::make_unique<rellic::Z3CondSimplify>(provenance, *ast_unit);
+    return std::make_unique<rellic::Z3CondSimplify>(*dec_ctx, *ast_unit);
   } else {
     return nullptr;
   }
@@ -197,7 +197,7 @@ static void do_help() {
             << "  dse                Dead statement elimination\n"
             << "  ec                 Expression combination\n"
             << "  lr                 Loop refinement\n"
-            << "  nc                 Condition normalization\n"
+            << "  mc                 Condition materialization\n"
             << "  ncp                Nested condition propagation\n"
             << "  nsc                Nested scope combination\n"
             << "  rbr                Reach-based refinement\n"
@@ -218,7 +218,7 @@ static void do_load(std::istream& is) {
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-Wno-pointer-sign",
                                 "-target", module->getTargetTriple()};
   ast_unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
-  provenance = {};
+  dec_ctx = {};
 
   std::cout << "ok." << std::endl;
 }
@@ -300,10 +300,10 @@ static void do_decompile() {
   try {
     rellic::DebugInfoCollector dic;
     dic.visit(*module);
-    provenance = {};
-    rellic::GenerateAST::run(*module, provenance, *ast_unit);
-    rellic::LocalDeclRenamer ldr{provenance, *ast_unit, dic.GetIRToNameMap()};
-    rellic::StructFieldRenamer sfr{provenance, *ast_unit,
+    dec_ctx = {};
+    rellic::GenerateAST::run(*module, *dec_ctx, *ast_unit);
+    rellic::LocalDeclRenamer ldr{*dec_ctx, *ast_unit, dic.GetIRToNameMap()};
+    rellic::StructFieldRenamer sfr{*dec_ctx, *ast_unit,
                                    dic.GetIRTypeToDITypeMap()};
     ldr.Run();
     sfr.Run();
@@ -319,8 +319,7 @@ static void do_run(std::istream& is) {
     return;
   }
 
-  global_pass =
-      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
+  global_pass = std::make_unique<rellic::CompositeASTPass>(*dec_ctx, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};
@@ -357,8 +356,7 @@ static void do_fixpoint(std::istream& is) {
     return;
   }
 
-  global_pass =
-      std::make_unique<rellic::CompositeASTPass>(provenance, *ast_unit);
+  global_pass = std::make_unique<rellic::CompositeASTPass>(*dec_ctx, *ast_unit);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};

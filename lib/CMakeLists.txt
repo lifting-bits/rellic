@@ -32,9 +32,9 @@ set(AST_HEADERS
   "${include_dir}/AST/InferenceRule.h"
   "${include_dir}/AST/LocalDeclRenamer.h"
   "${include_dir}/AST/LoopRefine.h"
+  "${include_dir}/AST/MaterializeConds.h"
   "${include_dir}/AST/NestedCondProp.h"
   "${include_dir}/AST/NestedScopeCombine.h"
-  "${include_dir}/AST/NormalizeCond.h"
   "${include_dir}/AST/ReachBasedRefine.h"
   "${include_dir}/AST/StructFieldRenamer.h"
   "${include_dir}/AST/StructGenerator.h"
@@ -42,7 +42,6 @@ set(AST_HEADERS
   "${include_dir}/AST/TransformVisitor.h"
   "${include_dir}/AST/Util.h"
   "${include_dir}/AST/Z3CondSimplify.h"
-  "${include_dir}/AST/Z3ConvVisitor.h"
 )
 
 set(BC_HEADERS
@@ -72,12 +71,11 @@ set(AST_SOURCES
   AST/IRToASTVisitor.cpp
   AST/LocalDeclRenamer.cpp
   AST/LoopRefine.cpp
+  AST/MaterializeConds.cpp
   AST/NestedCondProp.cpp
   AST/NestedScopeCombine.cpp
-  AST/NormalizeCond.cpp
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
-  AST/Z3ConvVisitor.cpp
   AST/ReachBasedRefine.cpp
   AST/StructFieldRenamer.cpp
   AST/StructGenerator.cpp

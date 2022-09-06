@@ -11,26 +11,37 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include "rellic/AST/Util.h"
+
 namespace rellic {
 
-NestedScopeCombine::NestedScopeCombine(Provenance &provenance,
+NestedScopeCombine::NestedScopeCombine(DecompilationContext &dec_ctx,
                                        clang::ASTUnit &unit)
-    : TransformVisitor<NestedScopeCombine>(provenance, unit) {}
+    : TransformVisitor<NestedScopeCombine>(dec_ctx, unit) {}
 
 bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
   // Determine whether `cond` is a constant expression that is always true and
   // `ifstmt` should be replaced by `then` in it's parent nodes.
-  auto if_const_expr = ifstmt->getCond()->getIntegerConstantExpr(ast_ctx);
-  bool is_const = if_const_expr.hasValue();
-  if (is_const && if_const_expr->getBoolValue()) {
+  auto cond{dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]};
+  if (Prove(cond)) {
     substitutions[ifstmt] = ifstmt->getThen();
-  } else if (is_const && !if_const_expr->getBoolValue()) {
-    if (auto else_stmt = ifstmt->getElse()) {
-      substitutions[ifstmt] = else_stmt;
-    } else {
-      std::vector<clang::Stmt *> body;
-      substitutions[ifstmt] = ast.CreateCompoundStmt(body);
+  } else if (ifstmt->getElse() && Prove(!cond)) {
+    substitutions[ifstmt] = ifstmt->getElse();
+  }
+  return !Stopped();
+}
+
+bool NestedScopeCombine::VisitWhileStmt(clang::WhileStmt *stmt) {
+  // Substitute while statements in the form `while(1) { sth; break; }` with
+  // just `{ sth; }`
+  auto cond{dec_ctx.z3_exprs[dec_ctx.conds[stmt]]};
+  if (Prove(cond)) {
+    auto body{clang::cast<clang::CompoundStmt>(stmt->getBody())};
+    if (clang::isa<clang::BreakStmt>(body->body_back())) {
+      std::vector<clang::Stmt *> new_body{body->body_begin(),
+                                          body->body_end() - 1};
+      substitutions[stmt] = ast.CreateCompoundStmt(new_body);
     }
   }
   return !Stopped();

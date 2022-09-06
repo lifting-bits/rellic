@@ -11,7 +11,6 @@
 #include "rellic/AST/ASTPass.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Z3ConvVisitor.h"
 
 namespace rellic {
 
@@ -35,18 +34,11 @@ namespace rellic {
  */
 class CondBasedRefine : public TransformVisitor<CondBasedRefine> {
  private:
-  std::unique_ptr<z3::context> z3_ctx;
-  std::unique_ptr<rellic::Z3ConvVisitor> z3_gen;
-
-  z3::tactic z3_solver;
-
-  z3::expr GetZ3Cond(clang::IfStmt *ifstmt);
-
  protected:
   void RunImpl() override;
 
  public:
-  CondBasedRefine(Provenance &provenance, clang::ASTUnit &unit);
+  CondBasedRefine(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };

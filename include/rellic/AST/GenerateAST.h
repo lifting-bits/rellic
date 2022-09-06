@@ -13,6 +13,7 @@
 #include <llvm/IR/PassManager.h>
 #include <z3++.h>
 
+#include <limits>
 #include <map>
 #include <unordered_set>
 
@@ -25,28 +26,14 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   friend llvm::AnalysisInfoMixin<GenerateAST>;
   static llvm::AnalysisKey Key;
 
-  // Need to use `map` with these instead of `unordered_map`, because
-  // `std::pair` doesn't have a default hash implementation
-  using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
-  using BrEdge = std::pair<llvm::BranchInst *, bool>;
-  using SwEdge = std::pair<llvm::SwitchInst *, llvm::ConstantInt *>;
+  constexpr static unsigned poison_idx = std::numeric_limits<unsigned>::max();
+  z3::expr ToExpr(unsigned idx);
+
   clang::ASTUnit &unit;
   clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor ast_gen;
   rellic::ASTBuilder ast;
-  z3::context *z_ctx;
-
-  Provenance &provenance;
-
-  z3::expr_vector z_exprs;
-  std::unordered_map<unsigned, BrEdge> z_br_edges_inv;
-  std::map<BrEdge, unsigned> z_br_edges;
-
-  std::unordered_map<unsigned, SwEdge> z_sw_edges_inv;
-  std::map<SwEdge, unsigned> z_sw_edges;
-
-  std::map<BBEdge, unsigned> z_edges;
-  std::unordered_map<llvm::BasicBlock *, unsigned> reaching_conds;
+  DecompilationContext &dec_ctx;
   bool reaching_conds_changed{true};
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
@@ -57,15 +44,24 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
   std::vector<llvm::BasicBlock *> rpo_walk;
 
-  z3::expr GetOrCreateEdgeForBranch(llvm::BranchInst *inst, bool cond);
-  z3::expr GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
+  // GetOrCreateEdgeForBranch(branch, true) will return the index of an
+  // expression that is true when branch is taken.
+  // Viceversa, GetOrCreateEdgeForBranch(branch, false) is an expression that
+  // will be true when branch is not taken
+  unsigned GetOrCreateEdgeForBranch(llvm::BranchInst *inst, bool cond);
+
+  // Returns the index of an expression containing a numerical variable that
+  // represents the condition of a switch.
+  unsigned GetOrCreateVarForSwitch(llvm::SwitchInst *inst);
+  // Returns the index of an expression that is true when a particular case of a
+  // switch is taken. If c is nullptr, the expression for the default case will
+  // be returned.
+  unsigned GetOrCreateEdgeForSwitch(llvm::SwitchInst *inst,
                                     llvm::ConstantInt *c);
 
-  z3::expr GetOrCreateEdgeCond(llvm::BasicBlock *from, llvm::BasicBlock *to);
-  z3::expr GetReachingCond(llvm::BasicBlock *block);
+  unsigned GetOrCreateEdgeCond(llvm::BasicBlock *from, llvm::BasicBlock *to);
+  unsigned GetReachingCond(llvm::BasicBlock *block);
   void CreateReachingCond(llvm::BasicBlock *block);
-
-  clang::Expr *ConvertExpr(z3::expr expr);
 
   std::vector<clang::Stmt *> CreateBasicBlockStmts(llvm::BasicBlock *block);
   std::vector<clang::Stmt *> CreateRegionStmts(llvm::Region *region);
@@ -82,12 +78,12 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
  public:
   using Result = llvm::PreservedAnalyses;
-  GenerateAST(Provenance &provenance, clang::ASTUnit &unit);
+  GenerateAST(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
 
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
   Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
 
-  static void run(llvm::Module &M, Provenance &provenance,
+  static void run(llvm::Module &M, DecompilationContext &dec_ctx,
                   clang::ASTUnit &unit);
 };
 

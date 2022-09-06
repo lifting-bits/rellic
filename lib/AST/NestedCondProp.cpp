@@ -12,106 +12,199 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <unordered_map>
 #include <vector>
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/Util.h"
 
 namespace rellic {
-using ExprVec = std::vector<clang::Expr*>;
+// Stores a set of expression that have a known value, so that they can be
+// recognized as part of larger expressions and simplified.
+struct KnownExprs {
+  std::unordered_map<unsigned, bool> values;
 
-static bool isConstant(const clang::ASTContext& ctx, clang::Expr* expr) {
-  return expr->getIntegerConstantExpr(ctx).hasValue();
-}
-
-class CompoundVisitor
-    : public clang::StmtVisitor<CompoundVisitor, bool, ExprVec&> {
- private:
-  ASTBuilder& ast;
-  clang::ASTContext& ctx;
-
- public:
-  CompoundVisitor(ASTBuilder& ast, clang::ASTContext& ctx)
-      : ast(ast), ctx(ctx) {}
-
-  bool VisitCompoundStmt(clang::CompoundStmt* compound, ExprVec& true_exprs) {
-    bool changed{false};
-    for (auto stmt : compound->body()) {
-      changed |= Visit(stmt, true_exprs);
+  void AddExpr(z3::expr expr, bool value) {
+    // When adding expressions to the set of known values, it's important that
+    // they are added in their smallest possible form. E.g., if it's known that
+    // `A && B` is true, then both of its subexpressions are true, and we should
+    // add those instead.
+    // This is so that `A && B && C` can be used to simplify smaller
+    // expressions, like `A && B`, which would otherwise not be recognized.
+    switch (expr.decl().decl_kind()) {
+      case Z3_OP_TRUE:
+      case Z3_OP_FALSE:
+        return;
+      default:
+        break;
     }
 
-    return changed;
+    // If !A has value V, then A has value !V, so add that instead.
+    if (expr.is_not()) {
+      AddExpr(expr.arg(0), !value);
+      return;
+    }
+
+    // A unary && or ||, just add the single subexpression
+    if (expr.num_args() == 1) {
+      AddExpr(expr.arg(0), value);
+      return;
+    }
+
+    // A true && expression means all of its subexpressions are true
+    if (value && expr.is_and()) {
+      for (auto e : expr.args()) {
+        AddExpr(e, true);
+      }
+      return;
+    }
+
+    // A false || expression means all of its subexpressions are false
+    if (!value && expr.is_or()) {
+      for (auto e : expr.args()) {
+        AddExpr(e, false);
+      }
+      return;
+    }
+
+    values[expr.id()] = value;
   }
 
-  bool VisitWhileStmt(clang::WhileStmt* while_stmt, ExprVec& true_exprs) {
-    bool changed{false};
-    auto cond{while_stmt->getCond()};
-    for (auto true_expr : true_exprs) {
-      changed |= Replace(true_expr, ast.CreateTrue(), &cond);
+  // Simplify an expression `expr` using all the known values stored. Sets
+  // `changed` to true is any simplification has been applied.
+  z3::expr ApplyAssumptions(z3::expr expr, bool& changed) {
+    if (values.empty()) {
+      return expr;
     }
-    while_stmt->setCond(cond);
 
-    ExprVec inner{true_exprs};
-    if (!isConstant(ctx, while_stmt->getCond())) {
-      inner.push_back(while_stmt->getCond());
+    if (values.find(expr.id()) != values.end()) {
+      changed = true;
+      return expr.ctx().bool_val(values[expr.id()]);
     }
-    changed |= Visit(while_stmt->getBody(), inner);
 
-    true_exprs.push_back(Negate(ast, while_stmt->getCond()));
-    return changed;
-  }
-
-  bool VisitDoStmt(clang::DoStmt* do_stmt, ExprVec& true_exprs) {
-    bool changed{false};
-    auto cond{do_stmt->getCond()};
-    for (auto true_expr : true_exprs) {
-      changed |= Replace(true_expr, ast.CreateTrue(), &cond);
+    if (expr.is_and() || expr.is_or()) {
+      z3::expr_vector args{expr.ctx()};
+      for (auto arg : expr.args()) {
+        args.push_back(ApplyAssumptions(arg, changed));
+      }
+      if (expr.is_and()) {
+        return z3::mk_and(args);
+      } else {
+        return z3::mk_or(args);
+      }
     }
-    do_stmt->setCond(cond);
 
-    ExprVec inner{true_exprs};
-    Visit(do_stmt->getBody(), inner);
-
-    true_exprs.push_back(Negate(ast, do_stmt->getCond()));
-    return changed;
-  }
-
-  bool VisitIfStmt(clang::IfStmt* if_stmt, ExprVec& true_exprs) {
-    bool changed{false};
-    auto cond{if_stmt->getCond()};
-    for (auto true_expr : true_exprs) {
-      changed |= Replace(true_expr, ast.CreateTrue(), &cond);
+    if (expr.is_not()) {
+      return !ApplyAssumptions(expr.arg(0), changed);
     }
-    if_stmt->setCond(cond);
 
-    ExprVec inner_then{true_exprs};
-    if (!isConstant(ctx, if_stmt->getCond())) {
-      inner_then.push_back(if_stmt->getCond());
-    }
-    Visit(if_stmt->getThen(), inner_then);
-
-    if (if_stmt->getElse()) {
-      ExprVec inner_else{true_exprs};
-      inner_else.push_back(Negate(ast, if_stmt->getCond()));
-      Visit(if_stmt->getElse(), inner_else);
-    }
-    return changed;
+    return expr;
   }
 };
 
-NestedCondProp::NestedCondProp(Provenance& provenance, clang::ASTUnit& unit)
-    : ASTPass(provenance, unit) {}
+class CompoundVisitor
+    : public clang::StmtVisitor<CompoundVisitor, bool, KnownExprs&> {
+ private:
+  DecompilationContext& dec_ctx;
+  ASTBuilder& ast;
+  clang::ASTContext& ctx;
+
+  template <bool cond_is_true_in_body, typename T>
+  bool VisitLoop(T* loop, KnownExprs& known_exprs) {
+    auto cond_idx{dec_ctx.conds[loop]};
+    bool changed{false};
+    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
+    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
+    if (loop->getCond() != dec_ctx.marker_expr && changed) {
+      dec_ctx.z3_exprs.set(cond_idx, new_cond);
+      return true;
+    }
+
+    auto inner{known_exprs};
+    if constexpr (cond_is_true_in_body) {
+      inner.AddExpr(new_cond, true);
+    }
+    known_exprs.AddExpr(new_cond, false);
+
+    if (Visit(loop->getBody(), inner)) {
+      return true;
+    }
+    return false;
+  }
+
+ public:
+  CompoundVisitor(DecompilationContext& dec_ctx, ASTBuilder& ast,
+                  clang::ASTContext& ctx)
+      : dec_ctx(dec_ctx), ast(ast), ctx(ctx) {}
+
+  bool VisitCompoundStmt(clang::CompoundStmt* compound,
+                         KnownExprs& known_exprs) {
+    for (auto stmt : compound->body()) {
+      if (Visit(stmt, known_exprs)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool VisitWhileStmt(clang::WhileStmt* while_stmt, KnownExprs& known_exprs) {
+    return VisitLoop</*cond_is_true_in_body=*/true>(while_stmt, known_exprs);
+  }
+
+  bool VisitDoStmt(clang::DoStmt* do_stmt, KnownExprs& known_exprs) {
+    return VisitLoop</*cond_is_true_in_body=*/false>(do_stmt, known_exprs);
+  }
+
+  bool VisitIfStmt(clang::IfStmt* if_stmt, KnownExprs& known_exprs) {
+    auto cond_idx{dec_ctx.conds[if_stmt]};
+    bool changed{false};
+    auto old_cond{dec_ctx.z3_exprs[cond_idx]};
+    auto new_cond{known_exprs.ApplyAssumptions(old_cond, changed)};
+    if (if_stmt->getCond() == dec_ctx.marker_expr && changed) {
+      dec_ctx.z3_exprs.set(cond_idx, new_cond);
+      return true;
+    }
+
+    auto inner_then{known_exprs};
+    inner_then.AddExpr(new_cond, true);
+    if (Visit(if_stmt->getThen(), inner_then)) {
+      return true;
+    }
+
+    if (if_stmt->getElse()) {
+      auto inner_else{known_exprs};
+      inner_else.AddExpr(new_cond, false);
+      if (Visit(if_stmt->getElse(), inner_else)) {
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+NestedCondProp::NestedCondProp(DecompilationContext& dec_ctx,
+                               clang::ASTUnit& unit)
+    : ASTPass(dec_ctx, unit) {}
 
 void NestedCondProp::RunImpl() {
+  LOG(INFO) << "Propagating conditions";
   changed = false;
   ASTBuilder ast{ast_unit};
-  CompoundVisitor visitor{ast, ast_ctx};
+  CompoundVisitor visitor{dec_ctx, ast, ast_ctx};
 
   for (auto decl : ast_ctx.getTranslationUnitDecl()->decls()) {
     if (auto fdecl = clang::dyn_cast<clang::FunctionDecl>(decl)) {
+      if (Stopped()) {
+        return;
+      }
+
       if (fdecl->hasBody()) {
-        ExprVec true_exprs;
-        changed |= visitor.Visit(fdecl->getBody(), true_exprs);
+        KnownExprs known_exprs{};
+        if (visitor.Visit(fdecl->getBody(), known_exprs)) {
+          changed = true;
+          return;
+        }
       }
     }
   }

@@ -121,7 +121,6 @@ int main(int argc, char* argv[]) {
   CHECK(!ec) << "Failed to create output file: " << ec.message();
 
   rellic::DecompilationOptions opts{};
-  opts.disable_z3 = FLAGS_disable_z3;
   opts.lower_switches = FLAGS_lower_switch;
   opts.remove_phi_nodes = FLAGS_remove_phi_nodes;
 

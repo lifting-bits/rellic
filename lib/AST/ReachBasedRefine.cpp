@@ -15,21 +15,14 @@
 
 namespace rellic {
 
-ReachBasedRefine::ReachBasedRefine(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<ReachBasedRefine>(provenance, unit),
-      z3_ctx(new z3::context()),
-      z3_gen(new rellic::Z3ConvVisitor(unit, z3_ctx.get())) {}
-
-z3::expr ReachBasedRefine::GetZ3Cond(clang::IfStmt *ifstmt) {
-  auto cond = ifstmt->getCond();
-  auto expr = z3_gen->Z3BoolCast(z3_gen->GetOrCreateZ3Expr(cond));
-  return expr.simplify();
-}
+ReachBasedRefine::ReachBasedRefine(DecompilationContext &dec_ctx,
+                                   clang::ASTUnit &unit)
+    : TransformVisitor<ReachBasedRefine>(dec_ctx, unit) {}
 
 bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
   std::vector<clang::IfStmt *> ifs;
-  z3::expr_vector conds{*z3_ctx};
+  z3::expr_vector conds{dec_ctx.z3_ctx};
 
   auto ResetChain = [&]() {
     ifs.clear();
@@ -45,7 +38,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
 
     ifs.push_back(if_stmt);
-    auto cond{GetZ3Cond(if_stmt)};
+    auto cond{dec_ctx.z3_exprs[dec_ctx.conds[if_stmt]]};
 
     if (if_stmt->getElse()) {
       // We cannot link `if` statements that contain `else` branches
@@ -54,17 +47,17 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
 
     // Is the current `if` statement unreachable from all the others?
-    bool is_unreachable{Prove(*z3_ctx, !(cond && z3::mk_or(conds)))};
+    bool is_unreachable{Prove(HeavySimplify(!(cond && z3::mk_or(conds))))};
 
     if (!is_unreachable) {
       ResetChain();
       continue;
     }
 
-    conds.push_back(GetZ3Cond(if_stmt));
+    conds.push_back(cond);
 
     // Do the collected statements cover all possibilities?
-    auto is_complete{Prove(*z3_ctx, z3::mk_or(conds))};
+    auto is_complete{Prove(HeavySimplify(z3::mk_or(conds)))};
 
     if (ifs.size() <= 2 || !is_complete) {
       // We need to collect more statements
@@ -89,7 +82,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       i - n + 1: if(cond_1) { } else if(cond_2) { } ... else if(cond_n) { }
       i - n + 2: if(cond_2) { } else if(cond_3) { } ... else if(cond_n) { }
       ...
-      i - 1    : if(cond_n-1) { } else if(cond_n) { }
+      i - 1    : if(cond_n-1) { } else { }
       i        : if(cond_n) { }
       ...
     */
@@ -114,7 +107,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       i - n + 1: if(cond_1) { } else if(cond_2) { } ... else if(cond_n) { }
       i - n + 2: if(cond_2) { } else if(cond_3) { } ... else if(cond_n) { }
       ...
-      i - 1    : if(cond_n-1) { } else { }
+      i - 1    : if(cond_n-1) { } else if(cond_n) { }
       i        : if(cond_n) { }
       ...
 

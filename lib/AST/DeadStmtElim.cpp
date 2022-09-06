@@ -12,22 +12,19 @@
 
 namespace rellic {
 
-DeadStmtElim::DeadStmtElim(Provenance &provenance, clang::ASTUnit &unit)
-    : TransformVisitor<DeadStmtElim>(provenance, unit) {}
+DeadStmtElim::DeadStmtElim(DecompilationContext &dec_ctx, clang::ASTUnit &unit)
+    : TransformVisitor<DeadStmtElim>(dec_ctx, unit) {}
 
 bool DeadStmtElim::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
-  bool expr_bool_value = false;
-  auto if_const_expr = ifstmt->getCond()->getIntegerConstantExpr(ast_ctx);
-
-  bool is_const = if_const_expr.hasValue();
-  if (is_const) {
-    expr_bool_value = if_const_expr->getBoolValue();
+  bool can_delete = false;
+  if (ifstmt->getCond() == dec_ctx.marker_expr) {
+    can_delete = Prove(!dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]);
   }
 
   auto compound = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen());
   bool is_empty = compound ? compound->body_empty() : false;
-  if ((is_const && !expr_bool_value) || is_empty) {
+  if (can_delete || is_empty) {
     substitutions[ifstmt] = nullptr;
   }
   return true;

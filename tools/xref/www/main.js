@@ -32,9 +32,9 @@ const ec = {
     id: "ec",
     label: "Expression combination"
 }
-const nc = {
-    id: "nc",
-    label: "Condition normalization"
+const mc = {
+    id: "mc",
+    label: "Materialize conditions"
 }
 
 Vue.component('list-comp', {
@@ -106,7 +106,7 @@ const app = new Vue({
             rbr,
             lr,
             ec,
-            nc
+            mc
         ],
         actions: [
             {
@@ -208,20 +208,20 @@ const app = new Vue({
                 throw (await res.json()).message
             }
             const prov = await res.json()
-            for(let map in prov) {
-                for(let [from, to] of prov[map]) {
-                    if(!from || !to) {
+            for (let map in prov) {
+                for (let [from, to] of prov[map]) {
+                    if (!from || !to) {
                         continue
                     }
 
                     const from_hex = from.toString(16)
                     const to_hex = to.toString(16)
-                    if(!this.provenance[from_hex]) {
+                    if (!this.provenance[from_hex]) {
                         this.provenance[from_hex] = []
                     }
                     this.provenance[from_hex].push(to_hex)
 
-                    if(!this.provenance[to_hex]) {
+                    if (!this.provenance[to_hex]) {
                         this.provenance[to_hex] = []
                     }
                     this.provenance[to_hex].push(from_hex)
@@ -316,8 +316,7 @@ const app = new Vue({
                 [zcs, ncp, nsc, cbr, rbr],
                 [lr, nsc],
                 [zcs, ncp, nsc],
-                ec,
-                [zcs, ncp, nsc]
+                mc, ec
             ]
         },
         openAngha() {

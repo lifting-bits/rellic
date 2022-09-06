@@ -15,6 +15,8 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
+#include <numeric>
+
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/Exception.h"
 
@@ -196,10 +198,11 @@ bool IsEquivalent(clang::Expr *a, clang::Expr *b) {
 class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
   ASTBuilder ast;
   clang::ASTContext &ctx;
-  ExprToUseMap &provenance;
+  DecompilationContext::ExprToUseMap &provenance;
 
  public:
-  ExprCloner(clang::ASTUnit &unit, ExprToUseMap &provenance)
+  ExprCloner(clang::ASTUnit &unit,
+             DecompilationContext::ExprToUseMap &provenance)
       : ast(unit), ctx(unit.getASTContext()), provenance(provenance) {}
 
   clang::Expr *VisitIntegerLiteral(clang::IntegerLiteral *expr) {
@@ -311,22 +314,9 @@ class ExprCloner : public clang::StmtVisitor<ExprCloner, clang::Expr *> {
 };
 
 clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *expr,
-                   ExprToUseMap &provenance) {
+                   DecompilationContext::ExprToUseMap &provenance) {
   ExprCloner cloner{unit, provenance};
   return CHECK_NOTNULL(cloner.Visit(CHECK_NOTNULL(expr)));
-}
-
-static clang::Expr *ApplyLNot(rellic::ASTBuilder &ast, clang::Expr *expr) {
-  if (auto unop = clang::dyn_cast<clang::UnaryOperator>(expr)) {
-    if (unop->getOpcode() == clang::UO_LNot) {
-      return unop->getSubExpr();
-    }
-  }
-  return ast.CreateLNot(expr);
-}
-
-clang::Expr *Negate(rellic::ASTBuilder &ast, clang::Expr *expr) {
-  return ApplyLNot(ast, expr->IgnoreParens())->IgnoreParens();
 }
 
 std::string ClangThingToString(const clang::Stmt *stmt) {
@@ -336,17 +326,69 @@ std::string ClangThingToString(const clang::Stmt *stmt) {
   return s;
 }
 
-z3::goal ApplyTactic(z3::context &ctx, const z3::tactic &tactic,
-                     z3::expr expr) {
-  z3::goal goal(ctx);
+z3::goal ApplyTactic(const z3::tactic &tactic, z3::expr expr) {
+  z3::goal goal(tactic.ctx());
   goal.add(expr.simplify());
   auto app{tactic(goal)};
   CHECK(app.size() == 1) << "Unexpected multiple goals in application!";
   return app[0];
 }
 
-bool Prove(z3::context &ctx, z3::expr expr) {
-  return ApplyTactic(ctx, z3::tactic(ctx, "sat"), !(expr.simplify()))
+bool Prove(z3::expr expr) {
+  return ApplyTactic(z3::tactic(expr.ctx(), "sat"), !(expr).simplify())
       .is_decided_unsat();
+}
+
+z3::expr HeavySimplify(z3::expr expr) {
+  if (Prove(expr)) {
+    return expr.ctx().bool_val(true);
+  }
+
+  z3::tactic aig(expr.ctx(), "aig");
+  z3::tactic simplify(expr.ctx(), "simplify");
+  z3::tactic ctx_solver_simplify(expr.ctx(), "ctx-solver-simplify");
+  auto tactic{simplify & aig & ctx_solver_simplify};
+  return ApplyTactic(tactic, expr).as_expr();
+}
+
+z3::expr_vector Clone(z3::expr_vector &vec) {
+  z3::expr_vector clone{vec.ctx()};
+  for (auto expr : vec) {
+    clone.push_back(expr);
+  }
+
+  return clone;
+}
+
+z3::expr OrderById(z3::expr expr) {
+  if (expr.is_and() || expr.is_or()) {
+    std::vector<unsigned> args_indices(expr.num_args(), 0);
+    std::iota(args_indices.begin(), args_indices.end(), 0);
+    std::sort(args_indices.begin(), args_indices.end(),
+              [&expr](unsigned a, unsigned b) {
+                return expr.arg(a).id() < expr.arg(b).id();
+              });
+    z3::expr_vector new_args{expr.ctx()};
+    for (auto idx : args_indices) {
+      new_args.push_back(OrderById(expr.arg(idx)));
+    }
+    if (expr.is_and()) {
+      return z3::mk_and(new_args);
+    } else {
+      return z3::mk_or(new_args);
+    }
+  }
+
+  if (expr.is_not()) {
+    return !OrderById(expr.arg(0));
+  }
+
+  return expr;
+}
+
+unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
+  auto idx{z3_exprs.size()};
+  z3_exprs.push_back(e);
+  return idx;
 }
 }  // namespace rellic

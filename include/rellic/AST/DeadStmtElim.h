@@ -22,7 +22,7 @@ class DeadStmtElim : public TransformVisitor<DeadStmtElim> {
   void RunImpl() override;
 
  public:
-  DeadStmtElim(Provenance &provenance, clang::ASTUnit &unit);
+  DeadStmtElim(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitCompoundStmt(clang::CompoundStmt *compound);

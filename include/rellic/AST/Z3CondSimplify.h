@@ -10,9 +10,7 @@
 
 #include <clang/AST/ASTContext.h>
 
-#include "rellic/AST/TransformVisitor.h"
-#include "rellic/AST/Util.h"
-#include "rellic/AST/Z3ConvVisitor.h"
+#include "rellic/AST/ASTPass.h"
 
 namespace rellic {
 
@@ -20,54 +18,13 @@ namespace rellic {
  * This pass simplifies conditions using Z3 by trying to remove terms that are
  * trivially true or false
  */
-class Z3CondSimplify : public TransformVisitor<Z3CondSimplify> {
+class Z3CondSimplify : public ASTPass {
  private:
-  std::unique_ptr<z3::context> z_ctx;
-  std::unique_ptr<rellic::Z3ConvVisitor> z_gen;
-
-  z3::expr ToZ3(clang::Expr *e);
-
-  std::unordered_map<clang::Expr *, unsigned> hashes;
-
-  struct Hash {
-    clang::ASTContext &ctx;
-    std::unordered_map<clang::Expr *, unsigned> &hashes;
-    std::size_t operator()(clang::Expr *e) const noexcept {
-      auto &hash{hashes[e]};
-      if (!hash) {
-        hash = GetHash(ctx, e);
-      }
-      return hash;
-    }
-  };
-
-  struct KeyEqual {
-    bool operator()(clang::Expr *a, clang::Expr *b) const noexcept {
-      return IsEquivalent(a, b);
-    }
-  };
-  Hash hash_adaptor;
-  KeyEqual ke_adaptor;
-
-  std::unordered_map<clang::Expr *, bool, Hash, KeyEqual> proven_true;
-  std::unordered_map<clang::Expr *, bool, Hash, KeyEqual> proven_false;
-
-  bool IsProvenTrue(clang::Expr *e);
-  bool IsProvenFalse(clang::Expr *e);
-
-  clang::Expr *Simplify(clang::Expr *e);
-
  protected:
   void RunImpl() override;
 
  public:
-  Z3CondSimplify(Provenance &provenance, clang::ASTUnit &unit);
-
-  z3::context &GetZ3Context() { return *z_ctx; }
-
-  bool VisitIfStmt(clang::IfStmt *stmt);
-  bool VisitWhileStmt(clang::WhileStmt *loop);
-  bool VisitDoStmt(clang::DoStmt *loop);
+  Z3CondSimplify(DecompilationContext& dec_ctx, clang::ASTUnit& unit);
 };
 
 }  // namespace rellic

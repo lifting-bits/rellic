@@ -17,10 +17,10 @@
 
 namespace rellic {
 
-StructFieldRenamer::StructFieldRenamer(Provenance &provenance,
+StructFieldRenamer::StructFieldRenamer(DecompilationContext &dec_ctx,
                                        clang::ASTUnit &unit,
                                        IRTypeToDITypeMap &types)
-    : ASTPass(provenance, unit), types(types) {}
+    : ASTPass(dec_ctx, unit), types(types) {}
 
 bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
   auto type{decls[decl]};
@@ -68,7 +68,7 @@ bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
 
 void StructFieldRenamer::RunImpl() {
   LOG(INFO) << "Renaming struct fields";
-  for (auto &pair : provenance.type_decls) {
+  for (auto &pair : dec_ctx.type_decls) {
     decls[pair.second] = pair.first;
   }
   TraverseDecl(ast_ctx.getTranslationUnitDecl());

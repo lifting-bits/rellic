@@ -30,18 +30,11 @@ jobs:
       - name: Adding github workspace as safe directory
         # See issue https://github.com/actions/checkout/issues/760
         run: git config --global --add safe.directory $GITHUB_WORKSPACE
-      - name: Fetch merge
+      - name: Checkout base branch
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.ref }}
           submodules: true
-      - name: Fetch base branch
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.base_ref }}
-          fetch-depth: 0
-          submodules: true
-          path: old
       - name: Install utility tools
         shell: bash
         run: |
@@ -58,17 +51,28 @@ jobs:
               -L -o vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64.tar.xz
           tar xf vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64.tar.xz
 
+      - name: Configure rellic
+        shell: bash
+        run: |
+          cmake -S $GITHUB_WORKSPACE \
+                -B rellic-build \
+                -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
+
       - name: Build old rellic
         shell: bash
         run: |
-          cmake -S old -B rellic-build-old -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
-          cmake --build rellic-build-old
+          cmake --build rellic-build
+          cp rellic-build/tools/rellic-decomp rellic-build/tools/rellic-decomp-old
+
+      - name: Checkout merge branch
+        shell: bash
+        run: |
+          git fetch
+          git checkout ${{ github.event.pull_request.head.sha }}
 
       - name: Build new rellic
         shell: bash
-        run: |
-          cmake -S . -B rellic-build -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
-          cmake --build rellic-build
+        run: cmake --build rellic-build
 
       - name: Print job summary
         shell: bash
@@ -76,7 +80,7 @@ jobs:
           echo "# Test diffs" >> $GITHUB_STEP_SUMMARY
           cd $GITHUB_WORKSPACE/tests/tools/decomp
           env CLANG=clang-14 \
-              OLD_RELLIC=$GITHUB_WORKSPACE/rellic-build-old/tools/rellic-decomp \
+              OLD_RELLIC=$GITHUB_WORKSPACE/rellic-build/tools/rellic-decomp-old \
               NEW_RELLIC=$GITHUB_WORKSPACE/rellic-build/tools/rellic-decomp \
               make -s -j1 -f diff_outputs.mk >> $GITHUB_STEP_SUMMARY
 
@@ -86,7 +90,7 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE/tests/tools/decomp
           env CLANG=clang-14 \
-              OLD_RELLIC=$GITHUB_WORKSPACE/rellic-build-old/tools/rellic-decomp \
+              OLD_RELLIC=$GITHUB_WORKSPACE/rellic-build/tools/rellic-decomp-old \
               NEW_RELLIC=$GITHUB_WORKSPACE/rellic-build/tools/rellic-decomp \
               make -s -j1 -f diff_outputs.mk >> $GITHUB_WORKSPACE/test-diff.md
 

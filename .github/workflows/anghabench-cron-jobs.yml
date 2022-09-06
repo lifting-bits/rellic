@@ -85,26 +85,26 @@ jobs:
       run: |
           ./scripts/build.sh \
               --install \
-							--extra-cmake-args "-DCMAKE_BUILD_TYPE=Release" \
-							--download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" \
-							--llvm-version ${{ matrix.llvm }} \
+              --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release" \
+              --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" \
+              --llvm-version ${{ matrix.llvm }} \
     - name: Fetch Angha Data for LLVM {{ matrix.llvm }}
       run: |
           pushd external/lifting-tools-ci
-					if [[ -f requirements.txt ]]
-					then
-							python3 -m pip install -r requirements.txt
-					fi
+          if [[ -f requirements.txt ]]
+          then
+              python3 -m pip install -r requirements.txt
+          fi
 
-					mkdir -p $(pwd)/decompiled
-					mkdir -p $(pwd)/recompiled
+          mkdir -p $(pwd)/decompiled
+          mkdir -p $(pwd)/recompiled
 
-					datasets/fetch_anghabench.sh --clang "${LLVM_VERSION}" --bitcode --run-size "${RUN_SIZE}"
+          datasets/fetch_anghabench.sh --clang "${LLVM_VERSION}" --bitcode --run-size "${RUN_SIZE}"
 
-					for i in *.tar.xz
-					do
-							tar -xJf $i
-					done
+          for i in *.tar.xz
+          do
+              tar -xJf $i
+          done
           popd
       env:
         LLVM_VERSION: ${{ matrix.llvm }}
@@ -114,59 +114,59 @@ jobs:
       run: |
 
           pushd external/lifting-tools-ci
-					# Run the benchmark
-					tool_run_scripts/rellic.py \
-							--run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [rellic: ${RELLIC_BRANCH}]" \
-							--rellic rellic-decomp \
-							--input-dir $(pwd)/bitcode \
-							--output-dir $(pwd)/decompiled \
-							--slack-notify
+          # Run the benchmark
+          tool_run_scripts/rellic.py \
+              --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [rellic: ${RELLIC_BRANCH}]" \
+              --rellic rellic-decomp \
+              --input-dir $(pwd)/bitcode \
+              --output-dir $(pwd)/decompiled \
+              --slack-notify
 
-					# Try to recompile our decompiled code
-					tool_run_scripts/recompile.py \
-							--run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [recompile]" \
-							--clang clang-${LLVM_VERSION} \
-							--input-dir $(pwd)/decompiled \
-							--output-dir $(pwd)/recompiled \
-							--slack-notify
+          # Try to recompile our decompiled code
+          tool_run_scripts/recompile.py \
+              --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [recompile]" \
+              --clang clang-${LLVM_VERSION} \
+              --input-dir $(pwd)/decompiled \
+              --output-dir $(pwd)/recompiled \
+              --slack-notify
       env:
         RUN_SIZE: ${{ matrix.run_size }}
         RELLIC_BRANCH: ${{ steps.extract_branch.outputs.branch }}
-				RUN_NAME: "Rellic Cron Job CI Run"
+        RUN_NAME: "Rellic Cron Job CI Run"
         SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
         DO_TOKEN: ${{ secrets.DO_TOKEN }}
         LLVM_VERSION: ${{ matrix.llvm }}
 
     - name: Save Angha Run for LLVM {{ matrix.llvm }}
       run: |
-					# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY passed in from original invocation environment
-					if [[ "${AWS_ACCESS_KEY_ID,,}" != "" ]]
-					then
-						datenow=$(date +'%F-%H-%M')
-						url_base="https://tob-amp-ci-results.nyc3.digitaloceanspaces.com"
-						tar -Ipixz -cf rellic-ci-${datenow}.tar.xz decompiled
-						tar -Ipixz -cf recompile-ci-${datenow}.tar.xz recompiled
+          # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY passed in from original invocation environment
+          if [[ "${AWS_ACCESS_KEY_ID,,}" != "" ]]
+          then
+            datenow=$(date +'%F-%H-%M')
+            url_base="https://tob-amp-ci-results.nyc3.digitaloceanspaces.com"
+            tar -Ipixz -cf rellic-ci-${datenow}.tar.xz decompiled
+            tar -Ipixz -cf recompile-ci-${datenow}.tar.xz recompiled
 
-						s3cmd -c /dev/null \
-							'--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
-							--acl-public \
-							put \
-							rellic-ci-${datenow}.tar.xz \
-							s3://tob-amp-ci-results/rellic/
+            s3cmd -c /dev/null \
+              '--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
+              --acl-public \
+              put \
+              rellic-ci-${datenow}.tar.xz \
+              s3://tob-amp-ci-results/rellic/
 
-						tool_run_scripts/slack.py \
-							--msg "Uploaded rellic decompilation results to ${url_base}/rellic/rellic-ci-${datenow}.tar.xz"
-								
-						s3cmd -c /dev/null \
-							'--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
-							--acl-public \
-							put \
-							recompile-ci-${datenow}.tar.xz \
-							s3://tob-amp-ci-results/recompile/
+            tool_run_scripts/slack.py \
+              --msg "Uploaded rellic decompilation results to ${url_base}/rellic/rellic-ci-${datenow}.tar.xz"
+                
+            s3cmd -c /dev/null \
+              '--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
+              --acl-public \
+              put \
+              recompile-ci-${datenow}.tar.xz \
+              s3://tob-amp-ci-results/recompile/
 
-						tool_run_scripts/slack.py \
-							--msg "Uploaded recompilation results to ${url_base}/recompile/recompile-ci-${datenow}.tar.xz"
-					fi
+            tool_run_scripts/slack.py \
+              --msg "Uploaded recompilation results to ${url_base}/recompile/recompile-ci-${datenow}.tar.xz"
+          fi
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET }}

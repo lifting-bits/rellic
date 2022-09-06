@@ -49,7 +49,7 @@ jobs:
               {"Key": "Name", "Value": "ec2-github-runner"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
-  do-the-job:
+  build_linux:
     strategy:
       fail-fast: false
       matrix:
@@ -158,7 +158,7 @@ jobs:
     name: Stop self-hosted EC2 runner (Linux)
     needs:
       - start-runner # required to get output from the start-runner job
-      - do-the-job # required to wait when the main job is done
+      - build_linux # required to wait when the main job is done
     runs-on: ubuntu-latest
     if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
     steps:

@@ -18,7 +18,6 @@ on:
 
 jobs:
   start-runner:
-    if: github.event.workflow_run.conclusion == 'success' 
     name: Start self-hosted EC2 runner (Linux)
     runs-on: ubuntu-latest
     strategy:
@@ -60,6 +59,8 @@ jobs:
           '14'
           ]
 
+    name: Rellic CI
+    needs: start-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     container:
       image: docker.pkg.github.com/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}:${{ matrix.image.tag }}

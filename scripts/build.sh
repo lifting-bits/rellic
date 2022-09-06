@@ -231,6 +231,7 @@ function Configure
   (
     set -x
     cmake \
+        -G Ninja \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
         -DCMAKE_VERBOSE_MAKEFILE=True \
         -DVCPKG_ROOT="${DOWNLOAD_DIR}/${LIBRARY_VERSION}" \

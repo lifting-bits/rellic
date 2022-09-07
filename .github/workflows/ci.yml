@@ -197,6 +197,8 @@ jobs:
         with:
           fetch-depth: 0
           submodules: true
+      - name: Install Ninja Build
+        run: brew install ninja
       - name: Build with build script
         shell: bash
         run: |

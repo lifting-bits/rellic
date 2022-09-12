@@ -6,7 +6,39 @@ on:
       - '*'
 
 jobs:
-  build_linux:
+  start-runner:
+    name: Start self-hosted EC2 runner (Linux)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ec2:
+          - { ami: ami-0610b26d76319237e, instance-type: m6i.8xlarge}
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+          ec2-image-id: ${{ matrix.ec2.ami }}
+          ec2-instance-type: ${{ matrix.ec2.instance-type }}
+          subnet-id: subnet-0deb935f0bbfe1a5d
+          security-group-id: sg-0f6a02eb80fafb982
+          aws-resource-tags: > # optional, requires additional permissions
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+  do-the-job:
     strategy:
       fail-fast: false
       matrix:
@@ -19,7 +51,9 @@ jobs:
       CC: clang-${{ matrix.llvm }}
       CXX: clang++-${{ matrix.llvm }}
 
-    runs-on: ubuntu-20.04
+    name: Diff in ouput between old and new rellic
+    needs: start-runner # required to start the main job when the runner is ready
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     container:
       image: docker.pkg.github.com/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}:${{ matrix.image.tag }}
       credentials:
@@ -49,7 +83,7 @@ jobs:
           echo "deb http://apt.llvm.org/${{ matrix.image.codename }}/ llvm-toolchain-${{ matrix.image.codename }}-${{ matrix.llvm }} main" >> /etc/apt/sources.list
           echo "deb-src http://apt.llvm.org/${{ matrix.image.codename }}/ llvm-toolchain-${{ matrix.image.codename }}-${{ matrix.llvm }} main" >> /etc/apt/sources.list
           apt-get update
-          apt-get install -y pixz xz-utils make rpm python3.8 clang-${{ matrix.llvm }}
+          apt-get install -y ninja-build pixz xz-utils make rpm python3.8 clang-${{ matrix.llvm }}
           update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 100
       - name: Download cxx-commons
         shell: bash
@@ -61,13 +95,13 @@ jobs:
       - name: Build old rellic
         shell: bash
         run: |
-          cmake -S old -B rellic-build-old -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
+          cmake -G Ninja -S old -B rellic-build-old -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
           cmake --build rellic-build-old
 
       - name: Build new rellic
         shell: bash
         run: |
-          cmake -S . -B rellic-build -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
+          cmake -G Ninja -S . -B rellic-build -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
           cmake --build rellic-build
 
       - name: Print job summary

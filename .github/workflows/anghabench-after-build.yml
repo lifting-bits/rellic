@@ -8,12 +8,49 @@ on:
     types: [completed]
 
 jobs:
-  AnghaSmallRun:
+  start-runner:
     if: github.event.workflow_run.conclusion == 'success' 
+    name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["14"]
+        ec2:
+          - { ami: ami-0610b26d76319237e, instance-type: m6i.8xlarge}
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+          ec2-image-id: ${{ matrix.ec2.ami }}
+          ec2-instance-type: ${{ matrix.ec2.instance-type }}
+          subnet-id: subnet-0deb935f0bbfe1a5d
+          security-group-id: sg-0f6a02eb80fafb982
+          aws-resource-tags: > # optional, requires additional permissions
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+  do-the-job:
+    strategy:
+      fail-fast: false
+      matrix:
+        llvm: [ '14' ]
+        run_size: [ '1k' ]
+
+    name: Run AnghaBench CI (AMD64)
+    needs: start-runner # required to start the main job when the runner is ready
+    runs-on: ${{ needs.start-runner.outputs.label }} # run the job on the newly created runner
     steps:
     - uses: actions/checkout@v2
       with:
@@ -24,10 +61,138 @@ jobs:
       shell: bash
       run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       id: extract_branch
-    - name: Run against ${{ matrix.llvm }}
-      run: |
-        external/lifting-tools-ci/cloud/run-do-droplet.py --name "Rellic CI Run Post Build" --script scripts/run-on-anghabench.sh --env-vars RUN_SIZE=1k,RELLIC_BRANCH=${BRANCH},LLVM_VERSION=${{ matrix.llvm }}
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.8
+    - name: Fix github token auth
+      shell: bash
       env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      run: |
+        export HOME=${HOME:-/root}
+        git config --global user.name "CI User" && git config --global user.email "ci@none.local"
+        git config --global url."https://${ACCESS_TOKEN}@github.com/".insteadOf "git@github.com:"
+    - name: Set up pre-requisies
+      run: |
+        sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get -qqy upgrade
+        sudo apt-get install -qqy \
+          git curl wget unzip xz-utils pixz jq s3cmd ninja-build pkg-config \
+          liblzma-dev zlib1g-dev libtinfo-dev build-essential \
+          libc6-dev:i386 libstdc++-*-dev:i386 g++-multilib
+        wget "https://github.com/Kitware/CMake/releases/download/v3.22.3/cmake-3.22.3-linux-$(uname -m).sh" && \
+          /bin/bash cmake-*.sh --skip-license --prefix=/usr/local && rm cmake-*.sh
+        python3 -m pip install requests
+    - name: Build rellic against LLVM ${{ matrix.llvm }}
+      run: |
+          ./scripts/build.sh \
+              --install \
+              --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release" \
+              --download-dir "$(pwd)/../pre-built-llvm-${{ matrix.llvm }}" \
+              --llvm-version ${{ matrix.llvm }} \
+    - name: Fetch Angha Data for LLVM {{ matrix.llvm }}
+      run: |
+          pushd external/lifting-tools-ci
+          if [[ -f requirements.txt ]]
+          then
+              python3 -m pip install -r requirements.txt
+          fi
+
+          mkdir -p $(pwd)/decompiled
+          mkdir -p $(pwd)/recompiled
+
+          datasets/fetch_anghabench.sh --clang "${LLVM_VERSION}" --bitcode --run-size "${RUN_SIZE}"
+
+          for i in *.tar.xz
+          do
+              tar -xJf $i
+          done
+          popd
+      env:
+        LLVM_VERSION: ${{ matrix.llvm }}
+        RUN_SIZE: ${{ matrix.run_size }}
+
+    - name: Run Angha Against LLVM {{ matrix.llvm }}
+      run: |
+
+          pushd external/lifting-tools-ci
+          # Run the benchmark
+          tool_run_scripts/rellic.py \
+              --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [rellic: ${RELLIC_BRANCH}]" \
+              --rellic rellic-decomp \
+              --input-dir $(pwd)/bitcode \
+              --output-dir $(pwd)/decompiled \
+              --slack-notify
+
+          # Try to recompile our decompiled code
+          tool_run_scripts/recompile.py \
+              --run-name "[${RUN_NAME}] [size: ${RUN_SIZE}] [recompile]" \
+              --clang clang-${LLVM_VERSION} \
+              --input-dir $(pwd)/decompiled \
+              --output-dir $(pwd)/recompiled \
+              --slack-notify
+      env:
+        RUN_SIZE: ${{ matrix.run_size }}
+        RELLIC_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+        RUN_NAME: "Rellic After Build CI Run"
         SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
         DO_TOKEN: ${{ secrets.DO_TOKEN }}
-        BRANCH: ${{ steps.extract_branch.outputs.branch }}
+        LLVM_VERSION: ${{ matrix.llvm }}
+
+    - name: Save Angha Run for LLVM {{ matrix.llvm }}
+      run: |
+          # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY passed in from original invocation environment
+          if [[ "${AWS_ACCESS_KEY_ID,,}" != "" ]]
+          then
+            datenow=$(date +'%F-%H-%M')
+            url_base="https://tob-amp-ci-results.nyc3.digitaloceanspaces.com"
+            tar -Ipixz -cf rellic-ci-${datenow}.tar.xz decompiled
+            tar -Ipixz -cf recompile-ci-${datenow}.tar.xz recompiled
+
+            s3cmd -c /dev/null \
+              '--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
+              --acl-public \
+              put \
+              rellic-ci-${datenow}.tar.xz \
+              s3://tob-amp-ci-results/rellic/
+
+            tool_run_scripts/slack.py \
+              --msg "Uploaded rellic decompilation results to ${url_base}/rellic/rellic-ci-${datenow}.tar.xz"
+                
+            s3cmd -c /dev/null \
+              '--host-bucket=%(bucket)s.nyc3.digitaloceanspaces.com' \
+              --acl-public \
+              put \
+              recompile-ci-${datenow}.tar.xz \
+              s3://tob-amp-ci-results/recompile/
+
+            tool_run_scripts/slack.py \
+              --msg "Uploaded recompilation results to ${url_base}/recompile/recompile-ci-${datenow}.tar.xz"
+          fi
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET }}
+        SLACK_HOOK: ${{ secrets.SLACK_HOOK }}
+
+  stop-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-runner # required to get output from the start-runner job
+      - do-the-job # required to wait when the main job is done
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+          label: ${{ needs.start-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
+

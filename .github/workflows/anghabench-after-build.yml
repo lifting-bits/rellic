@@ -75,8 +75,8 @@ jobs:
         git config --global url."https://${ACCESS_TOKEN}@github.com/".insteadOf "git@github.com:"
     - name: Set up pre-requisies
       run: |
-        sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get -qqy upgrade
-        sudo apt-get install -qqy \
+        sudo dpkg --add-architecture i386 && sudo apt-get -qqy update && sudo env DEBIAN_FRONTEND=noninteractive apt-get -qqy upgrade
+        sudo env DEBIAN_FRONTEND=noninteractive apt-get install -qqy \
           git curl wget unzip xz-utils pixz jq s3cmd ninja-build pkg-config \
           liblzma-dev zlib1g-dev libtinfo-dev build-essential \
           libc6-dev:i386 libstdc++-*-dev:i386 g++-multilib

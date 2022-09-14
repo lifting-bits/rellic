@@ -7,7 +7,6 @@ on:
 
 jobs:
   start-runner:
-    if: github.event.workflow_run.conclusion == 'success' 
     name: Start self-hosted EC2 runner
     runs-on: ubuntu-latest
     strategy:

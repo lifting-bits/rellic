@@ -1285,7 +1285,6 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   std::vector<clang::ParmVarDecl *> params;
   if (name == "main") {
     auto epi{clang::FunctionProtoType::ExtProtoInfo()};
-    auto ret_type{ast_ctx.IntTy};
     auto char_ptr_ptr{
         ast_ctx.getPointerType(ast_ctx.getPointerType(ast_ctx.CharTy))};
     std::vector<clang::QualType> arg_types = {/*argc*/ ast_ctx.IntTy,

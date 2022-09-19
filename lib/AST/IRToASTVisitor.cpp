@@ -1282,19 +1282,52 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   ExprGen expr_gen{ast_unit, dec_ctx};
-  auto type{expr_gen.GetQualType(GetFixedFunctionType(func))};
-  decl = ast.CreateFunctionDecl(tudecl, type, name);
-
-  tudecl->addDecl(decl);
-
   std::vector<clang::ParmVarDecl *> params;
-  for (auto &arg : func.args()) {
-    VisitArgument(arg);
-    params.push_back(
-        clang::cast<clang::ParmVarDecl>(dec_ctx.value_decls[&arg]));
+  if (name == "main") {
+    auto epi{clang::FunctionProtoType::ExtProtoInfo()};
+    auto ret_type{ast_ctx.IntTy};
+    auto char_ptr_ptr{
+        ast_ctx.getPointerType(ast_ctx.getPointerType(ast_ctx.CharTy))};
+    std::vector<clang::QualType> arg_types = {/*argc*/ ast_ctx.IntTy,
+                                              /*argv*/ char_ptr_ptr,
+                                              /*envp*/ char_ptr_ptr};
+    CHECK_LE(func.arg_size(), 3)
+        << "Only up to three main arguments are supported";
+    arg_types.resize(func.arg_size());
+    auto ftype{ast_ctx.getFunctionType(ast_ctx.IntTy, arg_types, epi)};
+    auto fdecl{ast.CreateFunctionDecl(tudecl, ftype, name)};
+    decl = fdecl;
+    if (func.arg_size() >= 1) {
+      auto &parm{dec_ctx.value_decls[func.getArg(0)]};
+      auto parm_decl{ast.CreateParamDecl(fdecl, ast_ctx.IntTy, "argc")};
+      parm = parm_decl;
+      params.push_back(parm_decl);
+    }
+    if (func.arg_size() >= 2) {
+      auto &parm{dec_ctx.value_decls[func.getArg(1)]};
+      auto parm_decl{ast.CreateParamDecl(fdecl, char_ptr_ptr, "argv")};
+      parm = parm_decl;
+      params.push_back(parm_decl);
+    }
+    if (func.arg_size() >= 3) {
+      auto &parm{dec_ctx.value_decls[func.getArg(2)]};
+      auto parm_decl{ast.CreateParamDecl(fdecl, char_ptr_ptr, "envp")};
+      parm = parm_decl;
+      params.push_back(parm_decl);
+    }
+  } else {
+    auto type{expr_gen.GetQualType(GetFixedFunctionType(func))};
+    decl = ast.CreateFunctionDecl(tudecl, type, name);
+
+    for (auto &arg : func.args()) {
+      VisitArgument(arg);
+      params.push_back(
+          clang::cast<clang::ParmVarDecl>(dec_ctx.value_decls[&arg]));
+    }
   }
 
   auto fdecl{decl->getAsFunction()};
+  tudecl->addDecl(decl);
   fdecl->setParams(params);
 
   for (auto &inst : llvm::instructions(func)) {

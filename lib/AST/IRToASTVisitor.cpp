@@ -309,8 +309,42 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
   return result;
 }
 
+static bool IsGVarAString(llvm::GlobalVariable *gvar) {
+  if (!gvar->hasInitializer()) {
+    return false;
+  }
+
+  auto constant{gvar->getInitializer()};
+  // Check if constant can be considered a string literal
+  auto arr_type{llvm::dyn_cast<llvm::ArrayType>(constant->getType())};
+  if (!arr_type) {
+    return false;
+  }
+
+  auto elm_type{arr_type->getElementType()};
+  if (!elm_type->isIntegerTy(8U)) {
+    return false;
+  }
+
+  auto arr{llvm::dyn_cast<llvm::ConstantDataArray>(constant)};
+  if (!arr) {
+    return false;
+  }
+
+  auto init{arr->getAsString().str()};
+  if (init.find('\0') != init.size() - 1) {
+    return false;
+  }
+
+  return true;
+}
+
 clang::Expr *ExprGen::CreateConstantExpr(llvm::Constant *constant) {
   if (auto gvar = llvm::dyn_cast<llvm::GlobalVariable>(constant)) {
+    if (IsGVarAString(gvar)) {
+      auto arr{llvm::cast<llvm::ConstantDataArray>(gvar->getInitializer())};
+      return ast.CreateStrLit(arr->getAsString().str().c_str());
+    }
     VisitGlobalVar(*gvar);
   }
 
@@ -644,33 +678,7 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
       return false;
     }
 
-    if (!gvar->hasInitializer()) {
-      return false;
-    }
-
-    auto constant{gvar->getInitializer()};
-    // Check if constant can be considered a string literal
-    auto arr_type{llvm::dyn_cast<llvm::ArrayType>(constant->getType())};
-    if (!arr_type) {
-      return false;
-    }
-
-    auto elm_type{arr_type->getElementType()};
-    if (!elm_type->isIntegerTy(8U)) {
-      return false;
-    }
-
-    auto arr{llvm::dyn_cast<llvm::ConstantDataArray>(constant)};
-    if (!arr) {
-      return false;
-    }
-
-    auto init{arr->getAsString().str()};
-    if (init.find('\0') != init.size() - 1) {
-      return false;
-    }
-
-    return true;
+    return IsGVarAString(gvar);
   };
 
   // Maybe we're inspecting a string reference

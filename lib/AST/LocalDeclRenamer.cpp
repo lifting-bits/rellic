@@ -17,8 +17,8 @@
 namespace rellic {
 
 LocalDeclRenamer::LocalDeclRenamer(DecompilationContext &dec_ctx,
-                                   clang::ASTUnit &unit, IRToNameMap &names)
-    : TransformVisitor<LocalDeclRenamer>(dec_ctx, unit),
+                                   IRToNameMap &names)
+    : TransformVisitor<LocalDeclRenamer>(dec_ctx),
       seen_names(1),
       names(names) {}
 
@@ -50,14 +50,14 @@ bool LocalDeclRenamer::VisitVarDecl(clang::VarDecl *decl) {
 
   if (!IsNameVisible(name->second)) {
     seen_names.back().insert(name->second);
-    decl->setDeclName(ast.CreateIdentifier(name->second));
+    decl->setDeclName(dec_ctx.ast.CreateIdentifier(name->second));
   } else {
     // Append the automatically-generated name to the debug-info name in order
     // to avoid any lexical scoping issue
     // TODO(frabert): Recover proper lexical scoping from debug info metadata
     auto old_name{decl->getName().str()};
     auto new_name{name->second + "_" + old_name};
-    decl->setDeclName(ast.CreateIdentifier(new_name));
+    decl->setDeclName(dec_ctx.ast.CreateIdentifier(new_name));
     seen_names.back().insert(new_name);
   }
 
@@ -81,7 +81,7 @@ void LocalDeclRenamer::RunImpl() {
   for (auto &pair : dec_ctx.value_decls) {
     decls[pair.second] = pair.first;
   }
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseDecl(dec_ctx.ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

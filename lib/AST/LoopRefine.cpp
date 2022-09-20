@@ -48,7 +48,6 @@ class WhileRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -63,9 +62,8 @@ class WhileRule : public InferenceRule {
     }
     std::copy(comp->body_begin() + 1, comp->body_end(),
               std::back_inserter(new_body));
-    ASTBuilder ast(unit);
-    auto new_while{
-        ast.CreateWhile(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
+    auto new_while{dec_ctx.ast.CreateWhile(
+        dec_ctx.marker_expr, dec_ctx.ast.CreateCompoundStmt(new_body))};
     dec_ctx.conds[new_while] =
         dec_ctx.InsertZExpr(!dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]);
     return new_while;
@@ -90,7 +88,6 @@ class ElseWhileRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -100,9 +97,8 @@ class ElseWhileRule : public InferenceRule {
     auto comp{clang::cast<clang::CompoundStmt>(loop->getBody())};
     auto ifstmt{clang::cast<clang::IfStmt>(comp->body_front())};
     std::vector<clang::Stmt *> new_body;
-    ASTBuilder ast(unit);
-    auto new_while{
-        ast.CreateWhile(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
+    auto new_while{dec_ctx.ast.CreateWhile(
+        dec_ctx.marker_expr, dec_ctx.ast.CreateCompoundStmt(new_body))};
     dec_ctx.conds[new_while] = dec_ctx.conds[ifstmt];
     return new_while;
   }
@@ -126,7 +122,6 @@ class DoWhileRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -138,14 +133,13 @@ class DoWhileRule : public InferenceRule {
     auto cond{dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]};
     std::vector<clang::Stmt *> new_body(comp->body_begin(),
                                         comp->body_end() - 1);
-    ASTBuilder ast(unit);
     if (auto else_stmt = ifstmt->getElse()) {
-      auto new_if{ast.CreateIf(dec_ctx.marker_expr, else_stmt)};
+      auto new_if{dec_ctx.ast.CreateIf(dec_ctx.marker_expr, else_stmt)};
       dec_ctx.conds[new_if] = dec_ctx.z3_exprs.size();
       new_body.push_back(new_if);
     }
-    auto new_do{
-        ast.CreateDo(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
+    auto new_do{dec_ctx.ast.CreateDo(dec_ctx.marker_expr,
+                                     dec_ctx.ast.CreateCompoundStmt(new_body))};
     dec_ctx.conds[new_do] = dec_ctx.InsertZExpr(!cond);
     return new_do;
   }
@@ -169,7 +163,6 @@ class ElseDoWhileRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -180,13 +173,12 @@ class ElseDoWhileRule : public InferenceRule {
     auto ifstmt{clang::cast<clang::IfStmt>(comp->body_back())};
     std::vector<clang::Stmt *> new_body(comp->body_begin(),
                                         comp->body_end() - 1);
-    ASTBuilder ast(unit);
 
     ifstmt->setElse(nullptr);
     new_body.push_back(ifstmt);
 
-    auto new_do{
-        ast.CreateDo(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
+    auto new_do{dec_ctx.ast.CreateDo(dec_ctx.marker_expr,
+                                     dec_ctx.ast.CreateCompoundStmt(new_body))};
     dec_ctx.conds[new_do] = dec_ctx.conds[ifstmt];
     return new_do;
   }
@@ -218,7 +210,6 @@ class NestedDoWhileRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
@@ -230,20 +221,19 @@ class NestedDoWhileRule : public InferenceRule {
 
     std::vector<clang::Stmt *> do_body(comp->body_begin(),
                                        comp->body_end() - 1);
-    ASTBuilder ast(unit);
     if (auto else_stmt = if_stmt->getElse()) {
-      auto new_if{ast.CreateIf(dec_ctx.marker_expr, else_stmt)};
+      auto new_if{dec_ctx.ast.CreateIf(dec_ctx.marker_expr, else_stmt)};
       dec_ctx.conds[new_if] = dec_ctx.z3_exprs.size();
       do_body.push_back(new_if);
     }
 
-    auto do_stmt{
-        ast.CreateDo(dec_ctx.marker_expr, ast.CreateCompoundStmt(do_body))};
+    auto do_stmt{dec_ctx.ast.CreateDo(dec_ctx.marker_expr,
+                                      dec_ctx.ast.CreateCompoundStmt(do_body))};
     dec_ctx.conds[do_stmt] = dec_ctx.InsertZExpr(!cond);
 
     std::vector<clang::Stmt *> while_body({do_stmt, if_stmt->getThen()});
-    auto new_while{ast.CreateWhile(dec_ctx.marker_expr,
-                                   ast.CreateCompoundStmt(while_body))};
+    auto new_while{dec_ctx.ast.CreateWhile(
+        dec_ctx.marker_expr, dec_ctx.ast.CreateCompoundStmt(while_body))};
     dec_ctx.conds[new_while] = dec_ctx.conds[loop];
     return new_while;
   }
@@ -272,7 +262,6 @@ class LoopToSeq : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop = clang::dyn_cast<clang::WhileStmt>(stmt);
 
@@ -284,7 +273,6 @@ class LoopToSeq : public InferenceRule {
     std::vector<clang::Stmt *> new_body(loop_body->body_begin(),
                                         loop_body->body_end());
 
-    ASTBuilder ast(unit);
     if (auto ifstmt = clang::dyn_cast<clang::IfStmt>(loop_body->body_back())) {
       std::vector<clang::Stmt *> branches(
           {ifstmt->getThen(), ifstmt->getElse()});
@@ -298,7 +286,7 @@ class LoopToSeq : public InferenceRule {
             new_branch_body.push_back(stmt);
           }
         }
-        branch = ast.CreateCompoundStmt(new_branch_body);
+        branch = dec_ctx.ast.CreateCompoundStmt(new_branch_body);
       }
       ifstmt->setThen(branches[0]);
       ifstmt->setElse(branches[1]);
@@ -306,7 +294,7 @@ class LoopToSeq : public InferenceRule {
       new_body.pop_back();
     }
 
-    return ast.CreateCompoundStmt(new_body);
+    return dec_ctx.ast.CreateCompoundStmt(new_body);
   }
 };
 
@@ -326,17 +314,16 @@ class CondToSeqRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
     CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
-    ASTBuilder ast(unit);
     auto body{clang::cast<clang::CompoundStmt>(loop->getBody())};
     auto ifstmt{clang::cast<clang::IfStmt>(body->body_front())};
-    auto inner_loop{ast.CreateWhile(dec_ctx.marker_expr, ifstmt->getThen())};
+    auto inner_loop{
+        dec_ctx.ast.CreateWhile(dec_ctx.marker_expr, ifstmt->getThen())};
     dec_ctx.conds[inner_loop] = dec_ctx.conds[ifstmt];
     std::vector<clang::Stmt *> new_body({inner_loop});
     if (auto comp = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getElse())) {
@@ -344,8 +331,8 @@ class CondToSeqRule : public InferenceRule {
     } else {
       new_body.push_back(ifstmt->getElse());
     }
-    auto new_while{
-        ast.CreateWhile(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
+    auto new_while{dec_ctx.ast.CreateWhile(
+        dec_ctx.marker_expr, dec_ctx.ast.CreateCompoundStmt(new_body))};
     dec_ctx.conds[new_while] = dec_ctx.conds[loop];
     return new_while;
   }
@@ -365,18 +352,17 @@ class CondToSeqNegRule : public InferenceRule {
   }
 
   clang::Stmt *GetOrCreateSubstitution(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        clang::Stmt *stmt) override {
     auto loop{clang::dyn_cast<clang::WhileStmt>(stmt)};
 
     CHECK(loop && loop == match)
         << "Substituted WhileStmt is not the matched WhileStmt!";
 
-    ASTBuilder ast(unit);
     auto body{clang::cast<clang::CompoundStmt>(loop->getBody())};
     auto ifstmt{clang::cast<clang::IfStmt>(body->body_front())};
     auto cond{dec_ctx.z3_exprs[dec_ctx.conds[ifstmt]]};
-    auto inner_loop{ast.CreateWhile(dec_ctx.marker_expr, ifstmt->getElse())};
+    auto inner_loop{
+        dec_ctx.ast.CreateWhile(dec_ctx.marker_expr, ifstmt->getElse())};
     dec_ctx.conds[inner_loop] = dec_ctx.InsertZExpr(!cond);
     std::vector<clang::Stmt *> new_body({inner_loop});
     if (auto comp = clang::dyn_cast<clang::CompoundStmt>(ifstmt->getThen())) {
@@ -385,8 +371,8 @@ class CondToSeqNegRule : public InferenceRule {
       new_body.push_back(ifstmt->getThen());
     }
 
-    auto new_while{
-        ast.CreateWhile(dec_ctx.marker_expr, ast.CreateCompoundStmt(new_body))};
+    auto new_while{dec_ctx.ast.CreateWhile(
+        dec_ctx.marker_expr, dec_ctx.ast.CreateCompoundStmt(new_body))};
     dec_ctx.conds[new_while] = dec_ctx.conds[loop];
     return new_while;
   }
@@ -394,8 +380,8 @@ class CondToSeqNegRule : public InferenceRule {
 
 }  // namespace
 
-LoopRefine::LoopRefine(DecompilationContext &dec_ctx, clang::ASTUnit &u)
-    : TransformVisitor<LoopRefine>(dec_ctx, u) {}
+LoopRefine::LoopRefine(DecompilationContext &dec_ctx)
+    : TransformVisitor<LoopRefine>(dec_ctx) {}
 
 bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   // DLOG(INFO) << "VisitWhileStmt";
@@ -409,8 +395,8 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
       [](auto stmt) { return clang::isa<clang::BreakStmt>(stmt); })};
   if (break_stmt != body->body_end()) {
     std::vector<clang::Stmt *> new_body_stmts{body->body_begin(), break_stmt};
-    substitutions[loop] =
-        ast.CreateIf(loop->getCond(), ast.CreateCompoundStmt(new_body_stmts));
+    substitutions[loop] = dec_ctx.ast.CreateIf(
+        loop->getCond(), dec_ctx.ast.CreateCompoundStmt(new_body_stmts));
     return !Stopped();
   }
 
@@ -425,7 +411,7 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
   rules.emplace_back(new ElseWhileRule);
   rules.emplace_back(new ElseDoWhileRule);
 
-  auto sub{ApplyFirstMatchingRule(dec_ctx, ast_unit, loop, rules)};
+  auto sub{ApplyFirstMatchingRule(dec_ctx, loop, rules)};
   if (sub != loop) {
     substitutions[loop] = sub;
   }
@@ -436,7 +422,7 @@ bool LoopRefine::VisitWhileStmt(clang::WhileStmt *loop) {
 void LoopRefine::RunImpl() {
   LOG(INFO) << "Rule-based loop refinement";
   TransformVisitor<LoopRefine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseDecl(dec_ctx.ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

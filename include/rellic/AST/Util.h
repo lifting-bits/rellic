@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <clang/AST/ASTContext.h>
 #include <clang/AST/DeclBase.h>
 #include <clang/AST/Stmt.h>
 #include <clang/Frontend/ASTUnit.h>
@@ -65,6 +66,12 @@ struct DecompilationContext {
   using BBEdge = std::pair<llvm::BasicBlock *, llvm::BasicBlock *>;
   using BrEdge = std::pair<llvm::BranchInst *, bool>;
   using SwEdge = std::pair<llvm::SwitchInst *, llvm::ConstantInt *>;
+
+  DecompilationContext(clang::ASTUnit &ast_unit);
+
+  clang::ASTUnit &ast_unit;
+  clang::ASTContext &ast_ctx;
+  ASTBuilder ast;
 
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;

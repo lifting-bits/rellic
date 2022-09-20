@@ -14,7 +14,7 @@
 namespace rellic {
 
 clang::Stmt *ApplyFirstMatchingRule(
-    DecompilationContext &dec_ctx, clang::ASTUnit &unit, clang::Stmt *stmt,
+    DecompilationContext &dec_ctx, clang::Stmt *stmt,
     std::vector<std::unique_ptr<InferenceRule>> &rules) {
   clang::ast_matchers::MatchFinder::MatchFinderOptions opts;
   clang::ast_matchers::MatchFinder finder(opts);
@@ -23,11 +23,11 @@ clang::Stmt *ApplyFirstMatchingRule(
     finder.addMatcher(rule->GetCondition(), rule.get());
   }
 
-  finder.match(*stmt, unit.getASTContext());
+  finder.match(*stmt, dec_ctx.ast_unit.getASTContext());
 
   for (auto &rule : rules) {
     if (*rule) {
-      return rule->GetOrCreateSubstitution(dec_ctx, unit, stmt);
+      return rule->GetOrCreateSubstitution(dec_ctx, stmt);
     }
   }
 

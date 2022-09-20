@@ -22,9 +22,6 @@ class ASTPass {
 
  protected:
   DecompilationContext& dec_ctx;
-  clang::ASTUnit& ast_unit;
-  clang::ASTContext& ast_ctx;
-  ASTBuilder ast;
 
   bool changed{false};
 
@@ -32,11 +29,8 @@ class ASTPass {
   virtual void StopImpl() {}
 
  public:
-  ASTPass(DecompilationContext& dec_ctx, clang::ASTUnit& ast_unit)
-      : dec_ctx(dec_ctx),
-        ast_unit(ast_unit),
-        ast_ctx(ast_unit.getASTContext()),
-        ast(ast_unit) {}
+  ASTPass(DecompilationContext& dec_ctx)
+      : dec_ctx(dec_ctx) {}
   virtual ~ASTPass() = default;
   void Stop() {
     stop = true;
@@ -89,8 +83,8 @@ class CompositeASTPass : public ASTPass {
   }
 
  public:
-  CompositeASTPass(DecompilationContext& dec_ctx, clang::ASTUnit& ast_unit)
-      : ASTPass(dec_ctx, ast_unit) {}
+  CompositeASTPass(DecompilationContext& dec_ctx)
+      : ASTPass(dec_ctx) {}
   std::vector<std::unique_ptr<ASTPass>>& GetPasses() { return passes; }
 };
 }  // namespace rellic

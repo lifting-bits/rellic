@@ -336,11 +336,11 @@ StmtVec GenerateAST::CreateRegionStmts(llvm::Region *region) {
     } else {
       // Create a compound, wrapping the block
       auto block_body = CreateBasicBlockStmts(block);
-      compound = ast.CreateCompoundStmt(block_body);
+      compound = dec_ctx.ast.CreateCompoundStmt(block_body);
     }
     // Gate the compound behind a reaching condition
     auto z_expr{GetReachingCond(block)};
-    block_stmts[block] = ast.CreateIf(dec_ctx.marker_expr, compound);
+    block_stmts[block] = dec_ctx.ast.CreateIf(dec_ctx.marker_expr, compound);
     dec_ctx.conds[block_stmts[block]] =
         dec_ctx.InsertZExpr(dec_ctx.z3_exprs[z_expr]);
     // Store the compound
@@ -400,7 +400,7 @@ void GenerateAST::RefineLoopSuccessors(llvm::Loop *loop, BBSet &members,
 clang::CompoundStmt *GenerateAST::StructureAcyclicRegion(llvm::Region *region) {
   DLOG(INFO) << "Region " << GetRegionNameStr(region) << " is acyclic";
   auto region_body = CreateRegionStmts(region);
-  return ast.CreateCompoundStmt(region_body);
+  return dec_ctx.ast.CreateCompoundStmt(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
@@ -413,7 +413,7 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
   // a recognized natural loop. Cyclic regions may only be fragments
   // of a larger loop structure.
   if (!loop) {
-    return ast.CreateCompoundStmt(region_body);
+    return dec_ctx.ast.CreateCompoundStmt(region_body);
   }
   // Refine loop members and successors without invalidating LoopInfo
   BBSet members, successors;
@@ -447,9 +447,9 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     auto it = std::find(loop_body.begin(), loop_body.end(), block_stmts[from]);
     CHECK(it != loop_body.end());
     // Create a loop exiting `break` statement
-    StmtVec break_stmt({ast.CreateBreak()});
-    auto exit_stmt =
-        ast.CreateIf(dec_ctx.marker_expr, ast.CreateCompoundStmt(break_stmt));
+    StmtVec break_stmt({dec_ctx.ast.CreateBreak()});
+    auto exit_stmt = dec_ctx.ast.CreateIf(
+        dec_ctx.marker_expr, dec_ctx.ast.CreateCompoundStmt(break_stmt));
     // Create edge condition
     dec_ctx.conds[exit_stmt] = dec_ctx.InsertZExpr(
         (ToExpr(GetReachingCond(from)) && ToExpr(GetOrCreateEdgeCond(from, to)))
@@ -458,12 +458,12 @@ clang::CompoundStmt *GenerateAST::StructureCyclicRegion(llvm::Region *region) {
     loop_body.insert(std::next(it), exit_stmt);
   }
   // Create the loop statement
-  auto loop_stmt =
-      ast.CreateWhile(ast.CreateTrue(), ast.CreateCompoundStmt(loop_body));
+  auto loop_stmt = dec_ctx.ast.CreateWhile(
+      dec_ctx.ast.CreateTrue(), dec_ctx.ast.CreateCompoundStmt(loop_body));
   // Insert it at the beginning of the region body
   region_body.insert(region_body.begin(), loop_stmt);
   // Structure the rest of the loop body as a acyclic region
-  return ast.CreateCompoundStmt(region_body);
+  return dec_ctx.ast.CreateCompoundStmt(region_body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
@@ -475,15 +475,15 @@ clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
   auto sw_inst{
       llvm::cast<llvm::SwitchInst>(region->getEntry()->getTerminator())};
   auto cond{ast_gen.CreateOperandExpr(sw_inst->getOperandUse(0))};
-  auto sw_stmt{ast.CreateSwitchStmt(cond)};
+  auto sw_stmt{dec_ctx.ast.CreateSwitchStmt(cond)};
   StmtVec sw_body;
 
   auto default_dest{sw_inst->getDefaultDest()};
   if (default_dest != region->getExit()) {
     auto default_body{CreateBasicBlockStmts(default_dest)};
-    sw_body.push_back(
-        ast.CreateDefaultStmt(ast.CreateCompoundStmt(default_body)));
-    sw_body.push_back(ast.CreateBreak());
+    sw_body.push_back(dec_ctx.ast.CreateDefaultStmt(
+        dec_ctx.ast.CreateCompoundStmt(default_body)));
+    sw_body.push_back(dec_ctx.ast.CreateBreak());
   }
 
   std::vector<llvm::SwitchInst::CaseHandle> cases{sw_inst->case_begin(),
@@ -496,20 +496,20 @@ clang::CompoundStmt *GenerateAST::StructureSwitchRegion(llvm::Region *region) {
     }
 
     auto value{ast_gen.CreateConstantExpr(sw_case.getCaseValue())};
-    auto case_stmt{ast.CreateCaseStmt(value)};
+    auto case_stmt{dec_ctx.ast.CreateCaseStmt(value)};
     if (successor != region->getExit()) {
       auto case_body{CreateBasicBlockStmts(successor)};
-      case_stmt->setSubStmt(ast.CreateCompoundStmt(case_body));
+      case_stmt->setSubStmt(dec_ctx.ast.CreateCompoundStmt(case_body));
       sw_body.push_back(case_stmt);
-      sw_body.push_back(ast.CreateBreak());
+      sw_body.push_back(dec_ctx.ast.CreateBreak());
     } else {
-      case_stmt->setSubStmt(ast.CreateBreak());
+      case_stmt->setSubStmt(dec_ctx.ast.CreateBreak());
       sw_body.push_back(case_stmt);
     }
   }
-  sw_stmt->setBody(ast.CreateCompoundStmt(sw_body));
+  sw_stmt->setBody(dec_ctx.ast.CreateCompoundStmt(sw_body));
   body.push_back(sw_stmt);
-  return ast.CreateCompoundStmt(body);
+  return dec_ctx.ast.CreateCompoundStmt(body);
 }
 
 clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
@@ -536,12 +536,8 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 llvm::AnalysisKey GenerateAST::Key;
 
-GenerateAST::GenerateAST(DecompilationContext &dec_ctx, clang::ASTUnit &unit)
-    : ast_ctx(&unit.getASTContext()),
-      unit(unit),
-      dec_ctx(dec_ctx),
-      ast_gen(unit, dec_ctx),
-      ast(unit) {}
+GenerateAST::GenerateAST(DecompilationContext &dec_ctx)
+    : dec_ctx(dec_ctx), ast_gen(dec_ctx) {}
 
 GenerateAST::Result GenerateAST::run(llvm::Module &module,
                                      llvm::ModuleAnalysisManager &MAM) {
@@ -621,9 +617,9 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // Get the function declaration AST node for `func`
   auto fdecl = clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[&func]);
   // Create a redeclaration of `fdecl` that will serve as a definition
-  auto tudecl = ast_ctx->getTranslationUnitDecl();
-  auto fdefn =
-      ast.CreateFunctionDecl(tudecl, fdecl->getType(), fdecl->getIdentifier());
+  auto tudecl = dec_ctx.ast_ctx.getTranslationUnitDecl();
+  auto fdefn = dec_ctx.ast.CreateFunctionDecl(tudecl, fdecl->getType(),
+                                              fdecl->getIdentifier());
   fdefn->setPreviousDecl(fdecl);
   dec_ctx.value_decls[&func] = fdefn;
   tudecl->addDecl(fdefn);
@@ -634,7 +630,7 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // Add declarations of local variables
   for (auto decl : fdecl->decls()) {
     if (clang::isa<clang::VarDecl>(decl)) {
-      fbody.push_back(ast.CreateDeclStmt(decl));
+      fbody.push_back(dec_ctx.ast.CreateDeclStmt(decl));
     }
   }
   // Add statements of the top-level region compound
@@ -642,25 +638,24 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
     fbody.push_back(stmt);
   }
   // Set body to a new compound
-  fdefn->setBody(ast.CreateCompoundStmt(fbody));
+  fdefn->setBody(dec_ctx.ast.CreateCompoundStmt(fbody));
 
   return llvm::PreservedAnalyses::all();
 }
 
-void GenerateAST::run(llvm::Module &module, DecompilationContext &dec_ctx,
-                      clang::ASTUnit &unit) {
+void GenerateAST::run(llvm::Module &module, DecompilationContext &dec_ctx) {
   llvm::ModulePassManager mpm;
   llvm::ModuleAnalysisManager mam;
   llvm::PassBuilder pb;
-  mam.registerPass([&] { return rellic::GenerateAST(dec_ctx, unit); });
-  mpm.addPass(rellic::GenerateAST(dec_ctx, unit));
+  mam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
+  mpm.addPass(rellic::GenerateAST(dec_ctx));
   pb.registerModuleAnalyses(mam);
   mpm.run(module, mam);
 
   llvm::FunctionPassManager fpm;
   llvm::FunctionAnalysisManager fam;
-  fam.registerPass([&] { return rellic::GenerateAST(dec_ctx, unit); });
-  fpm.addPass(rellic::GenerateAST(dec_ctx, unit));
+  fam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
+  fpm.addPass(rellic::GenerateAST(dec_ctx));
   pb.registerFunctionAnalyses(fam);
   for (auto &func : module.functions()) {
     fpm.run(func, fam);

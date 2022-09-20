@@ -35,8 +35,7 @@ class LocalDeclRenamer : public TransformVisitor<LocalDeclRenamer> {
   void RunImpl() override;
 
  public:
-  LocalDeclRenamer(DecompilationContext &dec_ctx, clang::ASTUnit &unit,
-                   IRToNameMap &names);
+  LocalDeclRenamer(DecompilationContext &dec_ctx, IRToNameMap &names);
 
   bool shouldTraversePostOrder() override;
   bool VisitVarDecl(clang::VarDecl *decl);

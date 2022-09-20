@@ -15,9 +15,8 @@
 
 namespace rellic {
 
-ReachBasedRefine::ReachBasedRefine(DecompilationContext &dec_ctx,
-                                   clang::ASTUnit &unit)
-    : TransformVisitor<ReachBasedRefine>(dec_ctx, unit) {}
+ReachBasedRefine::ReachBasedRefine(DecompilationContext &dec_ctx)
+    : TransformVisitor<ReachBasedRefine>(dec_ctx) {}
 
 bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
@@ -127,7 +126,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
 
   if (done_something) {
-    substitutions[compound] = ast.CreateCompoundStmt(body);
+    substitutions[compound] = dec_ctx.ast.CreateCompoundStmt(body);
   }
   return !Stopped();
 }
@@ -135,7 +134,7 @@ bool ReachBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
 void ReachBasedRefine::RunImpl() {
   LOG(INFO) << "Reachability-based refinement";
   TransformVisitor<ReachBasedRefine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseDecl(dec_ctx.ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

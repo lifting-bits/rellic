@@ -27,17 +27,12 @@
 namespace rellic {
 class IRToASTVisitor {
  private:
-  clang::ASTUnit &ast_unit;
-  clang::ASTContext &ast_ctx;
-
-  ASTBuilder ast;
-
   DecompilationContext &dec_ctx;
 
   void VisitArgument(llvm::Argument &arg);
 
  public:
-  IRToASTVisitor(clang::ASTUnit &unit, DecompilationContext &dec_ctx);
+  IRToASTVisitor(DecompilationContext &dec_ctx);
 
   clang::Expr *CreateOperandExpr(llvm::Use &val);
   clang::Expr *CreateConstantExpr(llvm::Constant *constant);

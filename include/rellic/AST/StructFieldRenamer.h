@@ -29,8 +29,7 @@ class StructFieldRenamer
   void RunImpl() override;
 
  public:
-  StructFieldRenamer(DecompilationContext &dec_ctx, clang::ASTUnit &unit,
-                     IRTypeToDITypeMap &types);
+  StructFieldRenamer(DecompilationContext &dec_ctx, IRTypeToDITypeMap &types);
 
   bool VisitRecordDecl(clang::RecordDecl *decl);
 };

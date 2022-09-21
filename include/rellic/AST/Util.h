@@ -104,6 +104,8 @@ struct DecompilationContext {
 
   // Inserts an expression into z3_exprs and returns its index
   unsigned InsertZExpr(const z3::expr &e);
+
+  clang::QualType GetQualType(llvm::Type *type);
 };
 
 template <typename TKey1, typename TKey2, typename TKey3, typename TValue>

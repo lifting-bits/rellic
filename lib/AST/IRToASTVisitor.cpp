@@ -20,6 +20,7 @@
 #include <iterator>
 
 #include "rellic/AST/IRToASTVisitor.h"
+#include "rellic/AST/TypeProvider.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -158,7 +159,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     return;
   }
 
-  auto type{gvar.getValueType()};
+  auto type{dec_ctx.type_provider->GetGlobalVarType(gvar)};
   auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
   auto name{gvar.getName().str()};
   if (name.empty()) {
@@ -166,7 +167,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 
   // Create a variable declaration
-  var = dec_ctx.ast.CreateVarDecl(tudecl, dec_ctx.GetQualType(type), name);
+  var = dec_ctx.ast.CreateVarDecl(tudecl, type, name);
   // Add to translation unit
   tudecl->addDecl(var);
 
@@ -1103,39 +1104,9 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   // Get parent function declaration
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[func])};
-  auto argtype{arg.getType()};
-  if (arg.hasByValAttr()) {
-    auto byval{arg.getAttribute(llvm::Attribute::ByVal)};
-    argtype = byval.getValueAsType();
-  }
+  auto argtype{dec_ctx.type_provider->GetArgumentType(arg)};
   // Create a declaration
-  parm = dec_ctx.ast.CreateParamDecl(fdecl, dec_ctx.GetQualType(argtype), name);
-}
-
-// This function fixes function types for those functions that have arguments
-// that are passed by value using the `byval` attribute.
-// They need special treatment because those arguments, instead of actually
-// being passed by value, are instead passed "by reference" from a bitcode point
-// of view, with the caveat that the actual semantics are more like "create a
-// copy of the reference before calling, and pass a pointer to that copy
-// instead" (this is done implicitly).
-// Thus, we need to convert a function type like
-//   i32 @do_foo(%struct.foo* byval(%struct.foo) align 4 %f)
-// into
-//   i32 @do_foo(%struct.foo %f)
-static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
-  std::vector<llvm::Type *> new_arg_types{};
-
-  for (auto &arg : func.args()) {
-    if (arg.hasByValAttr()) {
-      new_arg_types.push_back(arg.getParamByValType());
-    } else {
-      new_arg_types.push_back(arg.getType());
-    }
-  }
-
-  return llvm::FunctionType::get(func.getReturnType(), new_arg_types,
-                                 func.isVarArg());
+  parm = dec_ctx.ast.CreateParamDecl(fdecl, argtype, name);
 }
 
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
@@ -1176,8 +1147,16 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
-  auto type{dec_ctx.GetQualType(GetFixedFunctionType(func))};
-  decl = dec_ctx.ast.CreateFunctionDecl(tudecl, type, name);
+
+  std::vector<clang::QualType> arg_types;
+  for (auto &arg : func.args()) {
+    arg_types.push_back(dec_ctx.type_provider->GetArgumentType(arg));
+  }
+  auto ret_type{dec_ctx.type_provider->GetFunctionReturnType(func)};
+  clang::FunctionProtoType::ExtProtoInfo epi;
+  epi.Variadic = func.isVarArg();
+  auto ftype{dec_ctx.ast_ctx.getFunctionType(ret_type, arg_types, epi)};
+  decl = dec_ctx.ast.CreateFunctionDecl(tudecl, ftype, name);
 
   tudecl->addDecl(decl);
 

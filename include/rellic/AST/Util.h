@@ -19,6 +19,7 @@
 #include <unordered_map>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/AST/TypeProvider.h"
 
 namespace rellic {
 
@@ -72,6 +73,8 @@ struct DecompilationContext {
   clang::ASTUnit &ast_unit;
   clang::ASTContext &ast_ctx;
   ASTBuilder ast;
+
+  std::unique_ptr<TypeProviderCombiner> type_provider;
 
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;

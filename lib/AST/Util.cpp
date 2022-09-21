@@ -19,6 +19,7 @@
 #include <numeric>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/AST/TypeProvider.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -392,7 +393,8 @@ DecompilationContext::DecompilationContext(clang::ASTUnit &ast_unit)
     : ast_unit(ast_unit),
       ast_ctx(ast_unit.getASTContext()),
       ast(ast_unit),
-      marker_expr(ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse())) {}
+      marker_expr(ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse())),
+      type_provider(std::make_unique<TypeProviderCombiner>(*this)) {}
 
 unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
   auto idx{z3_exprs.size()};

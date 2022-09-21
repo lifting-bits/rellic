@@ -83,10 +83,50 @@ clang::QualType ByValFixupTypeProvider::GetArgumentType(llvm::Argument& arg) {
   return dec_ctx.GetQualType(byval.getValueAsType());
 }
 
+// Fixes the function signature for `main`
+class MainFuncTypeProvider : public TypeProvider {
+ public:
+  MainFuncTypeProvider(DecompilationContext& dec_ctx);
+  clang::QualType GetFunctionReturnType(llvm::Function& func) override;
+  clang::QualType GetArgumentType(llvm::Argument& arg) override;
+};
+
+MainFuncTypeProvider::MainFuncTypeProvider(DecompilationContext& dec_ctx)
+    : TypeProvider(dec_ctx) {}
+clang::QualType MainFuncTypeProvider::GetFunctionReturnType(
+    llvm::Function& func) {
+  if (func.getName() != "main") {
+    return {};
+  }
+  return dec_ctx.ast_ctx.IntTy;
+}
+
+clang::QualType MainFuncTypeProvider::GetArgumentType(llvm::Argument& arg) {
+  if (arg.getParent()->getName() != "main") {
+    return {};
+  }
+
+  auto arg_no{arg.getArgNo()};
+  switch (arg.getArgNo()) {
+    case 0:  // argc
+      return dec_ctx.ast_ctx.IntTy;
+    case 1:  // argv and envp
+    case 2: {
+      auto char_ty{dec_ctx.ast_ctx.CharTy};
+      auto char_ptr{dec_ctx.ast_ctx.getPointerType(char_ty)};
+      auto char_ptr_ptr{dec_ctx.ast_ctx.getPointerType(char_ptr)};
+      return char_ptr_ptr;
+    }
+    default:
+      return {};
+  }
+}
+
 TypeProviderCombiner::TypeProviderCombiner(DecompilationContext& dec_ctx)
     : TypeProvider(dec_ctx) {
   AddProvider<FallbackTypeProvider>();
   AddProvider<ByValFixupTypeProvider>();
+  AddProvider<MainFuncTypeProvider>();
 }
 
 void TypeProviderCombiner::AddProvider(std::unique_ptr<TypeProvider> provider) {

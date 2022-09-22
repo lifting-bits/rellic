@@ -88,6 +88,7 @@ set(BC_SOURCES
   BC/Util.cpp
 )
 
+
 add_library("${PROJECT_NAME}" STATIC
   ${public_HEADERS}
   ${AST_SOURCES}
@@ -95,62 +96,64 @@ add_library("${PROJECT_NAME}" STATIC
 
   Decompiler.cpp
   Exception.cpp
-
-  "${POST_CONFIGURE_FILE}" # Version.cpp
+  
+  "${POST_CONFIGURE_FILE}"  # Version.cpp
 )
+
 
 set_target_properties(
   "${PROJECT_NAME}" PROPERTIES
-  VISIBILITY_INLINES_HIDDEN YES
-  CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN YES
+    CXX_VISIBILITY_PRESET hidden
 )
 
-# link version information
+#link version information
 target_link_libraries("${PROJECT_NAME}"
   PUBLIC
-  "${PROJECT_NAME}_cxx_settings"
-  glog::glog
-  z3::libz3
-  "${llvm_libs}"
-  clangIndex
-  clangCodeGen
-  clangASTMatchers
-  clangTooling
+    "${PROJECT_NAME}_cxx_settings"
+    glog::glog
+    z3::libz3
+    "${llvm_libs}"
+    clangIndex
+    clangCodeGen
+    clangASTMatchers
+    clangTooling
 )
 
 set_target_properties("${PROJECT_NAME}"
   PROPERTIES
-  LINKER_LANGUAGE
-  CXX
+    LINKER_LANGUAGE
+      CXX
 )
 
 target_include_directories("${PROJECT_NAME}"
   PUBLIC
-  $<BUILD_INTERFACE:${RELLIC_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${RELLIC_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
 if(RELLIC_ENABLE_INSTALL)
   include(GNUInstallDirs)
   install(
     DIRECTORY
-    "${include_dir}"
+      "${include_dir}"
     DESTINATION
-    ${CMAKE_INSTALL_INCLUDEDIR})
-
+      ${CMAKE_INSTALL_INCLUDEDIR})
+  
+  
   install(
     TARGETS
-    "${PROJECT_NAME}"
+      "${PROJECT_NAME}"
     EXPORT
-    "${PROJECT_NAME}Targets"
+      "${PROJECT_NAME}Targets"
     RUNTIME
-    DESTINATION
-    ${CMAKE_INSTALL_BINDIR}
+      DESTINATION
+        ${CMAKE_INSTALL_BINDIR}
     LIBRARY
-    DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}
+      DESTINATION
+        ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE
-    DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}
+      DESTINATION
+        ${CMAKE_INSTALL_LIBDIR}
   )
 endif(RELLIC_ENABLE_INSTALL)

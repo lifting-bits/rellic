@@ -24,13 +24,16 @@ class TypeProvider {
   TypeProvider(DecompilationContext& dec_ctx);
   virtual ~TypeProvider();
 
-  // Returns the return type of a function if available
+  // Returns the return type of a function if available.
+  // A null return value is assumed to mean that no info is available.
   virtual clang::QualType GetFunctionReturnType(llvm::Function& func);
 
-  // Returns the type of the argument if available
+  // Returns the type of the argument if available.
+  // A null return value is assumed to mean that no info is available.
   virtual clang::QualType GetArgumentType(llvm::Argument& arg);
 
-  // Returns the type of a global variable if available
+  // Returns the type of a global variable if available.
+  // A null return value is assumed to mean that no info is available.
   virtual clang::QualType GetGlobalVarType(llvm::GlobalVariable& gvar);
 };
 
@@ -40,9 +43,10 @@ class TypeProviderCombiner : public TypeProvider {
 
  public:
   TypeProviderCombiner(DecompilationContext& dec_ctx);
-  template <typename T>
-  void AddProvider() {
-    providers.push_back(std::make_unique<T>(dec_ctx));
+  template <typename T, typename... TArgs>
+  void AddProvider(TArgs&&... args) {
+    providers.push_back(
+        std::make_unique<T>(dec_ctx, std::forward<TArgs>(args)...));
   }
 
   void AddProvider(std::unique_ptr<TypeProvider> provider);

@@ -17,6 +17,7 @@
 #include <map>
 #include <unordered_set>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/IRToASTVisitor.h"
 
 namespace rellic {
@@ -31,6 +32,7 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
   rellic::IRToASTVisitor ast_gen;
   DecompilationContext &dec_ctx;
+  ASTBuilder &ast;
   bool reaching_conds_changed{true};
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;

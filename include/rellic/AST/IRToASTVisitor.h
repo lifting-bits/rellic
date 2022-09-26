@@ -28,6 +28,7 @@ namespace rellic {
 class IRToASTVisitor {
  private:
   DecompilationContext &dec_ctx;
+  ASTBuilder &ast;
 
   void VisitArgument(llvm::Argument &arg);
 

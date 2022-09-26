@@ -364,16 +364,18 @@ class TripleCStyleCastElimRule : public InferenceRule {
     CHECK(cast == match)
         << "Substituted CStyleCastExpr is not the matched CStyleCastExpr!";
 
+    auto &ctx{dec_ctx.ast_ctx};
+
     auto subcast{clang::cast<clang::CStyleCastExpr>(
         cast->getSubExpr()->IgnoreParenImpCasts())};
 
     auto subsubcast{clang::cast<clang::CStyleCastExpr>(
         subcast->getSubExpr()->IgnoreParenImpCasts())};
 
-    if (dec_ctx.ast_ctx.getTypeSize(cast->getType()) ==
-            dec_ctx.ast_ctx.getTypeSize(subsubcast->getType()) &&
-        dec_ctx.ast_ctx.getTypeSize(cast->getType()) <=
-            dec_ctx.ast_ctx.getTypeSize(subcast->getType())) {
+    if (ctx.getTypeSize(cast->getType()) ==
+            ctx.getTypeSize(subsubcast->getType()) &&
+        ctx.getTypeSize(cast->getType()) <=
+            ctx.getTypeSize(subcast->getType())) {
       return dec_ctx.ast.CreateCStyleCast(cast->getType(), subsubcast);
     }
 

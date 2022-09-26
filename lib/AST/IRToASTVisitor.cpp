@@ -28,11 +28,13 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
  private:
   DecompilationContext &dec_ctx;
   ASTBuilder &ast;
+  clang::ASTContext &ast_ctx;
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
 
  public:
-  ExprGen(DecompilationContext &dec_ctx) : dec_ctx(dec_ctx), ast(dec_ctx.ast) {}
+  ExprGen(DecompilationContext &dec_ctx)
+      : dec_ctx(dec_ctx), ast(dec_ctx.ast), ast_ctx(dec_ctx.ast_ctx) {}
 
   void VisitGlobalVar(llvm::GlobalVariable &gvar);
   clang::QualType GetQualType(llvm::Type *type);
@@ -158,7 +160,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 
   auto type{gvar.getValueType()};
-  auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
+  auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto name{gvar.getName().str()};
   if (name.empty()) {
     name = "gvar" + std::to_string(GetNumDecls<clang::VarDecl>(tudecl));
@@ -185,27 +187,27 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
   clang::QualType result;
   switch (type->getTypeID()) {
     case llvm::Type::VoidTyID:
-      result = dec_ctx.ast_ctx.VoidTy;
+      result = ast_ctx.VoidTy;
       break;
 
     case llvm::Type::HalfTyID:
-      result = dec_ctx.ast_ctx.HalfTy;
+      result = ast_ctx.HalfTy;
       break;
 
     case llvm::Type::FloatTyID:
-      result = dec_ctx.ast_ctx.FloatTy;
+      result = ast_ctx.FloatTy;
       break;
 
     case llvm::Type::DoubleTyID:
-      result = dec_ctx.ast_ctx.DoubleTy;
+      result = ast_ctx.DoubleTy;
       break;
 
     case llvm::Type::X86_FP80TyID:
-      result = dec_ctx.ast_ctx.LongDoubleTy;
+      result = ast_ctx.LongDoubleTy;
       break;
 
     case llvm::Type::FP128TyID:
-      result = dec_ctx.ast_ctx.Float128Ty;
+      result = ast_ctx.Float128Ty;
       break;
 
     case llvm::Type::IntegerTyID: {
@@ -223,15 +225,15 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
       }
       auto epi{clang::FunctionProtoType::ExtProtoInfo()};
       epi.Variadic = func->isVarArg();
-      result = dec_ctx.ast_ctx.getFunctionType(ret, params, epi);
+      result = ast_ctx.getFunctionType(ret, params, epi);
     } break;
 
     case llvm::Type::PointerTyID: {
       auto ptr_type{llvm::cast<llvm::PointerType>(type)};
       if (ptr_type->isOpaque()) {
-        result = dec_ctx.ast_ctx.VoidPtrTy;
+        result = ast_ctx.VoidPtrTy;
       } else {
-        result = dec_ctx.ast_ctx.getPointerType(
+        result = ast_ctx.getPointerType(
             GetQualType(ptr_type->getNonOpaquePointerElementType()));
       }
     } break;
@@ -239,7 +241,7 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
     case llvm::Type::ArrayTyID: {
       auto arr{llvm::cast<llvm::ArrayType>(type)};
       auto elm{GetQualType(arr->getElementType())};
-      result = dec_ctx.ast_ctx.getConstantArrayType(
+      result = ast_ctx.getConstantArrayType(
           elm, llvm::APInt(64, arr->getNumElements()), nullptr,
           clang::ArrayType::ArraySizeModifier::Normal, 0);
     } break;
@@ -248,7 +250,7 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
       clang::RecordDecl *sdecl{nullptr};
       auto &decl{dec_ctx.type_decls[type]};
       if (!decl) {
-        auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
+        auto tudecl{ast_ctx.getTranslationUnitDecl()};
         auto strct{llvm::cast<llvm::StructType>(type)};
         auto sname{strct->isLiteral()
                        ? ("literal_struct_" +
@@ -276,11 +278,11 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
       } else {
         sdecl = clang::cast<clang::RecordDecl>(decl);
       }
-      result = dec_ctx.ast_ctx.getRecordType(sdecl);
+      result = ast_ctx.getRecordType(sdecl);
     } break;
 
     case llvm::Type::MetadataTyID:
-      result = dec_ctx.ast_ctx.VoidPtrTy;
+      result = ast_ctx.VoidPtrTy;
       break;
 
     default: {
@@ -289,7 +291,7 @@ clang::QualType ExprGen::GetQualType(llvm::Type *type) {
         auto etype{GetQualType(vtype->getElementType())};
         auto ecnt{vtype->getNumElements()};
         auto vkind{clang::VectorType::GenericVector};
-        result = dec_ctx.ast_ctx.getVectorType(etype, ecnt, vkind);
+        result = ast_ctx.getVectorType(etype, ecnt, vkind);
       } else {
         THROW() << "Unknown LLVM Type: " << LLVMThingToString(type);
       }
@@ -354,8 +356,7 @@ clang::Expr *ExprGen::CreateLiteralExpr(llvm::Constant *constant) {
       if (llvm::isa<llvm::ConstantInt>(constant)) {
         auto val{llvm::cast<llvm::ConstantInt>(constant)->getValue()};
         auto val_bitwidth{val.getBitWidth()};
-        auto ull_bitwidth{
-            dec_ctx.ast_ctx.getIntWidth(dec_ctx.ast_ctx.LongLongTy)};
+        auto ull_bitwidth{ast_ctx.getIntWidth(ast_ctx.LongLongTy)};
         if (val_bitwidth == 1U) {
           // Booleans
           result = ast.CreateIntLit(val);
@@ -367,7 +368,7 @@ clang::Expr *ExprGen::CreateLiteralExpr(llvm::Constant *constant) {
           auto lo{ast.CreateIntLit(val.extractBits(64U, 0U))};
           auto hi{ast.CreateIntLit(val.extractBits(val_bitwidth - 64U, 64U))};
           auto shl_val{ast.CreateIntLit(llvm::APInt(32U, 64U))};
-          result = ast.CreateCStyleCast(dec_ctx.ast_ctx.UnsignedInt128Ty, hi);
+          result = ast.CreateCStyleCast(ast_ctx.UnsignedInt128Ty, hi);
           result = ast.CreateShl(result, shl_val);
           result = ast.CreateOr(result, lo);
         }
@@ -575,8 +576,8 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto &arg{inst.getArgOperandUse(i)};
     auto opnd{CreateOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
-      auto ptr_type{dec_ctx.ast_ctx.getPointerType(
-          GetQualType(inst.getParamByValType(i)))};
+      auto ptr_type{
+          ast_ctx.getPointerType(GetQualType(inst.getParamByValType(i)))};
       opnd = ast.CreateDeref(ast.CreateCStyleCast(ptr_type, opnd));
       dec_ctx.use_provenance[opnd] = &arg;
     }
@@ -591,8 +592,7 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
       callexpr = ast.CreateCall(fdecl, args);
     } else {
       // Cast function type to match the one used in the call instruction
-      auto funcPtr{
-          dec_ctx.ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
+      auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
       auto callee{ast.CreateAddrOf(ast.CreateDeclRef(fdecl))};
       auto cast{ast.CreateCStyleCast(funcPtr, callee)};
       callexpr = ast.CreateCall(cast, args);
@@ -601,8 +601,7 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto fdecl{dec_ctx.value_decls[iasm]->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);
   } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
-    auto funcPtr{
-        dec_ctx.ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
+    auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
     auto cast{ast.CreateCStyleCast(funcPtr, CreateOperandExpr(callee))};
     callexpr = ast.CreateCall(cast, args);
   } else {
@@ -678,7 +677,7 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto base{CreateOperandExpr(ptr_opnd)};
 
   auto ptr_type{
-      dec_ctx.ast_ctx.getPointerType(GetQualType(inst.getSourceElementType()))};
+      ast_ctx.getPointerType(GetQualType(inst.getSourceElementType()))};
   base = ast.CreateCStyleCast(ptr_type, base);
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
@@ -720,7 +719,7 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
           auto l_vec_ty{llvm::cast<llvm::VectorType>(indexed_type)};
           auto l_elm_ty{l_vec_ty->getElementType()};
           auto c_elm_ty{GetQualType(l_elm_ty)};
-          base = ast.CreateCStyleCast(dec_ctx.ast_ctx.getPointerType(c_elm_ty),
+          base = ast.CreateCStyleCast(ast_ctx.getPointerType(c_elm_ty),
                                       ast.CreateAddrOf(base));
           base = ast.CreateArraySub(base, CreateOperandExpr(idx));
           indexed_type = l_elm_ty;
@@ -784,7 +783,7 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  auto ptr_type{dec_ctx.ast_ctx.getPointerType(GetQualType(inst.getType()))};
+  auto ptr_type{ast_ctx.getPointerType(GetQualType(inst.getType()))};
   auto cast{
       ast.CreateCStyleCast(ptr_type, CreateOperandExpr(inst.getOperandUse(0)))};
   return ast.CreateDeref(cast);
@@ -797,8 +796,8 @@ clang::Expr *ExprGen::visitBinaryOperator(llvm::BinaryOperator &inst) {
   auto rhs{CreateOperandExpr(inst.getOperandUse(1))};
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *operand, bool sign) {
-    auto type{dec_ctx.ast_ctx.getIntTypeForBitwidth(
-        dec_ctx.ast_ctx.getTypeSize(operand->getType()), sign)};
+    auto type{ast_ctx.getIntTypeForBitwidth(
+        ast_ctx.getTypeSize(operand->getType()), sign)};
     return ast.CreateCStyleCast(type, operand);
   }};
   clang::Expr *res;
@@ -880,8 +879,7 @@ clang::Expr *ExprGen::visitCmpInst(llvm::CmpInst &inst) {
   // Sign-cast int operand
   auto IntSignCast{[this](clang::Expr *op, bool sign) {
     auto ot{op->getType()};
-    auto rt{dec_ctx.ast_ctx.getIntTypeForBitwidth(
-        dec_ctx.ast_ctx.getTypeSize(ot), sign)};
+    auto rt{ast_ctx.getIntTypeForBitwidth(ast_ctx.getTypeSize(ot), sign)};
     if (rt == ot) {
       return op;
     } else {
@@ -990,19 +988,19 @@ clang::Expr *ExprGen::visitCastInst(llvm::CastInst &inst) {
   // Adjust type
   switch (inst.getOpcode()) {
     case llvm::CastInst::Trunc: {
-      auto bitwidth{dec_ctx.ast_ctx.getTypeSize(type)};
+      auto bitwidth{ast_ctx.getTypeSize(type)};
       auto sign{operand->getType()->isSignedIntegerType()};
-      type = dec_ctx.ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, sign);
     } break;
 
     case llvm::CastInst::ZExt: {
-      auto bitwidth{dec_ctx.ast_ctx.getTypeSize(type)};
-      type = dec_ctx.ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/0U);
+      auto bitwidth{ast_ctx.getTypeSize(type)};
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/0U);
     } break;
 
     case llvm::CastInst::SExt: {
-      auto bitwidth{dec_ctx.ast_ctx.getTypeSize(type)};
-      type = dec_ctx.ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1U);
+      auto bitwidth{ast_ctx.getTypeSize(type)};
+      type = ast_ctx.getIntTypeForBitwidth(bitwidth, /*signed=*/1U);
     } break;
 
     case llvm::CastInst::AddrSpaceCast:
@@ -1074,10 +1072,14 @@ class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
   ExprGen &expr_gen;
   DecompilationContext &dec_ctx;
   ASTBuilder &ast;
+  clang::ASTContext &ast_ctx;
 
  public:
   StmtGen(ExprGen &expr_gen, DecompilationContext &dec_ctx)
-      : expr_gen(expr_gen), dec_ctx(dec_ctx), ast(dec_ctx.ast) {}
+      : expr_gen(expr_gen),
+        dec_ctx(dec_ctx),
+        ast(dec_ctx.ast),
+        ast_ctx(dec_ctx.ast_ctx) {}
 
   clang::Stmt *visitStoreInst(llvm::StoreInst &inst);
   clang::Stmt *visitCallInst(llvm::CallInst &inst);
@@ -1096,8 +1098,8 @@ clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   auto &value_opnd{inst.getOperandUse(0)};
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
-  auto ptr_type{dec_ctx.ast_ctx.getPointerType(
-      expr_gen.GetQualType(value_opnd->getType()))};
+  auto ptr_type{
+      ast_ctx.getPointerType(expr_gen.GetQualType(value_opnd->getType()))};
   auto lhs{ast.CreateCStyleCast(
       ptr_type, expr_gen.CreateOperandExpr(
                     inst.getOperandUse(inst.getPointerOperandIndex())))};

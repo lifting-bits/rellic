@@ -536,12 +536,8 @@ clang::CompoundStmt *GenerateAST::StructureRegion(llvm::Region *region) {
 
 llvm::AnalysisKey GenerateAST::Key;
 
-GenerateAST::GenerateAST(DecompilationContext &dec_ctx, clang::ASTUnit &unit)
-    : ast_ctx(&unit.getASTContext()),
-      unit(unit),
-      dec_ctx(dec_ctx),
-      ast_gen(unit, dec_ctx),
-      ast(unit) {}
+GenerateAST::GenerateAST(DecompilationContext &dec_ctx)
+    : dec_ctx(dec_ctx), ast(dec_ctx.ast), ast_gen(dec_ctx) {}
 
 GenerateAST::Result GenerateAST::run(llvm::Module &module,
                                      llvm::ModuleAnalysisManager &MAM) {
@@ -621,7 +617,7 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   // Get the function declaration AST node for `func`
   auto fdecl = clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[&func]);
   // Create a redeclaration of `fdecl` that will serve as a definition
-  auto tudecl = ast_ctx->getTranslationUnitDecl();
+  auto tudecl = dec_ctx.ast_ctx.getTranslationUnitDecl();
   auto fdefn =
       ast.CreateFunctionDecl(tudecl, fdecl->getType(), fdecl->getIdentifier());
   fdefn->setPreviousDecl(fdecl);
@@ -647,20 +643,19 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   return llvm::PreservedAnalyses::all();
 }
 
-void GenerateAST::run(llvm::Module &module, DecompilationContext &dec_ctx,
-                      clang::ASTUnit &unit) {
+void GenerateAST::run(llvm::Module &module, DecompilationContext &dec_ctx) {
   llvm::ModulePassManager mpm;
   llvm::ModuleAnalysisManager mam;
   llvm::PassBuilder pb;
-  mam.registerPass([&] { return rellic::GenerateAST(dec_ctx, unit); });
-  mpm.addPass(rellic::GenerateAST(dec_ctx, unit));
+  mam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
+  mpm.addPass(rellic::GenerateAST(dec_ctx));
   pb.registerModuleAnalyses(mam);
   mpm.run(module, mam);
 
   llvm::FunctionPassManager fpm;
   llvm::FunctionAnalysisManager fam;
-  fam.registerPass([&] { return rellic::GenerateAST(dec_ctx, unit); });
-  fpm.addPass(rellic::GenerateAST(dec_ctx, unit));
+  fam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
+  fpm.addPass(rellic::GenerateAST(dec_ctx));
   pb.registerFunctionAnalyses(fam);
   for (auto &func : module.functions()) {
     fpm.run(func, fam);

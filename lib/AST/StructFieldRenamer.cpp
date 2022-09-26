@@ -18,9 +18,8 @@
 namespace rellic {
 
 StructFieldRenamer::StructFieldRenamer(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit,
                                        IRTypeToDITypeMap &types)
-    : ASTPass(dec_ctx, unit), types(types) {}
+    : ASTPass(dec_ctx), types(types) {}
 
 bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
   auto type{decls[decl]};
@@ -54,11 +53,12 @@ bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
     auto name{di_field->getName().str()};
     if (seen_names.find(name) == seen_names.end()) {
       seen_names.insert(name);
-      decl_field->setDeclName(ast.CreateIdentifier(name));
+      decl_field->setDeclName(dec_ctx.ast.CreateIdentifier(name));
       changed = true;
     } else {
       auto old_name{decl_field->getName().str()};
-      decl_field->setDeclName(ast.CreateIdentifier(name + "_" + old_name));
+      decl_field->setDeclName(
+          dec_ctx.ast.CreateIdentifier(name + "_" + old_name));
       changed = true;
     }
   }
@@ -71,7 +71,7 @@ void StructFieldRenamer::RunImpl() {
   for (auto &pair : dec_ctx.type_decls) {
     decls[pair.second] = pair.first;
   }
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseDecl(dec_ctx.ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

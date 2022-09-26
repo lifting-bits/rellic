@@ -106,8 +106,6 @@ class CompoundVisitor
     : public clang::StmtVisitor<CompoundVisitor, bool, KnownExprs&> {
  private:
   DecompilationContext& dec_ctx;
-  ASTBuilder& ast;
-  clang::ASTContext& ctx;
 
   template <bool cond_is_true_in_body, typename T>
   bool VisitLoop(T* loop, KnownExprs& known_exprs) {
@@ -133,9 +131,7 @@ class CompoundVisitor
   }
 
  public:
-  CompoundVisitor(DecompilationContext& dec_ctx, ASTBuilder& ast,
-                  clang::ASTContext& ctx)
-      : dec_ctx(dec_ctx), ast(ast), ctx(ctx) {}
+  CompoundVisitor(DecompilationContext& dec_ctx) : dec_ctx(dec_ctx) {}
 
   bool VisitCompoundStmt(clang::CompoundStmt* compound,
                          KnownExprs& known_exprs) {
@@ -183,17 +179,15 @@ class CompoundVisitor
   }
 };
 
-NestedCondProp::NestedCondProp(DecompilationContext& dec_ctx,
-                               clang::ASTUnit& unit)
-    : ASTPass(dec_ctx, unit) {}
+NestedCondProp::NestedCondProp(DecompilationContext& dec_ctx)
+    : ASTPass(dec_ctx) {}
 
 void NestedCondProp::RunImpl() {
   LOG(INFO) << "Propagating conditions";
   changed = false;
-  ASTBuilder ast{ast_unit};
-  CompoundVisitor visitor{dec_ctx, ast, ast_ctx};
+  CompoundVisitor visitor{dec_ctx};
 
-  for (auto decl : ast_ctx.getTranslationUnitDecl()->decls()) {
+  for (auto decl : dec_ctx.ast_ctx.getTranslationUnitDecl()->decls()) {
     if (auto fdecl = clang::dyn_cast<clang::FunctionDecl>(decl)) {
       if (Stopped()) {
         return;

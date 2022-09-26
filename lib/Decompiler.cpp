@@ -82,79 +82,64 @@ Result<DecompilationResult, DecompilationError> Decompile(
                                   "-Wno-pointer-sign", "-target",
                                   module->getTargetTriple()};
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
-
-    ASTBuilder ast{*ast_unit};
-    rellic::DecompilationContext dec_ctx;
-    dec_ctx.marker_expr = ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse());
-    rellic::GenerateAST::run(*module, dec_ctx, *ast_unit);
+    rellic::DecompilationContext dec_ctx(*ast_unit);
+    rellic::GenerateAST::run(*module, dec_ctx);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.
 
-    rellic::CompositeASTPass pass_ast(dec_ctx, *ast_unit);
+    rellic::CompositeASTPass pass_ast(dec_ctx);
     auto& ast_passes{pass_ast.GetPasses()};
 
-    ast_passes.push_back(
-        std::make_unique<rellic::DeadStmtElim>(dec_ctx, *ast_unit));
+    ast_passes.push_back(std::make_unique<rellic::DeadStmtElim>(dec_ctx));
     ast_passes.push_back(std::make_unique<rellic::LocalDeclRenamer>(
-        dec_ctx, *ast_unit, dic.GetIRToNameMap()));
+        dec_ctx, dic.GetIRToNameMap()));
     ast_passes.push_back(std::make_unique<rellic::StructFieldRenamer>(
-        dec_ctx, *ast_unit, dic.GetIRTypeToDITypeMap()));
+        dec_ctx, dic.GetIRTypeToDITypeMap()));
     pass_ast.Run();
 
-    rellic::CompositeASTPass pass_cbr(dec_ctx, *ast_unit);
+    rellic::CompositeASTPass pass_cbr(dec_ctx);
     auto& cbr_passes{pass_cbr.GetPasses()};
 
-    cbr_passes.push_back(
-        std::make_unique<rellic::Z3CondSimplify>(dec_ctx, *ast_unit));
-    cbr_passes.push_back(
-        std::make_unique<rellic::NestedCondProp>(dec_ctx, *ast_unit));
+    cbr_passes.push_back(std::make_unique<rellic::Z3CondSimplify>(dec_ctx));
+    cbr_passes.push_back(std::make_unique<rellic::NestedCondProp>(dec_ctx));
 
-    cbr_passes.push_back(
-        std::make_unique<rellic::NestedScopeCombine>(dec_ctx, *ast_unit));
+    cbr_passes.push_back(std::make_unique<rellic::NestedScopeCombine>(dec_ctx));
 
-    cbr_passes.push_back(
-        std::make_unique<rellic::CondBasedRefine>(dec_ctx, *ast_unit));
-    cbr_passes.push_back(
-        std::make_unique<rellic::ReachBasedRefine>(dec_ctx, *ast_unit));
+    cbr_passes.push_back(std::make_unique<rellic::CondBasedRefine>(dec_ctx));
+    cbr_passes.push_back(std::make_unique<rellic::ReachBasedRefine>(dec_ctx));
 
     while (pass_cbr.Run()) {
       ;
     }
 
-    rellic::CompositeASTPass pass_loop{dec_ctx, *ast_unit};
+    rellic::CompositeASTPass pass_loop{dec_ctx};
     auto& loop_passes{pass_loop.GetPasses()};
 
+    loop_passes.push_back(std::make_unique<rellic::LoopRefine>(dec_ctx));
+    loop_passes.push_back(std::make_unique<rellic::NestedCondProp>(dec_ctx));
     loop_passes.push_back(
-        std::make_unique<rellic::LoopRefine>(dec_ctx, *ast_unit));
-    loop_passes.push_back(
-        std::make_unique<rellic::NestedCondProp>(dec_ctx, *ast_unit));
-    loop_passes.push_back(
-        std::make_unique<rellic::NestedScopeCombine>(dec_ctx, *ast_unit));
+        std::make_unique<rellic::NestedScopeCombine>(dec_ctx));
 
     while (pass_loop.Run()) {
       ;
     }
 
-    rellic::CompositeASTPass pass_scope{dec_ctx, *ast_unit};
+    rellic::CompositeASTPass pass_scope{dec_ctx};
     auto& scope_passes{pass_scope.GetPasses()};
-    scope_passes.push_back(
-        std::make_unique<rellic::Z3CondSimplify>(dec_ctx, *ast_unit));
-    scope_passes.push_back(
-        std::make_unique<rellic::NestedCondProp>(dec_ctx, *ast_unit));
+    scope_passes.push_back(std::make_unique<rellic::Z3CondSimplify>(dec_ctx));
+    scope_passes.push_back(std::make_unique<rellic::NestedCondProp>(dec_ctx));
 
     scope_passes.push_back(
-        std::make_unique<rellic::NestedScopeCombine>(dec_ctx, *ast_unit));
+        std::make_unique<rellic::NestedScopeCombine>(dec_ctx));
 
     while (pass_scope.Run()) {
       ;
     }
 
-    rellic::CompositeASTPass pass_ec{dec_ctx, *ast_unit};
+    rellic::CompositeASTPass pass_ec{dec_ctx};
     auto& ec_passes{pass_ec.GetPasses()};
-    ec_passes.push_back(
-        std::make_unique<rellic::MaterializeConds>(dec_ctx, *ast_unit));
-    ec_passes.push_back(
-        std::make_unique<rellic::ExprCombine>(dec_ctx, *ast_unit));
+    ec_passes.push_back(std::make_unique<rellic::MaterializeConds>(dec_ctx));
+    ec_passes.push_back(std::make_unique<rellic::ExprCombine>(dec_ctx));
 
     pass_ec.Run();
 

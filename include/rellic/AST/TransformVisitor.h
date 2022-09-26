@@ -55,8 +55,7 @@ class TransformVisitor : public ASTPass,
   void RunImpl() override { substitutions.clear(); }
 
  public:
-  TransformVisitor(DecompilationContext &dec_ctx, clang::ASTUnit &unit)
-      : ASTPass(dec_ctx, unit) {}
+  TransformVisitor(DecompilationContext &dec_ctx) : ASTPass(dec_ctx) {}
 
   virtual bool shouldTraversePostOrder() { return true; }
 

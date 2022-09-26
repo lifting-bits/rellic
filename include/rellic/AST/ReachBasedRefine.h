@@ -41,7 +41,7 @@ class ReachBasedRefine : public TransformVisitor<ReachBasedRefine> {
   void RunImpl() override;
 
  public:
-  ReachBasedRefine(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
+  ReachBasedRefine(DecompilationContext &dec_ctx);
 
   bool VisitCompoundStmt(clang::CompoundStmt *compound);
 };

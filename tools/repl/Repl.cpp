@@ -147,23 +147,23 @@ class Diff {
 
 static std::unique_ptr<rellic::ASTPass> CreatePass(const std::string& name) {
   if (name == "cbr") {
-    return std::make_unique<rellic::CondBasedRefine>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::CondBasedRefine>(*dec_ctx);
   } else if (name == "dse") {
-    return std::make_unique<rellic::DeadStmtElim>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::DeadStmtElim>(*dec_ctx);
   } else if (name == "ec") {
-    return std::make_unique<rellic::ExprCombine>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::ExprCombine>(*dec_ctx);
   } else if (name == "lr") {
-    return std::make_unique<rellic::LoopRefine>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::LoopRefine>(*dec_ctx);
   } else if (name == "mc") {
-    return std::make_unique<rellic::MaterializeConds>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::MaterializeConds>(*dec_ctx);
   } else if (name == "ncp") {
-    return std::make_unique<rellic::NestedCondProp>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::NestedCondProp>(*dec_ctx);
   } else if (name == "nsc") {
-    return std::make_unique<rellic::NestedScopeCombine>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::NestedScopeCombine>(*dec_ctx);
   } else if (name == "rbr") {
-    return std::make_unique<rellic::ReachBasedRefine>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::ReachBasedRefine>(*dec_ctx);
   } else if (name == "zcs") {
-    return std::make_unique<rellic::Z3CondSimplify>(*dec_ctx, *ast_unit);
+    return std::make_unique<rellic::Z3CondSimplify>(*dec_ctx);
   } else {
     return nullptr;
   }
@@ -301,10 +301,9 @@ static void do_decompile() {
     rellic::DebugInfoCollector dic;
     dic.visit(*module);
     dec_ctx = {};
-    rellic::GenerateAST::run(*module, *dec_ctx, *ast_unit);
-    rellic::LocalDeclRenamer ldr{*dec_ctx, *ast_unit, dic.GetIRToNameMap()};
-    rellic::StructFieldRenamer sfr{*dec_ctx, *ast_unit,
-                                   dic.GetIRTypeToDITypeMap()};
+    rellic::GenerateAST::run(*module, *dec_ctx);
+    rellic::LocalDeclRenamer ldr{*dec_ctx, dic.GetIRToNameMap()};
+    rellic::StructFieldRenamer sfr{*dec_ctx, dic.GetIRTypeToDITypeMap()};
     ldr.Run();
     sfr.Run();
     std::cout << "ok." << std::endl;
@@ -319,7 +318,7 @@ static void do_run(std::istream& is) {
     return;
   }
 
-  global_pass = std::make_unique<rellic::CompositeASTPass>(*dec_ctx, *ast_unit);
+  global_pass = std::make_unique<rellic::CompositeASTPass>(*dec_ctx);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};
@@ -356,7 +355,7 @@ static void do_fixpoint(std::istream& is) {
     return;
   }
 
-  global_pass = std::make_unique<rellic::CompositeASTPass>(*dec_ctx, *ast_unit);
+  global_pass = std::make_unique<rellic::CompositeASTPass>(*dec_ctx);
   std::string name;
   while (is >> name) {
     auto pass{CreatePass(name)};

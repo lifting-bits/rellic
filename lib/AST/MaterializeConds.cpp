@@ -15,10 +15,8 @@
 
 namespace rellic {
 
-MaterializeConds::MaterializeConds(DecompilationContext &dec_ctx,
-                                   clang::ASTUnit &unit)
-    : TransformVisitor<MaterializeConds>(dec_ctx, unit),
-      ast_gen(unit, dec_ctx) {}
+MaterializeConds::MaterializeConds(DecompilationContext &dec_ctx)
+    : TransformVisitor<MaterializeConds>(dec_ctx), ast_gen(dec_ctx) {}
 
 bool MaterializeConds::VisitIfStmt(clang::IfStmt *stmt) {
   auto cond{dec_ctx.z3_exprs[dec_ctx.conds[stmt]]};
@@ -47,7 +45,7 @@ bool MaterializeConds::VisitDoStmt(clang::DoStmt *stmt) {
 void MaterializeConds::RunImpl() {
   LOG(INFO) << "Materializing conditions";
   TransformVisitor<MaterializeConds>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseDecl(dec_ctx.ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

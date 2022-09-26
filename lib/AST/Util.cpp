@@ -12,6 +12,7 @@
 #include <clang/AST/Expr.h>
 #include <clang/AST/Stmt.h>
 #include <clang/AST/StmtVisitor.h>
+#include <clang/Frontend/ASTUnit.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 
@@ -385,6 +386,12 @@ z3::expr OrderById(z3::expr expr) {
 
   return expr;
 }
+
+DecompilationContext::DecompilationContext(clang::ASTUnit &ast_unit)
+    : ast_unit(ast_unit),
+      ast_ctx(ast_unit.getASTContext()),
+      ast(ast_unit),
+      marker_expr(ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse())) {}
 
 unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
   auto idx{z3_exprs.size()};

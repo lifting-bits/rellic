@@ -35,7 +35,7 @@ class NestedScopeCombine : public TransformVisitor<NestedScopeCombine> {
   void RunImpl() override;
 
  public:
-  NestedScopeCombine(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
+  NestedScopeCombine(DecompilationContext &dec_ctx);
 
   bool VisitIfStmt(clang::IfStmt *ifstmt);
   bool VisitWhileStmt(clang::WhileStmt *stmt);

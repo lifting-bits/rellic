@@ -34,7 +34,7 @@ class LoopRefine : public TransformVisitor<LoopRefine> {
   void RunImpl() override;
 
  public:
-  LoopRefine(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
+  LoopRefine(DecompilationContext &dec_ctx);
 
   bool VisitWhileStmt(clang::WhileStmt *loop);
 };

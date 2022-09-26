@@ -15,9 +15,8 @@
 
 namespace rellic {
 
-NestedScopeCombine::NestedScopeCombine(DecompilationContext &dec_ctx,
-                                       clang::ASTUnit &unit)
-    : TransformVisitor<NestedScopeCombine>(dec_ctx, unit) {}
+NestedScopeCombine::NestedScopeCombine(DecompilationContext &dec_ctx)
+    : TransformVisitor<NestedScopeCombine>(dec_ctx) {}
 
 bool NestedScopeCombine::VisitIfStmt(clang::IfStmt *ifstmt) {
   // DLOG(INFO) << "VisitIfStmt";
@@ -41,7 +40,7 @@ bool NestedScopeCombine::VisitWhileStmt(clang::WhileStmt *stmt) {
     if (clang::isa<clang::BreakStmt>(body->body_back())) {
       std::vector<clang::Stmt *> new_body{body->body_begin(),
                                           body->body_end() - 1};
-      substitutions[stmt] = ast.CreateCompoundStmt(new_body);
+      substitutions[stmt] = dec_ctx.ast.CreateCompoundStmt(new_body);
     }
   }
   return !Stopped();
@@ -61,7 +60,7 @@ bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   }
 
   if (has_compound) {
-    substitutions[compound] = ast.CreateCompoundStmt(new_body);
+    substitutions[compound] = dec_ctx.ast.CreateCompoundStmt(new_body);
   }
 
   return !Stopped();
@@ -70,7 +69,7 @@ bool NestedScopeCombine::VisitCompoundStmt(clang::CompoundStmt *compound) {
 void NestedScopeCombine::RunImpl() {
   LOG(INFO) << "Combining nested scopes";
   TransformVisitor<NestedScopeCombine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseDecl(dec_ctx.ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

@@ -26,17 +26,15 @@
 namespace rellic {
 class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
  private:
-  clang::ASTContext &ast_ctx;
-
-  ASTBuilder ast;
-
   DecompilationContext &dec_ctx;
+  ASTBuilder &ast;
+  clang::ASTContext &ast_ctx;
   size_t num_literal_structs = 0;
   size_t num_declared_structs = 0;
 
  public:
-  ExprGen(clang::ASTUnit &unit, DecompilationContext &dec_ctx)
-      : ast_ctx(unit.getASTContext()), ast(unit), dec_ctx(dec_ctx) {}
+  ExprGen(DecompilationContext &dec_ctx)
+      : dec_ctx(dec_ctx), ast(dec_ctx.ast), ast_ctx(dec_ctx.ast_ctx) {}
 
   void VisitGlobalVar(llvm::GlobalVariable &gvar);
   clang::QualType GetQualType(llvm::Type *type);
@@ -1071,15 +1069,17 @@ clang::Expr *ExprGen::visitUnaryOperator(llvm::UnaryOperator &inst) {
 // IRToASTVisitor::VisitFunctionDecl
 class StmtGen : public llvm::InstVisitor<StmtGen, clang::Stmt *> {
  private:
-  clang::ASTContext &ast_ctx;
-  ASTBuilder &ast;
   ExprGen &expr_gen;
   DecompilationContext &dec_ctx;
+  ASTBuilder &ast;
+  clang::ASTContext &ast_ctx;
 
  public:
-  StmtGen(clang::ASTContext &ast_ctx, ASTBuilder &ast, ExprGen &expr_gen,
-          DecompilationContext &dec_ctx)
-      : ast_ctx(ast_ctx), ast(ast), expr_gen(expr_gen), dec_ctx(dec_ctx) {}
+  StmtGen(ExprGen &expr_gen, DecompilationContext &dec_ctx)
+      : expr_gen(expr_gen),
+        dec_ctx(dec_ctx),
+        ast(dec_ctx.ast),
+        ast_ctx(dec_ctx.ast_ctx) {}
 
   clang::Stmt *visitStoreInst(llvm::StoreInst &inst);
   clang::Stmt *visitCallInst(llvm::CallInst &inst);
@@ -1180,15 +1180,11 @@ clang::Stmt *StmtGen::visitInstruction(llvm::Instruction &inst) {
   return nullptr;
 }
 
-IRToASTVisitor::IRToASTVisitor(clang::ASTUnit &unit,
-                               DecompilationContext &dec_ctx)
-    : ast_unit(unit),
-      ast_ctx(unit.getASTContext()),
-      ast(unit),
-      dec_ctx(dec_ctx) {}
+IRToASTVisitor::IRToASTVisitor(DecompilationContext &dec_ctx)
+    : dec_ctx(dec_ctx), ast(dec_ctx.ast) {}
 
 void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
-  ExprGen expr_gen{ast_unit, dec_ctx};
+  ExprGen expr_gen{dec_ctx};
   expr_gen.VisitGlobalVar(gvar);
 }
 
@@ -1209,7 +1205,7 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
     auto byval{arg.getAttribute(llvm::Attribute::ByVal)};
     argtype = byval.getValueAsType();
   }
-  ExprGen expr_gen{ast_unit, dec_ctx};
+  ExprGen expr_gen{dec_ctx};
   // Create a declaration
   parm = ast.CreateParamDecl(fdecl, expr_gen.GetQualType(argtype), name);
 }
@@ -1242,8 +1238,8 @@ static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
 
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
                                      std::vector<clang::Stmt *> &stmts) {
-  ExprGen expr_gen{ast_unit, dec_ctx};
-  StmtGen stmt_gen{ast_ctx, ast, expr_gen, dec_ctx};
+  ExprGen expr_gen{dec_ctx};
+  StmtGen stmt_gen{expr_gen, dec_ctx};
   for (auto &inst : block) {
     auto stmt{stmt_gen.visit(inst)};
     if (stmt) {
@@ -1276,8 +1272,8 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   }
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  ExprGen expr_gen{ast_unit, dec_ctx};
+  auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
+  ExprGen expr_gen{dec_ctx};
   auto type{expr_gen.GetQualType(GetFixedFunctionType(func))};
   decl = ast.CreateFunctionDecl(tudecl, type, name);
 
@@ -1336,7 +1332,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
                   std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
         auto type{expr_gen.GetQualType(inst.getType())};
         if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
-          type = ast_ctx.getPointerType(arrayType->getElementType());
+          type = dec_ctx.ast_ctx.getPointerType(arrayType->getElementType());
         }
 
         var = ast.CreateVarDecl(fdecl, type, name);
@@ -1362,7 +1358,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
           return;
         }
 
-        auto tudecl{ast_ctx.getTranslationUnitDecl()};
+        auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
         auto name{"asm_" +
                   std::to_string(GetNumDecls<clang::FunctionDecl>(tudecl))};
         auto ftype{iasm->getFunctionType()};
@@ -1387,12 +1383,12 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 }
 
 clang::Expr *IRToASTVisitor::CreateOperandExpr(llvm::Use &val) {
-  ExprGen expr_gen{ast_unit, dec_ctx};
+  ExprGen expr_gen{dec_ctx};
   return expr_gen.CreateOperandExpr(val);
 }
 
 clang::Expr *IRToASTVisitor::CreateConstantExpr(llvm::Constant *constant) {
-  ExprGen expr_gen{ast_unit, dec_ctx};
+  ExprGen expr_gen{dec_ctx};
   return expr_gen.CreateConstantExpr(constant);
 }
 

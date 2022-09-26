@@ -15,9 +15,8 @@
 
 namespace rellic {
 
-Z3CondSimplify::Z3CondSimplify(DecompilationContext& dec_ctx,
-                               clang::ASTUnit& unit)
-    : ASTPass(dec_ctx, unit) {}
+Z3CondSimplify::Z3CondSimplify(DecompilationContext& dec_ctx)
+    : ASTPass(dec_ctx) {}
 
 void Z3CondSimplify::RunImpl() {
   LOG(INFO) << "Simplifying conditions using Z3";

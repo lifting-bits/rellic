@@ -15,9 +15,8 @@
 
 namespace rellic {
 
-CondBasedRefine::CondBasedRefine(DecompilationContext &dec_ctx,
-                                 clang::ASTUnit &unit)
-    : TransformVisitor<CondBasedRefine>(dec_ctx, unit) {}
+CondBasedRefine::CondBasedRefine(DecompilationContext &dec_ctx)
+    : TransformVisitor<CondBasedRefine>(dec_ctx) {}
 
 bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
   std::vector<clang::Stmt *> body{compound->body_begin(), compound->body_end()};
@@ -52,9 +51,9 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       // becomes
       // if(a) { X1; X2; } else { Y1; Y2; }
       new_then_body.push_back(then_b);
-      auto new_then{ast.CreateCompoundStmt(new_then_body)};
+      auto new_then{dec_ctx.ast.CreateCompoundStmt(new_then_body)};
 
-      new_if = ast.CreateIf(dec_ctx.marker_expr, new_then);
+      new_if = dec_ctx.ast.CreateIf(dec_ctx.marker_expr, new_then);
 
       if (else_a || else_b) {
         // At least one of the two `if` statements has an `else` branch
@@ -68,7 +67,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
           new_else_body.push_back(else_b);
         }
 
-        auto new_else{ast.CreateCompoundStmt(new_else_body)};
+        auto new_else{dec_ctx.ast.CreateCompoundStmt(new_else_body)};
         new_if->setElse(new_else);
       }
 
@@ -86,7 +85,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
         new_then_body.push_back(else_b);
       }
 
-      auto new_then{ast.CreateCompoundStmt(new_then_body)};
+      auto new_then{dec_ctx.ast.CreateCompoundStmt(new_then_body)};
 
       std::vector<clang::Stmt *> new_else_body{};
       if (else_a) {
@@ -94,9 +93,9 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
       }
       new_else_body.push_back(then_b);
 
-      new_if = ast.CreateIf(dec_ctx.marker_expr, new_then);
+      new_if = dec_ctx.ast.CreateIf(dec_ctx.marker_expr, new_then);
 
-      auto new_else{ast.CreateCompoundStmt(new_else_body)};
+      auto new_else{dec_ctx.ast.CreateCompoundStmt(new_else_body)};
       new_if->setElse(new_else);
 
       did_something = true;
@@ -109,7 +108,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
     }
   }
   if (did_something) {
-    substitutions[compound] = ast.CreateCompoundStmt(body);
+    substitutions[compound] = dec_ctx.ast.CreateCompoundStmt(body);
   }
   return !Stopped();
 }
@@ -117,7 +116,7 @@ bool CondBasedRefine::VisitCompoundStmt(clang::CompoundStmt *compound) {
 void CondBasedRefine::RunImpl() {
   LOG(INFO) << "Condition-based refinement";
   TransformVisitor<CondBasedRefine>::RunImpl();
-  TraverseDecl(ast_ctx.getTranslationUnitDecl());
+  TraverseDecl(dec_ctx.ast_ctx.getTranslationUnitDecl());
 }
 
 }  // namespace rellic

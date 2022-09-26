@@ -266,21 +266,17 @@ static void Decompile(const httplib::Request& req, httplib::Response& res) {
   }
 
   try {
-    session.DecompContext = std::make_unique<rellic::DecompilationContext>();
     std::vector<std::string> args{"-Wno-pointer-to-int-cast",
                                   "-Wno-pointer-sign", "-target",
                                   session.Module->getTargetTriple()};
     session.Unit = clang::tooling::buildASTFromCodeWithArgs("", args, "out.c");
-    rellic::ASTBuilder ast{*session.Unit};
-    session.DecompContext->marker_expr =
-        ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse());
+    session.DecompContext =
+        std::make_unique<rellic::DecompilationContext>(*session.Unit);
     rellic::DebugInfoCollector dic;
     dic.visit(*session.Module);
-    rellic::GenerateAST::run(*session.Module, *session.DecompContext,
-                             *session.Unit);
-    rellic::LocalDeclRenamer ldr{*session.DecompContext, *session.Unit,
-                                 dic.GetIRToNameMap()};
-    rellic::StructFieldRenamer sfr{*session.DecompContext, *session.Unit,
+    rellic::GenerateAST::run(*session.Module, *session.DecompContext);
+    rellic::LocalDeclRenamer ldr{*session.DecompContext, dic.GetIRToNameMap()};
+    rellic::StructFieldRenamer sfr{*session.DecompContext,
                                    dic.GetIRTypeToDITypeMap()};
     ldr.Run();
     sfr.Run();
@@ -381,8 +377,8 @@ class FixpointPass : public rellic::ASTPass {
   void RunImpl() override { comp.Fixpoint(); }
 
  public:
-  FixpointPass(rellic::DecompilationContext& dec_ctx, clang::ASTUnit& ast_unit)
-      : ASTPass(dec_ctx, ast_unit), comp(dec_ctx, ast_unit) {}
+  FixpointPass(rellic::DecompilationContext& dec_ctx)
+      : ASTPass(dec_ctx), comp(dec_ctx) {}
   std::vector<std::unique_ptr<ASTPass>>& GetPasses() {
     return comp.GetPasses();
   }
@@ -399,39 +395,30 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(
     auto str{name->str()};
 
     if (str == "cbr") {
-      return std::make_unique<rellic::CondBasedRefine>(*session.DecompContext,
-                                                       *session.Unit);
+      return std::make_unique<rellic::CondBasedRefine>(*session.DecompContext);
     } else if (str == "dse") {
-      return std::make_unique<rellic::DeadStmtElim>(*session.DecompContext,
-                                                    *session.Unit);
+      return std::make_unique<rellic::DeadStmtElim>(*session.DecompContext);
     } else if (str == "ec") {
-      return std::make_unique<rellic::ExprCombine>(*session.DecompContext,
-                                                   *session.Unit);
+      return std::make_unique<rellic::ExprCombine>(*session.DecompContext);
     } else if (str == "lr") {
-      return std::make_unique<rellic::LoopRefine>(*session.DecompContext,
-                                                  *session.Unit);
+      return std::make_unique<rellic::LoopRefine>(*session.DecompContext);
     } else if (str == "mc") {
-      return std::make_unique<rellic::MaterializeConds>(*session.DecompContext,
-                                                        *session.Unit);
+      return std::make_unique<rellic::MaterializeConds>(*session.DecompContext);
     } else if (str == "ncp") {
-      return std::make_unique<rellic::NestedCondProp>(*session.DecompContext,
-                                                      *session.Unit);
+      return std::make_unique<rellic::NestedCondProp>(*session.DecompContext);
     } else if (str == "nsc") {
       return std::make_unique<rellic::NestedScopeCombine>(
-          *session.DecompContext, *session.Unit);
+          *session.DecompContext);
     } else if (str == "rbr") {
-      return std::make_unique<rellic::ReachBasedRefine>(*session.DecompContext,
-                                                        *session.Unit);
+      return std::make_unique<rellic::ReachBasedRefine>(*session.DecompContext);
     } else if (str == "zcs") {
-      return std::make_unique<rellic::Z3CondSimplify>(*session.DecompContext,
-                                                      *session.Unit);
+      return std::make_unique<rellic::Z3CondSimplify>(*session.DecompContext);
     } else {
       LOG(ERROR) << "Request contains invalid pass id";
       return nullptr;
     }
   } else if (auto arr = val.getAsArray()) {
-    auto fix{
-        std::make_unique<FixpointPass>(*session.DecompContext, *session.Unit)};
+    auto fix{std::make_unique<FixpointPass>(*session.DecompContext)};
     for (auto& pass : *arr) {
       auto p{CreatePass(session, pass)};
       if (!p) {
@@ -513,8 +500,8 @@ static void Run(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(
-      *session.DecompContext, *session.Unit)};
+  auto composite{
+      std::make_unique<rellic::CompositeASTPass>(*session.DecompContext)};
   for (auto& obj : *json->getAsArray()) {
     auto pass{CreatePass(session, obj)};
     if (!pass) {
@@ -583,8 +570,8 @@ static void Fixpoint(const httplib::Request& req, httplib::Response& res) {
     return;
   }
 
-  auto composite{std::make_unique<rellic::CompositeASTPass>(
-      *session.DecompContext, *session.Unit)};
+  auto composite{
+      std::make_unique<rellic::CompositeASTPass>(*session.DecompContext)};
   for (auto& obj : *json->getAsArray()) {
     auto pass{CreatePass(session, obj)};
     if (!pass) {

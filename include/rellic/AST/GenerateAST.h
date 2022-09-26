@@ -17,6 +17,7 @@
 #include <map>
 #include <unordered_set>
 
+#include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/IRToASTVisitor.h"
 
 namespace rellic {
@@ -29,11 +30,9 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
   constexpr static unsigned poison_idx = std::numeric_limits<unsigned>::max();
   z3::expr ToExpr(unsigned idx);
 
-  clang::ASTUnit &unit;
-  clang::ASTContext *ast_ctx;
   rellic::IRToASTVisitor ast_gen;
-  rellic::ASTBuilder ast;
   DecompilationContext &dec_ctx;
+  ASTBuilder &ast;
   bool reaching_conds_changed{true};
   std::unordered_map<llvm::BasicBlock *, clang::IfStmt *> block_stmts;
   std::unordered_map<llvm::Region *, clang::CompoundStmt *> region_stmts;
@@ -78,13 +77,12 @@ class GenerateAST : public llvm::AnalysisInfoMixin<GenerateAST> {
 
  public:
   using Result = llvm::PreservedAnalyses;
-  GenerateAST(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
+  GenerateAST(DecompilationContext &dec_ctx);
 
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
   Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
 
-  static void run(llvm::Module &M, DecompilationContext &dec_ctx,
-                  clang::ASTUnit &unit);
+  static void run(llvm::Module &M, DecompilationContext &dec_ctx);
 };
 
 }  // namespace rellic

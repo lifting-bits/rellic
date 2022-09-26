@@ -21,7 +21,7 @@ class ExprCombine : public TransformVisitor<ExprCombine> {
   void RunImpl() override;
 
  public:
-  ExprCombine(DecompilationContext &dec_ctx, clang::ASTUnit &unit);
+  ExprCombine(DecompilationContext &dec_ctx);
 
   bool VisitCStyleCastExpr(clang::CStyleCastExpr *cast);
   bool VisitUnaryOperator(clang::UnaryOperator *op);

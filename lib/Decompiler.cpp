@@ -81,6 +81,12 @@ Result<DecompilationResult, DecompilationError> Decompile(
     std::vector<std::string> args{"-Wno-pointer-to-int-cast",
                                   "-Wno-pointer-sign", "-target",
                                   module->getTargetTriple()};
+    // Silence clang warning
+    // warning: unknown platform, assumming -mfloat-abi=soft
+    const auto& triple{llvm::Triple(module->getTargetTriple())};
+    if (triple.isARM()) {
+        args.push_back("-mfloat-abi=soft");
+    }
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
     rellic::DecompilationContext dec_ctx(*ast_unit);
 

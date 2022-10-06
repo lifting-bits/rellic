@@ -1017,6 +1017,7 @@ clang::Expr *ExprGen::visitCastInst(llvm::CastInst &inst) {
     case llvm::CastInst::PtrToInt:
     case llvm::CastInst::IntToPtr:
     case llvm::CastInst::SIToFP:
+    case llvm::CastInst::UIToFP:
     case llvm::CastInst::FPToUI:
     case llvm::CastInst::FPToSI:
     case llvm::CastInst::FPExt:
@@ -1024,7 +1025,7 @@ clang::Expr *ExprGen::visitCastInst(llvm::CastInst &inst) {
       break;
 
     default: {
-      THROW() << "Unknown CastInst cast type";
+      THROW() << "Unknown CastInst cast type " << inst.getOpcodeName();
     } break;
   }
   // Create cast

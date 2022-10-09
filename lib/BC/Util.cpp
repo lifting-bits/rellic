@@ -431,8 +431,10 @@ void ConvertArrayArguments(llvm::Module &m) {
     // `func->replaceAllUsesWith` because types don't match
     const llvm::User *user;
     if (!func_to_remove->hasAddressTaken(&user, false, false, true, false)) {
+      auto orig_name = func_to_remove->getName().str();
       func_to_remove->replaceAllUsesWith(replacement);
       func_to_remove->eraseFromParent();
+      replacement->setName(orig_name);
     } else {
       DLOG(ERROR) << "Keeping around old array function: "
                   << func_to_remove->getName().str();

@@ -92,6 +92,7 @@ add_library("${PROJECT_NAME}" STATIC
   ${AST_SOURCES}
   ${BC_SOURCES}
 
+  Dec2Hex.cpp
   Decompiler.cpp
   Exception.cpp
   

@@ -18,9 +18,9 @@ add_executable(${RELLIC_DECOMP}
 
 target_link_libraries(${RELLIC_DECOMP}
   PRIVATE
-  "${PROJECT_NAME}_cxx_settings"
-  "${PROJECT_NAME}"
-  gflags::gflags
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
 )
 
 set(RELLIC_DECOMP "${RELLIC_DECOMP}" PARENT_SCOPE)
@@ -28,6 +28,7 @@ set(RELLIC_DECOMP "${RELLIC_DECOMP}" PARENT_SCOPE)
 #
 # rellic-headergen
 #
+
 set(RELLIC_HEADERGEN "${PROJECT_NAME}-headergen")
 
 add_executable(${RELLIC_HEADERGEN}
@@ -36,9 +37,9 @@ add_executable(${RELLIC_HEADERGEN}
 
 target_link_libraries(${RELLIC_HEADERGEN}
   PRIVATE
-  "${PROJECT_NAME}_cxx_settings"
-  "${PROJECT_NAME}"
-  gflags::gflags
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
 )
 
 set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
@@ -46,6 +47,7 @@ set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
 #
 # rellic-xref
 #
+
 set(RELLIC_XREF "${PROJECT_NAME}-xref")
 
 add_executable(${RELLIC_XREF}
@@ -60,9 +62,9 @@ target_include_directories(${RELLIC_XREF} PRIVATE ${CPP_HTTPLIB_INCLUDE_DIRS})
 
 target_link_libraries(${RELLIC_XREF}
   PRIVATE
-  "${PROJECT_NAME}_cxx_settings"
-  "${PROJECT_NAME}"
-  gflags::gflags
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
 )
 
 set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
@@ -70,10 +72,11 @@ set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
 #
 # rellic-repl
 #
+
 include(FetchContent)
 FetchContent_Declare(linenoise
   GIT_REPOSITORY https://github.com/antirez/linenoise.git
-  GIT_TAG 97d2850af13c339369093b78abe5265845d78220
+  GIT_TAG        97d2850af13c339369093b78abe5265845d78220
 )
 FetchContent_MakeAvailable(linenoise)
 
@@ -82,7 +85,7 @@ add_library(linenoise STATIC
 )
 target_include_directories(linenoise
   PUBLIC
-  "${linenoise_SOURCE_DIR}"
+    "${linenoise_SOURCE_DIR}"
 )
 
 set(RELLIC_REPL "${PROJECT_NAME}-repl")
@@ -93,10 +96,10 @@ add_executable(${RELLIC_REPL}
 
 target_link_libraries(${RELLIC_REPL}
   PRIVATE
-  "${PROJECT_NAME}_cxx_settings"
-  "${PROJECT_NAME}"
-  gflags::gflags
-  linenoise
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
+    linenoise
 )
 
 set(RELLIC_REPL "${RELLIC_REPL}" PARENT_SCOPE)
@@ -112,37 +115,37 @@ add_executable(${RELLIC_DEC2HEX}
 
 target_link_libraries(${RELLIC_DEC2HEX}
   PRIVATE
-  "${PROJECT_NAME}_cxx_settings"
-  "${PROJECT_NAME}"
-  gflags::gflags
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
 )
 
 set(RELLIC_DEC2HEX "${RELLIC_DEC2HEX}" PARENT_SCOPE)
 
 if(RELLIC_ENABLE_INSTALL)
+  
   install(
     TARGETS
-    ${RELLIC_DECOMP}
-    ${RELLIC_HEADERGEN}
-    ${RELLIC_XREF}
-    ${RELLIC_REPL}
-    ${RELLIC_DEC2HEX}
+      ${RELLIC_DECOMP}
+      ${RELLIC_HEADERGEN}
+      ${RELLIC_XREF}
+      ${RELLIC_REPL}
     EXPORT
-    "${PROJECT_NAME}Targets"
+      "${PROJECT_NAME}Targets"
     RUNTIME
-    DESTINATION
-    ${CMAKE_INSTALL_BINDIR}
+      DESTINATION
+        ${CMAKE_INSTALL_BINDIR}
   )
 
   install(
     FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/index.html"
-    "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/main.js"
-    "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/style.css"
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/index.html"
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/main.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/xref/www/style.css"
     DESTINATION
-    "var/www/html"
+      "var/www/html"
   )
-
+  
   #
   # IDA UI plugin
   #
@@ -150,4 +153,5 @@ if(RELLIC_ENABLE_INSTALL)
     FILES "${CMAKE_CURRENT_SOURCE_DIR}/plugins/ida-rellic.py"
     DESTINATION "share/rellic"
   )
+
 endif(RELLIC_ENABLE_INSTALL)

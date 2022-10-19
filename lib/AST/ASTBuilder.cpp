@@ -10,6 +10,7 @@
 
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Decl.h>
+#include <clang/Basic/LangOptions.h>
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Sema/Lookup.h>
@@ -33,11 +34,13 @@ enum CExprPrecedence : unsigned {
 namespace {
 
 static unsigned GetOperatorPrecedence(clang::UnaryOperatorKind opc) {
-  return static_cast<unsigned>(CExprPrecedence::UnaryOp) + static_cast<unsigned>(opc);
+  return static_cast<unsigned>(CExprPrecedence::UnaryOp) +
+         static_cast<unsigned>(opc);
 }
 
 static unsigned GetOperatorPrecedence(clang::BinaryOperatorKind opc) {
-  return static_cast<unsigned>(CExprPrecedence::BinaryOp) + static_cast<unsigned>(opc);
+  return static_cast<unsigned>(CExprPrecedence::BinaryOp) +
+         static_cast<unsigned>(opc);
 }
 
 static unsigned GetOperatorPrecedence(clang::Expr *op) {
@@ -186,7 +189,7 @@ clang::CharacterLiteral *ASTBuilder::CreateCharLit(unsigned val) {
 clang::StringLiteral *ASTBuilder::CreateStrLit(std::string val) {
   auto type{ctx.getStringLiteralArrayType(ctx.CharTy, val.size())};
   return clang::StringLiteral::Create(
-      ctx, val, clang::StringLiteral::StringKind::Ascii,
+      ctx, val, clang::StringLiteral::StringKind::Ordinary,
       /*Pascal=*/false, type, clang::SourceLocation());
 }
 
@@ -459,7 +462,8 @@ clang::CompoundStmt *ASTBuilder::CreateCompoundStmt(
   // sema.ActOnFinishOfCompoundStmt();
   // CHECK(sr.isUsable());
   // return sr.getAs<clang::CompoundStmt>();
-  return clang::CompoundStmt::Create(ctx, stmts, clang::SourceLocation(),
+  return clang::CompoundStmt::Create(ctx, stmts, clang::FPOptionsOverride{},
+                                     clang::SourceLocation(),
                                      clang::SourceLocation());
 }
 

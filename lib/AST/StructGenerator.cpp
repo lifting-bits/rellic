@@ -15,6 +15,7 @@
 #include <clang/Basic/TargetInfo.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/BinaryFormat/Dwarf.h>
 
 #include <string>
 #include <unordered_set>

@@ -79,6 +79,19 @@ class ParamPolicyRAII {
   ~ParamPolicyRAII() { Policy.SuppressSpecifiers = Old; }
 };
 
+class DefaultTemplateArgsPolicyRAII {
+  PrintingPolicy &Policy;
+  bool Old;
+
+ public:
+  explicit DefaultTemplateArgsPolicyRAII(PrintingPolicy &Policy)
+      : Policy(Policy), Old(Policy.SuppressDefaultTemplateArgs) {
+    Policy.SuppressDefaultTemplateArgs = false;
+  }
+
+  ~DefaultTemplateArgsPolicyRAII() { Policy.SuppressDefaultTemplateArgs = Old; }
+};
+
 class ElaboratedTypePolicyRAII {
   PrintingPolicy &Policy;
   bool SuppressTagKeyword;
@@ -232,6 +245,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::Pipe:
     case Type::BitInt:
     case Type::DependentBitInt:
+    case Type::BTFTagAttributed:
       CanPrefixQualifiers = true;
       break;
 
@@ -280,6 +294,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
       // address_space attribute.
       const auto *AttrTy = cast<AttributedType>(UnderlyingType);
       CanPrefixQualifiers = AttrTy->getAttrKind() == attr::AddressSpace;
+      break;
     }
   }
 
@@ -918,6 +933,12 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       case CC_AArch64VectorCall:
         OS << "__attribute__((aarch64_vector_pcs))";
         break;
+      case CC_AArch64SVEPCS:
+        OS << "__attribute__((aarch64_sve_pcs))";
+        break;
+      case CC_AMDGPUKernelCall:
+        OS << "__attribute__((amdgpu_kernel))";
+        break;
       case CC_IntelOclBicc:
         OS << " __attribute__((intel_ocl_bicc))";
         break;
@@ -1423,6 +1444,7 @@ void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
     T->getTemplateName().print(OS, Policy);
   }
 
+  DefaultTemplateArgsPolicyRAII TemplateArgs(Policy);
   const TemplateParameterList *TPL = TD ? TD->getTemplateParameters() : nullptr;
   printTemplateArgumentList(OS, T->template_arguments(), Policy, TPL);
   spaceBeforePlaceHolder(OS);
@@ -1637,6 +1659,15 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   // this twice.
   if (T->getAttrKind() == attr::AddressSpace) return;
 
+  if (T->getAttrKind() == attr::AnnotateType) {
+    // FIXME: Print the attribute arguments once we have a way to retrieve these
+    // here. For the meantime, we just print `[[clang::annotate_type(...)]]`
+    // without the arguments so that we know at least that we had _some_
+    // annotation on the type.
+    OS << " [[clang::annotate_type(...)]]";
+    return;
+  }
+
   OS << " __attribute__((";
   switch (T->getAttrKind()) {
 #define TYPE_ATTR(NAME)
@@ -1644,6 +1675,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
 #define ATTR(NAME) case attr::NAME:
 #include <clang/Basic/AttrList.inc>
     llvm_unreachable("non-type attribute attached to type");
+
+    case attr::BTFTypeTag:
+      llvm_unreachable("BTFTypeTag attribute handled separately");
 
     case attr::OpenCLPrivateAddressSpace:
     case attr::OpenCLGlobalAddressSpace:
@@ -1671,6 +1705,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     case attr::UPtr:
     case attr::AddressSpace:
     case attr::CmseNSCall:
+    case attr::AnnotateType:
       llvm_unreachable("This attribute should have been handled already");
 
     case attr::NSReturnsRetained:
@@ -1728,6 +1763,12 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     case attr::AArch64VectorPcs:
       OS << "aarch64_vector_pcs";
       break;
+    case attr::AArch64SVEPcs:
+      OS << "aarch64_sve_pcs";
+      break;
+    case attr::AMDGPUKernelCall:
+      OS << "amdgpu_kernel";
+      break;
     case attr::IntelOclBicc:
       OS << "inteloclbicc";
       break;
@@ -1747,11 +1788,19 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     case attr::ArmMveStrictPolymorphism:
       OS << "__clang_arm_mve_strict_polymorphism";
       break;
-    case attr::BTFTypeTag:
-      OS << "btf_type_tag";
-      break;
   }
   OS << "))";
+}
+
+void TypePrinter::printBTFTagAttributedBefore(const BTFTagAttributedType *T,
+                                              raw_ostream &OS) {
+  printBefore(T->getWrappedType(), OS);
+  OS << " btf_type_tag(" << T->getAttr()->getBTFTypeTag() << ")";
+}
+
+void TypePrinter::printBTFTagAttributedAfter(const BTFTagAttributedType *T,
+                                             raw_ostream &OS) {
+  printAfter(T->getWrappedType(), OS);
 }
 
 void TypePrinter::printObjCInterfaceBefore(const ObjCInterfaceType *T,

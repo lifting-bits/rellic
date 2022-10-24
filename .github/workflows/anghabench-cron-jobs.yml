@@ -14,7 +14,6 @@ jobs:
         run_size: [ '1k' ]
 
     name: Run AnghaBench CI (AMD64)
-    needs: start-runner # required to start the main job when the runner is ready
     runs-on: gha-ubuntu-32
     steps:
     - uses: actions/checkout@v2

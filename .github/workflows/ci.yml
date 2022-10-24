@@ -28,7 +28,6 @@ jobs:
           ]
 
     name: Rellic CI
-    needs: start-runner # required to start the main job when the runner is ready
     runs-on: "gha-ubuntu-32"
     container:
       image: docker.pkg.github.com/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}:${{ matrix.image.tag }}

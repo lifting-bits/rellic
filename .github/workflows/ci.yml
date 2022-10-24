@@ -82,9 +82,9 @@ jobs:
         shell: bash
         working-directory: rellic-build
         run: |
-          echo ::set-output name=DEB_PACKAGE_PATH::rellic-build/$(ls *.deb)
-          echo ::set-output name=RPM_PACKAGE_PATH::rellic-build/$(ls *.rpm)
-          echo ::set-output name=TGZ_PACKAGE_PATH::rellic-build/$(ls *.tar.gz)
+          echo "DEB_PACKAGE_PATH=rellic-build/$(ls *.deb)" >> ${GITHUB_OUTPUT}
+          echo "RPM_PACKAGE_PATH=rellic-build/$(ls *.rpm)" >> ${GITHUB_OUTPUT}
+          echo "TGZ_PACKAGE_PATH=rellic-build/$(ls *.tar.gz)" >> ${GITHUB_OUTPUT}
 
       - name: Install the DEB package
         run: |
@@ -161,7 +161,7 @@ jobs:
         shell: bash
         working-directory: rellic-build
         run: |
-          echo ::set-output name=TGZ_PACKAGE_PATH::rellic-build/$(ls *.tar.gz)
+          echo "TGZ_PACKAGE_PATH=rellic-build/$(ls *.tar.gz)" >> ${GITHUB_OUTPUT}
 
       - name: Store the TGZ package
         uses: actions/upload-artifact@v1

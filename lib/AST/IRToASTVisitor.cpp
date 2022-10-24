@@ -20,6 +20,7 @@
 #include <iterator>
 
 #include "rellic/AST/IRToASTVisitor.h"
+#include "rellic/AST/TypeProvider.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -37,7 +38,6 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
       : dec_ctx(dec_ctx), ast(dec_ctx.ast), ast_ctx(dec_ctx.ast_ctx) {}
 
   void VisitGlobalVar(llvm::GlobalVariable &gvar);
-  clang::QualType GetQualType(llvm::Type *type);
 
   clang::Expr *CreateConstantExpr(llvm::Constant *constant);
   clang::Expr *CreateLiteralExpr(llvm::Constant *constant);
@@ -159,7 +159,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
     return;
   }
 
-  auto type{gvar.getValueType()};
+  auto type{dec_ctx.type_provider->GetGlobalVarType(gvar)};
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto name{gvar.getName().str()};
   if (name.empty()) {
@@ -167,7 +167,7 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   }
 
   // Create a variable declaration
-  var = ast.CreateVarDecl(tudecl, GetQualType(type), name);
+  var = ast.CreateVarDecl(tudecl, type, name);
   // Add to translation unit
   tudecl->addDecl(var);
 
@@ -179,128 +179,6 @@ void ExprGen::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   if (init) {
     clang::cast<clang::VarDecl>(var)->setInit(init);
   }
-}
-
-clang::QualType ExprGen::GetQualType(llvm::Type *type) {
-  DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
-
-  clang::QualType result;
-  switch (type->getTypeID()) {
-    case llvm::Type::VoidTyID:
-      result = ast_ctx.VoidTy;
-      break;
-
-    case llvm::Type::HalfTyID:
-      result = ast_ctx.HalfTy;
-      break;
-
-    case llvm::Type::FloatTyID:
-      result = ast_ctx.FloatTy;
-      break;
-
-    case llvm::Type::DoubleTyID:
-      result = ast_ctx.DoubleTy;
-      break;
-
-    case llvm::Type::X86_FP80TyID:
-      result = ast_ctx.LongDoubleTy;
-      break;
-
-    case llvm::Type::FP128TyID:
-      result = ast_ctx.Float128Ty;
-      break;
-
-    case llvm::Type::IntegerTyID: {
-      auto size{type->getIntegerBitWidth()};
-      CHECK(size > 0) << "Integer bit width has to be greater than 0";
-      result = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/0);
-    } break;
-
-    case llvm::Type::FunctionTyID: {
-      auto func{llvm::cast<llvm::FunctionType>(type)};
-      auto ret{GetQualType(func->getReturnType())};
-      std::vector<clang::QualType> params;
-      for (auto param : func->params()) {
-        params.push_back(GetQualType(param));
-      }
-      auto epi{clang::FunctionProtoType::ExtProtoInfo()};
-      epi.Variadic = func->isVarArg();
-      result = ast_ctx.getFunctionType(ret, params, epi);
-    } break;
-
-    case llvm::Type::PointerTyID: {
-      auto ptr_type{llvm::cast<llvm::PointerType>(type)};
-      if (ptr_type->isOpaque()) {
-        result = ast_ctx.VoidPtrTy;
-      } else {
-        result = ast_ctx.getPointerType(
-            GetQualType(ptr_type->getNonOpaquePointerElementType()));
-      }
-    } break;
-
-    case llvm::Type::ArrayTyID: {
-      auto arr{llvm::cast<llvm::ArrayType>(type)};
-      auto elm{GetQualType(arr->getElementType())};
-      result = ast_ctx.getConstantArrayType(
-          elm, llvm::APInt(64, arr->getNumElements()), nullptr,
-          clang::ArrayType::ArraySizeModifier::Normal, 0);
-    } break;
-
-    case llvm::Type::StructTyID: {
-      clang::RecordDecl *sdecl{nullptr};
-      auto &decl{dec_ctx.type_decls[type]};
-      if (!decl) {
-        auto tudecl{ast_ctx.getTranslationUnitDecl()};
-        auto strct{llvm::cast<llvm::StructType>(type)};
-        auto sname{strct->isLiteral()
-                       ? ("literal_struct_" +
-                          std::to_string(dec_ctx.num_literal_structs++))
-                       : strct->getName().str()};
-        if (sname.empty()) {
-          sname = "struct" + std::to_string(dec_ctx.num_declared_structs++);
-        }
-
-        // Create a C struct declaration
-        decl = sdecl = ast.CreateStructDecl(tudecl, sname);
-
-        // Add fields to the C struct
-        for (auto ecnt{0U}; ecnt < strct->getNumElements(); ++ecnt) {
-          auto etype{GetQualType(strct->getElementType(ecnt))};
-          auto fname{"field" + std::to_string(ecnt)};
-          sdecl->addDecl(ast.CreateFieldDecl(sdecl, etype, fname));
-        }
-
-        // Complete the C struct definition
-        sdecl->completeDefinition();
-        // Add C struct to translation unit
-        tudecl->addDecl(sdecl);
-
-      } else {
-        sdecl = clang::cast<clang::RecordDecl>(decl);
-      }
-      result = ast_ctx.getRecordType(sdecl);
-    } break;
-
-    case llvm::Type::MetadataTyID:
-      result = ast_ctx.VoidPtrTy;
-      break;
-
-    default: {
-      if (type->isVectorTy()) {
-        auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
-        auto etype{GetQualType(vtype->getElementType())};
-        auto ecnt{vtype->getNumElements()};
-        auto vkind{clang::VectorType::GenericVector};
-        result = ast_ctx.getVectorType(etype, ecnt, vkind);
-      } else {
-        THROW() << "Unknown LLVM Type: " << LLVMThingToString(type);
-      }
-    } break;
-  }
-
-  CHECK_THROW(!result.isNull()) << "Unknown LLVM Type";
-
-  return result;
 }
 
 clang::Expr *ExprGen::CreateConstantExpr(llvm::Constant *constant) {
@@ -330,7 +208,7 @@ clang::Expr *ExprGen::CreateLiteralExpr(llvm::Constant *constant) {
   clang::Expr *result{nullptr};
 
   auto l_type{constant->getType()};
-  auto c_type{GetQualType(l_type)};
+  auto c_type{dec_ctx.GetQualType(l_type)};
 
   auto CreateInitListLiteral{[this, &constant] {
     std::vector<clang::Expr *> init_exprs;
@@ -457,7 +335,7 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
         auto func{arg->getParent()};
         auto fdecl{dec_ctx.value_decls[func]->getAsFunction()};
         auto argdecl{clang::cast<clang::ParmVarDecl>(dec_ctx.value_decls[arg])};
-        temp = ast.CreateVarDecl(fdecl, GetQualType(arg->getType()),
+        temp = ast.CreateVarDecl(fdecl, dec_ctx.GetQualType(arg->getType()),
                                  argdecl->getName().str() + "_ptr");
         temp->setInit(addr_of_arg);
         fdecl->addDecl(temp);
@@ -576,8 +454,8 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto &arg{inst.getArgOperandUse(i)};
     auto opnd{CreateOperandExpr(arg)};
     if (inst.getParamAttr(i, llvm::Attribute::ByVal).isValid()) {
-      auto ptr_type{
-          ast_ctx.getPointerType(GetQualType(inst.getParamByValType(i)))};
+      auto ptr_type{ast_ctx.getPointerType(
+          dec_ctx.GetQualType(inst.getParamByValType(i)))};
       opnd = ast.CreateDeref(ast.CreateCStyleCast(ptr_type, opnd));
       dec_ctx.use_provenance[opnd] = &arg;
     }
@@ -592,7 +470,8 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
       callexpr = ast.CreateCall(fdecl, args);
     } else {
       // Cast function type to match the one used in the call instruction
-      auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
+      auto funcPtr{
+          ast_ctx.getPointerType(dec_ctx.GetQualType(inst.getFunctionType()))};
       auto callee{ast.CreateAddrOf(ast.CreateDeclRef(fdecl))};
       auto cast{ast.CreateCStyleCast(funcPtr, callee)};
       callexpr = ast.CreateCall(cast, args);
@@ -601,7 +480,8 @@ clang::Expr *ExprGen::visitCallInst(llvm::CallInst &inst) {
     auto fdecl{dec_ctx.value_decls[iasm]->getAsFunction()};
     callexpr = ast.CreateCall(fdecl, args);
   } else if (llvm::isa<llvm::PointerType>(callee->getType())) {
-    auto funcPtr{ast_ctx.getPointerType(GetQualType(inst.getFunctionType()))};
+    auto funcPtr{
+        ast_ctx.getPointerType(dec_ctx.GetQualType(inst.getFunctionType()))};
     auto cast{ast.CreateCStyleCast(funcPtr, CreateOperandExpr(callee))};
     callexpr = ast.CreateCall(cast, args);
   } else {
@@ -677,11 +557,11 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
   auto base{CreateOperandExpr(ptr_opnd)};
 
   auto ptr_type{
-      ast_ctx.getPointerType(GetQualType(inst.getSourceElementType()))};
+      ast_ctx.getPointerType(dec_ctx.GetQualType(inst.getSourceElementType()))};
   base = ast.CreateCStyleCast(ptr_type, base);
 
   for (auto &idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
-    GetQualType(indexed_type);
+    dec_ctx.GetQualType(indexed_type);
     switch (indexed_type->getTypeID()) {
       // Initial pointer
       case llvm::Type::PointerTyID: {
@@ -718,7 +598,7 @@ clang::Expr *ExprGen::visitGetElementPtrInst(llvm::GetElementPtrInst &inst) {
         if (indexed_type->isVectorTy()) {
           auto l_vec_ty{llvm::cast<llvm::VectorType>(indexed_type)};
           auto l_elm_ty{l_vec_ty->getElementType()};
-          auto c_elm_ty{GetQualType(l_elm_ty)};
+          auto c_elm_ty{dec_ctx.GetQualType(l_elm_ty)};
           base = ast.CreateCStyleCast(ast_ctx.getPointerType(c_elm_ty),
                                       ast.CreateAddrOf(base));
           base = ast.CreateArraySub(base, CreateOperandExpr(idx));
@@ -745,11 +625,11 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
   auto base{CreateOperandExpr(inst.getOperandUse(0))};
   auto indexed_type{inst.getAggregateOperand()->getType()};
   if (clang::isa<clang::InitListExpr>(base)) {
-    base = ast.CreateCompoundLit(GetQualType(indexed_type), base);
+    base = ast.CreateCompoundLit(dec_ctx.GetQualType(indexed_type), base);
   }
 
   for (auto idx : llvm::make_range(inst.idx_begin(), inst.idx_end())) {
-    GetQualType(indexed_type);
+    dec_ctx.GetQualType(indexed_type);
     switch (indexed_type->getTypeID()) {
       // Arrays
       case llvm::Type::ArrayTyID: {
@@ -783,7 +663,7 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  auto ptr_type{ast_ctx.getPointerType(GetQualType(inst.getType()))};
+  auto ptr_type{ast_ctx.getPointerType(dec_ctx.GetQualType(inst.getType()))};
   auto cast{
       ast.CreateCStyleCast(ptr_type, CreateOperandExpr(inst.getOperandUse(0)))};
   return ast.CreateDeref(cast);
@@ -984,7 +864,7 @@ clang::Expr *ExprGen::visitCastInst(llvm::CastInst &inst) {
   // Get a C-language expression of the operand
   auto operand{CreateOperandExpr(inst.getOperandUse(0))};
   // Get destination type
-  auto type{GetQualType(inst.getType())};
+  auto type{dec_ctx.GetQualType(inst.getType())};
   // Adjust type
   switch (inst.getOpcode()) {
     case llvm::CastInst::Trunc: {
@@ -1100,7 +980,7 @@ clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
   auto ptr_type{
-      ast_ctx.getPointerType(expr_gen.GetQualType(value_opnd->getType()))};
+      ast_ctx.getPointerType(dec_ctx.GetQualType(value_opnd->getType()))};
   auto lhs{ast.CreateCStyleCast(
       ptr_type, expr_gen.CreateOperandExpr(
                     inst.getOperandUse(inst.getPointerOperandIndex())))};
@@ -1201,40 +1081,9 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   // Get parent function declaration
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[func])};
-  auto argtype{arg.getType()};
-  if (arg.hasByValAttr()) {
-    auto byval{arg.getAttribute(llvm::Attribute::ByVal)};
-    argtype = byval.getValueAsType();
-  }
-  ExprGen expr_gen{dec_ctx};
+  auto argtype{dec_ctx.type_provider->GetArgumentType(arg)};
   // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, expr_gen.GetQualType(argtype), name);
-}
-
-// This function fixes function types for those functions that have arguments
-// that are passed by value using the `byval` attribute.
-// They need special treatment because those arguments, instead of actually
-// being passed by value, are instead passed "by reference" from a bitcode point
-// of view, with the caveat that the actual semantics are more like "create a
-// copy of the reference before calling, and pass a pointer to that copy
-// instead" (this is done implicitly).
-// Thus, we need to convert a function type like
-//   i32 @do_foo(%struct.foo* byval(%struct.foo) align 4 %f)
-// into
-//   i32 @do_foo(%struct.foo %f)
-static llvm::FunctionType *GetFixedFunctionType(llvm::Function &func) {
-  std::vector<llvm::Type *> new_arg_types{};
-
-  for (auto &arg : func.args()) {
-    if (arg.hasByValAttr()) {
-      new_arg_types.push_back(arg.getParamByValType());
-    } else {
-      new_arg_types.push_back(arg.getType());
-    }
-  }
-
-  return llvm::FunctionType::get(func.getReturnType(), new_arg_types,
-                                 func.isVarArg());
+  parm = ast.CreateParamDecl(fdecl, argtype, name);
 }
 
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
@@ -1274,9 +1123,16 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
-  ExprGen expr_gen{dec_ctx};
-  auto type{expr_gen.GetQualType(GetFixedFunctionType(func))};
-  decl = ast.CreateFunctionDecl(tudecl, type, name);
+
+  std::vector<clang::QualType> arg_types;
+  for (auto &arg : func.args()) {
+    arg_types.push_back(dec_ctx.type_provider->GetArgumentType(arg));
+  }
+  auto ret_type{dec_ctx.type_provider->GetFunctionReturnType(func)};
+  clang::FunctionProtoType::ExtProtoInfo epi;
+  epi.Variadic = func.isVarArg();
+  auto ftype{dec_ctx.ast_ctx.getFunctionType(ret_type, arg_types, epi)};
+  decl = ast.CreateFunctionDecl(tudecl, ftype, name);
 
   tudecl->addDecl(decl);
 
@@ -1313,7 +1169,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
       var = ast.CreateVarDecl(
-          fdecl, expr_gen.GetQualType(alloca->getAllocatedType()), name);
+          fdecl, dec_ctx.GetQualType(alloca->getAllocatedType()), name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) ||
                (inst.hasNUsesOrMore(1) && llvm::isa<llvm::CallInst>(inst)) ||
@@ -1331,7 +1187,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
         auto name{GetPrefix(&inst) +
                   std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
-        auto type{expr_gen.GetQualType(inst.getType())};
+        auto type{dec_ctx.GetQualType(inst.getType())};
         if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
           type = dec_ctx.ast_ctx.getPointerType(arrayType->getElementType());
         }
@@ -1363,12 +1219,12 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
         auto name{"asm_" +
                   std::to_string(GetNumDecls<clang::FunctionDecl>(tudecl))};
         auto ftype{iasm->getFunctionType()};
-        auto type{expr_gen.GetQualType(ftype)};
+        auto type{dec_ctx.GetQualType(ftype)};
         decl = ast.CreateFunctionDecl(tudecl, type, name);
 
         std::vector<clang::ParmVarDecl *> iasm_params;
         for (auto arg : ftype->params()) {
-          auto arg_type{expr_gen.GetQualType(arg)};
+          auto arg_type{dec_ctx.GetQualType(arg)};
           auto name{"arg_" + std::to_string(iasm_params.size())};
           iasm_params.push_back(
               ast.CreateParamDecl(decl->getDeclContext(), arg_type, name));

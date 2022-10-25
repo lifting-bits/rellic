@@ -24,7 +24,7 @@ jobs:
         image:
           - { name: 'ubuntu', tag: '20.04' }
         llvm: [
-          '14'
+          '15'
           ]
 
     name: Rellic CI
@@ -48,8 +48,8 @@ jobs:
         run: |
           # TODO some of these should probably live in the Docker build image
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-          echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main" >> /etc/apt/sources.list
-          echo "deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-14 main" >> /etc/apt/sources.list
+          echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-${{ matrix.llvm }} main" >> /etc/apt/sources.list
+          echo "deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-${{ matrix.llvm }} main" >> /etc/apt/sources.list
           apt-get update
           apt-get install -y ninja-build pixz xz-utils make rpm python3.8
           update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 100
@@ -129,7 +129,7 @@ jobs:
           'macos-11'
           ]
         llvm: [
-          '14'
+          '15'
           ]
 
     runs-on: ${{ matrix.os }}
@@ -246,7 +246,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["14"]
+        llvm: ["15"]
         ubuntu: ["20.04"]
     steps:
     - uses: actions/checkout@v2

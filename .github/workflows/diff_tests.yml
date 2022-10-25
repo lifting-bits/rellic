@@ -12,7 +12,7 @@ jobs:
       matrix:
         image:
           - { name: 'ubuntu', tag: '20.04', codename: 'focal' }
-        llvm: [ '14' ]
+        llvm: [ '15' ]
         common_base: [ 'https://github.com/lifting-bits/cxx-common/releases/latest/download' ]
     
     env:
@@ -76,7 +76,7 @@ jobs:
         run: |
           echo "# Test diffs" >> $GITHUB_STEP_SUMMARY
           cd $GITHUB_WORKSPACE/tests/tools/decomp
-          env CLANG=clang-14 \
+          env CLANG=clang-${{ matrix.llvm }} \
               OLD_RELLIC=$GITHUB_WORKSPACE/rellic-build-old/tools/rellic-decomp \
               NEW_RELLIC=$GITHUB_WORKSPACE/rellic-build/tools/rellic-decomp \
               make -s -j1 -f diff_outputs.mk >> $GITHUB_STEP_SUMMARY
@@ -86,7 +86,7 @@ jobs:
         id: md
         run: |
           cd $GITHUB_WORKSPACE/tests/tools/decomp
-          env CLANG=clang-14 \
+          env CLANG=clang-${{ matrix.llvm }} \
               OLD_RELLIC=$GITHUB_WORKSPACE/rellic-build-old/tools/rellic-decomp \
               NEW_RELLIC=$GITHUB_WORKSPACE/rellic-build/tools/rellic-decomp \
               make -s -j1 -f diff_outputs.mk >> $GITHUB_WORKSPACE/test-diff.md

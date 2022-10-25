@@ -19,6 +19,7 @@ CURR_DIR=$( pwd )
 BUILD_DIR="${CURR_DIR}/rellic-build"
 INSTALL_DIR=/usr/local
 LLVM_VERSION=llvm-14
+CXX_COMMON_VERSION=v0.2.10
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
@@ -97,7 +98,7 @@ function GetArchVersion
 function DownloadVcpkgLibraries
 {
   local GITHUB_LIBS="${LIBRARY_VERSION}.tar.xz"
-  local URL="https://github.com/lifting-bits/cxx-common/releases/latest/download/${GITHUB_LIBS}"
+  local URL="https://github.com/lifting-bits/cxx-common/releases/download/${CXX_COMMON_VERSION}/${GITHUB_LIBS}"
 
   mkdir -p "${DOWNLOAD_DIR}"
   pushd "${DOWNLOAD_DIR}" || return 1

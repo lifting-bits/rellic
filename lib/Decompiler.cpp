@@ -83,6 +83,11 @@ Result<DecompilationResult, DecompilationError> Decompile(
                                   module->getTargetTriple()};
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
     rellic::DecompilationContext dec_ctx(*ast_unit);
+
+    for (auto& provider : options.additional_providers) {
+      dec_ctx.type_provider->AddProvider(provider->create(dec_ctx));
+    }
+
     rellic::GenerateAST::run(*module, dec_ctx);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map
     // Especially for llvm::Argument* and llvm::Function*.

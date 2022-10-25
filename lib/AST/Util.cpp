@@ -19,6 +19,8 @@
 #include <numeric>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/AST/TypeProvider.h"
+#include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
 namespace rellic {
@@ -391,11 +393,137 @@ DecompilationContext::DecompilationContext(clang::ASTUnit &ast_unit)
     : ast_unit(ast_unit),
       ast_ctx(ast_unit.getASTContext()),
       ast(ast_unit),
-      marker_expr(ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse())) {}
+      marker_expr(ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse())),
+      type_provider(std::make_unique<TypeProviderCombiner>(*this)) {}
 
 unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
   auto idx{z3_exprs.size()};
   z3_exprs.push_back(e);
   return idx;
+}
+
+clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
+  DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
+
+  clang::QualType result;
+  switch (type->getTypeID()) {
+    case llvm::Type::VoidTyID:
+      result = ast_ctx.VoidTy;
+      break;
+
+    case llvm::Type::HalfTyID:
+      result = ast_ctx.HalfTy;
+      break;
+
+    case llvm::Type::FloatTyID:
+      result = ast_ctx.FloatTy;
+      break;
+
+    case llvm::Type::DoubleTyID:
+      result = ast_ctx.DoubleTy;
+      break;
+
+    case llvm::Type::X86_FP80TyID:
+      result = ast_ctx.LongDoubleTy;
+      break;
+
+    case llvm::Type::FP128TyID:
+      result = ast_ctx.Float128Ty;
+      break;
+
+    case llvm::Type::IntegerTyID: {
+      auto size{type->getIntegerBitWidth()};
+      CHECK(size > 0) << "Integer bit width has to be greater than 0";
+      if (size == 8) {
+        result = ast_ctx.CharTy;
+      } else {
+        result = ast.GetLeastIntTypeForBitWidth(size, /*sign=*/0);
+      }
+    } break;
+
+    case llvm::Type::FunctionTyID: {
+      auto func{llvm::cast<llvm::FunctionType>(type)};
+      auto ret{GetQualType(func->getReturnType())};
+      std::vector<clang::QualType> params;
+      for (auto param : func->params()) {
+        params.push_back(GetQualType(param));
+      }
+      auto epi{clang::FunctionProtoType::ExtProtoInfo()};
+      epi.Variadic = func->isVarArg();
+      result = ast_ctx.getFunctionType(ret, params, epi);
+    } break;
+
+    case llvm::Type::PointerTyID: {
+      auto ptr_type{llvm::cast<llvm::PointerType>(type)};
+      if (ptr_type->isOpaque()) {
+        result = ast_ctx.VoidPtrTy;
+      } else {
+        result = ast_ctx.getPointerType(
+            GetQualType(ptr_type->getNonOpaquePointerElementType()));
+      }
+    } break;
+
+    case llvm::Type::ArrayTyID: {
+      auto arr{llvm::cast<llvm::ArrayType>(type)};
+      auto elm{GetQualType(arr->getElementType())};
+      result = ast_ctx.getConstantArrayType(
+          elm, llvm::APInt(64, arr->getNumElements()), nullptr,
+          clang::ArrayType::ArraySizeModifier::Normal, 0);
+    } break;
+
+    case llvm::Type::StructTyID: {
+      clang::RecordDecl *sdecl{nullptr};
+      auto &decl{type_decls[type]};
+      if (!decl) {
+        auto tudecl{ast_ctx.getTranslationUnitDecl()};
+        auto strct{llvm::cast<llvm::StructType>(type)};
+        auto sname{strct->isLiteral() ? ("literal_struct_" +
+                                         std::to_string(num_literal_structs++))
+                                      : strct->getName().str()};
+        if (sname.empty()) {
+          sname = "struct" + std::to_string(num_declared_structs++);
+        }
+
+        // Create a C struct declaration
+        decl = sdecl = ast.CreateStructDecl(tudecl, sname);
+
+        // Add fields to the C struct
+        for (auto ecnt{0U}; ecnt < strct->getNumElements(); ++ecnt) {
+          auto etype{GetQualType(strct->getElementType(ecnt))};
+          auto fname{"field" + std::to_string(ecnt)};
+          sdecl->addDecl(ast.CreateFieldDecl(sdecl, etype, fname));
+        }
+
+        // Complete the C struct definition
+        sdecl->completeDefinition();
+        // Add C struct to translation unit
+        tudecl->addDecl(sdecl);
+
+      } else {
+        sdecl = clang::cast<clang::RecordDecl>(decl);
+      }
+      result = ast_ctx.getRecordType(sdecl);
+    } break;
+
+    case llvm::Type::MetadataTyID:
+      result = ast_ctx.VoidPtrTy;
+      break;
+
+    default: {
+      if (type->isVectorTy()) {
+        auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
+        auto etype{GetQualType(vtype->getElementType())};
+        auto ecnt{vtype->getNumElements()};
+        auto vkind{clang::VectorType::GenericVector};
+        result = ast_ctx.getVectorType(etype, ecnt, vkind);
+      } else {
+        THROW() << "Unknown LLVM Type: " << LLVMThingToString(type);
+      }
+    } break;
+  }
+
+  CHECK_THROW(!result.isNull()) << "Unknown LLVM Type";
+
+  return result;
 }
 }  // namespace rellic

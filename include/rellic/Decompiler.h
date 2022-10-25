@@ -13,13 +13,39 @@
 
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include "Result.h"
+#include "rellic/AST/TypeProvider.h"
 
 namespace rellic {
+
+/* This additional level of indirection is needed to alleviate the users from
+ * the burden of having to instantiate custom TypeProviders before the actual
+ * DecompilationContext has been created */
+class TypeProviderFactory {
+ public:
+  virtual ~TypeProviderFactory() = default;
+  virtual std::unique_ptr<TypeProvider> create(DecompilationContext& ctx) = 0;
+};
+
+template <typename T>
+class SimpleTypeProviderFactory final : public TypeProviderFactory {
+ public:
+  std::unique_ptr<TypeProvider> create(DecompilationContext& ctx) override {
+    return std::make_unique<T>(ctx);
+  }
+};
+
 struct DecompilationOptions {
+  using TypeProviderFactoryPtr = std::unique_ptr<TypeProviderFactory>;
+
   bool lower_switches = false;
   bool remove_phi_nodes = false;
+
+  // Additional type providers to be used during code generation.
+  // Providers added later will have higher priority.
+  std::vector<TypeProviderFactoryPtr> additional_providers;
 };
 
 struct DecompilationResult {

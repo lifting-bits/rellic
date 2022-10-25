@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) {
   opts.lower_switches = FLAGS_lower_switch;
   opts.remove_phi_nodes = FLAGS_remove_phi_nodes;
 
-  auto result{rellic::Decompile(std::move(module), opts)};
+  auto result{rellic::Decompile(std::move(module), std::move(opts))};
   if (result.Succeeded()) {
     auto value{result.TakeValue()};
     value.ast->getASTContext().getTranslationUnitDecl()->print(output);

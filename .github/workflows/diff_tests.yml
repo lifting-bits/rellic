@@ -14,7 +14,7 @@ jobs:
           - { name: 'ubuntu', tag: '20.04', codename: 'focal' }
         llvm: [ '14' ]
         common_base: [ 'https://github.com/lifting-bits/cxx-common/releases/latest/download' ]
-    
+
     env:
       CC: clang-${{ matrix.llvm }}
       CXX: clang++-${{ matrix.llvm }}
@@ -62,13 +62,13 @@ jobs:
       - name: Build old rellic
         shell: bash
         run: |
-          cmake -G Ninja -S old -B rellic-build-old -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
+          cmake -G Ninja -S old -B rellic-build-old -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64/scripts/buildsystems/vcpkg.cmake
           cmake --build rellic-build-old
 
       - name: Build new rellic
         shell: bash
         run: |
-          cmake -G Ninja -S . -B rellic-build -DVCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64
+          cmake -G Ninja -S . -B rellic-build -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64/scripts/buildsystems/vcpkg.cmake
           cmake --build rellic-build
 
       - name: Print job summary

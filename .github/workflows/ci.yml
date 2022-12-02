@@ -70,7 +70,7 @@ jobs:
       - name: Build with CMake Presets
         shell: bash
         run: |
-          export VCPKG_ROOT=${GITHUB_WORKSPACE}/${VCPKG_ROOT_PART}
+          export CMAKE_TOOLCHAIN_FILE=${GITHUB_WORKSPACE}/${VCPKG_ROOT_PART}/scripts/buildsystems/vcpkg.cmake
           export INSTALL_DIR=${GITHUB_WORKSPACE}/${INSTALL_DIR_PART}
           scripts/build-preset.sh debug
         env:

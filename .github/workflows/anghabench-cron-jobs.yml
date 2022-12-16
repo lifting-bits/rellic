@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        llvm: [ '14' ]
+        llvm: [ '15' ]
         run_size: [ '1k' ]
 
     name: Run AnghaBench CI (AMD64)

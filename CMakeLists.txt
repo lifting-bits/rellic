@@ -11,8 +11,8 @@ cmake_minimum_required(VERSION 3.21)
 include("cmake/options.cmake")
 
 project(rellic)
-set(CMAKE_CXX_VISIBILITY_PRESET hidden) 
-set(CMAKE_C_VISIBILITY_PRESET hidden) 
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_C_VISIBILITY_PRESET hidden)
 set (VISIBILITY_INLINES_HIDDEN YES)
 include("cmake/settings.cmake")
 include(GNUInstallDirs)
@@ -61,9 +61,9 @@ find_package(Clang CONFIG REQUIRED)
 
 if(RELLIC_ENABLE_INSTALL)
   export(PACKAGE "${PROJECT_NAME}")
-  
+
   set(cmake_install_dir "lib/cmake/${PROJECT_NAME}")
-  
+
   include(CMakePackageConfigHelpers)
   configure_package_config_file("${PROJECT_NAME}Config.cmake.in"
       "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
@@ -111,7 +111,7 @@ if (RELLIC_ENABLE_TESTING)
 
   get_target_property(CLANG_PATH clang LOCATION)
   message(STATUS "Clang path for tests: \"${CLANG_PATH}\"")
-  
+
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   message(STATUS "Python path for tests: \"${Python3_EXECUTABLE}\"")
 

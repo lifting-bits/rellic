@@ -307,7 +307,7 @@ void ConvertArrayArguments(llvm::Module &m) {
   std::unordered_map<llvm::Type *, llvm::Type *> conv_types;
   std::vector<unsigned> indices;
   indices.push_back(0);
-  std::vector<llvm::Function *> funcs_to_remove;
+  std::vector<std::pair<llvm::Function *, llvm::Function *>> funcs_to_remove;
   auto &ctx{m.getContext()};
   auto ConvertType = [&](llvm::Type *t) -> llvm::Type * {
     if (!t->isArrayTy()) {
@@ -365,7 +365,7 @@ void ConvertArrayArguments(llvm::Module &m) {
         ret->eraseFromParent();
       }
     }
-    funcs_to_remove.push_back(orig_func);
+    funcs_to_remove.push_back(std::make_pair(orig_func, new_func));
     return new_func;
   };
 
@@ -426,12 +426,19 @@ void ConvertArrayArguments(llvm::Module &m) {
     }
   }
 
-  for (auto func : funcs_to_remove) {
+  for (auto [func_to_remove, replacement] : funcs_to_remove) {
     // TODO(frabert): Sometimes uses stick around which are not calls (e.g.
     // references in globals). How do we replace those? Cannot use
-    // `func->replaceAllUsesWith` because types don't match.
-    if (func->use_empty()) {
-      func->eraseFromParent();
+    // `func->replaceAllUsesWith` because types don't match
+    const llvm::User *user;
+    if (!func_to_remove->hasAddressTaken(&user, false, false, true, false)) {
+      auto orig_name = func_to_remove->getName().str();
+      func_to_remove->replaceAllUsesWith(replacement);
+      func_to_remove->eraseFromParent();
+      replacement->setName(orig_name);
+    } else {
+      DLOG(ERROR) << "Keeping around old array function: "
+                  << func_to_remove->getName().str();
     }
   }
 

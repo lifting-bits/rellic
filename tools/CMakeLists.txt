@@ -104,6 +104,24 @@ target_link_libraries(${RELLIC_REPL}
 
 set(RELLIC_REPL "${RELLIC_REPL}" PARENT_SCOPE)
 
+#
+# rellic-dec2hex
+#
+set(RELLIC_DEC2HEX "${PROJECT_NAME}-dec2hex")
+
+add_executable(${RELLIC_DEC2HEX}
+  "dec2hex/dec2hex.cpp"
+)
+
+target_link_libraries(${RELLIC_DEC2HEX}
+  PRIVATE
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
+)
+
+set(RELLIC_DEC2HEX "${RELLIC_DEC2HEX}" PARENT_SCOPE)
+
 if(RELLIC_ENABLE_INSTALL)
   
   install(

@@ -4,6 +4,168 @@ Rellic is an implementation of the [pattern-independent structuring](https://git
 
 The design philosophy behind the project is to provide a relatively small and easily hackable codebase with great interoperability with other LLVM and [Remill](https://github.com/lifting-bits/remill) projects.
 
+## Examples
+
+<table>
+<thead>
+  <td>Original program</td>
+  <td>Compiled with <code>-emit-llvm -O0</code> and decompiled</td>
+</thead>
+<tbody>
+<tr>
+<td>
+
+```c
+int main() {
+  for(int i = 0; i < 30; ++i) {
+    if(i % 3 == 0 && i % 5 == 0) {
+      printf("fizzbuzz\n");
+    } else if(i % 3 == 0) {
+      printf("fizz\n");
+    } else if(i % 5 == 0) {
+      printf("buzz\n");
+    } else {
+      printf("%d\n", i);
+    }
+  }
+}
+```
+
+</td>
+<td>
+
+```c
+int main() {
+  unsigned int var0;
+  unsigned int i;
+  var0 = 0U;
+  i = 0U;
+  while ((int)i < 30) {
+    if ((int)i % 3 != 0U || !((int)i % 5 == 0U || (int)i % 3 != 0U)) {
+      if ((int)i % 3 != 0U) {
+        if ((int)i % 5 != 0U) {
+          printf("%d\n", i);
+        } else {
+          printf("buzz\n");
+        }
+      } else {
+        printf("fizz\n");
+      }
+    } else {
+      printf("fizzbuzz\n");
+    }
+    i = i + 1U;
+  }
+  return var0;
+}
+```
+
+</td>
+</tr>
+<tr>
+<td>
+
+```c
+int main() {
+  int i = 0;
+  start:
+  i++;
+  switch(i) {
+    case 1: printf("%d\n", i); goto start; break;
+    case 2: printf("%d\n", i); goto start; break;
+    case 3: printf("%d\n", i); break;
+  }
+}
+```
+
+</td>
+<td>
+
+```c
+int main() {
+  unsigned int var0;
+  unsigned int i;
+  var0 = 0U;
+  i = 0U;
+  do {
+    i = i + 1U;
+    if (!(i != 3U && i != 2U && i != 1U))
+      if (i == 3U) {
+        printf("%d\n", i);
+        break;
+      } else if (i == 2U) {
+        printf("%d\n", i);
+      } else {
+        printf("%d\n", i);
+      }
+  } while (!(i != 3U && i != 2U && i != 1U));
+  return var0;
+}
+```
+
+</td>
+</tr>
+<tr>
+<td>
+
+```c
+int main() {
+  int x = atoi("5");
+  if(x > 10) {
+    while(x < 20) {
+      x = x + 1;
+      printf("loop1 x: %d\n", x);
+    }
+  }
+  while(x < 20) {
+    x = x + 1;
+    printf("loop2 x: %d\n", x);
+  }
+}
+```
+
+</td>
+<td>
+
+```c
+int main() {
+  unsigned int var0;
+  unsigned int x;
+  unsigned int call2;
+  var0 = 0U;
+  call2 = atoi("5");
+  x = call2;
+  if ((int)x > 10) {
+    while ((int)x < 20) {
+      x = x + 1U;
+      printf("loop1 x: %d\n", x);
+    }
+  }
+  if ((int)x <= 10 || (int)x >= 20) {
+    while ((int)x < 20) {
+      x = x + 1U;
+      printf("loop2 x: %d\n", x);
+    }
+  }
+  if ((int)x >= 20 && ((int)x <= 10 || (int)x >= 20)) {
+    return var0;
+  }
+}
+```
+
+</td>
+</tr>
+</tbody>
+</table>
+
+## In the press
+
+[C your data structures with `rellic-headergen`](https://blog.trailofbits.com/2022/01/19/c-your-data-structures-with-rellic-headergen/)
+
+[Interactive decompilation with `rellic-xref`](https://blog.trailofbits.com/2022/05/17/interactive-decompilation-with-rellic-xref/)
+
+[Magnifier: an experiment with interactive decompilation](https://blog.trailofbits.com/2022/08/25/magnifier-an-experiment-with-interactive-decompilation/)
+
 ## Build Status
 
 |       | master |
@@ -95,7 +257,7 @@ Make sure to have the latest release of cxx-common for LLVM 14. Then, build with
 ```shell
 cmake \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_TOOLCHAIN_FILE="<path to cxx-common directory>/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+  -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake \
   -DVCPKG_TARGET_TRIPLET=x64-osx-rel \
   -DRELLIC_ENABLE_TESTING=OFF \
   -DCMAKE_C_COMPILER=`which clang` \

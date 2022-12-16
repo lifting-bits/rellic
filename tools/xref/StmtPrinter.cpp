@@ -1371,7 +1371,11 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
     return;
   OS << "<span class=\"clang number integer-literal\">";
   bool isSigned = Node->getType()->isSignedIntegerType();
-  OS << toString(Node->getValue(), 10, isSigned);
+  if (Node->getValue().getZExtValue() < 16) {
+    OS << toString(Node->getValue(), 10, isSigned);
+  } else {
+    OS << toString(Node->getValue(), 16, isSigned, /*formatAsCLiteral=*/true);
+  }
 
   if (isa<BitIntType>(Node->getType())) {
     OS << (isSigned ? "wb" : "uwb");

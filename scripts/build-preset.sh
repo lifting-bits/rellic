@@ -11,11 +11,11 @@ VCPKG_SUFFIX="-rel"
 set -o pipefail
 
 function sanity_check {
-  	if [ -z "${CMAKE_TOOLCHAIN_FILE}" ]; then
+	if [ -z "${CMAKE_TOOLCHAIN_FILE}" ]; then
 		echo "Please set the CMAKE_TOOLCHAIN_FILE environment variable to the CMake toolchain file to build against"
 		exit 1
 	else
-                echo "Building against CMake toolchain file: [${CMAKE_TOOLCHAIN_FILE}]"
+		echo "Building against CMake toolchain file: [${CMAKE_TOOLCHAIN_FILE}]"
 	fi
 
 	if [ -z "${INSTALL_DIR}" ]; then

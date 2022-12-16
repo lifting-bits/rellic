@@ -9,7 +9,6 @@
 cmake_minimum_required(VERSION 3.21)
 
 include("cmake/options.cmake")
-include("cmake/vcpkg_helper.cmake")
 
 project(rellic)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden) 

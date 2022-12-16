@@ -62,13 +62,13 @@ jobs:
       - name: Build old rellic
         shell: bash
         run: |
-          cmake -G Ninja -S old -B rellic-build-old -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64/scripts/buildsystems/vcpkg.cmake
+          cmake -G Ninja -S old -B rellic-build-old -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_ARCH="x64-linux-rel"
           cmake --build rellic-build-old
 
       - name: Build new rellic
         shell: bash
         run: |
-          cmake -G Ninja -S . -B rellic-build -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64/scripts/buildsystems/vcpkg.cmake
+          cmake -G Ninja -S . -B rellic-build -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE/vcpkg_${{ matrix.image.name }}-${{ matrix.image.tag }}_llvm-${{ matrix.llvm }}_amd64/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_ARCH="x64-linux-rel"
           cmake --build rellic-build
 
       - name: Print job summary

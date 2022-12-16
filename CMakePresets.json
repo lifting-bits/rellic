@@ -60,7 +60,7 @@
           "generator": "Ninja",
           "cacheVariables": {
               "VCPKG_TARGET_TRIPLET": "$env{VCPKG_TARGET_TRIPLET}",
-              "CMAKE_TOOLCHAIN_FILE": "$env{CMAKE_TOOLCHAIN_FILE}"
+              "CMAKE_TOOLCHAIN_FILE": "$env{CMAKE_TOOLCHAIN_FILE}",
               "CMAKE_INSTALL_PREFIX": "$env{INSTALL_DIR}/install",
               "RELLIC_ENABLE_TESTING": "ON"
           }

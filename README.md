@@ -95,7 +95,7 @@ Make sure to have the latest release of cxx-common for LLVM 14. Then, build with
 ```shell
 cmake \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DVCPKG_ROOT=/path/to/vcpkg \
+  -DCMAKE_TOOLCHAIN_FILE="<path to cxx-common directory>/vcpkg/scripts/buildsystems/vcpkg.cmake" \
   -DVCPKG_TARGET_TRIPLET=x64-osx-rel \
   -DRELLIC_ENABLE_TESTING=OFF \
   -DCMAKE_C_COMPILER=`which clang` \

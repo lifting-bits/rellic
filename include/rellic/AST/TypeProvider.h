@@ -42,7 +42,7 @@ class TypeProvider {
   virtual clang::QualType GetAllocaType(llvm::AllocaInst& alloca);
 };
 
-class TypeProviderCombiner : public TypeProvider {
+class TypeProviderCombiner final : public TypeProvider {
  private:
   std::vector<std::unique_ptr<TypeProvider>> providers;
 
@@ -56,9 +56,9 @@ class TypeProviderCombiner : public TypeProvider {
 
   void AddProvider(std::unique_ptr<TypeProvider> provider);
 
-  clang::QualType GetFunctionReturnType(llvm::Function& func) override;
-  clang::QualType GetArgumentType(llvm::Argument& arg) override;
-  clang::QualType GetGlobalVarType(llvm::GlobalVariable& gvar) override;
-  clang::QualType GetAllocaType(llvm::AllocaInst& alloca) override;
+  clang::QualType GetFunctionReturnType(llvm::Function& func) final;
+  clang::QualType GetArgumentType(llvm::Argument& arg) final;
+  clang::QualType GetGlobalVarType(llvm::GlobalVariable& gvar) final;
+  clang::QualType GetAllocaType(llvm::AllocaInst& alloca) final;
 };
 }  // namespace rellic

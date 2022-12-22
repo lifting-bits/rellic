@@ -1094,9 +1094,15 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   // Get parent function declaration
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[func])};
-  auto argtype{dec_ctx.type_provider->GetArgumentType(arg)};
-  // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, argtype, name);
+  auto argtype = dec_ctx.var_provider->ArgumentAsLocal(arg);
+  // Does the user want to treat this argument as a local variable?
+  if (!argtype.isNull()) {
+    parm = ast.CreateVarDecl(fdecl, argtype, name);
+  } else {
+    argtype = dec_ctx.type_provider->GetArgumentType(arg);
+    // Create a declaration
+    parm = ast.CreateParamDecl(fdecl, argtype, name);
+  }
 }
 
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
@@ -1148,15 +1154,19 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   decl = ast.CreateFunctionDecl(tudecl, ftype, name);
 
   tudecl->addDecl(decl);
+  auto fdecl{decl->getAsFunction()};
 
   std::vector<clang::ParmVarDecl *> params;
   for (auto &arg : func.args()) {
     VisitArgument(arg);
-    params.push_back(
-        clang::cast<clang::ParmVarDecl>(dec_ctx.value_decls[&arg]));
+    auto &decl{dec_ctx.value_decls[&arg]};
+    if (auto param = clang::dyn_cast<clang::ParmVarDecl>(decl)) {
+      params.push_back(param);
+    } else {
+      fdecl->addDecl(decl);
+    }
   }
 
-  auto fdecl{decl->getAsFunction()};
   fdecl->setParams(params);
 
   for (auto &inst : llvm::instructions(func)) {

@@ -82,6 +82,7 @@ set(AST_SOURCES
   AST/StructGenerator.cpp
   AST/SubprogramGenerator.cpp
   AST/TypeProvider.cpp
+  AST/VariableProvider.cpp
 )
 
 set(BC_SOURCES

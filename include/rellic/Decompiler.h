@@ -17,6 +17,7 @@
 
 #include "Result.h"
 #include "rellic/AST/TypeProvider.h"
+#include "rellic/AST/VariableProvider.h"
 
 namespace rellic {
 
@@ -37,15 +38,32 @@ class SimpleTypeProviderFactory final : public TypeProviderFactory {
   }
 };
 
+class VariableProviderFactory {
+ public:
+  virtual ~VariableProviderFactory() = default;
+  virtual std::unique_ptr<VariableProvider> create(
+      DecompilationContext& ctx) = 0;
+};
+
+template <typename T>
+class SimpleVariableProviderFactory final : public VariableProviderFactory {
+ public:
+  std::unique_ptr<VariableProvider> create(DecompilationContext& ctx) override {
+    return std::make_unique<T>(ctx);
+  }
+};
+
 struct DecompilationOptions {
   using TypeProviderFactoryPtr = std::unique_ptr<TypeProviderFactory>;
+  using VariableProviderFactoryPtr = std::unique_ptr<VariableProviderFactory>;
 
   bool lower_switches = false;
   bool remove_phi_nodes = false;
 
   // Additional type providers to be used during code generation.
   // Providers added later will have higher priority.
-  std::vector<TypeProviderFactoryPtr> additional_providers;
+  std::vector<TypeProviderFactoryPtr> additional_type_providers;
+  std::vector<VariableProviderFactoryPtr> additional_variable_providers;
 };
 
 struct DecompilationResult {

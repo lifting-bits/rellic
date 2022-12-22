@@ -90,8 +90,12 @@ Result<DecompilationResult, DecompilationError> Decompile(
     auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
     rellic::DecompilationContext dec_ctx(*ast_unit);
 
-    for (auto& provider : options.additional_providers) {
+    for (auto& provider : options.additional_type_providers) {
       dec_ctx.type_provider->AddProvider(provider->create(dec_ctx));
+    }
+
+    for (auto& provider : options.additional_variable_providers) {
+      dec_ctx.var_provider->AddProvider(provider->create(dec_ctx));
     }
 
     rellic::GenerateAST::run(*module, dec_ctx);

@@ -10,6 +10,7 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Instructions.h>
 
 #include "rellic/AST/ASTBuilder.h"
 
@@ -35,6 +36,10 @@ class TypeProvider {
   // Returns the type of a global variable if available.
   // A null return value is assumed to mean that no info is available.
   virtual clang::QualType GetGlobalVarType(llvm::GlobalVariable& gvar);
+
+  // Returns the type of an alloca variable if available.
+  // A null return value is assumed to mean that no info is available.
+  virtual clang::QualType GetAllocaType(llvm::AllocaInst& alloca);
 };
 
 class TypeProviderCombiner : public TypeProvider {
@@ -54,5 +59,6 @@ class TypeProviderCombiner : public TypeProvider {
   clang::QualType GetFunctionReturnType(llvm::Function& func) override;
   clang::QualType GetArgumentType(llvm::Argument& arg) override;
   clang::QualType GetGlobalVarType(llvm::GlobalVariable& gvar) override;
+  clang::QualType GetAllocaType(llvm::AllocaInst& alloca) override;
 };
 }  // namespace rellic

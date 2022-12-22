@@ -1182,7 +1182,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
       var = ast.CreateVarDecl(
-          fdecl, dec_ctx.GetQualType(alloca->getAllocatedType()), name);
+          fdecl, dec_ctx.type_provider->GetAllocaType(*alloca), name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) ||
                (inst.hasNUsesOrMore(1) && llvm::isa<llvm::CallInst>(inst)) ||

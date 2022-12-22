@@ -11,6 +11,7 @@
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/BinaryFormat/Dwarf.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/Support/Casting.h>

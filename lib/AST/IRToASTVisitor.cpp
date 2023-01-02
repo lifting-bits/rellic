@@ -1145,7 +1145,9 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   std::vector<clang::QualType> arg_types;
   for (auto &arg : func.args()) {
-    arg_types.push_back(dec_ctx.type_provider->GetArgumentType(arg));
+    if (dec_ctx.var_provider->ArgumentAsLocal(arg).isNull()) {
+      arg_types.push_back(dec_ctx.type_provider->GetArgumentType(arg));
+    }
   }
   auto ret_type{dec_ctx.type_provider->GetFunctionReturnType(func)};
   clang::FunctionProtoType::ExtProtoInfo epi;

@@ -1094,15 +1094,9 @@ void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
   // Get parent function declaration
   auto func{arg.getParent()};
   auto fdecl{clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[func])};
-  auto argtype = dec_ctx.var_provider->ArgumentAsLocal(arg);
-  // Does the user want to treat this argument as a local variable?
-  if (!argtype.isNull()) {
-    parm = ast.CreateVarDecl(fdecl, argtype, name);
-  } else {
-    argtype = dec_ctx.type_provider->GetArgumentType(arg);
-    // Create a declaration
-    parm = ast.CreateParamDecl(fdecl, argtype, name);
-  }
+  auto argtype = dec_ctx.type_provider->GetArgumentType(arg);
+  // Create a declaration
+  parm = ast.CreateParamDecl(fdecl, argtype, name);
 }
 
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
@@ -1143,9 +1137,14 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
 
+  bool override_function_layout =
+      dec_ctx.function_layout_override->HasOverride(func);
+
   std::vector<clang::QualType> arg_types;
-  for (auto &arg : func.args()) {
-    if (dec_ctx.var_provider->ArgumentAsLocal(arg).isNull()) {
+  if (override_function_layout) {
+    arg_types = dec_ctx.function_layout_override->GetArguments(func);
+  } else {
+    for (auto &arg : func.args()) {
       arg_types.push_back(dec_ctx.type_provider->GetArgumentType(arg));
     }
   }
@@ -1157,22 +1156,26 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   tudecl->addDecl(decl);
   auto fdecl{decl->getAsFunction()};
-
-  std::vector<clang::ParmVarDecl *> params;
-  for (auto &arg : func.args()) {
-    VisitArgument(arg);
-    auto &decl{dec_ctx.value_decls[&arg]};
-    if (auto param = clang::dyn_cast<clang::ParmVarDecl>(decl)) {
-      params.push_back(param);
-    } else {
-      fdecl->addDecl(decl);
+  if (override_function_layout) {
+    dec_ctx.function_layout_override->BeginFunctionVisit(func, fdecl);
+  } else {
+    std::vector<clang::ParmVarDecl *> params;
+    for (auto &arg : func.args()) {
+      VisitArgument(arg);
+      params.push_back(
+          clang::dyn_cast<clang::ParmVarDecl>(dec_ctx.value_decls[&arg]));
     }
-  }
 
-  fdecl->setParams(params);
+    fdecl->setParams(params);
+  }
 
   for (auto &inst : llvm::instructions(func)) {
     auto &var{dec_ctx.value_decls[&inst]};
+    if (dec_ctx.function_layout_override->VisitInstruction(inst, fdecl, var)) {
+      // The user has overridden our choices
+      continue;
+    }
+
     if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
       auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
       // TLDR: Here we discard the variable name as present in the bitcode
@@ -1256,7 +1259,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
         }
 
         auto fdecl{decl->getAsFunction()};
-        fdecl->setParams(params);
+        fdecl->setParams(iasm_params);
 
         tudecl->addDecl(decl);
       }

@@ -17,8 +17,8 @@
 #include <unordered_map>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/AST/FunctionLayoutOverride.h"
 #include "rellic/AST/TypeProvider.h"
-#include "rellic/AST/VariableProvider.h"
 
 namespace rellic {
 
@@ -44,7 +44,7 @@ struct DecompilationContext {
   ASTBuilder ast;
 
   std::unique_ptr<TypeProviderCombiner> type_provider;
-  std::unique_ptr<VariableProviderCombiner> var_provider;
+  std::unique_ptr<FunctionLayoutOverrideCombiner> function_layout_override;
 
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;

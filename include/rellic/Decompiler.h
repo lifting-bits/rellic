@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "Result.h"
+#include "rellic/AST/FunctionLayoutOverride.h"
 #include "rellic/AST/TypeProvider.h"
-#include "rellic/AST/VariableProvider.h"
 
 namespace rellic {
 
@@ -38,24 +38,27 @@ class SimpleTypeProviderFactory final : public TypeProviderFactory {
   }
 };
 
-class VariableProviderFactory {
+class FunctionLayoutOverrideFactory {
  public:
-  virtual ~VariableProviderFactory() = default;
-  virtual std::unique_ptr<VariableProvider> create(
+  virtual ~FunctionLayoutOverrideFactory() = default;
+  virtual std::unique_ptr<FunctionLayoutOverride> create(
       DecompilationContext& ctx) = 0;
 };
 
 template <typename T>
-class SimpleVariableProviderFactory final : public VariableProviderFactory {
+class SimpleFunctionLayoutOverrideFactory final
+    : public FunctionLayoutOverrideFactory {
  public:
-  std::unique_ptr<VariableProvider> create(DecompilationContext& ctx) override {
+  std::unique_ptr<FunctionLayoutOverride> create(
+      DecompilationContext& ctx) override {
     return std::make_unique<T>(ctx);
   }
 };
 
 struct DecompilationOptions {
   using TypeProviderFactoryPtr = std::unique_ptr<TypeProviderFactory>;
-  using VariableProviderFactoryPtr = std::unique_ptr<VariableProviderFactory>;
+  using FunctionLayoutOverrideFactoryPtr =
+      std::unique_ptr<FunctionLayoutOverrideFactory>;
 
   bool lower_switches = false;
   bool remove_phi_nodes = false;
@@ -63,7 +66,7 @@ struct DecompilationOptions {
   // Additional type providers to be used during code generation.
   // Providers added later will have higher priority.
   std::vector<TypeProviderFactoryPtr> additional_type_providers;
-  std::vector<VariableProviderFactoryPtr> additional_variable_providers;
+  std::vector<FunctionLayoutOverrideFactoryPtr> additional_variable_providers;
 };
 
 struct DecompilationResult {

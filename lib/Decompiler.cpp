@@ -95,7 +95,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
     }
 
     for (auto& provider : options.additional_variable_providers) {
-      dec_ctx.var_provider->AddProvider(provider->create(dec_ctx));
+      dec_ctx.function_layout_override->AddOverride(provider->create(dec_ctx));
     }
 
     rellic::GenerateAST::run(*module, dec_ctx);

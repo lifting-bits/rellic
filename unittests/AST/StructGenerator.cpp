@@ -30,7 +30,7 @@ TEST_SUITE("StructGenerator::GetAccessor") {
       auto &ctx{unit->getASTContext()};
       auto tudecl{ctx.getTranslationUnitDecl()};
       rellic::ASTBuilder ast(*unit);
-      rellic::StructGenerator gen(*unit);
+      rellic::StructGenerator gen(*unit, tudecl);
       auto var{GetDeclRef<clang::VarDecl>(ast, tudecl, "x")};
       auto strct{GetDecl<clang::RecordDecl>(tudecl, "s")};
       THEN("return correct accessors") {
@@ -53,7 +53,7 @@ TEST_SUITE("StructGenerator::GetAccessor") {
       auto &ctx{unit->getASTContext()};
       auto tudecl{ctx.getTranslationUnitDecl()};
       rellic::ASTBuilder ast(*unit);
-      rellic::StructGenerator gen(*unit);
+      rellic::StructGenerator gen(*unit, tudecl);
       auto var{GetDeclRef<clang::VarDecl>(ast, tudecl, "x")};
       auto strct{GetDecl<clang::RecordDecl>(tudecl, "s")};
       THEN("return correct accessors") {
@@ -76,7 +76,7 @@ TEST_SUITE("StructGenerator::GetAccessor") {
       auto &ctx{unit->getASTContext()};
       auto tudecl{ctx.getTranslationUnitDecl()};
       rellic::ASTBuilder ast(*unit);
-      rellic::StructGenerator gen(*unit);
+      rellic::StructGenerator gen(*unit, tudecl);
       auto var{GetDeclRef<clang::VarDecl>(ast, tudecl, "x")};
       auto strct{GetDecl<clang::RecordDecl>(tudecl, "u")};
       THEN("return correct accessors") {
@@ -101,7 +101,7 @@ TEST_SUITE("StructGenerator::GetAccessor") {
       auto &ctx{unit->getASTContext()};
       auto tudecl{ctx.getTranslationUnitDecl()};
       rellic::ASTBuilder ast(*unit);
-      rellic::StructGenerator gen(*unit);
+      rellic::StructGenerator gen(*unit, tudecl);
       auto var{GetDeclRef<clang::VarDecl>(ast, tudecl, "x")};
       auto strct{GetDecl<clang::RecordDecl>(tudecl, "s")};
       THEN("return correct accessors") {

@@ -138,14 +138,14 @@ static clang::FieldDecl* FieldInfoToFieldDecl(clang::ASTContext& ast_ctx,
 }
 
 static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
+                              clang::DeclContext* decl_ctx,
                               std::vector<FieldInfo>& fields) {
   if (!fields.size()) {
     return 0;
   }
   static auto count{0U};
 
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto decl{ast.CreateStructDecl(tudecl, "temp" + std::to_string(count++))};
+  auto decl{ast.CreateStructDecl(decl_ctx, "temp" + std::to_string(count++))};
   clang::AttributeCommonInfo info{clang::SourceLocation{}};
   decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
   for (auto& field : fields) {
@@ -223,7 +223,8 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
 
   std::unordered_set<std::string> visible_field_names;
   for (auto elem : elems) {
-    auto curr_offset{isUnion ? 0 : GetStructSize(ast_ctx, ast, fields)};
+    auto curr_offset{isUnion ? 0
+                             : GetStructSize(ast_ctx, ast, decl_ctx, fields)};
     DLOG(INFO) << "Field " << elem.type->getName().str()
                << " offset: " << curr_offset << " in " << decl->getName().str();
     CHECK_LE(curr_offset, elem.offset)
@@ -254,7 +255,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   }
 
   if (!isUnion) {
-    auto cur_size{GetStructSize(ast_ctx, ast, fields)};
+    auto cur_size{GetStructSize(ast_ctx, ast, decl_ctx, fields)};
     auto expected_size{s->getSizeInBits()};
     CHECK_LE(cur_size, expected_size);
     if (cur_size < expected_size) {
@@ -271,8 +272,8 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
 void StructGenerator::DefineStruct(llvm::DICompositeType* s) {
   VLOG(1) << "DefineStruct: " << rellic::LLVMThingToString(s);
   auto& fwd_decl{CHECK_NOTNULL(fwd_decl_records[s])};
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto decl{ast.CreateStructDecl(tudecl, fwd_decl->getName().str(), fwd_decl)};
+  auto decl{
+      ast.CreateStructDecl(decl_ctx, fwd_decl->getName().str(), fwd_decl)};
 
   DeclToDbgInfo fmap{};
   if (s->getFlags() & llvm::DICompositeType::DIFlags::FlagFwdDecl) {
@@ -299,19 +300,18 @@ void StructGenerator::DefineStruct(llvm::DICompositeType* s) {
     }
   }
 
-  tudecl->addDecl(decl);
+  decl_ctx->addDecl(decl);
 }
 
 void StructGenerator::DefineUnion(llvm::DICompositeType* u) {
   VLOG(1) << "DefineUnion: " << rellic::LLVMThingToString(u);
   auto& fwd_decl{CHECK_NOTNULL(fwd_decl_records[u])};
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
-  auto decl{ast.CreateUnionDecl(tudecl, fwd_decl->getName().str(), fwd_decl)};
+  auto decl{ast.CreateUnionDecl(decl_ctx, fwd_decl->getName().str(), fwd_decl)};
 
   DeclToDbgInfo fmap{};
   VisitFields(decl, u, fmap, /*isUnion=*/true);
 
-  tudecl->addDecl(decl);
+  decl_ctx->addDecl(decl);
 }
 
 void StructGenerator::DefineComposite(llvm::DICompositeType* t) {
@@ -359,11 +359,10 @@ clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
     case llvm::dwarf::DW_TAG_typedef: {
       auto& tdef_decl{typedef_decls[d]};
       if (!tdef_decl) {
-        auto tudecl{ast_ctx.getTranslationUnitDecl()};
         auto name{GetUniqueName(d->getName().str(), visible_tdefs)};
         tdef_decl = ast.CreateTypedefDecl(
-            tudecl, name, BuildType(d->getBaseType(), sizeHint));
-        tudecl->addDecl(tdef_decl);
+            decl_ctx, name, BuildType(d->getBaseType(), sizeHint));
+        decl_ctx->addDecl(tdef_decl);
       }
       return ast_ctx.getTypedefType(tdef_decl);
     }
@@ -441,21 +440,20 @@ clang::QualType StructGenerator::BuildSubroutine(llvm::DISubroutineType* s) {
 clang::RecordDecl* StructGenerator::GetRecordDecl(llvm::DICompositeType* t) {
   auto& decl{fwd_decl_records[t]};
   if (!decl) {
-    auto tudecl{ast_ctx.getTranslationUnitDecl()};
     switch (t->getTag()) {
       case llvm::dwarf::DW_TAG_class_type:
       case llvm::dwarf::DW_TAG_structure_type:
         decl = ast.CreateStructDecl(
-            tudecl, GetUniqueName(t->getName().str(), visible_structs));
+            decl_ctx, GetUniqueName(t->getName().str(), visible_structs));
         break;
       case llvm::dwarf::DW_TAG_union_type:
         decl = ast.CreateUnionDecl(
-            tudecl, GetUniqueName(t->getName().str(), visible_unions));
+            decl_ctx, GetUniqueName(t->getName().str(), visible_unions));
         break;
       default:
         LOG(FATAL) << "Invalid DICompositeType: " << LLVMThingToString(t);
     }
-    tudecl->addDecl(decl);
+    decl_ctx->addDecl(decl);
   }
   return decl;
 }
@@ -466,11 +464,10 @@ clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
     return type;
   }
 
-  auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto base{BuildType(t->getBaseType())};
   auto name{GetUniqueName(t->getName().str(), visible_enums)};
   if (base == ast_ctx.IntTy || base == ast_ctx.UnsignedIntTy) {
-    auto decl{ast.CreateEnumDecl(tudecl, name)};
+    auto decl{ast.CreateEnumDecl(decl_ctx, name)};
     for (auto elem : t->getElements()) {
       if (auto enumerator = llvm::dyn_cast<llvm::DIEnumerator>(elem)) {
         auto elem_name{
@@ -482,11 +479,11 @@ clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
     }
     decl->completeDefinition(base, base, 0, 0);
 
-    tudecl->addDecl(decl);
+    decl_ctx->addDecl(decl);
     type = ast_ctx.getEnumType(decl);
   } else {
-    auto tdef{ast.CreateTypedefDecl(tudecl, name, base)};
-    tudecl->addDecl(tdef);
+    auto tdef{ast.CreateTypedefDecl(decl_ctx, name, base)};
+    decl_ctx->addDecl(tdef);
     type = ast_ctx.getTypedefType(tdef);
 
     auto i{0U};
@@ -495,9 +492,9 @@ clang::QualType StructGenerator::GetEnumDecl(llvm::DICompositeType* t) {
         auto elem_name{
             GetUniqueName(enumerator->getName().str(), visible_values)};
         auto vdecl{
-            ast.CreateVarDecl(tudecl, type, elem_name, clang::SC_Static)};
+            ast.CreateVarDecl(decl_ctx, type, elem_name, clang::SC_Static)};
         vdecl->setInit(ast.CreateIntLit(enumerator->getValue()));
-        tudecl->addDecl(vdecl);
+        decl_ctx->addDecl(vdecl);
       }
     }
   }
@@ -628,7 +625,8 @@ std::vector<clang::Expr*> StructGenerator::GetAccessor(clang::Expr* base,
   return res;
 }
 
-StructGenerator::StructGenerator(clang::ASTUnit& ast_unit)
-    : ast_ctx(ast_unit.getASTContext()), ast(ast_unit) {}
+StructGenerator::StructGenerator(clang::ASTUnit& ast_unit,
+                                 clang::DeclContext* decl_ctx)
+    : ast_ctx(ast_unit.getASTContext()), ast(ast_unit), decl_ctx(decl_ctx) {}
 
 }  // namespace rellic

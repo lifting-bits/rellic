@@ -23,7 +23,9 @@ StructFieldRenamer::StructFieldRenamer(DecompilationContext &dec_ctx,
 
 bool StructFieldRenamer::VisitRecordDecl(clang::RecordDecl *decl) {
   auto type{decls[decl]};
-  CHECK(type) << "Type information not present for declaration";
+  if (!type) {
+    return !Stopped();
+  }
 
   auto di{types[type]};
   if (!di) {

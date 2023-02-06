@@ -346,10 +346,15 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
   }};
 
   clang::Expr *res{nullptr};
+  llvm::Instruction *maybe_inst{llvm::dyn_cast<llvm::Instruction>(&val)};
+  llvm::Argument *maybe_arg{llvm::dyn_cast<llvm::Argument>(&val)};
   if (auto constant = llvm::dyn_cast<llvm::Constant>(val)) {
     // Operand is a constant value
     res = CreateConstantExpr(constant);
-  } else if (llvm::isa<llvm::AllocaInst>(val)) {
+  } else if ((maybe_inst && dec_ctx.function_layout_override->NeedsDereference(
+                                *maybe_inst->getFunction(), *maybe_inst)) ||
+             (maybe_arg && dec_ctx.function_layout_override->NeedsDereference(
+                               *maybe_arg->getParent(), *maybe_arg))) {
     // Operand is an l-value (variable, function, ...)
     // Add a `&` operator
     res = ast.CreateAddrOf(CreateRef());
@@ -1082,23 +1087,6 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   expr_gen.VisitGlobalVar(gvar);
 }
 
-void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
-  DLOG(INFO) << "VisitArgument: " << LLVMThingToString(&arg);
-  auto &parm{dec_ctx.value_decls[&arg]};
-  if (parm) {
-    return;
-  }
-  // Create a name
-  auto name{arg.hasName() ? arg.getName().str()
-                          : "arg" + std::to_string(arg.getArgNo())};
-  // Get parent function declaration
-  auto func{arg.getParent()};
-  auto fdecl{clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[func])};
-  auto argtype = dec_ctx.type_provider->GetArgumentType(arg);
-  // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, argtype, name);
-}
-
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
                                      std::vector<clang::Stmt *> &stmts) {
   ExprGen expr_gen{dec_ctx};
@@ -1137,17 +1125,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
 
-  bool override_function_layout =
-      dec_ctx.function_layout_override->HasOverride(func);
-
-  std::vector<clang::QualType> arg_types;
-  if (override_function_layout) {
-    arg_types = dec_ctx.function_layout_override->GetArguments(func);
-  } else {
-    for (auto &arg : func.args()) {
-      arg_types.push_back(dec_ctx.type_provider->GetArgumentType(arg));
-    }
-  }
+  auto arg_types{dec_ctx.function_layout_override->GetArguments(func)};
   auto ret_type{dec_ctx.type_provider->GetFunctionReturnType(func)};
   clang::FunctionProtoType::ExtProtoInfo epi;
   epi.Variadic = func.isVarArg();
@@ -1156,18 +1134,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   tudecl->addDecl(decl);
   auto fdecl{decl->getAsFunction()};
-  if (override_function_layout) {
-    dec_ctx.function_layout_override->BeginFunctionVisit(func, fdecl);
-  } else {
-    std::vector<clang::ParmVarDecl *> params;
-    for (auto &arg : func.args()) {
-      VisitArgument(arg);
-      params.push_back(
-          clang::dyn_cast<clang::ParmVarDecl>(dec_ctx.value_decls[&arg]));
-    }
-
-    fdecl->setParams(params);
-  }
+  dec_ctx.function_layout_override->BeginFunctionVisit(func, fdecl);
 
   for (auto &inst : llvm::instructions(func)) {
     auto &var{dec_ctx.value_decls[&inst]};

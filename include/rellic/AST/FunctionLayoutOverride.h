@@ -33,6 +33,7 @@ class FunctionLayoutOverride {
   virtual bool VisitInstruction(llvm::Instruction& insn,
                                 clang::FunctionDecl* fdecl,
                                 clang::ValueDecl*& vdecl);
+  virtual bool NeedsDereference(llvm::Function& func, llvm::Value& val);
 };
 
 class FunctionLayoutOverrideCombiner final : public FunctionLayoutOverride {
@@ -56,5 +57,6 @@ class FunctionLayoutOverrideCombiner final : public FunctionLayoutOverride {
                           clang::FunctionDecl* fdecl) final;
   bool VisitInstruction(llvm::Instruction& insn, clang::FunctionDecl* fdecl,
                         clang::ValueDecl*& vdecl) final;
+  bool NeedsDereference(llvm::Function& func, llvm::Value& val) final;
 };
 }  // namespace rellic

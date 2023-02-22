@@ -851,6 +851,11 @@ clang::Expr *ExprGen::visitCmpInst(llvm::CmpInst &inst) {
           ast.CreateBuiltinCall(clang::Builtin::BI__builtin_isunordered, args);
       break;
 
+    case llvm::CmpInst::FCMP_ORD:
+      res = ast.CreateLNot(
+          ast.CreateBuiltinCall(clang::Builtin::BI__builtin_isunordered, args));
+      break;
+
     case llvm::CmpInst::FCMP_TRUE:
       res = ast.CreateTrue();
       break;
@@ -860,7 +865,7 @@ clang::Expr *ExprGen::visitCmpInst(llvm::CmpInst &inst) {
       break;
 
     default:
-      THROW() << "Unknown CmpInst predicate: " << inst.getOpcodeName();
+      THROW() << "Unknown CmpInst predicate: " << LLVMThingToString(&inst);
       return nullptr;
   }
   return res;

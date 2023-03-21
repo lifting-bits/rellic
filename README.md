@@ -325,3 +325,16 @@ CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
 ```sh
 scripts/test-angha-1k.sh --rellic-cmd <path_to_rellic_decompiler_exe>
 ```
+
+## Citing Rellic
+
+Please use the following BibTeX snippet to cite Rellic:
+
+```tex
+@online{rellic,
+  title={Rellic},
+  author={Surovič, Marek and Bertolaccini, Francesco},
+  organization={Trail of Bits},
+  url={https://github.com/lifting-bits/rellic}
+}
+```

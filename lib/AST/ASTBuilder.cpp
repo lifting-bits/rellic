@@ -139,7 +139,14 @@ clang::Expr *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   // Infer integer type wide enough to accommodate the value,
   // with `unsigned int` being the smallest type allowed.
   auto llsize{ctx.getIntWidth(ctx.LongLongTy)};
-  clang::QualType type{GetLeastIntTypeForBitWidth(value_size, sign)};
+  clang::QualType type;
+  if (value_size <= ctx.getIntWidth(ctx.IntTy)) {
+    type = sign ? ctx.IntTy : ctx.UnsignedIntTy;
+  } else if (value_size > ctx.getIntWidth(ctx.LongLongTy)) {
+    type = sign ? ctx.LongLongTy : ctx.UnsignedLongLongTy;
+  } else {
+    type = GetLeastIntTypeForBitWidth(value_size, sign);
+  }
 
   // C doesn't have a literal suffix for integers wider than a long long.
   // If we encounter such a case, try to either

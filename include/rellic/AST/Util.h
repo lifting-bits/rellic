@@ -52,6 +52,7 @@ clang::Expr *Clone(clang::ASTUnit &unit, clang::Expr *stmt,
                    DecompilationContext::ExprToUseMap &provenance);
 
 std::string ClangThingToString(const clang::Stmt *stmt);
+std::string ClangThingToString(clang::QualType ty);
 
 z3::goal ApplyTactic(const z3::tactic &tactic, z3::expr expr);
 

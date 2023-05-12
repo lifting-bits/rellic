@@ -31,17 +31,17 @@ class ASTBuilder {
   clang::QualType GetLeastIntTypeForBitWidth(unsigned size, unsigned sign);
   clang::QualType GetLeastRealTypeForBitWidth(unsigned size);
   // Literals
-  clang::IntegerLiteral *CreateIntLit(llvm::APSInt val);
+  clang::Expr *CreateIntLit(llvm::APSInt val);
 
-  clang::IntegerLiteral *CreateIntLit(llvm::APInt val) {
+  clang::Expr *CreateIntLit(llvm::APInt val) {
     return CreateIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
   };
 
-  clang::IntegerLiteral *CreateTrue() {
+  clang::Expr *CreateTrue() {
     return CreateIntLit(llvm::APInt(/*numBits=*/1U, /*val*/ 1U));
   };
 
-  clang::IntegerLiteral *CreateFalse() {
+  clang::Expr *CreateFalse() {
     return CreateIntLit(llvm::APInt(/*numBits=*/1U, /*val*/ 0U));
   };
 

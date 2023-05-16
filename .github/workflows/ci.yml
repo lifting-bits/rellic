@@ -126,7 +126,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [
-          'macos-11'
+          'macos-12'
           ]
         llvm: [
           '16'
@@ -215,8 +215,8 @@ jobs:
           zip -r9 rellic_ubuntu-20.04_packages.zip \
                   ubuntu-20.04*
 
-          zip -r9 rellic_macos-11_packages.zip \
-                  macos-11*
+          zip -r9 rellic_macos-12_packages.zip \
+                  macos-12*
 
       - name: Upload the Ubuntu 20.04 packages
         uses: actions/upload-release-asset@v1
@@ -230,7 +230,7 @@ jobs:
           asset_name: rellic_ubuntu-20.04_packages.zip
           asset_content_type: application/gzip
 
-      - name: Upload the macOS 11 packages
+      - name: Upload the macOS 12 packages
         uses: actions/upload-release-asset@v1
 
         env:
@@ -238,8 +238,8 @@ jobs:
 
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: rellic_macos-11_packages.zip
-          asset_name: rellic_macos-11_packages.zip
+          asset_path: rellic_macos-12_packages.zip
+          asset_name: rellic_macos-12_packages.zip
           asset_content_type: application/gzip
 
   Docker_Linux:

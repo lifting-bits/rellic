@@ -115,15 +115,21 @@ if (RELLIC_ENABLE_TESTING)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   message(STATUS "Python path for tests: \"${Python3_EXECUTABLE}\"")
 
+  if(DEFINED CMAKE_OSX_SYSROOT)
+    set(RELLIC_TEST_ARGS "--sysroot=${CMAKE_OSX_SYSROOT}")
+  else()
+    set(RELLIC_TEST_ARGS "")
+  endif()
+
   # Tests that survive a complete roundtrip
   add_test(NAME test_roundtrip_rebuild
-    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}" --timeout 30
+    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/ "${CLANG_PATH}" --timeout 30 ${RELLIC_TEST_ARGS}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
   # Tests that may not roundtrip yet, but should emit C
   add_test(NAME test_roundtrip_translate_only
-    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}" --timeout 30
+    COMMAND "${Python3_EXECUTABLE}" scripts/roundtrip.py --translate-only $<TARGET_FILE:${RELLIC_DECOMP}> tests/tools/decomp/failing-rebuild/ "${CLANG_PATH}" --timeout 30 ${RELLIC_TEST_ARGS}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
@@ -134,7 +140,7 @@ if (RELLIC_ENABLE_TESTING)
   )
 
   add_test(NAME test_headergen
-    COMMAND "${Python3_EXECUTABLE}" scripts/test-headergen.py $<TARGET_FILE:${RELLIC_HEADERGEN}> tests/tools/headergen/ "${CLANG_PATH}"
+    COMMAND "${Python3_EXECUTABLE}" scripts/test-headergen.py $<TARGET_FILE:${RELLIC_HEADERGEN}> tests/tools/headergen/ "${CLANG_PATH}" ${RELLIC_TEST_ARGS}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 endif()

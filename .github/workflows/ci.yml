@@ -24,7 +24,7 @@ jobs:
         image:
           - { name: 'ubuntu', tag: '20.04' }
         llvm: [
-          '15'
+          '16'
           ]
 
     name: Rellic CI
@@ -129,7 +129,7 @@ jobs:
           'macos-11'
           ]
         llvm: [
-          '15'
+          '16'
           ]
 
     runs-on: ${{ matrix.os }}
@@ -246,7 +246,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        llvm: ["15"]
+        llvm: ["16"]
         ubuntu: ["20.04"]
     steps:
     - uses: actions/checkout@v2

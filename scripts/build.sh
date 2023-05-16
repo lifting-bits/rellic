@@ -18,8 +18,8 @@ DOWNLOAD_DIR="$( cd "$( dirname "${SRC_DIR}" )" && pwd )/lifting-bits-downloads"
 CURR_DIR=$( pwd )
 BUILD_DIR="${CURR_DIR}/rellic-build"
 INSTALL_DIR=/usr/local
-LLVM_VERSION=llvm-15
-CXX_COMMON_VERSION=v0.2.19
+LLVM_VERSION=llvm-16
+CXX_COMMON_VERSION=v0.3.2
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
@@ -336,6 +336,10 @@ function GetLLVMVersion
     ;;
     15)
       LLVM_VERSION=llvm-15
+      return 0
+    ;;
+    16)
+      LLVM_VERSION=llvm-16
       return 0
     ;;
     *)

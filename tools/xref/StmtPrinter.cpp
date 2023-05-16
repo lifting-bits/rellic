@@ -55,6 +55,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <cassert>
+#include <optional>
 #include <string>
 
 #include "Printer.h"
@@ -852,6 +853,11 @@ void StmtPrinter::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *Node) {
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPErrorDirective(OMPErrorDirective *Node) {
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp error";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPTaskgroupDirective(OMPTaskgroupDirective *Node) {
   Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp taskgroup";
   PrintOMPExecutableDirective(Node);
@@ -1387,35 +1393,24 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
     default:
       llvm_unreachable("Unexpected type for integer literal!");
     case BuiltinType::Char_S:
-    case BuiltinType::Char_U:
-      OS << "i8";
-      break;
-    case BuiltinType::UChar:
-      OS << "Ui8";
-      break;
-    case BuiltinType::Short:
-      OS << "i16";
-      break;
-    case BuiltinType::UShort:
-      OS << "Ui16";
-      break;
-    case BuiltinType::Int:
-      break;  // no suffix.
-    case BuiltinType::UInt:
-      OS << 'U';
-      break;
-    case BuiltinType::Long:
-      OS << 'L';
-      break;
-    case BuiltinType::ULong:
-      OS << "UL";
-      break;
-    case BuiltinType::LongLong:
-      OS << "LL";
-      break;
-    case BuiltinType::ULongLong:
-      OS << "ULL";
-      break;
+    case BuiltinType::Char_U:    OS << "i8"; break;
+    case BuiltinType::UChar:     OS << "Ui8"; break;
+    case BuiltinType::SChar:     OS << "i8"; break;
+    case BuiltinType::Short:     OS << "i16"; break;
+    case BuiltinType::UShort:    OS << "Ui16"; break;
+    case BuiltinType::Int:       break; // no suffix.
+    case BuiltinType::UInt:      OS << 'U'; break;
+    case BuiltinType::Long:      OS << 'L'; break;
+    case BuiltinType::ULong:     OS << "UL"; break;
+    case BuiltinType::LongLong:  OS << "LL"; break;
+    case BuiltinType::ULongLong: OS << "ULL"; break;
+    case BuiltinType::Int128:
+      break; // no suffix.
+    case BuiltinType::UInt128:
+      break; // no suffix.
+    case BuiltinType::WChar_S:
+    case BuiltinType::WChar_U:
+      break; // no suffix
   }
   OS << "</span>";
 }
@@ -2436,7 +2431,8 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
     if (C->isPackExpansion()) OS << "...";
 
     if (Node->isInitCapture(C)) {
-      VarDecl *D = C->getCapturedVar();
+      // Init captures are always VarDecl.
+      auto *D = cast<VarDecl>(C->getCapturedVar());
 
       llvm::StringRef Pre;
       llvm::StringRef Post;
@@ -2533,7 +2529,8 @@ void StmtPrinter::VisitCXXNewExpr(CXXNewExpr *E) {
   if (E->isArray()) {
     llvm::raw_string_ostream s(TypeS);
     s << '[';
-    if (Optional<Expr *> Size = E->getArraySize()) ::PrintStmt(*Size, s, Policy, 0, nullptr, Helper);
+    if (std::optional<Expr *> Size = E->getArraySize())
+      ::PrintStmt(*Size, s, Policy, 0, nullptr, Helper);
     s << ']';
   }
   PrintType(E->getAllocatedType(), OS, Policy, TypeS);
@@ -2716,6 +2713,13 @@ void StmtPrinter::VisitCXXFoldExpr(CXXFoldExpr *E) {
   OS << ")";
 }
 
+void StmtPrinter::VisitCXXParenListInitExpr(CXXParenListInitExpr *Node) {
+  OS << "(";
+  llvm::interleaveComma(Node->getInitExprs(), OS,
+                        [&](Expr *E) { PrintExpr(E); });
+  OS << ")";
+}
+
 void StmtPrinter::VisitConceptSpecializationExpr(ConceptSpecializationExpr *E) {
   NestedNameSpecifierLoc NNS = E->getNestedNameSpecifierLoc();
   if (NNS) NNS.getNestedNameSpecifier()->print(OS, Policy);
@@ -2768,7 +2772,7 @@ void StmtPrinter::VisitRequiresExpr(RequiresExpr *E) {
     } else {
       auto *NestedReq = cast<concepts::NestedRequirement>(Req);
       OS << "<span class=\"clang keyword\">requires</span> ";
-      if (NestedReq->isSubstitutionFailure())
+      if (NestedReq->hasInvalidConstraint())
         OS << "&lt;&lt;error-expression&gt;&gt;";
       else
         PrintExpr(NestedReq->getConstraintExpr());

@@ -112,7 +112,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-t", "--timeout", help="set timeout in seconds", type=int)
     parser.add_argument(
-        "--cflags", help="additional CFLAGS", action='append', type=str)
+        "--cflags", help="additional CFLAGS", action='append', default=[], type=str)
 
     args = parser.parse_args()
 

@@ -64,22 +64,17 @@ def decompile(self, rellic, input, output, timeout):
     return p
 
 
-def roundtrip(self, rellic, filename, clang, timeout, translate_only, sysroot, additional_flags=[]):
+def roundtrip(self, rellic, filename, clang, timeout, translate_only, general_flags, binary_compile_flags, bitcode_compile_flags, recompile_flags):
     with tempfile.TemporaryDirectory() as tempdir:
-        sysroot_flags = []
-        if sysroot is not None:
-            sysroot_flags.extend(("-isysroot", sysroot))
-
         out1 = os.path.join(tempdir, "out1")
-        compile(self, clang, filename, out1, timeout, sysroot_flags)
+        compile(self, clang, filename, out1, timeout, general_flags + binary_compile_flags)
 
         # capture binary run outputs
         cp1 = run_cmd([out1], timeout)
 
         rt_bc = os.path.join(tempdir, "rt.bc")
         flags = ["-c", "-emit-llvm"]
-        flags.extend(additional_flags)
-        compile(self, clang, filename, rt_bc, timeout, sysroot_flags + flags)
+        compile(self, clang, filename, rt_bc, timeout, general_flags + bitcode_compile_flags + flags)
 
         rt_c = os.path.join(tempdir, "rt.c")
         decompile(self, rellic, rt_bc, rt_c, timeout)
@@ -93,7 +88,7 @@ def roundtrip(self, rellic, filename, clang, timeout, translate_only, sysroot, a
         # We should recompile, lets see how this goes
         if not translate_only:
             out2 = os.path.join(tempdir, "out2")
-            compile(self, clang, rt_c, out2, timeout, sysroot_flags + ["-Wno-everything"])
+            compile(self, clang, rt_c, out2, timeout, general_flags + recompile_flags + ["-Wno-everything"])
 
             # capture outputs of binary after roundtrip
             cp2 = run_cmd([out2], timeout)
@@ -117,17 +112,17 @@ if __name__ == "__main__":
     )
     parser.add_argument("-t", "--timeout", help="set timeout in seconds", type=int)
     parser.add_argument(
-        "--sysroot", help="additional sysroot path for macOS", type=str)
+        "--cflags", help="additional CFLAGS", action='append', type=str)
 
     args = parser.parse_args()
 
     def test_generator(path):
         def test(self):
-            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.sysroot)
-            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.sysroot, ["-O1"])
-            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.sysroot, ["-O2"])
-            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.sysroot, ["-O3"])
-            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.sysroot, ["-g3"])
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.cflags, [], []     , [])
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.cflags, [], ["-O1"], [])
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.cflags, [], ["-O2"], [])
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.cflags, [], ["-O3"], [])
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.translate_only, args.cflags, [], ["-g3"], [])
 
         return test
 

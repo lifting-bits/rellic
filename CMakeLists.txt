@@ -116,7 +116,7 @@ if (RELLIC_ENABLE_TESTING)
   message(STATUS "Python path for tests: \"${Python3_EXECUTABLE}\"")
 
   if(DEFINED CMAKE_OSX_SYSROOT)
-    set(RELLIC_TEST_ARGS "--sysroot=${CMAKE_OSX_SYSROOT}")
+    set(RELLIC_TEST_ARGS "--cflags=-isysroot" "--cflags=${CMAKE_OSX_SYSROOT}")
   else()
     set(RELLIC_TEST_ARGS "")
   endif()

@@ -64,14 +64,11 @@ def genlayout(self, rellic, input, output, timeout):
     return p
 
 
-def roundtrip(self, rellic, filename, clang, timeout, sysroot):
+def roundtrip(self, rellic, filename, clang, timeout, cflags):
     with tempfile.TemporaryDirectory() as tempdir:
         rt_bc = os.path.join(tempdir, "rt.bc")
         flags = ["-c", "-emit-llvm", "-g3"]
-        sysroot_flags = []
-        if sysroot is not None:
-            sysroot_flags.extend(("-isysroot", sysroot))
-        compile(self, clang, filename, rt_bc, timeout, sysroot_flags + flags)
+        compile(self, clang, filename, rt_bc, timeout, cflags + flags)
 
         rt_c = os.path.join(tempdir, "rt.c")
         genlayout(self, rellic, rt_bc, rt_c, timeout)
@@ -84,7 +81,7 @@ def roundtrip(self, rellic, filename, clang, timeout, sysroot):
 
         # We should recompile, lets see how this goes
         out2 = os.path.join(tempdir, "out2")
-        compile(self, clang, rt_c, out2, timeout, sysroot_flags + ["-c", "-Wno-everything"])
+        compile(self, clang, rt_c, out2, timeout, cflags + ["-c", "-Wno-everything"])
 
 
 class TestRoundtrip(unittest.TestCase):
@@ -98,13 +95,13 @@ if __name__ == "__main__":
     parser.add_argument("clang", help="path to clang")
     parser.add_argument("-t", "--timeout", help="set timeout in seconds", type=int)
     parser.add_argument(
-        "--sysroot", help="additional sysroot path for macOS", type=str)
+        "--cflags", help="additional CFLAGS", action='append', type=str)
 
     args = parser.parse_args()
 
     def test_generator(path):
         def test(self):
-            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.sysroot)
+            roundtrip(self, args.rellic, path, args.clang, args.timeout, args.cflags)
 
         return test
 

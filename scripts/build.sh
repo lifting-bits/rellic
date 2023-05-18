@@ -18,8 +18,8 @@ DOWNLOAD_DIR="$( cd "$( dirname "${SRC_DIR}" )" && pwd )/lifting-bits-downloads"
 CURR_DIR=$( pwd )
 BUILD_DIR="${CURR_DIR}/rellic-build"
 INSTALL_DIR=/usr/local
-LLVM_VERSION=llvm-15
-CXX_COMMON_VERSION=v0.2.19
+LLVM_VERSION=llvm-16
+CXX_COMMON_VERSION=v0.3.2
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
@@ -179,12 +179,12 @@ function DownloadLibraries
 
     #BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_OSX_SYSROOT=${sdk_root}"
     # Min version supported
-    OS_VERSION="macos-11"
+    OS_VERSION="macos-12"
     # Hard-coded to match pre-built binaries in CI
-    XCODE_VERSION="13.0"
-    if [[ "$(sw_vers -productVersion)" == "11."* ]]; then
-      echo "Found MacOS Big Sur"
-      OS_VERSION="macos-11"
+    XCODE_VERSION="14.2"
+    if [[ "$(sw_vers -productVersion)" == "12."* ]]; then
+      echo "Found MacOS Monterey"
+      OS_VERSION="macos-12"
     else
       echo "WARNING: ****Likely unsupported MacOS Version****"
       echo "WARNING: ****Using ${OS_VERSION}****"
@@ -336,6 +336,10 @@ function GetLLVMVersion
     ;;
     15)
       LLVM_VERSION=llvm-15
+      return 0
+    ;;
+    16)
+      LLVM_VERSION=llvm-16
       return 0
     ;;
     *)

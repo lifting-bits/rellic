@@ -12,7 +12,7 @@ jobs:
       matrix:
         image:
           - { name: 'ubuntu', tag: '20.04', codename: 'focal' }
-        llvm: [ '15' ]
+        llvm: [ '16' ]
         common_base: [ 'https://github.com/lifting-bits/cxx-common/releases/latest/download' ]
 
     env:

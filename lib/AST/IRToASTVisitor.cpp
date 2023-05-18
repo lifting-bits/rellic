@@ -267,23 +267,7 @@ clang::Expr *ExprGen::CreateLiteralExpr(llvm::Constant *constant) {
     case llvm::Type::IntegerTyID: {
       if (llvm::isa<llvm::ConstantInt>(constant)) {
         auto val{llvm::cast<llvm::ConstantInt>(constant)->getValue()};
-        auto val_bitwidth{val.getBitWidth()};
-        auto ull_bitwidth{ast_ctx.getIntWidth(ast_ctx.LongLongTy)};
-        if (val_bitwidth == 1U) {
-          // Booleans
-          result = ast.CreateIntLit(val);
-        } else if (val.getActiveBits() <= ull_bitwidth) {
-          result = ast.CreateAdjustedIntLit(val);
-        } else {
-          // Values wider than `long long` will be represented as:
-          // (uint128_t)hi_64 << 64U | lo_64
-          auto lo{ast.CreateIntLit(val.extractBits(64U, 0U))};
-          auto hi{ast.CreateIntLit(val.extractBits(val_bitwidth - 64U, 64U))};
-          auto shl_val{ast.CreateIntLit(llvm::APInt(32U, 64U))};
-          result = ast.CreateCStyleCast(ast_ctx.UnsignedInt128Ty, hi);
-          result = ast.CreateShl(result, shl_val);
-          result = ast.CreateOr(result, lo);
-        }
+        result = ast.CreateIntLit(val);
       } else if (llvm::isa<llvm::UndefValue>(constant)) {
         result = ast.CreateUndefInteger(c_type);
       } else {

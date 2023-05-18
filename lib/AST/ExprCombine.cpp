@@ -496,7 +496,7 @@ bool ExprCombine::VisitCStyleCastExpr(clang::CStyleCastExpr *cast) {
 
     switch (result.Val.getKind()) {
       case clang::APValue::ValueKind::Int: {
-        auto sub{dec_ctx.ast.CreateAdjustedIntLit(result.Val.getInt())};
+        auto sub{dec_ctx.ast.CreateIntLit(result.Val.getInt())};
         if (GetHash(dec_ctx.ast_ctx, cast) != GetHash(dec_ctx.ast_ctx, sub)) {
           substitutions[cast] = sub;
         }

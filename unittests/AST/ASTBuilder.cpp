@@ -70,18 +70,6 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
           CHECK(clang::isa<clang::IntegerLiteral>(lit));
           CHECK(lit->getType() == ctx.UnsignedIntTy);
         }
-
-        THEN(
-            "return a unsigned int typed integer literal casted to unsigned "
-            "char") {
-          auto cast{ast.CreateAdjustedIntLit(api)};
-          REQUIRE(cast != nullptr);
-          CHECK(clang::isa<clang::CStyleCastExpr>(cast));
-          CHECK(cast->getType() == ctx.UnsignedCharTy);
-          auto lit{cast->IgnoreCasts()};
-          CHECK(clang::isa<clang::IntegerLiteral>(lit));
-          CHECK(lit->getType() == ctx.UnsignedIntTy);
-        }
       }
     }
   }
@@ -96,18 +84,6 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
         THEN("return a unsigned int typed integer literal") {
           auto lit{ast.CreateIntLit(api)};
           REQUIRE(lit != nullptr);
-          CHECK(clang::isa<clang::IntegerLiteral>(lit));
-          CHECK(lit->getType() == ctx.UnsignedIntTy);
-        }
-
-        THEN(
-            "return a unsigned int typed integer literal casted to unsigned "
-            "short") {
-          auto cast{ast.CreateAdjustedIntLit(api)};
-          REQUIRE(cast != nullptr);
-          CHECK(clang::isa<clang::CStyleCastExpr>(cast));
-          CHECK(cast->getType() == ctx.UnsignedShortTy);
-          auto lit{cast->IgnoreCasts()};
           CHECK(clang::isa<clang::IntegerLiteral>(lit));
           CHECK(lit->getType() == ctx.UnsignedIntTy);
         }
@@ -156,23 +132,11 @@ TEST_SUITE("ASTBuilder::CreateIntLit") {
       rellic::ASTBuilder ast(*unit);
       GIVEN("128 bits wide llvm::APInt") {
         llvm::APInt api(128U, UINT64_C(42), /*isSigned=*/false);
-        THEN("return a unsigned long long typed integer literal") {
+        THEN("return a _uint128_t typed integer literal") {
           auto lit{ast.CreateIntLit(api)};
           REQUIRE(lit != nullptr);
           CHECK(clang::isa<clang::IntegerLiteral>(lit));
-          CHECK(lit->getType() == ctx.UnsignedLongLongTy);
-        }
-
-        THEN(
-            "return a unsigned long long typed integer literal casted to "
-            "_uint128_t") {
-          auto cast{ast.CreateAdjustedIntLit(api)};
-          REQUIRE(cast != nullptr);
-          CHECK(clang::isa<clang::CStyleCastExpr>(cast));
-          CHECK(cast->getType() == ctx.UnsignedInt128Ty);
-          auto lit{cast->IgnoreCasts()};
-          CHECK(clang::isa<clang::IntegerLiteral>(lit));
-          CHECK(lit->getType() == ctx.UnsignedLongLongTy);
+          CHECK(lit->getType() == ctx.UnsignedInt128Ty);
         }
       }
     }

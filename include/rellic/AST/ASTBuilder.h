@@ -31,17 +31,17 @@ class ASTBuilder {
   clang::QualType GetLeastIntTypeForBitWidth(unsigned size, unsigned sign);
   clang::QualType GetLeastRealTypeForBitWidth(unsigned size);
   // Literals
-  clang::Expr *CreateIntLit(llvm::APSInt val);
+  clang::IntegerLiteral *CreateIntLit(llvm::APSInt val);
 
-  clang::Expr *CreateIntLit(llvm::APInt val) {
+  clang::IntegerLiteral *CreateIntLit(llvm::APInt val) {
     return CreateIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
   };
 
-  clang::Expr *CreateTrue() {
+  clang::IntegerLiteral *CreateTrue() {
     return CreateIntLit(llvm::APInt(/*numBits=*/1U, /*val*/ 1U));
   };
 
-  clang::Expr *CreateFalse() {
+  clang::IntegerLiteral *CreateFalse() {
     return CreateIntLit(llvm::APInt(/*numBits=*/1U, /*val*/ 0U));
   };
 
@@ -49,12 +49,6 @@ class ASTBuilder {
   clang::CharacterLiteral *CreateCharLit(unsigned val);
   clang::StringLiteral *CreateStrLit(std::string val);
   clang::Expr *CreateFPLit(llvm::APFloat val);
-  // Casted literals
-  clang::Expr *CreateAdjustedIntLit(llvm::APSInt val);
-
-  clang::Expr *CreateAdjustedIntLit(llvm::APInt val) {
-    return CreateAdjustedIntLit(llvm::APSInt(val, /*isUnsigned=*/true));
-  };
   // Special values
   clang::Expr *CreateNull();
   clang::Expr *CreateUndefPointer(clang::QualType type);

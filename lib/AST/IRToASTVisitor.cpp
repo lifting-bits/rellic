@@ -1161,6 +1161,13 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   for (auto &inst : llvm::instructions(func)) {
     auto &var{dec_ctx.value_decls[&inst]};
+    bool used_as_branch_cond{false};
+    for (auto user : inst.users()) {
+      if (llvm::isa<llvm::BranchInst>(user)) {
+        used_as_branch_cond = true;
+        break;
+      }
+    }
     if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
       auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
       // TLDR: Here we discard the variable name as present in the bitcode
@@ -1186,7 +1193,6 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) ||
                (inst.hasNUsesOrMore(1) && llvm::isa<llvm::CallInst>(inst)) ||
-               (inst.hasNUsesOrMore(1) && llvm::isa<llvm::LoadInst>(inst)) ||
                llvm::isa<llvm::PHINode>(inst)) {
       if (!inst.getType()->isVoidTy()) {
         auto GetPrefix{[&](llvm::Instruction *inst) {
@@ -1218,6 +1224,16 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
           }
         }
       }
+    } else if (used_as_branch_cond) {
+      auto name{"br_cond_" +
+                std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+      auto type{dec_ctx.GetQualType(inst.getType())};
+      if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
+        type = dec_ctx.ast_ctx.getPointerType(arrayType->getElementType());
+      }
+
+      var = ast.CreateVarDecl(fdecl, type, name);
+      fdecl->addDecl(var);
     }
 
     for (auto &opnd : inst.operands()) {

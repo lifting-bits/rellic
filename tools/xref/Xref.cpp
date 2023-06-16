@@ -47,6 +47,7 @@
 #include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
+#include "rellic/AST/InlineReferences.h"
 #include "rellic/AST/LocalDeclRenamer.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/MaterializeConds.h"
@@ -399,6 +400,8 @@ static std::unique_ptr<rellic::ASTPass> CreatePass(
       return std::make_unique<rellic::DeadStmtElim>(*session.DecompContext);
     } else if (str == "ec") {
       return std::make_unique<rellic::ExprCombine>(*session.DecompContext);
+    } else if (str == "ir") {
+      return std::make_unique<rellic::InlineReferences>(*session.DecompContext);
     } else if (str == "lr") {
       return std::make_unique<rellic::LoopRefine>(*session.DecompContext);
     } else if (str == "mc") {

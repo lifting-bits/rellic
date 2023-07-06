@@ -7,9 +7,11 @@
  */
 
 #include <clang/Basic/Builtins.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
+#include <llvm/Support/Casting.h>
 
 #include <vector>
 #define GOOGLE_STRIP_LOG 1
@@ -260,8 +262,14 @@ clang::Expr *ExprGen::CreateLiteralExpr(llvm::Constant *constant) {
     case llvm::Type::FloatTyID:
     case llvm::Type::DoubleTyID:
     case llvm::Type::X86_FP80TyID: {
-      result = ast.CreateFPLit(
-          llvm::cast<llvm::ConstantFP>(constant)->getValueAPF());
+      if (auto f = llvm::dyn_cast<llvm::ConstantFP>(constant)) {
+        result = ast.CreateFPLit(f->getValueAPF());
+      } else if (llvm::isa<llvm::UndefValue>(constant)) {
+        result = ast.CreateUndefFloat(c_type);
+      } else {
+        THROW() << "Unsupported float constant";
+      }
+
     } break;
     // Integers
     case llvm::Type::IntegerTyID: {

@@ -59,6 +59,8 @@ class ASTBuilder {
   clang::Expr *CreateNull();
   clang::Expr *CreateUndefPointer(clang::QualType type);
   clang::Expr *CreateUndefInteger(clang::QualType type);
+  clang::Expr *CreateUndefFloat(clang::QualType type);
+
   // Identifiers
   clang::IdentifierInfo *CreateIdentifier(std::string name);
   // Variable declaration

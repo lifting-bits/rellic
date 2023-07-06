@@ -17,6 +17,7 @@
 #include <clang/Sema/Sema.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/ADT/APFloat.h>
 
 #include "rellic/AST/Util.h"
 #include "rellic/Exception.h"
@@ -223,6 +224,12 @@ clang::Expr *ASTBuilder::CreateNull() {
 clang::Expr *ASTBuilder::CreateUndefInteger(clang::QualType type) {
   auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
   auto lit{CreateIntLit(val)};
+  return lit;
+}
+
+clang::Expr *ASTBuilder::CreateUndefFloat(clang::QualType type) {
+  auto lit =
+      CreateFPLit(llvm::APFloat::getZero(ctx.getFloatTypeSemantics(type)));
   return lit;
 }
 

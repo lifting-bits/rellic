@@ -27,6 +27,7 @@
 #include "rellic/AST/ExprCombine.h"
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
+#include "rellic/AST/InlineReferences.h"
 #include "rellic/AST/LocalDeclRenamer.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/MaterializeConds.h"
@@ -118,6 +119,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     cbr_passes.push_back(std::make_unique<rellic::CondBasedRefine>(dec_ctx));
     cbr_passes.push_back(std::make_unique<rellic::ReachBasedRefine>(dec_ctx));
+    cbr_passes.push_back(std::make_unique<rellic::InlineReferences>(dec_ctx));
 
     while (pass_cbr.Run()) {
       ;
@@ -130,6 +132,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
     loop_passes.push_back(std::make_unique<rellic::NestedCondProp>(dec_ctx));
     loop_passes.push_back(
         std::make_unique<rellic::NestedScopeCombine>(dec_ctx));
+    loop_passes.push_back(std::make_unique<rellic::InlineReferences>(dec_ctx));
 
     while (pass_loop.Run()) {
       ;
@@ -142,6 +145,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
 
     scope_passes.push_back(
         std::make_unique<rellic::NestedScopeCombine>(dec_ctx));
+    scope_passes.push_back(std::make_unique<rellic::InlineReferences>(dec_ctx));
 
     while (pass_scope.Run()) {
       ;
@@ -151,6 +155,7 @@ Result<DecompilationResult, DecompilationError> Decompile(
     auto& ec_passes{pass_ec.GetPasses()};
     ec_passes.push_back(std::make_unique<rellic::MaterializeConds>(dec_ctx));
     ec_passes.push_back(std::make_unique<rellic::ExprCombine>(dec_ctx));
+    ec_passes.push_back(std::make_unique<rellic::InlineReferences>(dec_ctx));
 
     pass_ec.Run();
 

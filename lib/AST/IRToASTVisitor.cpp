@@ -64,7 +64,7 @@ class ExprGen : public llvm::InstVisitor<ExprGen, clang::Expr *> {
 clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
   if (expr.decl().decl_kind() == Z3_OP_EQ) {
     // Equalities generated form the reaching conditions of switch instructions
-    // Always in the for (VAR == CONST) or (CONST == VAR)
+    // Always in the form (VAR == CONST) or (CONST == VAR)
     // VAR will uniquely identify a SwitchInst, CONST will represent the index
     // of the case taken
     CHECK_EQ(expr.num_args(), 2) << "Equalities must have 2 arguments";
@@ -1161,6 +1161,13 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
 
   for (auto &inst : llvm::instructions(func)) {
     auto &var{dec_ctx.value_decls[&inst]};
+    bool used_as_branch_cond{false};
+    for (auto user : inst.users()) {
+      if (llvm::isa<llvm::BranchInst>(user)) {
+        used_as_branch_cond = true;
+        break;
+      }
+    }
     if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
       auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
       // TLDR: Here we discard the variable name as present in the bitcode
@@ -1217,6 +1224,16 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
           }
         }
       }
+    } else if (used_as_branch_cond) {
+      auto name{"br_cond_" +
+                std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
+      auto type{dec_ctx.GetQualType(inst.getType())};
+      if (auto arrayType = clang::dyn_cast<clang::ArrayType>(type)) {
+        type = dec_ctx.ast_ctx.getPointerType(arrayType->getElementType());
+      }
+
+      var = ast.CreateVarDecl(fdecl, type, name);
+      fdecl->addDecl(var);
     }
 
     for (auto &opnd : inst.operands()) {

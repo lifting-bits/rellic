@@ -228,7 +228,8 @@ clang::Expr *ASTBuilder::CreateUndefInteger(clang::QualType type) {
 }
 
 clang::Expr *ASTBuilder::CreateUndefFloat(clang::QualType type) {
-  auto lit = CreateFPLit(llvm::APFloat::getZero(ctx.getFloatTypeSemantics(type)));
+  auto lit =
+      CreateFPLit(llvm::APFloat::getZero(ctx.getFloatTypeSemantics(type)));
   return lit;
 }
 

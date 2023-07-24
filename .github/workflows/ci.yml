@@ -16,6 +16,10 @@ on:
     branches:
       - '*'
 
+env:
+  CC: clang
+  CXX: clang++
+
 jobs:
   build_linux:
     strategy:
@@ -30,7 +34,7 @@ jobs:
     name: Rellic CI
     runs-on: "gha-ubuntu-32"
     container:
-      image: docker.pkg.github.com/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}:${{ matrix.image.tag }}
+      image: ghcr.io/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}-v2:${{ matrix.image.tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

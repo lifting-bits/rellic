@@ -52,8 +52,7 @@ jobs:
         run: |
           # TODO some of these should probably live in the Docker build image
           apt-get update
-          apt-get install -y ninja-build pixz xz-utils make rpm python3.8
-          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 100
+          apt-get install -y ninja-build pixz xz-utils make rpm python3
 
       - name: Build with build script
         shell: bash

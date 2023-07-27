@@ -178,7 +178,7 @@ If you are experiencing undocumented problems with Rellic then ask for help in t
 
 ## Supported Platforms
 
-Rellic is supported on Linux platforms and has been tested on Ubuntu 20.04.
+Rellic is supported on Linux platforms and has been tested on Ubuntu 22.04.
 
 ## Dependencies
 
@@ -236,7 +236,7 @@ Finally, we build and package Rellic. This script will create another directory,
 
 ```shell
 cd rellic
-./scripts/build.sh --llvm-version 14
+./scripts/build.sh --llvm-version 16
 # to install the deb package, then do:
 sudo dpkg -i rellic-build/*.deb
 ```
@@ -271,10 +271,10 @@ make -j8
 
 The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
 
-To build the docker image using LLVM 16 for Ubuntu 20.04 on amd64 you can run the following command:
+To build the docker image using LLVM 16 for Ubuntu 22.04 on amd64 you can run the following command:
 
 ```sh
-ARCH=amd64; UBUNTU=20.04; LLVM=16; docker build . \
+ARCH=amd64; UBUNTU=22.04; LLVM=16; docker build . \
   -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
   --build-arg UBUNTU_VERSION=${UBUNTU} \
@@ -286,13 +286,13 @@ To run the decompiler, the entrypoint has already been set, but make sure the bi
 
 ```sh
 # Get the bc file
-clang-14 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-16 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 # Decompile
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic:llvm14-ubuntu20.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm16-ubuntu22.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 To explain the above command more:

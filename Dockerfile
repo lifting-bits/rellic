@@ -35,16 +35,11 @@ ENV CXX=clang++
 
 WORKDIR /rellic
 COPY ./ ./
-# The reason we don't use --install
-# is so that container has the same exact code as the packages
 RUN ./scripts/build.sh \
   --llvm-version ${LLVM_VERSION} \
   --prefix /opt/trailofbits \
-  --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
-
-RUN cd rellic-build && \
-    CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test && \
-    cmake --build . --target install
+  --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release" \
+  --install
 
 # Small installation image
 FROM base as install

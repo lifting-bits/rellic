@@ -19,7 +19,7 @@ CURR_DIR=$( pwd )
 BUILD_DIR="${CURR_DIR}/rellic-build"
 INSTALL_DIR=/usr/local
 LLVM_VERSION=llvm-16
-CXX_COMMON_VERSION=v0.3.2
+CXX_COMMON_VERSION=v0.4.1
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
@@ -36,6 +36,10 @@ function GetUbuntuOSVersion
     groovy)
       echo "[!] Ubuntu 20.10 is not supported; using libraries for Ubuntu 20.04 instead"
       OS_VERSION=ubuntu-20.04
+      return 0
+    ;;
+    jammy)
+      OS_VERSION=ubuntu-22.04
       return 0
     ;;
     focal)
@@ -62,7 +66,7 @@ function GetUbuntuOSVersion
       return 0
     ;;
     *)
-      echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported. Only focal (20.04) and bionic (18.04) are pre-compiled."
+      echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported. Only jammy (22.04) are pre-compiled."
       echo "[x] Please see https://github.com/lifting-bits/cxx-common to build dependencies from source."
       return 1
     ;;
@@ -153,7 +157,7 @@ function GetOSVersion
     ;;
 
     *debian*)
-      OS_VERSION=ubuntu-20.04
+      OS_VERSION=ubuntu-22.04
       return 0;
     ;;
 

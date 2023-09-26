@@ -5,9 +5,10 @@
  * This source code is licensed in accordance with the terms specified in
  * the LICENSE file found in the root directory of this source tree.
  */
+#include <clang/Basic/AttrKinds.h>
+#include <clang/Basic/AttributeCommonInfo.h>
+#include <clang/Basic/SourceLocation.h>
 #define GOOGLE_STRIP_LOG 1
-
-#include "rellic/AST/StructGenerator.h"
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Expr.h>
@@ -20,6 +21,7 @@
 #include <string>
 #include <unordered_set>
 
+#include "rellic/AST/StructGenerator.h"
 #include "rellic/BC/Util.h"
 
 static std::string MakeValid(const std::string& name, unsigned id) {
@@ -146,7 +148,9 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
   static auto count{0U};
 
   auto decl{ast.CreateStructDecl(decl_ctx, "temp" + std::to_string(count++))};
-  clang::AttributeCommonInfo info{clang::SourceLocation{}};
+  clang::AttributeCommonInfo info(clang::SourceRange(),
+                                  clang::AttributeCommonInfo::Kind::AT_Common,
+                                  clang::AttributeCommonInfo::Form::Implicit());
   decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
   for (auto& field : fields) {
     decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, field));
@@ -217,7 +221,9 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   auto field_count{0U};
   std::vector<FieldInfo> fields{};
   if (!isUnion) {
-    clang::AttributeCommonInfo attrinfo{clang::SourceLocation{}};
+    clang::AttributeCommonInfo attrinfo(
+        clang::SourceRange(), clang::AttributeCommonInfo::Kind::AT_Common,
+        clang::AttributeCommonInfo::Form::Implicit());
     decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
   }
 

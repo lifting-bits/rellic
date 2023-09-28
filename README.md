@@ -277,6 +277,7 @@ To build the docker image using LLVM 16 for Ubuntu 22.04 on amd64 you can run th
 ARCH=amd64; UBUNTU=22.04; LLVM=16; docker build . \
   -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
+  --platform linux/${ARCH}
   --build-arg UBUNTU_VERSION=${UBUNTU} \
   --build-arg ARCH=${ARCH} \
   --build-arg LLVM_VERSION=${LLVM}

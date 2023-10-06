@@ -38,6 +38,10 @@ function GetUbuntuOSVersion
       OS_VERSION=ubuntu-20.04
       return 0
     ;;
+    jammy)
+      OS_VERSION=ubuntu-22.04
+      return 0
+    ;;
     focal)
       OS_VERSION=ubuntu-20.04
       return 0
@@ -62,7 +66,7 @@ function GetUbuntuOSVersion
       return 0
     ;;
     *)
-      echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported. Only focal (20.04) and bionic (18.04) are pre-compiled."
+      echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported. Only jammy (22.04) are pre-compiled."
       echo "[x] Please see https://github.com/lifting-bits/cxx-common to build dependencies from source."
       return 1
     ;;
@@ -153,7 +157,7 @@ function GetOSVersion
     ;;
 
     *debian*)
-      OS_VERSION=ubuntu-20.04
+      OS_VERSION=ubuntu-22.04
       return 0;
     ;;
 

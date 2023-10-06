@@ -13,7 +13,7 @@ jobs:
         image:
           - { name: 'ubuntu', tag: '20.04', codename: 'focal' }
         llvm: [ '16' ]
-        common_base: [ 'https://github.com/lifting-bits/cxx-common/releases/latest/download' ]
+        common_base: [ 'https://github.com/lifting-bits/cxx-common/releases/download/v0.4.1' ]
 
     env:
       CC: clang-${{ matrix.llvm }}
@@ -22,7 +22,7 @@ jobs:
     name: Diff in ouput between old and new rellic
     runs-on: gha-ubuntu-32
     container:
-      image: docker.pkg.github.com/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}:${{ matrix.image.tag }}
+      image: ghcr.io/lifting-bits/cxx-common/vcpkg-builder-${{ matrix.image.name }}-v2:${{ matrix.image.tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

@@ -252,7 +252,7 @@ clang-14 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/is
 
 ### On macOS
 
-Make sure to have the latest release of cxx-common for LLVM 16. Then, build with
+Make sure to have the latest release of cxx-common for LLVM 17. Then, build with
 
 ```shell
 cmake \
@@ -271,10 +271,10 @@ make -j8
 
 The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
 
-To build the docker image using LLVM 16 for Ubuntu 20.04 on amd64 you can run the following command:
+To build the docker image using LLVM 17 for Ubuntu 20.04 on amd64 you can run the following command:
 
 ```sh
-ARCH=amd64; UBUNTU=20.04; LLVM=16; docker build . \
+ARCH=amd64; UBUNTU=20.04; LLVM=17; docker build . \
   -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
   -f Dockerfile \
   --build-arg UBUNTU_VERSION=${UBUNTU} \

@@ -190,8 +190,8 @@ Most of Rellic's dependencies can be provided by the [cxx-common](https://github
 | [CMake](https://cmake.org/) | 3.21+ |
 | [Google Flags](https://github.com/google/glog) | Latest |
 | [Google Log](https://github.com/google/glog) | Latest |
-| [LLVM](http://llvm.org/) | 14|
-| [Clang](http://clang.llvm.org/) | 14|
+| [LLVM](http://llvm.org/) | 16|
+| [Clang](http://clang.llvm.org/) | 16|
 | [Z3](https://github.com/Z3Prover/z3) | 4.7.1+ |
 
 ## Pre-made Docker Images
@@ -245,7 +245,7 @@ To try out Rellic you can do the following, given a LLVM bitcode file of your ch
 
 ```shell
 # Create some sample bitcode or your own
-clang-14 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+clang-16 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
 ./rellic-build/tools/rellic-decomp --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
@@ -271,15 +271,13 @@ make -j8
 
 The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
 
-To build the docker image using LLVM 16 for Ubuntu 22.04 on amd64 you can run the following command:
+To build the docker image using LLVM 16 for Ubuntu 22.04 you can run the following command:
 
 ```sh
-ARCH=amd64; UBUNTU=22.04; LLVM=16; docker build . \
-  -t rellic:llvm${LLVM}-ubuntu${UBUNTU}-${ARCH} \
+UBUNTU=22.04; LLVM=16; docker build . \
+  -t rellic:llvm${LLVM}-ubuntu${UBUNTU} \
   -f Dockerfile \
-  --platform linux/${ARCH}
   --build-arg UBUNTU_VERSION=${UBUNTU} \
-  --build-arg ARCH=${ARCH} \
   --build-arg LLVM_VERSION=${LLVM}
 ```
 
@@ -293,7 +291,7 @@ clang-16 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/is
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic:llvm16-ubuntu22.04-amd64 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm16-ubuntu22.04 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
 To explain the above command more:

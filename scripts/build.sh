@@ -19,7 +19,7 @@ CURR_DIR=$( pwd )
 BUILD_DIR="${CURR_DIR}/rellic-build"
 INSTALL_DIR=/usr/local
 LLVM_VERSION=llvm-16
-CXX_COMMON_VERSION=v0.4.1
+CXX_COMMON_VERSION=v0.6.4
 OS_VERSION=unknown
 ARCH_VERSION=unknown
 BUILD_FLAGS=
@@ -33,42 +33,19 @@ function GetUbuntuOSVersion
   source /etc/lsb-release
 
   case "${DISTRIB_CODENAME}" in
-    groovy)
-      echo "[!] Ubuntu 20.10 is not supported; using libraries for Ubuntu 20.04 instead"
-      OS_VERSION=ubuntu-20.04
+    noble)
+      OS_VERSION=ubuntu-24.04
       return 0
     ;;
     jammy)
       OS_VERSION=ubuntu-22.04
       return 0
     ;;
-    focal)
-      OS_VERSION=ubuntu-20.04
-      return 0
-    ;;
-    eoan)
-      echo "[!] Ubuntu 19.10 is not supported; using libraries for Ubuntu 18.04 instead"
-      OS_VERSION=ubuntu-18.04
-      return 0
-    ;;
-    disco)
-      echo "[!] Ubuntu 19.04 is not supported; using libraries for Ubuntu 18.04 instead"
-      OS_VERSION=ubuntu-18.04
-      return 0
-    ;;
-    cosmic)
-      echo "[!] Ubuntu 18.10 is not supported; using libraries for Ubuntu 18.04 instead"
-      OS_VERSION=ubuntu-18.04
-      return 0
-    ;;
-    bionic)
-      OS_VERSION=ubuntu-18.04
-      return 0
-    ;;
     *)
       echo "[x] Ubuntu ${DISTRIB_CODENAME} is not supported. Only jammy (22.04) are pre-compiled."
       echo "[x] Please see https://github.com/lifting-bits/cxx-common to build dependencies from source."
-      return 1
+      echo "[x] Attempting to use Ubuntu 22.04 binaries"
+      OS_VERSION=ubuntu-22.04
     ;;
   esac
 }
@@ -147,12 +124,12 @@ function GetOSVersion
     ;;
 
     *arch*)
-      OS_VERSION=ubuntu-18.04
+      OS_VERSION=ubuntu-22.04
       return 0
     ;;
 
     [Kk]ali)
-      OS_VERSION=ubuntu-18.04
+      OS_VERSION=ubuntu-22.04
       return 0;
     ;;
 
@@ -183,12 +160,12 @@ function DownloadLibraries
 
     #BUILD_FLAGS="${BUILD_FLAGS} -DCMAKE_OSX_SYSROOT=${sdk_root}"
     # Min version supported
-    OS_VERSION="macos-12"
+    OS_VERSION="macos-13"
     # Hard-coded to match pre-built binaries in CI
-    XCODE_VERSION="14.2"
-    if [[ "$(sw_vers -productVersion)" == "12."* ]]; then
-      echo "Found MacOS Monterey"
-      OS_VERSION="macos-12"
+    XCODE_VERSION="15.0"
+    if [[ "$(sw_vers -productVersion)" == "13."* ]]; then
+      echo "Found MacOS Ventura"
+      OS_VERSION="macos-13"
     else
       echo "WARNING: ****Likely unsupported MacOS Version****"
       echo "WARNING: ****Using ${OS_VERSION}****"
@@ -326,22 +303,6 @@ function Package
 function GetLLVMVersion
 {
   case ${1} in
-    12)
-      LLVM_VERSION=llvm-12
-      return 0
-    ;;
-    13)
-      LLVM_VERSION=llvm-13
-      return 0
-    ;;
-    14)
-      LLVM_VERSION=llvm-14
-      return 0
-    ;;
-    15)
-      LLVM_VERSION=llvm-15
-      return 0
-    ;;
     16)
       LLVM_VERSION=llvm-16
       return 0

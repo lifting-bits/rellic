@@ -45,7 +45,7 @@ jobs:
           liblzma-dev zlib1g-dev libtinfo-dev build-essential \
           libc6-dev:i386 libstdc++-*-dev:i386 g++-multilib
         wget "https://github.com/Kitware/CMake/releases/download/v3.22.3/cmake-3.22.3-linux-$(uname -m).sh" && \
-          /bin/bash cmake-*.sh --skip-license --prefix=/usr/local && rm cmake-*.sh
+          sudo /bin/bash cmake-*.sh --skip-license --prefix=/usr/local && rm cmake-*.sh
         python3 -m pip install requests
     - name: Build rellic against LLVM ${{ matrix.llvm }}
       run: |

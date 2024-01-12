@@ -7,9 +7,11 @@
  */
 
 #include <clang/Basic/Builtins.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
+#include <llvm/Support/Casting.h>
 
 #include <vector>
 #define GOOGLE_STRIP_LOG 1
@@ -260,8 +262,14 @@ clang::Expr *ExprGen::CreateLiteralExpr(llvm::Constant *constant) {
     case llvm::Type::FloatTyID:
     case llvm::Type::DoubleTyID:
     case llvm::Type::X86_FP80TyID: {
-      result = ast.CreateFPLit(
-          llvm::cast<llvm::ConstantFP>(constant)->getValueAPF());
+      if (auto f = llvm::dyn_cast<llvm::ConstantFP>(constant)) {
+        result = ast.CreateFPLit(f->getValueAPF());
+      } else if (llvm::isa<llvm::UndefValue>(constant)) {
+        result = ast.CreateUndefFloat(c_type);
+      } else {
+        THROW() << "Unsupported float constant";
+      }
+
     } break;
     // Integers
     case llvm::Type::IntegerTyID: {
@@ -346,10 +354,15 @@ clang::Expr *ExprGen::CreateOperandExpr(llvm::Use &val) {
   }};
 
   clang::Expr *res{nullptr};
+  llvm::Instruction *maybe_inst{llvm::dyn_cast<llvm::Instruction>(&val)};
+  llvm::Argument *maybe_arg{llvm::dyn_cast<llvm::Argument>(&val)};
   if (auto constant = llvm::dyn_cast<llvm::Constant>(val)) {
     // Operand is a constant value
     res = CreateConstantExpr(constant);
-  } else if (llvm::isa<llvm::AllocaInst>(val)) {
+  } else if ((maybe_inst && dec_ctx.function_layout_override->NeedsDereference(
+                                *maybe_inst->getFunction(), *maybe_inst)) ||
+             (maybe_arg && dec_ctx.function_layout_override->NeedsDereference(
+                               *maybe_arg->getParent(), *maybe_arg))) {
     // Operand is an l-value (variable, function, ...)
     // Add a `&` operator
     res = ast.CreateAddrOf(CreateRef());
@@ -1082,23 +1095,6 @@ void IRToASTVisitor::VisitGlobalVar(llvm::GlobalVariable &gvar) {
   expr_gen.VisitGlobalVar(gvar);
 }
 
-void IRToASTVisitor::VisitArgument(llvm::Argument &arg) {
-  DLOG(INFO) << "VisitArgument: " << LLVMThingToString(&arg);
-  auto &parm{dec_ctx.value_decls[&arg]};
-  if (parm) {
-    return;
-  }
-  // Create a name
-  auto name{arg.hasName() ? arg.getName().str()
-                          : "arg" + std::to_string(arg.getArgNo())};
-  // Get parent function declaration
-  auto func{arg.getParent()};
-  auto fdecl{clang::cast<clang::FunctionDecl>(dec_ctx.value_decls[func])};
-  auto argtype{dec_ctx.type_provider->GetArgumentType(arg)};
-  // Create a declaration
-  parm = ast.CreateParamDecl(fdecl, argtype, name);
-}
-
 void IRToASTVisitor::VisitBasicBlock(llvm::BasicBlock &block,
                                      std::vector<clang::Stmt *> &stmts) {
   ExprGen expr_gen{dec_ctx};
@@ -1137,10 +1133,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   DLOG(INFO) << "Creating FunctionDecl for " << name;
   auto tudecl{dec_ctx.ast_ctx.getTranslationUnitDecl()};
 
-  std::vector<clang::QualType> arg_types;
-  for (auto &arg : func.args()) {
-    arg_types.push_back(dec_ctx.type_provider->GetArgumentType(arg));
-  }
+  auto arg_types{dec_ctx.function_layout_override->GetArguments(func)};
   auto ret_type{dec_ctx.type_provider->GetFunctionReturnType(func)};
   clang::FunctionProtoType::ExtProtoInfo epi;
   epi.Variadic = func.isVarArg();
@@ -1148,19 +1141,16 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
   decl = ast.CreateFunctionDecl(tudecl, ftype, name);
 
   tudecl->addDecl(decl);
-
-  std::vector<clang::ParmVarDecl *> params;
-  for (auto &arg : func.args()) {
-    VisitArgument(arg);
-    params.push_back(
-        clang::cast<clang::ParmVarDecl>(dec_ctx.value_decls[&arg]));
-  }
-
   auto fdecl{decl->getAsFunction()};
-  fdecl->setParams(params);
+  dec_ctx.function_layout_override->BeginFunctionVisit(func, fdecl);
 
   for (auto &inst : llvm::instructions(func)) {
     auto &var{dec_ctx.value_decls[&inst]};
+    if (dec_ctx.function_layout_override->VisitInstruction(inst, fdecl, var)) {
+      // The user has overridden our choices
+      continue;
+    }
+
     if (auto alloca = llvm::dyn_cast<llvm::AllocaInst>(&inst)) {
       auto name{"var" + std::to_string(GetNumDecls<clang::VarDecl>(fdecl))};
       // TLDR: Here we discard the variable name as present in the bitcode
@@ -1182,7 +1172,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
       var = ast.CreateVarDecl(
-          fdecl, dec_ctx.GetQualType(alloca->getAllocatedType()), name);
+          fdecl, dec_ctx.type_provider->GetAllocaType(*alloca), name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) ||
                (inst.hasNUsesOrMore(1) && llvm::isa<llvm::CallInst>(inst)) ||
@@ -1244,7 +1234,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
         }
 
         auto fdecl{decl->getAsFunction()};
-        fdecl->setParams(params);
+        fdecl->setParams(iasm_params);
 
         tudecl->addDecl(decl);
       }

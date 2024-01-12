@@ -24,6 +24,8 @@ clang::QualType TypeProvider::GetGlobalVarType(llvm::GlobalVariable&) {
   return {};
 }
 
+clang::QualType TypeProvider::GetAllocaType(llvm::AllocaInst&) { return {}; }
+
 // Defers to DecompilationContext::GetQualType
 class FallbackTypeProvider : public TypeProvider {
  public:
@@ -31,6 +33,7 @@ class FallbackTypeProvider : public TypeProvider {
   clang::QualType GetFunctionReturnType(llvm::Function& func) override;
   clang::QualType GetArgumentType(llvm::Argument& arg) override;
   clang::QualType GetGlobalVarType(llvm::GlobalVariable& gvar) override;
+  clang::QualType GetAllocaType(llvm::AllocaInst& alloca) override;
 };
 
 FallbackTypeProvider::FallbackTypeProvider(DecompilationContext& dec_ctx)
@@ -48,6 +51,10 @@ clang::QualType FallbackTypeProvider::GetArgumentType(llvm::Argument& arg) {
 clang::QualType FallbackTypeProvider::GetGlobalVarType(
     llvm::GlobalVariable& gvar) {
   return dec_ctx.GetQualType(gvar.getValueType());
+}
+
+clang::QualType FallbackTypeProvider::GetAllocaType(llvm::AllocaInst& alloca) {
+  return dec_ctx.GetQualType(alloca.getAllocatedType());
 }
 
 // Fixes function arguments that have a byval attribute
@@ -161,6 +168,17 @@ clang::QualType TypeProviderCombiner::GetGlobalVarType(
   for (auto it{providers.rbegin()}; it != providers.rend(); ++it) {
     auto& provider{*it};
     auto res{provider->GetGlobalVarType(gvar)};
+    if (!res.isNull()) {
+      return res;
+    }
+  }
+  return {};
+}
+
+clang::QualType TypeProviderCombiner::GetAllocaType(llvm::AllocaInst& alloca) {
+  for (auto it{providers.rbegin()}; it != providers.rend(); ++it) {
+    auto& provider{*it};
+    auto res{provider->GetAllocaType(alloca)};
     if (!res.isNull()) {
       return res;
     }

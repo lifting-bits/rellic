@@ -24,6 +24,7 @@ struct OffsetDIDerivedType;
 class StructGenerator {
   clang::ASTContext& ast_ctx;
   rellic::ASTBuilder ast;
+  clang::DeclContext* decl_ctx;
   std::unordered_map<llvm::DICompositeType*, clang::RecordDecl*>
       fwd_decl_records{};
   std::unordered_map<llvm::DICompositeType*, clang::QualType> enum_types{};
@@ -64,7 +65,7 @@ class StructGenerator {
                  std::unordered_set<llvm::DIType*>& visited);
 
  public:
-  StructGenerator(clang::ASTUnit& ast_unit);
+  StructGenerator(clang::ASTUnit& ast_unit, clang::DeclContext* decl_ctx);
 
   clang::QualType GetType(llvm::DIType* t);
 

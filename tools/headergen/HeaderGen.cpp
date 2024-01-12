@@ -96,7 +96,8 @@ int main(int argc, char* argv[]) {
   std::vector<std::string> args{"-Wno-pointer-to-int-cast", "-Wno-pointer-sign",
                                 "-target", module->getTargetTriple()};
   auto ast_unit{clang::tooling::buildASTFromCodeWithArgs("", args, "out.c")};
-  rellic::StructGenerator strctgen(*ast_unit);
+  rellic::StructGenerator strctgen(
+      *ast_unit, ast_unit->getASTContext().getTranslationUnitDecl());
   rellic::SubprogramGenerator subgen(*ast_unit, strctgen);
   auto types{dic->GetTypes()};
   strctgen.GenerateDecls(types.begin(), types.end());

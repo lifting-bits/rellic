@@ -629,9 +629,7 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
   StmtVec fbody;
   // Add declarations of local variables
   for (auto decl : fdecl->decls()) {
-    if (clang::isa<clang::VarDecl>(decl)) {
-      fbody.push_back(ast.CreateDeclStmt(decl));
-    }
+    fbody.push_back(ast.CreateDeclStmt(decl));
   }
   // Add statements of the top-level region compound
   for (auto stmt : region_stmts[regions->getTopLevelRegion()]->body()) {

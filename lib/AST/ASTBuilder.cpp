@@ -17,6 +17,7 @@
 #include <clang/Sema/Sema.h>
 #include <gflags/gflags.h>
 #include <glog/logging.h>
+#include <llvm/ADT/APFloat.h>
 
 #include "rellic/AST/Util.h"
 #include "rellic/Exception.h"
@@ -149,7 +150,7 @@ clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   // Extend the literal value based on it's sign if we have a
   // mismatch between the bit width of the value and inferred type.
   auto type_size{ctx.getIntWidth(type)};
-  if (val.getBitWidth() != type_size && val.getMinSignedBits() < type_size) {
+  if (val.getBitWidth() != type_size && val.getSignificantBits() < type_size) {
     val = val.extOrTrunc(type_size);
   }
   // Clang does this check in the `clang::IntegerLiteral::Create`, but
@@ -215,14 +216,20 @@ clang::Expr *ASTBuilder::CreateFPLit(llvm::APFloat val) {
 
 clang::Expr *ASTBuilder::CreateNull() {
   auto type{ctx.UnsignedIntTy};
-  auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
+  auto val{llvm::APInt::getZero(ctx.getTypeSize(type))};
   auto lit{CreateIntLit(val)};
   return CreateCStyleCast(ctx.VoidPtrTy, lit);
 }
 
 clang::Expr *ASTBuilder::CreateUndefInteger(clang::QualType type) {
-  auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
+  auto val{llvm::APInt::getZero(ctx.getTypeSize(type))};
   auto lit{CreateIntLit(val)};
+  return lit;
+}
+
+clang::Expr *ASTBuilder::CreateUndefFloat(clang::QualType type) {
+  auto lit =
+      CreateFPLit(llvm::APFloat::getZero(ctx.getFloatTypeSemantics(type)));
   return lit;
 }
 

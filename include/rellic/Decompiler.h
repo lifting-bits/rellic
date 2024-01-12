@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "Result.h"
+#include "rellic/AST/FunctionLayoutOverride.h"
 #include "rellic/AST/TypeProvider.h"
 
 namespace rellic {
@@ -37,15 +38,35 @@ class SimpleTypeProviderFactory final : public TypeProviderFactory {
   }
 };
 
+class FunctionLayoutOverrideFactory {
+ public:
+  virtual ~FunctionLayoutOverrideFactory() = default;
+  virtual std::unique_ptr<FunctionLayoutOverride> create(
+      DecompilationContext& ctx) = 0;
+};
+
+template <typename T>
+class SimpleFunctionLayoutOverrideFactory final
+    : public FunctionLayoutOverrideFactory {
+ public:
+  std::unique_ptr<FunctionLayoutOverride> create(
+      DecompilationContext& ctx) override {
+    return std::make_unique<T>(ctx);
+  }
+};
+
 struct DecompilationOptions {
   using TypeProviderFactoryPtr = std::unique_ptr<TypeProviderFactory>;
+  using FunctionLayoutOverrideFactoryPtr =
+      std::unique_ptr<FunctionLayoutOverrideFactory>;
 
   bool lower_switches = false;
   bool remove_phi_nodes = false;
 
   // Additional type providers to be used during code generation.
   // Providers added later will have higher priority.
-  std::vector<TypeProviderFactoryPtr> additional_providers;
+  std::vector<TypeProviderFactoryPtr> additional_type_providers;
+  std::vector<FunctionLayoutOverrideFactoryPtr> additional_variable_providers;
 };
 
 struct DecompilationResult {

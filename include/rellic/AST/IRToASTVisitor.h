@@ -30,8 +30,6 @@ class IRToASTVisitor {
   DecompilationContext &dec_ctx;
   ASTBuilder &ast;
 
-  void VisitArgument(llvm::Argument &arg);
-
  public:
   IRToASTVisitor(DecompilationContext &dec_ctx);
 

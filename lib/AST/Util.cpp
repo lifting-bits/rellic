@@ -19,6 +19,7 @@
 #include <numeric>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/AST/FunctionLayoutOverride.h"
 #include "rellic/AST/TypeProvider.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
@@ -394,7 +395,9 @@ DecompilationContext::DecompilationContext(clang::ASTUnit &ast_unit)
       ast_ctx(ast_unit.getASTContext()),
       ast(ast_unit),
       marker_expr(ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse())),
-      type_provider(std::make_unique<TypeProviderCombiner>(*this)) {}
+      type_provider(std::make_unique<TypeProviderCombiner>(*this)),
+      function_layout_override(
+          std::make_unique<FunctionLayoutOverrideCombiner>(*this)) {}
 
 unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
   auto idx{z3_exprs.size()};
@@ -455,12 +458,7 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
 
     case llvm::Type::PointerTyID: {
       auto ptr_type{llvm::cast<llvm::PointerType>(type)};
-      if (ptr_type->isOpaque()) {
-        result = ast_ctx.VoidPtrTy;
-      } else {
-        result = ast_ctx.getPointerType(
-            GetQualType(ptr_type->getNonOpaquePointerElementType()));
-      }
+      result = ast_ctx.VoidPtrTy;
     } break;
 
     case llvm::Type::ArrayTyID: {

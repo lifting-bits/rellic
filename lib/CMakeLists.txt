@@ -82,6 +82,7 @@ set(AST_SOURCES
   AST/StructGenerator.cpp
   AST/SubprogramGenerator.cpp
   AST/TypeProvider.cpp
+  AST/FunctionLayoutOverride.cpp
 )
 
 set(BC_SOURCES

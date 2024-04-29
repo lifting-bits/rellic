@@ -1,1 +1,1 @@
-void a(void *b) { __asm__(""); }
+int main(int argc, char *argv[]) { __asm__(""); }

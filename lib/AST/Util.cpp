@@ -329,6 +329,13 @@ std::string ClangThingToString(const clang::Stmt *stmt) {
   return s;
 }
 
+std::string ClangThingToString(clang::QualType ty) {
+  std::string s;
+  llvm::raw_string_ostream os(s);
+  ty.print(os, clang::PrintingPolicy(clang::LangOptions()));
+  return s;
+}
+
 z3::goal ApplyTactic(const z3::tactic &tactic, z3::expr expr) {
   z3::goal goal(tactic.ctx());
   goal.add(expr.simplify());

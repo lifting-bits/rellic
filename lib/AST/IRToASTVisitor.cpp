@@ -140,7 +140,7 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
       return neg;
     }
     default:
-      LOG(FATAL) << "Invalid z3 op";
+      LOG(FATAL) << "Invalid z3 op " << expr.to_string();
   }
   return nullptr;
 }

@@ -1236,7 +1236,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
         }
 
         auto fdecl{decl->getAsFunction()};
-        fdecl->setParams(params);
+        fdecl->setParams(iasm_params);
 
         tudecl->addDecl(decl);
       }

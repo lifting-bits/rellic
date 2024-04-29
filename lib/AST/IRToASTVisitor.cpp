@@ -139,6 +139,14 @@ clang::Expr *IRToASTVisitor::ConvertExpr(z3::expr expr) {
       CopyProvenance(sub, neg, dec_ctx.use_provenance);
       return neg;
     }
+    case Z3_OP_ITE: {
+      CHECK_EQ(expr.num_args(), 3)
+          << "Conditional expressions must have three arguments";
+      auto cond{ConvertExpr(expr.arg(0))};
+      auto tt{ConvertExpr(expr.arg(1))};
+      auto ff{ConvertExpr(expr.arg(2))};
+      return ast.CreateConditional(cond, tt, ff);
+    }
     default:
       LOG(FATAL) << "Invalid z3 op " << expr.to_string();
   }

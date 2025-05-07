@@ -20,7 +20,7 @@ target_link_libraries(${RELLIC_DECOMP}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags::gflags
+    gflags
 )
 
 set(RELLIC_DECOMP "${RELLIC_DECOMP}" PARENT_SCOPE)
@@ -39,7 +39,7 @@ target_link_libraries(${RELLIC_HEADERGEN}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags::gflags
+    gflags
 )
 
 set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
@@ -57,6 +57,14 @@ add_executable(${RELLIC_XREF}
   "xref/Xref.cpp"
 )
 
+include(FetchContent)
+FetchContent_Declare(cpp-httplib
+  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+  GIT_TAG        v0.20.0
+)
+FetchContent_MakeAvailable(cpp-httplib)
+set(CPP_HTTPLIB_INCLUDE_DIRS "${cpp-httplib_SOURCE_DIR}")
+
 find_path(CPP_HTTPLIB_INCLUDE_DIRS "httplib.h")
 target_include_directories(${RELLIC_XREF} PRIVATE ${CPP_HTTPLIB_INCLUDE_DIRS})
 
@@ -64,7 +72,7 @@ target_link_libraries(${RELLIC_XREF}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags::gflags
+    gflags
 )
 
 set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
@@ -98,7 +106,7 @@ target_link_libraries(${RELLIC_REPL}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags::gflags
+    gflags
     linenoise
 )
 
@@ -117,7 +125,7 @@ target_link_libraries(${RELLIC_DEC2HEX}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags::gflags
+    gflags
 )
 
 set(RELLIC_DEC2HEX "${RELLIC_DEC2HEX}" PARENT_SCOPE)

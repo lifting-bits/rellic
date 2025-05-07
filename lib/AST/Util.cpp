@@ -462,11 +462,11 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
 
     case llvm::Type::PointerTyID: {
       auto ptr_type{llvm::cast<llvm::PointerType>(type)};
-      if (ptr_type->isOpaque()) {
+      auto pointee_type = ptr_type->getContainedType(0);
+      if (!pointee_type || pointee_type->isVoidTy()) {
         result = ast_ctx.VoidPtrTy;
       } else {
-        result = ast_ctx.getPointerType(
-            GetQualType(ptr_type->getNonOpaquePointerElementType()));
+        result = ast_ctx.getPointerType(GetQualType(pointee_type));
       }
     } break;
 
@@ -475,7 +475,7 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
       auto elm{GetQualType(arr->getElementType())};
       result = ast_ctx.getConstantArrayType(
           elm, llvm::APInt(64, arr->getNumElements()), nullptr,
-          clang::ArrayType::ArraySizeModifier::Normal, 0);
+          clang::ArraySizeModifier::Normal, 0);
     } break;
 
     case llvm::Type::StructTyID: {
@@ -521,7 +521,7 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
         auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
         auto etype{GetQualType(vtype->getElementType())};
         auto ecnt{vtype->getNumElements()};
-        auto vkind{clang::VectorType::GenericVector};
+        auto vkind{clang::VectorKind::Generic};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
       } else {
         THROW() << "Unknown LLVM Type: " << LLVMThingToString(type);

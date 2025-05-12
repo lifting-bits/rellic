@@ -462,12 +462,9 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
 
     case llvm::Type::PointerTyID: {
       auto ptr_type{llvm::cast<llvm::PointerType>(type)};
-      auto pointee_type = ptr_type->getContainedType(0);
-      if (!pointee_type || pointee_type->isVoidTy()) {
-        result = ast_ctx.VoidPtrTy;
-      } else {
-        result = ast_ctx.getPointerType(GetQualType(pointee_type));
-      }
+      // With opaque pointers, we can't get element type directly from the
+      // pointer; Use the context's void pointer type as the default
+      result = ast_ctx.VoidPtrTy;
     } break;
 
     case llvm::Type::ArrayTyID: {

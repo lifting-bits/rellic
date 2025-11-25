@@ -38,6 +38,8 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/Casting.h>
+
+#include "rellic/BC/Compat.h"
 #include <llvm/Support/Compiler.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/SaveAndRestore.h>
@@ -1499,7 +1501,7 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
   // The tag definition will take care of these.
   if (!Policy.IncludeTagDefinition) {
     OS << TypeWithKeyword::getKeywordName(T->getKeyword());
-    if (T->getKeyword() != ETK_None) OS << " ";
+    if (T->getKeyword() != rellic::compat::ElabTypeKW_None) OS << " ";
     NestedNameSpecifier *Qualifier = T->getQualifier();
     if (Qualifier) Qualifier->print(OS, Policy);
   }
@@ -1533,7 +1535,7 @@ void TypePrinter::printParenAfter(const ParenType *T, raw_ostream &OS) {
 
 void TypePrinter::printDependentNameBefore(const DependentNameType *T,
                                            raw_ostream &OS) {
-  if (T->getKeyword() != ETK_None) {
+  if (T->getKeyword() != rellic::compat::ElabTypeKW_None) {
     OS << "<span class=\"clang keyword\">"
        << TypeWithKeyword::getKeywordName(T->getKeyword()) << "</span> ";
   }
@@ -1551,7 +1553,7 @@ void TypePrinter::printDependentTemplateSpecializationBefore(
     const DependentTemplateSpecializationType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
 
-  if (T->getKeyword() != ETK_None) {
+  if (T->getKeyword() != rellic::compat::ElabTypeKW_None) {
     OS << "<span class=\"clang keyword\">"
        << TypeWithKeyword::getKeywordName(T->getKeyword()) << "</span> ";
   }

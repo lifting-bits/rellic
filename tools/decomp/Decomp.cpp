@@ -15,6 +15,7 @@
 #include <iostream>
 #include <system_error>
 
+#include "rellic/BC/Compat.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Decompiler.h"
 #include "rellic/Version.h"
@@ -34,15 +35,15 @@ DEFINE_bool(lower_switch, false,
 DECLARE_bool(version);
 
 namespace {
-static llvm::Optional<llvm::APInt> GetPCMetadata(llvm::Value* value) {
+static rellic::compat::Optional<llvm::APInt> GetPCMetadata(llvm::Value* value) {
   auto inst{llvm::dyn_cast<llvm::Instruction>(value)};
   if (!inst) {
-    return llvm::Optional<llvm::APInt>();
+    return rellic::compat::nullopt;
   }
 
   auto pc{inst->getMetadata("pc")};
   if (!pc) {
-    return llvm::Optional<llvm::APInt>();
+    return rellic::compat::nullopt;
   }
 
   auto& cop{pc->getOperand(0U)};

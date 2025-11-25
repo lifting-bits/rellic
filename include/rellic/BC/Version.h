@@ -126,3 +126,54 @@
   IF_LLVM_GTE_##major##minor##_(__VA_ARGS__)
 
 #define _IF_LLVM_GTE(major, minor, ...) _IF_LLVM_GTE_##major##minor(__VA_ARGS__)
+
+// LLVM 16+ support
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(16, 0)
+#define IF_LLVM_GTE_160(...) __VA_ARGS__
+#define IF_LLVM_GTE_160_(...) __VA_ARGS__,
+#define _IF_LLVM_GTE_160(...) , __VA_ARGS__
+#else
+#define IF_LLVM_GTE_160(...)
+#define IF_LLVM_GTE_160_(...)
+#define _IF_LLVM_GTE_160(...)
+#endif
+
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(17, 0)
+#define IF_LLVM_GTE_170(...) __VA_ARGS__
+#define IF_LLVM_GTE_170_(...) __VA_ARGS__,
+#define _IF_LLVM_GTE_170(...) , __VA_ARGS__
+#else
+#define IF_LLVM_GTE_170(...)
+#define IF_LLVM_GTE_170_(...)
+#define _IF_LLVM_GTE_170(...)
+#endif
+
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(18, 0)
+#define IF_LLVM_GTE_180(...) __VA_ARGS__
+#define IF_LLVM_GTE_180_(...) __VA_ARGS__,
+#define _IF_LLVM_GTE_180(...) , __VA_ARGS__
+#else
+#define IF_LLVM_GTE_180(...)
+#define IF_LLVM_GTE_180_(...)
+#define _IF_LLVM_GTE_180(...)
+#endif
+
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(19, 0)
+#define IF_LLVM_GTE_190(...) __VA_ARGS__
+#define IF_LLVM_GTE_190_(...) __VA_ARGS__,
+#define _IF_LLVM_GTE_190(...) , __VA_ARGS__
+#else
+#define IF_LLVM_GTE_190(...)
+#define IF_LLVM_GTE_190_(...)
+#define _IF_LLVM_GTE_190(...)
+#endif
+
+#if LLVM_VERSION_NUMBER >= LLVM_VERSION(20, 0)
+#define IF_LLVM_GTE_200(...) __VA_ARGS__
+#define IF_LLVM_GTE_200_(...) __VA_ARGS__,
+#define _IF_LLVM_GTE_200(...) , __VA_ARGS__
+#else
+#define IF_LLVM_GTE_200(...)
+#define IF_LLVM_GTE_200_(...)
+#define _IF_LLVM_GTE_200(...)
+#endif

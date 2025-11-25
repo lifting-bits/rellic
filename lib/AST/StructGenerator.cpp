@@ -18,6 +18,8 @@
 #include <llvm/BinaryFormat/Dwarf.h>
 
 #include <string>
+
+#include "rellic/BC/Compat.h"
 #include <unordered_set>
 
 #include "rellic/BC/Util.h"
@@ -119,7 +121,7 @@ static FieldInfo CreatePadding(clang::ASTContext& ast_ctx,
     auto padding_count{needed_padding / type_size};
     auto padding_arr_type{ast_ctx.getConstantArrayType(
         padding_type, llvm::APInt(64, padding_count), nullptr,
-        clang::ArrayType::ArraySizeModifier::Normal, 0)};
+        compat::ArraySizeMod_Normal, 0)};
     return {name, padding_arr_type, 0};
   }
 }
@@ -146,7 +148,7 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
 
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto decl{ast.CreateStructDecl(tudecl, "temp" + std::to_string(count++))};
-  clang::AttributeCommonInfo info{clang::SourceLocation{}};
+  clang::AttributeCommonInfo info{compat::MakeAttributeInfo()};
   decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
   for (auto& field : fields) {
     decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, field));
@@ -217,7 +219,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   auto field_count{0U};
   std::vector<FieldInfo> fields{};
   if (!isUnion) {
-    clang::AttributeCommonInfo attrinfo{clang::SourceLocation{}};
+    clang::AttributeCommonInfo attrinfo{compat::MakeAttributeInfo()};
     decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
   }
 
@@ -336,7 +338,7 @@ clang::QualType StructGenerator::BuildArray(llvm::DICompositeType* a) {
   auto* ci = subrange->getCount().get<llvm::ConstantInt*>();
   return ast_ctx.getConstantArrayType(
       base, llvm::APInt(64, ci->getZExtValue()), nullptr,
-      clang::ArrayType::ArraySizeModifier::Normal, 0);
+      compat::ArraySizeMod_Normal, 0);
 }
 
 clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
@@ -608,7 +610,7 @@ std::vector<clang::Expr*> StructGenerator::GetAccessor(clang::Expr* base,
     auto idx{field->getFieldIndex()};
     auto type{field->getType().getDesugaredType(ast_ctx)};
     auto field_offset{layout.getFieldOffset(idx)};
-    auto field_size{field->isBitField() ? field->getBitWidthValue(ast_ctx)
+    auto field_size{field->isBitField() ? compat::GetFieldBitWidth(field, ast_ctx)
                                         : ast_ctx.getTypeSize(type)};
     if (offset >= field_offset &&
         offset + length <= field_offset + field_size) {

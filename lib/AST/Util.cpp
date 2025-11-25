@@ -20,6 +20,7 @@
 
 #include "rellic/AST/ASTBuilder.h"
 #include "rellic/AST/TypeProvider.h"
+#include "rellic/BC/Compat.h"
 #include "rellic/BC/Util.h"
 #include "rellic/Exception.h"
 
@@ -462,12 +463,17 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
 
     case llvm::Type::PointerTyID: {
       auto ptr_type{llvm::cast<llvm::PointerType>(type)};
+#if LLVM_VERSION_NUMBER < LLVM_VERSION(20, 0)
       if (ptr_type->isOpaque()) {
         result = ast_ctx.VoidPtrTy;
       } else {
         result = ast_ctx.getPointerType(
             GetQualType(ptr_type->getNonOpaquePointerElementType()));
       }
+#else
+      // In LLVM 20+, all pointers are opaque
+      result = ast_ctx.VoidPtrTy;
+#endif
     } break;
 
     case llvm::Type::ArrayTyID: {
@@ -475,7 +481,7 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
       auto elm{GetQualType(arr->getElementType())};
       result = ast_ctx.getConstantArrayType(
           elm, llvm::APInt(64, arr->getNumElements()), nullptr,
-          clang::ArrayType::ArraySizeModifier::Normal, 0);
+          compat::ArraySizeMod_Normal, 0);
     } break;
 
     case llvm::Type::StructTyID: {
@@ -521,7 +527,7 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
         auto vtype{llvm::cast<llvm::FixedVectorType>(type)};
         auto etype{GetQualType(vtype->getElementType())};
         auto ecnt{vtype->getNumElements()};
-        auto vkind{clang::VectorType::GenericVector};
+        auto vkind{compat::VectorKind_Generic};
         result = ast_ctx.getVectorType(etype, ecnt, vkind);
       } else {
         THROW() << "Unknown LLVM Type: " << LLVMThingToString(type);

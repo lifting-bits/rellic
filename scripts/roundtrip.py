@@ -6,6 +6,7 @@ import argparse
 import tempfile
 import os
 import sys
+from pathlib import Path
 
 
 class RunError(Exception):
@@ -110,6 +111,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--translate-only", action="store_true", default=False, help="Translate only, do not recompile"
     )
+    parser.add_argument(
+        "--recurse-subdirs", action="store_true", default=False, help="Recurse into subdirectories when looking for source files"
+    )
     parser.add_argument("-t", "--timeout", help="set timeout in seconds", type=int)
     parser.add_argument(
         "--cflags", help="additional CFLAGS", action='append', default=[], type=str)
@@ -126,13 +130,20 @@ if __name__ == "__main__":
 
         return test
 
-    for item in os.scandir(args.tests):
-        if item.is_file():
-            name, ext = os.path.splitext(item.name)
-            # Allow for READMEs and data/headers
-            if ext in [".c", ".cpp"]:
-                test_name = f"test_{name}"
-                test = test_generator(item.path)
-                setattr(TestRoundtrip, test_name, test)
+    tests_path = Path(args.tests)
+    glob_pattern = "**/*" if args.recurse_subdirs else "*"
+    for item in tests_path.glob(glob_pattern):
+        # Allow for READMEs and data/headers
+        if item.is_file() and item.suffix in [".c", ".cpp"]:
+            # in case we recurse into subdirs, there might be duplicate
+            # filenames
+            if args.recurse_subdirs:
+                # get the path relative to the test directory
+                item_rel_to_tests = item.relative_to(tests_path)
+                test_name = f"test_{'-'.join(item.parts[:-1])}_{item.name}"
+            else:
+                test_name = f"test_{item.name}"
+            test = test_generator(str(item))
+            setattr(TestRoundtrip, test_name, test)
 
     unittest.main(argv=[sys.argv[0]])

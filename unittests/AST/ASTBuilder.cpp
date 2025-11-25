@@ -8,6 +8,7 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
+#include "rellic/BC/Compat.h"
 #include "Util.h"
 
 namespace {
@@ -535,7 +536,7 @@ TEST_SUITE("ASTBuilder::CreateStructDecl") {
         REQUIRE(record_decl != nullptr);
         CHECK(record_decl->getName() == "s");
         CHECK(record_decl->getTagKind() ==
-              clang::RecordDecl::TagKind::TTK_Struct);
+              rellic::compat::TagKind_Struct);
       }
     }
   }
@@ -553,7 +554,7 @@ TEST_SUITE("ASTBuilder::CreateUnionDecl") {
         REQUIRE(record_decl != nullptr);
         CHECK(record_decl->getName() == "u");
         CHECK(record_decl->getTagKind() ==
-              clang::RecordDecl::TagKind::TTK_Union);
+              rellic::compat::TagKind_Union);
       }
     }
   }
@@ -592,7 +593,7 @@ TEST_SUITE("ASTBuilder::CreateFieldDecl") {
         REQUIRE(field_decl != nullptr);
         CHECK(field_decl->getType() == type);
         CHECK(field_decl->getName() == "f");
-        CHECK(field_decl->getBitWidthValue(ctx) == 3);
+        CHECK(rellic::compat::GetFieldBitWidth(field_decl, ctx) == 3);
       }
     }
   }
@@ -1131,7 +1132,7 @@ TEST_SUITE("ASTBuilder::CreateCompoundLit") {
       auto init_list{ast.CreateInitList(exprs)};
       GIVEN("int[] type") {
         auto type{ctx.getIncompleteArrayType(
-            ctx.IntTy, clang::ArrayType::ArraySizeModifier(), 0)};
+            ctx.IntTy, rellic::compat::ArraySizeMod_Normal, 0)};
         THEN("return (int[]){}") {
           auto comp_lit{ast.CreateCompoundLit(type, init_list)};
           REQUIRE(comp_lit != nullptr);

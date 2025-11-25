@@ -64,6 +64,11 @@ def decompile(self, rellic, input, output, timeout):
     return p
 
 
+def read_file(file):
+    with open(file, encoding='utf-8') as f:
+        return f.read()
+
+
 def roundtrip(self, rellic, filename, clang, timeout, translate_only, general_flags, binary_compile_flags, bitcode_compile_flags, recompile_flags):
     with tempfile.TemporaryDirectory() as tempdir:
         out1 = os.path.join(tempdir, "out1")
@@ -93,9 +98,12 @@ def roundtrip(self, rellic, filename, clang, timeout, translate_only, general_fl
             # capture outputs of binary after roundtrip
             cp2 = run_cmd([out2], timeout)
 
-            self.assertEqual(cp1.stderr, cp2.stderr, "Different stderr")
-            self.assertEqual(cp1.stdout, cp2.stdout, "Different stdout")
-            self.assertEqual(cp1.returncode, cp2.returncode, "Different return code")
+            self.assertEqual(cp1.stderr, cp2.stderr,
+                             "Different stderr\n" + read_file(rt_c))
+            self.assertEqual(cp1.stdout, cp2.stdout,
+                             "Different stdout\n" + read_file(rt_c))
+            self.assertEqual(cp1.returncode, cp2.returncode,
+                             "Different return code\n" + read_file(rt_c))
 
 
 class TestRoundtrip(unittest.TestCase):

@@ -36,6 +36,10 @@ const mc = {
     id: "mc",
     label: "Materialize conditions"
 }
+const ir = {
+    id: "ir",
+    label: "Inline references"
+}
 
 Vue.component('list-comp', {
     props: ["items", "availableCommands", "showDelete", "title"],
@@ -106,7 +110,8 @@ const app = new Vue({
             rbr,
             lr,
             ec,
-            mc
+            mc,
+            ir
         ],
         actions: [
             {
@@ -313,9 +318,9 @@ const app = new Vue({
         useDefaultChain() {
             this.commands = [
                 dse,
-                [zcs, ncp, nsc, cbr, rbr],
-                [lr, nsc],
-                [zcs, ncp, nsc],
+                [zcs, ncp, nsc, cbr, rbr, ir],
+                [lr, nsc, ir],
+                [zcs, ncp, nsc, ir],
                 mc, ec
             ]
         },

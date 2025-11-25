@@ -69,6 +69,7 @@ set(AST_SOURCES
   AST/CondBasedRefine.cpp
   AST/ExprCombine.cpp
   AST/GenerateAST.cpp
+  AST/InlineReferences.cpp
   AST/IRToASTVisitor.cpp
   AST/LocalDeclRenamer.cpp
   AST/LoopRefine.cpp

@@ -1,7 +1,6 @@
-# Choose your LLVM version
-ARG LLVM_VERSION=14
-ARG ARCH=amd64
-ARG UBUNTU_VERSION=20.04
+# Choose your LLVM version (only _some_ versions are supported)
+ARG LLVM_VERSION=16
+ARG UBUNTU_VERSION=22.04
 ARG DISTRO_BASE=ubuntu${UBUNTU_VERSION}
 ARG BUILD_BASE=ubuntu:${UBUNTU_VERSION}
 ARG LIBRARIES=/opt/trailofbits
@@ -13,9 +12,8 @@ FROM ${BUILD_BASE} as base
 # Build-time dependencies go here
 # See here for full list of those dependencies
 # https://github.com/lifting-bits/cxx-common/blob/master/docker/Dockerfile.ubuntu.vcpkg
-FROM trailofbits/cxx-common-vcpkg-builder-ubuntu:${UBUNTU_VERSION} as deps
+FROM ghcr.io/lifting-bits/cxx-common/vcpkg-builder-ubuntu-v2:${UBUNTU_VERSION} as deps
 ARG UBUNTU_VERSION
-ARG ARCH
 ARG LLVM_VERSION
 ARG LIBRARIES
 
@@ -30,19 +28,16 @@ ARG LLVM_VERSION
 ARG LIBRARIES
 ENV TRAILOFBITS_LIBRARIES="${LIBRARIES}"
 ENV PATH="${LIBRARIES}/llvm/bin/:${LIBRARIES}/cmake/bin:${PATH}"
+ENV CC=clang
+ENV CXX=clang++
 
 WORKDIR /rellic
 COPY ./ ./
-# The reason we don't use --install
-# is so that container has the same exact code as the packages
 RUN ./scripts/build.sh \
   --llvm-version ${LLVM_VERSION} \
   --prefix /opt/trailofbits \
-  --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release"
-
-RUN cd rellic-build && \
-    CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test && \
-    cmake --build . --target install
+  --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release" \
+  --install
 
 # Small installation image
 FROM base as install

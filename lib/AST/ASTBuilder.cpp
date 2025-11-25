@@ -141,8 +141,6 @@ clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   clang::QualType type;
   if (value_size <= ctx.getIntWidth(ctx.IntTy)) {
     type = sign ? ctx.IntTy : ctx.UnsignedIntTy;
-  } else if (value_size > ctx.getIntWidth(ctx.LongLongTy)) {
-    type = sign ? ctx.LongLongTy : ctx.UnsignedLongLongTy;
   } else {
     type = GetLeastIntTypeForBitWidth(value_size, sign);
   }
@@ -157,20 +155,6 @@ clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   // just in case we have ours here too.
   CHECK_EQ(val.getBitWidth(), ctx.getIntWidth(type));
   return clang::IntegerLiteral::Create(ctx, val, type, clang::SourceLocation());
-}
-
-clang::Expr *ASTBuilder::CreateAdjustedIntLit(llvm::APSInt val) {
-  auto lit{CreateIntLit(val)};
-  auto value_size{val.getBitWidth()};
-  // Cast the integer literal to a type of the smallest bit width
-  // that can contain `val`. Either `short` or `char`.
-  if (value_size <= ctx.getIntWidth(ctx.ShortTy) ||
-      value_size > ctx.getIntWidth(ctx.LongLongTy)) {
-    return CreateCStyleCast(
-        GetLeastIntTypeForBitWidth(value_size, val.isSigned()), lit);
-  } else {
-    return lit;
-  }
 }
 
 clang::CharacterLiteral *ASTBuilder::CreateCharLit(llvm::APInt val) {

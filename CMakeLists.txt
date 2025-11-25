@@ -8,6 +8,7 @@
 
 cmake_minimum_required(VERSION 3.21)
 
+include("cmake/ccache.cmake")
 include("cmake/options.cmake")
 
 project(rellic)
@@ -46,13 +47,28 @@ endif(NOT DEFINED WIN32)
 # libraries
 #
 
+# Support LLVM 16-20, fail gracefully on other versions
+set(RELLIC_SUPPORTED_LLVM_VERSIONS 16 17 18 19 20)
+
 find_package(gflags CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
-find_package(Z3 4.8 CONFIG REQUIRED)
+find_package(Z3 CONFIG REQUIRED)
 find_package(doctest CONFIG REQUIRED)
 find_package(LLVM CONFIG REQUIRED)
+
+# Validate LLVM version
+if(NOT LLVM_VERSION_MAJOR IN_LIST RELLIC_SUPPORTED_LLVM_VERSIONS)
+    message(FATAL_ERROR
+        "LLVM ${LLVM_VERSION_MAJOR} is not supported. "
+        "Supported versions: ${RELLIC_SUPPORTED_LLVM_VERSIONS}")
+endif()
+
 llvm_map_components_to_libnames(llvm_libs support core irreader bitreader bitwriter)
 find_package(Clang CONFIG REQUIRED)
+
+# Extract LLVM version for binary naming
+set(RELLIC_LLVM_VERSION "${LLVM_VERSION_MAJOR}")
+message(STATUS "Building rellic for LLVM ${RELLIC_LLVM_VERSION}")
 
 
 #

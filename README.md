@@ -204,131 +204,84 @@ Pre-built Docker images are available on [Docker Hub](https://hub.docker.com/rep
 
 ## Getting and Building the Code
 
+### Quick Start (macOS or Linux)
+
+```shell
+# Step 1: Build dependencies (including LLVM 20, Z3, gflags, glog, etc.)
+cmake -G Ninja -S dependencies -B dependencies/build
+cmake --build dependencies/build
+
+# Step 2: Build rellic
+cmake -G Ninja -B build -DCMAKE_PREFIX_PATH=$(pwd)/dependencies/install
+cmake --build build
+```
+
+**Note:** Step 1 builds LLVM from source and takes significant time and disk space.
+
 ### On Linux
 
-First, install the baseline dependencies:
+Install baseline dependencies:
 
 ```shell
 sudo apt update
-sudo apt install -y \
-     git \
-     cmake \
-     ninja-build \
-     python3 \
-     build-essential \
-     wget \
-     ca-certificates \
-     gnupg \
-     lsb-release \
-     software-properties-common
+sudo apt install -y git cmake ninja-build python3 build-essential
 ```
 
 If your distribution doesn't include CMake 3.21 or later, install it from <https://apt.kitware.com/>.
 
-#### Option 1: Using System LLVM (Recommended)
+Then follow the Quick Start above, or use system LLVM for faster builds:
 
-Install LLVM from the official LLVM apt repository:
+#### Using System LLVM (Faster)
 
 ```shell
-# Install LLVM 20 (or choose 16, 17, 18, 19)
-wget https://apt.llvm.org/llvm.sh
-chmod +x llvm.sh
-sudo ./llvm.sh 20
+# Install LLVM 20 (or 16, 17, 18, 19)
+wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && sudo ./llvm.sh 20
 sudo apt install -y llvm-20-dev clang-20 libclang-20-dev
-```
 
-Clone and build Rellic:
-
-```shell
-git clone https://github.com/lifting-bits/rellic.git
-cd rellic
-
-# Build dependencies (gflags, glog, Z3, etc.)
-cmake -G Ninja -S dependencies -B dependencies/build \
-  -DUSE_EXTERNAL_LLVM=ON \
-  -DCMAKE_PREFIX_PATH="/usr/lib/llvm-20/lib/cmake/llvm/.."
+# Build dependencies (skip LLVM)
+cmake -G Ninja -S dependencies -B dependencies/build -DUSE_EXTERNAL_LLVM=ON
 cmake --build dependencies/build
 
 # Build rellic
 cmake -G Ninja -B build \
-  -DCMAKE_PREFIX_PATH="/usr/lib/llvm-20/lib/cmake/llvm/..;$PWD/dependencies/install" \
-  -DCMAKE_INSTALL_PREFIX="$PWD/install" \
-  -DCMAKE_BUILD_TYPE=Release
+  -DCMAKE_PREFIX_PATH="/usr/lib/llvm-20;$(pwd)/dependencies/install"
 cmake --build build
-cmake --install build
-```
-
-#### Option 2: Building LLVM from Source
-
-If you prefer to build LLVM from source, omit the `-DUSE_EXTERNAL_LLVM=ON` flag:
-
-```shell
-cmake -G Ninja -S dependencies -B dependencies/build
-cmake --build dependencies/build  # This will take a while!
-
-cmake -G Ninja -B build \
-  -DCMAKE_PREFIX_PATH="$PWD/dependencies/install" \
-  -DCMAKE_INSTALL_PREFIX="$PWD/install" \
-  -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-cmake --install build
-```
-
-#### Testing Rellic
-
-```shell
-# Create sample bitcode
-clang-20 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
-
-# Decompile
-./install/bin/rellic-decomp-20 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
-
-# Run tests
-CTEST_OUTPUT_ON_FAILURE=1 ctest --test-dir build
 ```
 
 ### On macOS
 
-First, install dependencies using Homebrew:
+Install baseline dependencies:
 
 ```shell
-brew install cmake ninja llvm@20
+brew install cmake ninja
 ```
 
-Clone and build Rellic:
+Then follow the Quick Start above, or use Homebrew LLVM for faster builds:
+
+#### Using Homebrew LLVM (Faster)
 
 ```shell
-git clone https://github.com/lifting-bits/rellic.git
-cd rellic
+brew install llvm@20
 
-# Build dependencies (gflags, glog, Z3, etc.)
-cmake -G Ninja -S dependencies -B dependencies/build \
-  -DUSE_EXTERNAL_LLVM=ON \
-  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20)/lib/cmake/llvm/.."
+# Build dependencies (skip LLVM)
+cmake -G Ninja -S dependencies -B dependencies/build -DUSE_EXTERNAL_LLVM=ON
 cmake --build dependencies/build
 
 # Build rellic
 cmake -G Ninja -B build \
-  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20)/lib/cmake/llvm/..;$PWD/dependencies/install" \
-  -DCMAKE_INSTALL_PREFIX="$PWD/install" \
-  -DCMAKE_BUILD_TYPE=Release
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20);$(pwd)/dependencies/install"
 cmake --build build
-cmake --install build
 ```
 
-**Note:** You can use any LLVM version from 16 to 20. Just replace `llvm@20` with your preferred version (e.g., `llvm@18`).
-
-#### Testing Rellic on macOS
+### Testing Rellic
 
 ```shell
-# Create sample bitcode
-$(brew --prefix llvm@20)/bin/clang -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
-
-# Decompile
-./install/bin/rellic-decomp-20 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
-
 # Run tests
 CTEST_OUTPUT_ON_FAILURE=1 ctest --test-dir build
+
+# Try it out (use clang from your LLVM installation)
+clang -emit-llvm -c ./tests/tools/decomp/issue_4.c -o issue_4.bc
+./build/tools/rellic-decomp-20 --input issue_4.bc --output /dev/stdout
 ```
 
 ### Docker image

@@ -6,7 +6,7 @@ if("${LLVM_URL}" STREQUAL "")
     set(LLVM_URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.5/llvm-project-20.1.5.src.tar.xz")
 endif()
 if("${LLVM_SHA256}" STREQUAL "")
-    set(LLVM_SHA256 "43af3a22351e72b2c84d72c6c634eabde67db632e2bad9f81c2949e9407a5686")
+    set(LLVM_SHA256 "a069565cd1c6aee48ee0f36de300635b5781f355d7b3c96a28062d50d575fa3e")
 endif()
 
 set(LLVM_ARGS

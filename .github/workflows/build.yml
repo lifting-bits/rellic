@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        llvm: ["16", "17", "18", "19", "20"]
+        llvm: ["20"]
 
     steps:
       - name: Install system dependencies
@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        llvm: ["16", "17", "18", "19", "20"]
+        llvm: ["20"]
 
     steps:
       - name: Install LLVM

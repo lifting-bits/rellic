@@ -1,49 +1,67 @@
-# Choose your LLVM version (only _some_ versions are supported)
-ARG LLVM_VERSION=16
+# Multi-version LLVM support for Rellic
+ARG LLVM_VERSION=20
 ARG UBUNTU_VERSION=22.04
-ARG DISTRO_BASE=ubuntu${UBUNTU_VERSION}
-ARG BUILD_BASE=ubuntu:${UBUNTU_VERSION}
-ARG LIBRARIES=/opt/trailofbits
 
-
-# Run-time dependencies go here
-FROM ${BUILD_BASE} as base
-
-# Build-time dependencies go here
-# See here for full list of those dependencies
-# https://github.com/lifting-bits/cxx-common/blob/master/docker/Dockerfile.ubuntu.vcpkg
-FROM ghcr.io/lifting-bits/cxx-common/vcpkg-builder-ubuntu-v2:${UBUNTU_VERSION} as deps
-ARG UBUNTU_VERSION
+FROM ubuntu:${UBUNTU_VERSION} as build
 ARG LLVM_VERSION
-ARG LIBRARIES
+ARG UBUNTU_VERSION
 
+# Install system dependencies
 RUN apt-get update && \
-    apt-get install -qqy python3 python3-pip libc6-dev wget liblzma-dev zlib1g-dev curl git build-essential ninja-build libselinux1-dev libbsd-dev ccache pixz xz-utils make rpm && \
-    if [ "$(uname -m)" = "x86_64" ]; then dpkg --add-architecture i386 && apt-get update && apt-get install -qqy gcc-multilib g++-multilib zip zlib1g-dev:i386; fi && \
+    apt-get install -y --no-install-recommends \
+      wget ca-certificates gnupg lsb-release software-properties-common \
+      git cmake ninja-build python3 python-is-python3 \
+      build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-# Source code build
-FROM deps as build
-ARG LLVM_VERSION
-ARG LIBRARIES
-ENV TRAILOFBITS_LIBRARIES="${LIBRARIES}"
-ENV PATH="${LIBRARIES}/llvm/bin/:${LIBRARIES}/cmake/bin:${PATH}"
-ENV CC=clang
-ENV CXX=clang++
+# Install LLVM from apt.llvm.org
+RUN wget https://apt.llvm.org/llvm.sh && \
+    chmod +x llvm.sh && \
+    ./llvm.sh ${LLVM_VERSION} && \
+    apt-get install -y --no-install-recommends \
+      llvm-${LLVM_VERSION}-dev \
+      clang-${LLVM_VERSION} \
+      libclang-${LLVM_VERSION}-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /rellic
-COPY ./ ./
-RUN ./scripts/build.sh \
-  --llvm-version ${LLVM_VERSION} \
-  --prefix /opt/trailofbits \
-  --extra-cmake-args "-DCMAKE_BUILD_TYPE=Release" \
-  --install
+# Set compiler environment
+ENV CC=clang-${LLVM_VERSION}
+ENV CXX=clang++-${LLVM_VERSION}
+ENV LLVM_DIR=/usr/lib/llvm-${LLVM_VERSION}/lib/cmake/llvm
 
-# Small installation image
-FROM base as install
+# Build dependencies
+WORKDIR /build
+COPY dependencies/ /build/dependencies/
+RUN cmake -G Ninja -S dependencies -B dependencies/build \
+      -DUSE_EXTERNAL_LLVM=ON \
+      -DCMAKE_PREFIX_PATH="${LLVM_DIR}/.." && \
+    cmake --build dependencies/build
+
+# Build rellic
+COPY . /build/rellic
+WORKDIR /build/rellic
+RUN cmake -G Ninja -B build \
+      -DCMAKE_PREFIX_PATH="${LLVM_DIR}/..;/build/dependencies/install" \
+      -DCMAKE_INSTALL_PREFIX="/opt/trailofbits" \
+      -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build && \
+    cmake --install build
+
+# Create minimal runtime image
+FROM ubuntu:${UBUNTU_VERSION} as install
 ARG LLVM_VERSION
+
+# Install only runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      llvm-${LLVM_VERSION} \
+      libz3-4 && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /opt/trailofbits /opt/trailofbits
-COPY scripts/docker-decomp-entrypoint.sh /opt/trailofbits
+COPY scripts/docker-decomp-entrypoint.sh /opt/trailofbits/
+
 ENV LLVM_VERSION=llvm${LLVM_VERSION}
+ENV PATH="/opt/trailofbits/bin:${PATH}"
+
 ENTRYPOINT ["/opt/trailofbits/docker-decomp-entrypoint.sh"]

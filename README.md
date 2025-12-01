@@ -198,6 +198,30 @@ Rellic uses a CMake-based superbuild system that automatically builds most depen
 
 **Note:** Rellic currently requires LLVM 20. You can use system-provided LLVM packages or build LLVM from source via the superbuild.
 
+### External LLVM Requirements
+
+If you use an external LLVM (via `-DUSE_EXTERNAL_LLVM=ON`), it must meet these requirements:
+
+| Requirement | Details |
+| ----------- | ------- |
+| **Version** | LLVM 20 (other versions are not supported) |
+| **Clang** | Must include Clang (`-DLLVM_ENABLE_PROJECTS="clang"`) |
+| **RTTI** | Must be built with RTTI enabled (`-DLLVM_ENABLE_RTTI=ON`) |
+
+System LLVM packages from [apt.llvm.org](https://apt.llvm.org/) (Linux) and [Homebrew](https://brew.sh/) (macOS) meet these requirements out of the box.
+
+If building LLVM from source for use with rellic:
+
+```shell
+cmake -G Ninja -S llvm -B build \
+  -DLLVM_ENABLE_PROJECTS="clang" \
+  -DLLVM_ENABLE_RTTI=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/path/to/install
+cmake --build build
+cmake --install build
+```
+
 ## Pre-made Docker Images
 
 Pre-built Docker images are available on [Docker Hub](https://hub.docker.com/repository/docker/lifting-bits/rellic) and the Github Package Registry.

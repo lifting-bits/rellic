@@ -1666,6 +1666,7 @@ static void outputString(const StringLiteral *Str, raw_ostream &OS) {
   switch (Str->getKind()) {
     case StringLiteralKind::Unevaluated:
     case StringLiteralKind::Ordinary:
+    case StringLiteralKind::Binary:
       break;  // no prefix.
     case StringLiteralKind::Wide:
       OS << 'L';

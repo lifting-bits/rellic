@@ -182,17 +182,21 @@ Rellic is supported on Linux platforms and has been tested on Ubuntu 22.04.
 
 ## Dependencies
 
-Most of Rellic's dependencies can be provided by the [cxx-common](https://github.com/lifting-bits/cxx-common) repository. Trail of Bits hosts downloadable, pre-built versions of cxx-common, which makes it substantially easier to get up and running with Rellic. Nonetheless, the following table represents most of Rellic's dependencies.
+Rellic uses a CMake-based superbuild system that automatically builds most dependencies from source. The following table lists the required dependencies:
 
 | Name | Version |
 | ---- | ------- |
 | [Git](https://git-scm.com/) | Latest |
 | [CMake](https://cmake.org/) | 3.21+ |
-| [Google Flags](https://github.com/google/glog) | Latest |
-| [Google Log](https://github.com/google/glog) | Latest |
-| [LLVM](http://llvm.org/) | 16|
-| [Clang](http://clang.llvm.org/) | 16|
-| [Z3](https://github.com/Z3Prover/z3) | 4.7.1+ |
+| [Ninja](https://ninja-build.org/) | Latest |
+| [Python](https://www.python.org/) | 3.6+ |
+| [Google Flags](https://github.com/gflags/gflags) | Latest (built by superbuild) |
+| [Google Log](https://github.com/google/glog) | Latest (built by superbuild) |
+| [LLVM](http://llvm.org/) | 16, 17, 18, 19, or 20 |
+| [Clang](http://clang.llvm.org/) | 16, 17, 18, 19, or 20 |
+| [Z3](https://github.com/Z3Prover/z3) | 4.13.0 (built by superbuild) |
+
+**Note:** Rellic supports LLVM versions 16 through 20. You can use system-provided LLVM packages or build LLVM from source via the superbuild.
 
 ## Pre-made Docker Images
 
@@ -202,121 +206,176 @@ Pre-built Docker images are available on [Docker Hub](https://hub.docker.com/rep
 
 ### On Linux
 
-First, update aptitude and get install the baseline dependencies.
+First, install the baseline dependencies:
 
 ```shell
 sudo apt update
-sudo apt upgrade
-
-sudo apt install \
+sudo apt install -y \
      git \
-     python3 \
-     wget \
-     unzip \
-     pixz \
-     xz-utils \
      cmake \
-     curl \
+     ninja-build \
+     python3 \
      build-essential \
+     wget \
+     ca-certificates \
+     gnupg \
      lsb-release \
-     zlib1g-dev \
-     libomp-dev \
-     doctest-dev
+     software-properties-common
 ```
 
-If the distribution you're on doesn't include a recent release of CMake (3.21 or later), you'll need to install it. For Ubuntu, see here <https://apt.kitware.com/>.
+If your distribution doesn't include CMake 3.21 or later, install it from <https://apt.kitware.com/>.
 
-The next step is to clone the Rellic repository.
+#### Option 1: Using System LLVM (Recommended)
+
+Install LLVM from the official LLVM apt repository:
 
 ```shell
-git clone --recurse-submodules https://github.com/lifting-bits/rellic.git
+# Install LLVM 20 (or choose 16, 17, 18, 19)
+wget https://apt.llvm.org/llvm.sh
+chmod +x llvm.sh
+sudo ./llvm.sh 20
+sudo apt install -y llvm-20-dev clang-20 libclang-20-dev
 ```
 
-Finally, we build and package Rellic. This script will create another directory, `rellic-build`, in the current working directory. All remaining dependencies needed by Rellic will be downloaded and placed in the parent directory alongside the repo checkout in `lifting-bits-downloads` (see the script's `-h` option for more details). This script also creates installable deb, rpm, and tgz packages.
+Clone and build Rellic:
 
 ```shell
+git clone https://github.com/lifting-bits/rellic.git
 cd rellic
-./scripts/build.sh --llvm-version 16
-# to install the deb package, then do:
-sudo dpkg -i rellic-build/*.deb
+
+# Build dependencies (gflags, glog, Z3, etc.)
+cmake -G Ninja -S dependencies -B dependencies/build \
+  -DUSE_EXTERNAL_LLVM=ON \
+  -DCMAKE_PREFIX_PATH="/usr/lib/llvm-20/lib/cmake/llvm/.."
+cmake --build dependencies/build
+
+# Build rellic
+cmake -G Ninja -B build \
+  -DCMAKE_PREFIX_PATH="/usr/lib/llvm-20/lib/cmake/llvm/..;$PWD/dependencies/install" \
+  -DCMAKE_INSTALL_PREFIX="$PWD/install" \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+cmake --install build
 ```
 
-To try out Rellic you can do the following, given a LLVM bitcode file of your choice.
+#### Option 2: Building LLVM from Source
+
+If you prefer to build LLVM from source, omit the `-DUSE_EXTERNAL_LLVM=ON` flag:
 
 ```shell
-# Create some sample bitcode or your own
-clang-16 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+cmake -G Ninja -S dependencies -B dependencies/build
+cmake --build dependencies/build  # This will take a while!
 
-./rellic-build/tools/rellic-decomp --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+cmake -G Ninja -B build \
+  -DCMAKE_PREFIX_PATH="$PWD/dependencies/install" \
+  -DCMAKE_INSTALL_PREFIX="$PWD/install" \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+cmake --install build
+```
+
+#### Testing Rellic
+
+```shell
+# Create sample bitcode
+clang-20 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+
+# Decompile
+./install/bin/rellic-decomp-20 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+
+# Run tests
+CTEST_OUTPUT_ON_FAILURE=1 ctest --test-dir build
 ```
 
 ### On macOS
 
-Make sure to have the latest release of cxx-common for LLVM 16. Then, build with
+First, install dependencies using Homebrew:
 
 ```shell
-cmake \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake \
-  -DVCPKG_TARGET_TRIPLET=x64-osx-rel \
-  -DRELLIC_ENABLE_TESTING=OFF \
-  -DCMAKE_C_COMPILER=`which clang` \
-  -DCMAKE_CXX_COMPILER=`which clang++` \
-  /path/to/rellic
+brew install cmake ninja llvm@20
+```
 
-make -j8
+Clone and build Rellic:
+
+```shell
+git clone https://github.com/lifting-bits/rellic.git
+cd rellic
+
+# Build dependencies (gflags, glog, Z3, etc.)
+cmake -G Ninja -S dependencies -B dependencies/build \
+  -DUSE_EXTERNAL_LLVM=ON \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20)/lib/cmake/llvm/.."
+cmake --build dependencies/build
+
+# Build rellic
+cmake -G Ninja -B build \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20)/lib/cmake/llvm/..;$PWD/dependencies/install" \
+  -DCMAKE_INSTALL_PREFIX="$PWD/install" \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+cmake --install build
+```
+
+**Note:** You can use any LLVM version from 16 to 20. Just replace `llvm@20` with your preferred version (e.g., `llvm@18`).
+
+#### Testing Rellic on macOS
+
+```shell
+# Create sample bitcode
+$(brew --prefix llvm@20)/bin/clang -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+
+# Decompile
+./install/bin/rellic-decomp-20 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+
+# Run tests
+CTEST_OUTPUT_ON_FAILURE=1 ctest --test-dir build
 ```
 
 ### Docker image
 
-The Docker image should provide an environment which can set-up, build, and run rellic. The Docker images are parameterized by Ubuntu verison, LLVM version, and architecture.
+The Dockerfile provides a complete build environment for Rellic. Docker images are parameterized by Ubuntu version and LLVM version.
 
-To build the docker image using LLVM 16 for Ubuntu 22.04 you can run the following command:
+Build a Docker image with your preferred LLVM version (16-20):
 
 ```sh
-UBUNTU=22.04; LLVM=16; docker build . \
-  -t rellic:llvm${LLVM}-ubuntu${UBUNTU} \
-  -f Dockerfile \
-  --build-arg UBUNTU_VERSION=${UBUNTU} \
-  --build-arg LLVM_VERSION=${LLVM}
+# Build with LLVM 20 (default)
+docker build -t rellic:llvm20 .
+
+# Or specify a different LLVM version
+docker build -t rellic:llvm18 --build-arg LLVM_VERSION=18 .
+
+# Customize Ubuntu version if needed
+docker build -t rellic:llvm20-ubuntu22 \
+  --build-arg LLVM_VERSION=20 \
+  --build-arg UBUNTU_VERSION=22.04 .
 ```
 
-To run the decompiler, the entrypoint has already been set, but make sure the bitcode you are decompiling is the same LLVM version as the decompiler, and run:
+Run the decompiler (ensure your bitcode matches the LLVM version):
 
 ```sh
-# Get the bc file
-clang-16 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
+# Create sample bitcode
+clang-20 -emit-llvm -c ./tests/tools/decomp/issue_4.c -o ./tests/tools/decomp/issue_4.bc
 
-# Decompile
+# Decompile using Docker
 docker run --rm -t -i \
   -v $(pwd):/test -w /test \
   -u $(id -u):$(id -g) \
-  rellic:llvm16-ubuntu22.04 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
+  rellic:llvm20 --input ./tests/tools/decomp/issue_4.bc --output /dev/stdout
 ```
 
-To explain the above command more:
-
-```sh
-# Mount current directory and change working directory
--v $(pwd):/test -w /test
-```
-
-and
-
-```sh
-# Set the user to current user to ensure correct permissions
--u $(id -u):$(id -g) \
-```
+Docker run flags explained:
+- `-v $(pwd):/test -w /test` - Mount current directory and set as working directory
+- `-u $(id -u):$(id -g)` - Run as current user to preserve file permissions
 
 ## Testing
 
-We use several integration and unit tests to test rellic.
+Rellic includes comprehensive integration and unit tests.
 
-*Roundtrip tests* will take C code, build it to LLVM IR, and then translate that IR back to C. The test then sees if the resulting C can be built and if the translated code does (roughly) the same thing as the original. To run these, use:
+*Roundtrip tests* compile C code to LLVM IR, decompile it back to C, and verify that the result compiles and behaves similarly to the original. To run all tests:
 
 ```sh
-cd rellic-build #or your rellic build directory
-CTEST_OUTPUT_ON_FAILURE=1 cmake --build . --verbose --target test
+cd build  # or your rellic build directory
+CTEST_OUTPUT_ON_FAILURE=1 ctest
 ```
 
 *AnghaBench 1000* is a sample of 1000 files (x 4 architectures, so a total of 4000 tests) from the full million programs that come with AnghaBench. This test only checks whether the bitcode for these programs translates to C, not the prettiness or functionality of the resulting translation. To run this test, first install the required Python dependencies found in `scripts/requirements.txt` and then run:

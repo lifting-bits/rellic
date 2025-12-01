@@ -1,6 +1,6 @@
 # Z3 SMT Solver - required for rellic condition simplification
 
-set(Z3_VERSION "4.13.0" CACHE STRING "Z3 version to build")
+set(Z3_VERSION "4.13.4" CACHE STRING "Z3 version to build")
 set(Z3_URL "https://github.com/Z3Prover/z3/archive/refs/tags/z3-${Z3_VERSION}.tar.gz")
 
 set(Z3_ARGS

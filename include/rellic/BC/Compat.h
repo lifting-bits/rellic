@@ -13,12 +13,34 @@
 
 #include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
+#include <clang/AST/Mangle.h>
 #include <clang/AST/Type.h>
 #include <llvm/ADT/APInt.h>
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/Type.h>
 
 namespace rellic {
 namespace compat {
+
+// LLVM 20+: mangleTypeName() -> mangleCanonicalTypeName()
+inline void MangleTypeName(clang::MangleContext* mangler, clang::QualType type,
+                           llvm::raw_ostream& os) {
+#if LLVM_VERSION_NUMBER < LLVM_VERSION(20, 0)
+  mangler->mangleTypeName(type, os);
+#else
+  mangler->mangleCanonicalTypeName(type, os);
+#endif
+}
+
+// LLVM 20+: PointerUnion::get<>() -> cast<>()
+// For DISubrange::getCount() which returns a PointerUnion
+inline llvm::ConstantInt* GetSubrangeCount(llvm::DISubrange* subrange) {
+#if LLVM_VERSION_NUMBER < LLVM_VERSION(20, 0)
+  return subrange->getCount().get<llvm::ConstantInt*>();
+#else
+  return llvm::dyn_cast<llvm::ConstantInt*>(subrange->getCount());
+#endif
+}
 
 // LLVM 17+: getMinSignedBits() -> getSignificantBits()
 inline unsigned GetSignificantBits(const llvm::APInt& val) {

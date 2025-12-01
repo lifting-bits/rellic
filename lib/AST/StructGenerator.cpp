@@ -335,7 +335,7 @@ clang::QualType StructGenerator::BuildArray(llvm::DICompositeType* a) {
   VLOG(1) << "BuildArray: " << rellic::LLVMThingToString(a);
   auto base{BuildType(a->getBaseType())};
   auto subrange{llvm::cast<llvm::DISubrange>(a->getElements()[0])};
-  auto* ci = subrange->getCount().get<llvm::ConstantInt*>();
+  auto* ci = compat::GetSubrangeCount(subrange);
   return ast_ctx.getConstantArrayType(
       base, llvm::APInt(64, ci->getZExtValue()), nullptr,
       compat::ArraySizeMod_Normal, 0);

@@ -1,11 +1,12 @@
 option(LLVM_ENABLE_ASSERTIONS "Enable assertions in LLVM" ON)
 
 # Default values for LLVM_URL and LLVM_SHA256. This is required because "-DLLVM_URL=" would be an empty URL
+# Default to LLVM 20.1.5 - override with -DLLVM_URL=... and -DLLVM_SHA256=...
 if("${LLVM_URL}" STREQUAL "")
-    set(LLVM_URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/llvm-project-17.0.6.src.tar.xz")
+    set(LLVM_URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-20.1.5/llvm-project-20.1.5.src.tar.xz")
 endif()
 if("${LLVM_SHA256}" STREQUAL "")
-    set(LLVM_SHA256 "58a8818c60e6627064f312dbf46c02d9949956558340938b71cf731ad8bc0813")
+    set(LLVM_SHA256 "43af3a22351e72b2c84d72c6c634eabde67db632e2bad9f81c2949e9407a5686")
 endif()
 
 set(LLVM_ARGS

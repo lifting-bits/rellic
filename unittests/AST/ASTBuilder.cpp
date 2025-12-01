@@ -8,7 +8,6 @@
 
 #include "rellic/AST/ASTBuilder.h"
 
-#include "rellic/BC/Compat.h"
 #include "Util.h"
 
 namespace {
@@ -535,8 +534,7 @@ TEST_SUITE("ASTBuilder::CreateStructDecl") {
         auto record_decl{ast.CreateStructDecl(tudecl, "s")};
         REQUIRE(record_decl != nullptr);
         CHECK(record_decl->getName() == "s");
-        CHECK(record_decl->getTagKind() ==
-              rellic::compat::TagKind_Struct);
+        CHECK(record_decl->getTagKind() == clang::RecordDecl::TagKind::Struct);
       }
     }
   }
@@ -553,8 +551,7 @@ TEST_SUITE("ASTBuilder::CreateUnionDecl") {
         auto record_decl{ast.CreateUnionDecl(tudecl, "u")};
         REQUIRE(record_decl != nullptr);
         CHECK(record_decl->getName() == "u");
-        CHECK(record_decl->getTagKind() ==
-              rellic::compat::TagKind_Union);
+        CHECK(record_decl->getTagKind() == clang::RecordDecl::TagKind::Union);
       }
     }
   }
@@ -593,7 +590,7 @@ TEST_SUITE("ASTBuilder::CreateFieldDecl") {
         REQUIRE(field_decl != nullptr);
         CHECK(field_decl->getType() == type);
         CHECK(field_decl->getName() == "f");
-        CHECK(rellic::compat::GetFieldBitWidth(field_decl, ctx) == 3);
+        CHECK(field_decl->getBitWidthValue() == 3);
       }
     }
   }
@@ -1131,8 +1128,8 @@ TEST_SUITE("ASTBuilder::CreateCompoundLit") {
       std::vector<clang::Expr *> exprs;
       auto init_list{ast.CreateInitList(exprs)};
       GIVEN("int[] type") {
-        auto type{ctx.getIncompleteArrayType(
-            ctx.IntTy, rellic::compat::ArraySizeMod_Normal, 0)};
+        auto type{ctx.getIncompleteArrayType(ctx.IntTy,
+                                             clang::ArraySizeModifier(), 0)};
         THEN("return (int[]){}") {
           auto comp_lit{ast.CreateCompoundLit(type, init_list)};
           REQUIRE(comp_lit != nullptr);

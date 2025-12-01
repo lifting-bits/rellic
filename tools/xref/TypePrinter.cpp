@@ -38,8 +38,6 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/ADT/Twine.h>
 #include <llvm/Support/Casting.h>
-
-#include "rellic/BC/Compat.h"
 #include <llvm/Support/Compiler.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/Support/SaveAndRestore.h>
@@ -250,6 +248,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::BitInt:
     case Type::DependentBitInt:
     case Type::BTFTagAttributed:
+    case Type::HLSLAttributedResource:
       CanPrefixQualifiers = true;
       break;
 
@@ -272,6 +271,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
 
     case Type::Adjusted:
     case Type::Decayed:
+    case Type::ArrayParameter:
     case Type::Pointer:
     case Type::BlockPointer:
     case Type::LValueReference:
@@ -290,6 +290,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::PackExpansion:
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
+    case Type::CountAttributed:
       CanPrefixQualifiers = false;
       break;
 
@@ -299,6 +300,11 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
       const auto *AttrTy = cast<AttributedType>(UnderlyingType);
       CanPrefixQualifiers = AttrTy->getAttrKind() == attr::AddressSpace;
       break;
+    }
+    case Type::PackIndexing: {
+      return canPrefixQualifiers(
+          cast<PackIndexingType>(UnderlyingType)->getPattern().getTypePtr(),
+          NeedARCStrongQualifier);
     }
   }
 
@@ -527,7 +533,7 @@ void TypePrinter::printConstantArrayAfter(const ConstantArrayType *T,
     OS << ' ';
   }
 
-  if (T->getSizeModifier() == ArrayType::Static)
+  if (T->getSizeModifier() == ArraySizeModifier::Static)
     OS << "<span class=\"clang keyword\">static</span> ";
 
   OS << "<span class=\"clang number integer-literal\">"
@@ -561,9 +567,9 @@ void TypePrinter::printVariableArrayAfter(const VariableArrayType *T,
     OS << ' ';
   }
 
-  if (T->getSizeModifier() == VariableArrayType::Static)
+  if (T->getSizeModifier() == ArraySizeModifier::Static)
     OS << "<span class=\"clang keyword\">static</span> ";
-  else if (T->getSizeModifier() == VariableArrayType::Star)
+  else if (T->getSizeModifier() == ArraySizeModifier::Star)
     OS << '*';
 
   if (T->getSizeExpr()) T->getSizeExpr()->printPretty(OS, nullptr, Policy);
@@ -585,6 +591,16 @@ void TypePrinter::printAdjustedAfter(const AdjustedType *T, raw_ostream &OS) {
 void TypePrinter::printDecayedBefore(const DecayedType *T, raw_ostream &OS) {
   // Print as though it's a pointer.
   printAdjustedBefore(T, OS);
+}
+
+void TypePrinter::printArrayParameterAfter(const ArrayParameterType *T,
+                                           raw_ostream &OS) {
+  printConstantArrayAfter(T, OS);
+}
+
+void TypePrinter::printArrayParameterBefore(const ArrayParameterType *T,
+                                            raw_ostream &OS) {
+  printConstantArrayBefore(T, OS);
 }
 
 void TypePrinter::printDecayedAfter(const DecayedType *T, raw_ostream &OS) {
@@ -634,27 +650,27 @@ void TypePrinter::printDependentSizedExtVectorAfter(
 
 void TypePrinter::printVectorBefore(const VectorType *T, raw_ostream &OS) {
   switch (T->getVectorKind()) {
-    case VectorType::AltiVecPixel:
+    case VectorKind::AltiVecPixel:
       OS << "__vector __pixel ";
       break;
-    case VectorType::AltiVecBool:
+    case VectorKind::AltiVecBool:
       OS << "__vector __bool ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::AltiVecVector:
+    case VectorKind::AltiVecVector:
       OS << "__vector ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::NeonVector:
+    case VectorKind::Neon:
       OS << "__attribute__((neon_vector_type(" << T->getNumElements() << "))) ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::NeonPolyVector:
+    case VectorKind::NeonPoly:
       OS << "__attribute__((neon_polyvector_type(" << T->getNumElements()
          << "))) ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::GenericVector: {
+    case VectorKind::Generic: {
       // FIXME: We prefer to print the size directly here, but have no way
       // to get the size of the type.
       OS << "__attribute__((__vector_size__(" << T->getNumElements()
@@ -664,13 +680,13 @@ void TypePrinter::printVectorBefore(const VectorType *T, raw_ostream &OS) {
       printBefore(T->getElementType(), OS);
       break;
     }
-    case VectorType::SveFixedLengthDataVector:
-    case VectorType::SveFixedLengthPredicateVector:
+    case VectorKind::SveFixedLengthData:
+    case VectorKind::SveFixedLengthPredicate:
       // FIXME: We prefer to print the size directly here, but have no way
       // to get the size of the type.
       OS << "__attribute__((__arm_sve_vector_bits__(";
 
-      if (T->getVectorKind() == VectorType::SveFixedLengthPredicateVector)
+      if (T->getVectorKind() == VectorKind::SveFixedLengthPredicate)
         // Predicates take a bit per byte of the vector size, multiply by 8 to
         // get the number of bits passed to the attribute.
         OS << T->getNumElements() * 8;
@@ -682,6 +698,24 @@ void TypePrinter::printVectorBefore(const VectorType *T, raw_ostream &OS) {
       // Multiply by 8 for the number of bits.
       OS << ") * 8))) ";
       printBefore(T->getElementType(), OS);
+      break;
+    case VectorKind::RVVFixedLengthData:
+    case VectorKind::RVVFixedLengthMask:
+    case VectorKind::RVVFixedLengthMask_1:
+    case VectorKind::RVVFixedLengthMask_2:
+    case VectorKind::RVVFixedLengthMask_4:
+      // FIXME: We prefer to print the size directly here, but have no way
+      // to get the size of the type.
+      OS << "__attribute__((__riscv_rvv_vector_bits__(";
+
+      OS << T->getNumElements();
+
+      OS << " * sizeof(";
+      print(T->getElementType(), OS, StringRef());
+      // Multiply by 8 for the number of bits.
+      OS << ") * 8))) ";
+      printBefore(T->getElementType(), OS);
+      break;
   }
 }
 
@@ -692,30 +726,30 @@ void TypePrinter::printVectorAfter(const VectorType *T, raw_ostream &OS) {
 void TypePrinter::printDependentVectorBefore(const DependentVectorType *T,
                                              raw_ostream &OS) {
   switch (T->getVectorKind()) {
-    case VectorType::AltiVecPixel:
+    case VectorKind::AltiVecPixel:
       OS << "__vector __pixel ";
       break;
-    case VectorType::AltiVecBool:
+    case VectorKind::AltiVecBool:
       OS << "__vector __bool ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::AltiVecVector:
+    case VectorKind::AltiVecVector:
       OS << "__vector ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::NeonVector:
+    case VectorKind::Neon:
       OS << "__attribute__((neon_vector_type(";
       if (T->getSizeExpr()) T->getSizeExpr()->printPretty(OS, nullptr, Policy);
       OS << "))) ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::NeonPolyVector:
+    case VectorKind::NeonPoly:
       OS << "__attribute__((neon_polyvector_type(";
       if (T->getSizeExpr()) T->getSizeExpr()->printPretty(OS, nullptr, Policy);
       OS << "))) ";
       printBefore(T->getElementType(), OS);
       break;
-    case VectorType::GenericVector: {
+    case VectorKind::Generic: {
       // FIXME: We prefer to print the size directly here, but have no way
       // to get the size of the type.
       OS << "__attribute__((__vector_size__(";
@@ -726,14 +760,14 @@ void TypePrinter::printDependentVectorBefore(const DependentVectorType *T,
       printBefore(T->getElementType(), OS);
       break;
     }
-    case VectorType::SveFixedLengthDataVector:
-    case VectorType::SveFixedLengthPredicateVector:
+    case VectorKind::SveFixedLengthData:
+    case VectorKind::SveFixedLengthPredicate:
       // FIXME: We prefer to print the size directly here, but have no way
       // to get the size of the type.
       OS << "__attribute__((__arm_sve_vector_bits__(";
       if (T->getSizeExpr()) {
         T->getSizeExpr()->printPretty(OS, nullptr, Policy);
-        if (T->getVectorKind() == VectorType::SveFixedLengthPredicateVector)
+        if (T->getVectorKind() == VectorKind::SveFixedLengthPredicate)
           // Predicates take a bit per byte of the vector size, multiply by 8 to
           // get the number of bits passed to the attribute.
           OS << " * 8";
@@ -744,6 +778,25 @@ void TypePrinter::printDependentVectorBefore(const DependentVectorType *T,
       }
       OS << "))) ";
       printBefore(T->getElementType(), OS);
+      break;
+    case VectorKind::RVVFixedLengthData:
+    case VectorKind::RVVFixedLengthMask:
+    case VectorKind::RVVFixedLengthMask_1:
+    case VectorKind::RVVFixedLengthMask_2:
+    case VectorKind::RVVFixedLengthMask_4:
+      // FIXME: We prefer to print the size directly here, but have no way
+      // to get the size of the type.
+      OS << "__attribute__((__riscv_rvv_vector_bits__(";
+      if (T->getSizeExpr()) {
+        T->getSizeExpr()->printPretty(OS, nullptr, Policy);
+        OS << " * sizeof(";
+        print(T->getElementType(), OS, StringRef());
+        // Multiply by 8 for the number of bits.
+        OS << ") * 8";
+      }
+      OS << "))) ";
+      printBefore(T->getElementType(), OS);
+      break;
   }
 }
 
@@ -971,6 +1024,15 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
       case CC_PreserveAll:
         OS << " __attribute__((preserve_all))";
         break;
+      case CC_M68kRTD:
+        OS << " __attribute__((m68k_rtd))";
+        break;
+      case CC_PreserveNone:
+        OS << " __attribute__((preserve_none))";
+        break;
+      case CC_RISCVVectorCall:
+        OS << "__attribute__((riscv_vector_cc))";
+        break;
     }
   }
 
@@ -1076,8 +1138,7 @@ void TypePrinter::printTypeOfExprAfter(const TypeOfExprType *T,
 
 void TypePrinter::printTypeOfBefore(const TypeOfType *T, raw_ostream &OS) {
   OS << "<span class=\"clang keyword\">"
-     << (T->getKind() == TypeOfKind::Unqualified ? "typeof_unqual"
-                                                 : "typeof")
+     << (T->getKind() == TypeOfKind::Unqualified ? "typeof_unqual" : "typeof")
      << '(';
   print(T->getUnmodifiedType(), OS, StringRef());
   OS << ')';
@@ -1094,6 +1155,21 @@ void TypePrinter::printDecltypeBefore(const DecltypeType *T, raw_ostream &OS) {
   spaceBeforePlaceHolder(OS);
 }
 
+void TypePrinter::printPackIndexingBefore(const PackIndexingType *T,
+                                          raw_ostream &OS) {
+  if (T->hasSelectedType()) {
+    OS << T->getSelectedType();
+  } else {
+    OS << T->getPattern() << "...[";
+    T->getIndexExpr()->printPretty(OS, nullptr, Policy);
+    OS << "]";
+  }
+  spaceBeforePlaceHolder(OS);
+}
+
+void TypePrinter::printPackIndexingAfter(const PackIndexingType *T,
+                                         raw_ostream &OS) {}
+
 void TypePrinter::printDecltypeAfter(const DecltypeType *T, raw_ostream &OS) {}
 
 void TypePrinter::printUnaryTransformBefore(const UnaryTransformType *T,
@@ -1101,7 +1177,7 @@ void TypePrinter::printUnaryTransformBefore(const UnaryTransformType *T,
   IncludeStrongLifetimeRAII Strong(Policy);
 
   static llvm::DenseMap<int, const char *> Transformation = {{
-#define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait)                                  \
+#define TRANSFORM_TYPE_TRAIT_DEF(Enum, Trait) \
   {UnaryTransformType::Enum, "__" #Trait},
 #include "clang/Basic/TransformTypeTraits.def"
   }};
@@ -1302,8 +1378,11 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
     if (isa<CXXRecordDecl>(D) && cast<CXXRecordDecl>(D)->isLambda()) {
       OS << "lambda";
       HasKindDecoration = true;
-    } else {
+    } else if ((isa<RecordDecl>(D) &&
+                cast<RecordDecl>(D)->isAnonymousStructOrUnion())) {
       OS << "anonymous";
+    } else {
+      OS << "unnamed";
     }
 
     if (Policy.AnonymousTagLocations) {
@@ -1319,11 +1398,20 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
       if (PLoc.isValid()) {
         OS << " at ";
         StringRef File = PLoc.getFilename();
+        llvm::SmallString<1024> WrittenFile(File);
         if (auto *Callbacks = Policy.Callbacks)
-          OS << Callbacks->remapPath(File);
-        else
-          OS << File;
-        OS << ':' << PLoc.getLine() << ':' << PLoc.getColumn();
+          WrittenFile = Callbacks->remapPath(File);
+        // Fix inconsistent path separator created by
+        // clang::DirectoryLookup::LookupFile when the file path is relative
+        // path.
+        llvm::sys::path::Style Style =
+            llvm::sys::path::is_absolute(WrittenFile)
+                ? llvm::sys::path::Style::native
+                : (Policy.MSVCFormatting
+                       ? llvm::sys::path::Style::windows_backslash
+                       : llvm::sys::path::Style::posix);
+        llvm::sys::path::native(WrittenFile, Style);
+        OS << WrittenFile << ':' << PLoc.getLine() << ':' << PLoc.getColumn();
       }
     }
 
@@ -1332,21 +1420,18 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
 
   // If this is a class template specialization, print the template
   // arguments.
-  if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
-    ArrayRef<TemplateArgument> Args;
-    TypeSourceInfo *TAW = Spec->getTypeAsWritten();
-    if (!Policy.PrintCanonicalTypes && TAW) {
-      const TemplateSpecializationType *TST =
-          cast<TemplateSpecializationType>(TAW->getType());
-      Args = TST->template_arguments();
-    } else {
-      const TemplateArgumentList &TemplateArgs = Spec->getTemplateArgs();
-      Args = TemplateArgs.asArray();
-    }
+  if (auto *S = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
+    const TemplateParameterList *TParams =
+        S->getSpecializedTemplate()->getTemplateParameters();
+    const ASTTemplateArgumentListInfo *TArgAsWritten =
+        S->getTemplateArgsAsWritten();
     IncludeStrongLifetimeRAII Strong(Policy);
-    printTemplateArgumentList(
-        OS, Args, Policy,
-        Spec->getSpecializedTemplate()->getTemplateParameters());
+    if (TArgAsWritten && !Policy.PrintCanonicalTypes)
+      printTemplateArgumentList(OS, TArgAsWritten->arguments(), Policy,
+                                TParams);
+    else
+      printTemplateArgumentList(OS, S->getTemplateArgs().asArray(), Policy,
+                                TParams);
   }
   OS << "</span>";
 
@@ -1501,7 +1586,7 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
   // The tag definition will take care of these.
   if (!Policy.IncludeTagDefinition) {
     OS << TypeWithKeyword::getKeywordName(T->getKeyword());
-    if (T->getKeyword() != rellic::compat::ElabTypeKW_None) OS << " ";
+    if (T->getKeyword() != ElaboratedTypeKeyword::None) OS << " ";
     NestedNameSpecifier *Qualifier = T->getQualifier();
     if (Qualifier) Qualifier->print(OS, Policy);
   }
@@ -1535,9 +1620,10 @@ void TypePrinter::printParenAfter(const ParenType *T, raw_ostream &OS) {
 
 void TypePrinter::printDependentNameBefore(const DependentNameType *T,
                                            raw_ostream &OS) {
-  if (T->getKeyword() != rellic::compat::ElabTypeKW_None) {
-    OS << "<span class=\"clang keyword\">"
-       << TypeWithKeyword::getKeywordName(T->getKeyword()) << "</span> ";
+  OS << "<span class=\"clang keyword\">"
+     << TypeWithKeyword::getKeywordName(T->getKeyword()) << "</span> ";
+  if (T->getKeyword() != ElaboratedTypeKeyword::None) {
+    OS << " ";
   }
 
   T->getQualifier()->print(OS, Policy);
@@ -1553,9 +1639,10 @@ void TypePrinter::printDependentTemplateSpecializationBefore(
     const DependentTemplateSpecializationType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
 
-  if (T->getKeyword() != rellic::compat::ElabTypeKW_None) {
-    OS << "<span class=\"clang keyword\">"
-       << TypeWithKeyword::getKeywordName(T->getKeyword()) << "</span> ";
+  OS << "<span class=\"clang keyword\">"
+     << TypeWithKeyword::getKeywordName(T->getKeyword()) << "</span> ";
+  if (T->getKeyword() != ElaboratedTypeKeyword::None) {
+    OS << " ";
   }
 
   if (T->getQualifier()) T->getQualifier()->print(OS, Policy);
@@ -1577,6 +1664,34 @@ void TypePrinter::printPackExpansionAfter(const PackExpansionType *T,
                                           raw_ostream &OS) {
   printAfter(T->getPattern(), OS);
   OS << "...";
+}
+
+static void printCountAttributedImpl(const CountAttributedType *T,
+                                     raw_ostream &OS,
+                                     const PrintingPolicy &Policy) {
+  OS << ' ';
+  if (T->isCountInBytes() && T->isOrNull())
+    OS << "__sized_by_or_null(";
+  else if (T->isCountInBytes())
+    OS << "__sized_by(";
+  else if (T->isOrNull())
+    OS << "__counted_by_or_null(";
+  else
+    OS << "__counted_by(";
+  if (T->getCountExpr()) T->getCountExpr()->printPretty(OS, nullptr, Policy);
+  OS << ')';
+}
+
+void TypePrinter::printCountAttributedBefore(const CountAttributedType *T,
+                                             raw_ostream &OS) {
+  printBefore(T->desugar(), OS);
+  if (!T->isArrayType()) printCountAttributedImpl(T, OS, Policy);
+}
+
+void TypePrinter::printCountAttributedAfter(const CountAttributedType *T,
+                                            raw_ostream &OS) {
+  printAfter(T->desugar(), OS);
+  if (T->isArrayType()) printCountAttributedImpl(T, OS, Policy);
 }
 
 void TypePrinter::printAttributedBefore(const AttributedType *T,
@@ -1693,6 +1808,12 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     case attr::BTFTypeTag:
       llvm_unreachable("BTFTypeTag attribute handled separately");
 
+    case attr::HLSLResourceClass:
+    case attr::HLSLROV:
+    case attr::HLSLRawBuffer:
+    case attr::HLSLContainedType:
+      llvm_unreachable("HLSL resource type attributes handled separately");
+
     case attr::OpenCLPrivateAddressSpace:
     case attr::OpenCLGlobalAddressSpace:
     case attr::OpenCLGlobalDeviceAddressSpace:
@@ -1705,7 +1826,12 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
       // AttributedType nodes for them.
       break;
 
+    case attr::CountedBy:
+    case attr::CountedByOrNull:
+    case attr::SizedBy:
+    case attr::SizedByOrNull:
     case attr::LifetimeBound:
+    case attr::LifetimeCaptureBy:
     case attr::TypeNonNull:
     case attr::TypeNullable:
     case attr::TypeNullableResult:
@@ -1721,6 +1847,19 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     case attr::AddressSpace:
     case attr::CmseNSCall:
     case attr::AnnotateType:
+    case attr::WebAssemblyFuncref:
+    case attr::ArmAgnostic:
+    case attr::ArmStreaming:
+    case attr::ArmStreamingCompatible:
+    case attr::ArmIn:
+    case attr::ArmOut:
+    case attr::ArmInOut:
+    case attr::ArmPreserves:
+    case attr::NonBlocking:
+    case attr::NonAllocating:
+    case attr::Blocking:
+    case attr::Allocating:
+    case attr::SwiftAttr:
       llvm_unreachable("This attribute should have been handled already");
 
     case attr::NSReturnsRetained:
@@ -1794,6 +1933,15 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     case attr::PreserveAll:
       OS << "preserve_all";
       break;
+    case attr::M68kRTD:
+      OS << "m68k_rtd";
+      break;
+    case attr::PreserveNone:
+      OS << "preserve_none";
+      break;
+    case attr::RISCVVectorCC:
+      OS << "riscv_vector_cc";
+      break;
     case attr::NoDeref:
       OS << "noderef";
       break;
@@ -1816,6 +1964,30 @@ void TypePrinter::printBTFTagAttributedBefore(const BTFTagAttributedType *T,
 void TypePrinter::printBTFTagAttributedAfter(const BTFTagAttributedType *T,
                                              raw_ostream &OS) {
   printAfter(T->getWrappedType(), OS);
+}
+
+void TypePrinter::printHLSLAttributedResourceBefore(
+    const HLSLAttributedResourceType *T, raw_ostream &OS) {
+  printBefore(T->getWrappedType(), OS);
+}
+
+void TypePrinter::printHLSLAttributedResourceAfter(
+    const HLSLAttributedResourceType *T, raw_ostream &OS) {
+  printAfter(T->getWrappedType(), OS);
+  const HLSLAttributedResourceType::Attributes &Attrs = T->getAttrs();
+  OS << " [[hlsl::resource_class("
+     << HLSLResourceClassAttr::ConvertResourceClassToStr(Attrs.ResourceClass)
+     << ")]]";
+  if (Attrs.IsROV) OS << " [[hlsl::is_rov]]";
+  if (Attrs.RawBuffer) OS << " [[hlsl::raw_buffer]]";
+
+  QualType ContainedTy = T->getContainedType();
+  if (!ContainedTy.isNull()) {
+    OS << " [[hlsl::contained_type(";
+    printBefore(ContainedTy, OS);
+    printAfter(ContainedTy, OS);
+    OS << ")]]";
+  }
 }
 
 void TypePrinter::printObjCInterfaceBefore(const ObjCInterfaceType *T,
@@ -2029,8 +2201,7 @@ static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
     }
   }
 
-  if (Arg.getKind() != Pattern.getKind())
-    return false;
+  if (Arg.getKind() != Pattern.getKind()) return false;
 
   if (Arg.getKind() == TemplateArgument::Type)
     return isSubstitutedType(Ctx, Arg.getAsType(), Pattern.getAsType(), Args,
@@ -2045,32 +2216,6 @@ static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
   }
 
   // FIXME: Handle more cases.
-  return false;
-}
-
-/// Make a best-effort determination of whether the type T can be produced by
-/// substituting Args into the default argument of Param.
-static bool isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
-                                         const NamedDecl *Param,
-                                         ArrayRef<TemplateArgument> Args,
-                                         unsigned Depth) {
-  // An empty pack is equivalent to not providing a pack argument.
-  if (Arg.getKind() == TemplateArgument::Pack && Arg.pack_size() == 0)
-    return true;
-
-  if (auto *TTPD = dyn_cast<TemplateTypeParmDecl>(Param)) {
-    return TTPD->hasDefaultArgument() &&
-           isSubstitutedTemplateArgument(Ctx, Arg, TTPD->getDefaultArgument(),
-                                         Args, Depth);
-  } else if (auto *TTPD = dyn_cast<TemplateTemplateParmDecl>(Param)) {
-    return TTPD->hasDefaultArgument() &&
-           isSubstitutedTemplateArgument(
-               Ctx, Arg, TTPD->getDefaultArgument().getArgument(), Args, Depth);
-  } else if (auto *NTTPD = dyn_cast<NonTypeTemplateParmDecl>(Param)) {
-    return NTTPD->hasDefaultArgument() &&
-           isSubstitutedTemplateArgument(Ctx, Arg, NTTPD->getDefaultArgument(),
-                                         Args, Depth);
-  }
   return false;
 }
 

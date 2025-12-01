@@ -131,6 +131,8 @@ target_include_directories("${PROJECT_NAME}"
   PUBLIC
     $<BUILD_INTERFACE:${RELLIC_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
+    ${LLVM_INCLUDE_DIRS}
+    ${CLANG_INCLUDE_DIRS}
 )
 
 if(RELLIC_ENABLE_INSTALL)

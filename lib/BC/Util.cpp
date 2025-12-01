@@ -258,13 +258,14 @@ static llvm::LoadInst *ConvertInsertValue(llvm::InsertValueInst *I) {
 
   auto F{I->getParent()->getParent()};
   auto alloca{new llvm::AllocaInst(I->getType(), DL.getAllocaAddrSpace(),
-                                   nullptr, I->getName() + ".iv2mem", I)};
+                                   nullptr, I->getName() + ".iv2mem",
+                                   I->getIterator())};
   auto aggr_opnd{I->getAggregateOperand()};
   auto aggr_ty{aggr_opnd->getType()};
   auto ins_opnd{I->getInsertedValueOperand()};
 
   if (!llvm::isa<llvm::UndefValue>(aggr_opnd)) {
-    new llvm::StoreInst(aggr_opnd, alloca, I);
+    new llvm::StoreInst(aggr_opnd, alloca, I->getIterator());
   }
   std::vector<llvm::Value *> indices;
   indices.push_back(llvm::ConstantInt::get(ctx, llvm::APInt(64, 0, false)));
@@ -273,10 +274,10 @@ static llvm::LoadInst *ConvertInsertValue(llvm::InsertValueInst *I) {
         llvm::ConstantInt::get(ctx, llvm::APInt(sizeof(i) * 8, i)));
   }
   auto ptr{llvm::GetElementPtrInst::Create(aggr_opnd->getType(), alloca,
-                                           indices, "", I)};
-  new llvm::StoreInst(ins_opnd, ptr, I);
-  auto load{
-      new llvm::LoadInst(I->getType(), alloca, I->getName() + ".reload", I)};
+                                           indices, "", I->getIterator())};
+  new llvm::StoreInst(ins_opnd, ptr, I->getIterator());
+  auto load{new llvm::LoadInst(I->getType(), alloca, I->getName() + ".reload",
+                               I->getIterator())};
 
   I->replaceAllUsesWith(load);
   I->eraseFromParent();
@@ -359,9 +360,9 @@ void ConvertArrayArguments(llvm::Module &m) {
     if (orig_func->getReturnType()->isArrayTy()) {
       auto undef{llvm::UndefValue::get(return_ty)};
       for (auto ret : Returns) {
-        auto wrap{llvm::InsertValueInst::Create(undef, ret->getReturnValue(),
-                                                indices, "", ret)};
-        auto new_ret{llvm::ReturnInst::Create(ctx, wrap, ret)};
+        auto wrap{llvm::InsertValueInst::Create(
+            undef, ret->getReturnValue(), indices, "", ret->getIterator())};
+        auto new_ret{llvm::ReturnInst::Create(ctx, wrap, ret->getIterator())};
         ret->eraseFromParent();
       }
     }
@@ -397,8 +398,8 @@ void ConvertArrayArguments(llvm::Module &m) {
         for (auto &old_arg : call->args()) {
           if (old_arg->getType()->isArrayTy()) {
             auto undef{llvm::UndefValue::get(conv_types[old_arg->getType()])};
-            auto new_arg{llvm::InsertValueInst::Create(undef, old_arg, indices,
-                                                       "", call)};
+            auto new_arg{llvm::InsertValueInst::Create(
+                undef, old_arg, indices, "", call->getIterator())};
             args.push_back(new_arg);
           } else {
             args.push_back(old_arg);
@@ -407,12 +408,12 @@ void ConvertArrayArguments(llvm::Module &m) {
         llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 16u> mds;
         auto new_call{llvm::CallInst::Create(new_func->getFunctionType(),
                                              new_func, args, call->getName(),
-                                             call)};
+                                             call->getIterator())};
         call->getAllMetadata(mds);
         CloneMetadataInto(new_call, mds);
         if (callee->getReturnType()->isArrayTy()) {
-          auto unwrap{
-              llvm::ExtractValueInst::Create(new_call, indices, "", call)};
+          auto unwrap{llvm::ExtractValueInst::Create(new_call, indices, "",
+                                                     call->getIterator())};
           call->replaceAllUsesWith(unwrap);
         } else {
           call->replaceAllUsesWith(new_call);

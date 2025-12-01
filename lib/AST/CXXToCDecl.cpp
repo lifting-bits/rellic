@@ -8,8 +8,6 @@
 
 #include "rellic/AST/CXXToCDecl.h"
 
-#include "rellic/BC/Compat.h"
-
 #include <clang/AST/Mangle.h>
 #include <clang/AST/Type.h>
 #include <clang/Frontend/ASTUnit.h>
@@ -27,7 +25,7 @@ static std::string GetMangledName(clang::NamedDecl *decl) {
     llvm::raw_string_ostream os(buffer);
     if (auto type_decl = clang::dyn_cast<clang::TypeDecl>(decl)) {
       auto type = clang::QualType(type_decl->getTypeForDecl(), 0);
-      rellic::compat::MangleTypeName(mangler.get(), type, os);
+      mangler->mangleCanonicalTypeName(type, os);
     } else if (auto cst = clang::dyn_cast<clang::CXXConstructorDecl>(decl)) {
       mangler->mangleName(clang::GlobalDecl(cst), os);
     } else if (auto dst = clang::dyn_cast<clang::CXXDestructorDecl>(decl)) {

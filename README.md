@@ -192,11 +192,11 @@ Rellic uses a CMake-based superbuild system that automatically builds most depen
 | [Python](https://www.python.org/) | 3.6+ |
 | [Google Flags](https://github.com/gflags/gflags) | Latest (built by superbuild) |
 | [Google Log](https://github.com/google/glog) | Latest (built by superbuild) |
-| [LLVM](http://llvm.org/) | 16, 17, 18, 19, or 20 |
-| [Clang](http://clang.llvm.org/) | 16, 17, 18, 19, or 20 |
-| [Z3](https://github.com/Z3Prover/z3) | 4.13.0 (built by superbuild) |
+| [LLVM](http://llvm.org/) | 20 |
+| [Clang](http://clang.llvm.org/) | 20 |
+| [Z3](https://github.com/Z3Prover/z3) | 4.13.4 (built by superbuild) |
 
-**Note:** Rellic supports LLVM versions 16 through 20. You can use system-provided LLVM packages or build LLVM from source via the superbuild.
+**Note:** Rellic currently requires LLVM 20. You can use system-provided LLVM packages or build LLVM from source via the superbuild.
 
 ## Pre-made Docker Images
 
@@ -212,11 +212,17 @@ cmake -G Ninja -S dependencies -B dependencies/build
 cmake --build dependencies/build
 
 # Step 2: Build rellic
+# On Linux:
 cmake -G Ninja -B build -DCMAKE_PREFIX_PATH=$(pwd)/dependencies/install
+# On macOS (need to specify sysroot for tests):
+cmake -G Ninja -B build \
+  -DCMAKE_PREFIX_PATH=$(pwd)/dependencies/install \
+  -DCMAKE_OSX_SYSROOT=$(xcrun --show-sdk-path)
+
 cmake --build build
 ```
 
-**Note:** Step 1 builds LLVM from source and takes significant time and disk space.
+**Note:** Step 1 builds LLVM from source and takes significant time and disk space (~2 hours, ~30GB).
 
 ### On Linux
 
@@ -234,7 +240,7 @@ Then follow the Quick Start above, or use system LLVM for faster builds:
 #### Using System LLVM (Faster)
 
 ```shell
-# Install LLVM 20 (or 16, 17, 18, 19)
+# Install LLVM 20
 wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && sudo ./llvm.sh 20
 sudo apt install -y llvm-20-dev clang-20 libclang-20-dev
 
@@ -267,9 +273,10 @@ brew install llvm@20
 cmake -G Ninja -S dependencies -B dependencies/build -DUSE_EXTERNAL_LLVM=ON
 cmake --build dependencies/build
 
-# Build rellic
+# Build rellic (specify sysroot for tests)
 cmake -G Ninja -B build \
-  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20);$(pwd)/dependencies/install"
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20);$(pwd)/dependencies/install" \
+  -DCMAKE_OSX_SYSROOT=$(xcrun --show-sdk-path)
 cmake --build build
 ```
 
@@ -286,24 +293,14 @@ clang -emit-llvm -c ./tests/tools/decomp/issue_4.c -o issue_4.bc
 
 ### Docker image
 
-The Dockerfile provides a complete build environment for Rellic. Docker images are parameterized by Ubuntu version and LLVM version.
-
-Build a Docker image with your preferred LLVM version (16-20):
+The Dockerfile provides a complete build environment for Rellic with LLVM 20.
 
 ```sh
-# Build with LLVM 20 (default)
+# Build the Docker image
 docker build -t rellic:llvm20 .
-
-# Or specify a different LLVM version
-docker build -t rellic:llvm18 --build-arg LLVM_VERSION=18 .
-
-# Customize Ubuntu version if needed
-docker build -t rellic:llvm20-ubuntu22 \
-  --build-arg LLVM_VERSION=20 \
-  --build-arg UBUNTU_VERSION=22.04 .
 ```
 
-Run the decompiler (ensure your bitcode matches the LLVM version):
+Run the decompiler:
 
 ```sh
 # Create sample bitcode

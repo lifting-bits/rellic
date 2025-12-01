@@ -53,7 +53,7 @@ simple_git(https://github.com/google/googletest v1.17.0
     "-DGFLAGS_USE_TARGET_NAMESPACE:STRING=ON"
 )
 
-simple_git(https://github.com/doctest/doctest v2.4.11
+simple_git(https://github.com/doctest/doctest v2.4.12
     "-DDOCTEST_WITH_TESTS:STRING=OFF"
 )
 

@@ -146,9 +146,7 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
 
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto decl{ast.CreateStructDecl(tudecl, "temp" + std::to_string(count++))};
-  clang::AttributeCommonInfo info{nullptr, clang::SourceLocation{},
-                                  clang::AttributeCommonInfo::Form::GNU()};
-  decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
+  decl->addAttr(clang::PackedAttr::Create(ast_ctx));
   for (auto& field : fields) {
     decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, field));
   }
@@ -218,10 +216,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   auto field_count{0U};
   std::vector<FieldInfo> fields{};
   if (!isUnion) {
-    clang::AttributeCommonInfo attrinfo{
-        nullptr, clang::SourceLocation{},
-        clang::AttributeCommonInfo::Form::GNU()};
-    decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
+    decl->addAttr(clang::PackedAttr::Create(ast_ctx));
   }
 
   std::unordered_set<std::string> visible_field_names;

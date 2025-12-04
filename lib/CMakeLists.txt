@@ -131,6 +131,12 @@ target_include_directories("${PROJECT_NAME}"
   PUBLIC
     $<BUILD_INTERFACE:${RELLIC_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
+)
+
+# Use SYSTEM to avoid interfering with stdlib header search order on macOS
+# (Homebrew LLVM bundles its own libc++ and -I paths break include_next)
+target_include_directories("${PROJECT_NAME}" SYSTEM
+  PUBLIC
     ${LLVM_INCLUDE_DIRS}
     ${CLANG_INCLUDE_DIRS}
 )

@@ -91,9 +91,10 @@ jobs:
       - name: Install LLVM
         run: |
           brew install llvm@${{ matrix.llvm }} ninja
-          echo "CC=clang" >> $GITHUB_ENV
-          echo "CXX=clang++" >> $GITHUB_ENV
-          echo "LLVM_DIR=$(brew --prefix llvm@${{ matrix.llvm }})/lib/cmake/llvm" >> $GITHUB_ENV
+          LLVM_PREFIX=$(brew --prefix llvm@${{ matrix.llvm }})
+          echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
+          echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
+          echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4

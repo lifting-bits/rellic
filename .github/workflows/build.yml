@@ -26,7 +26,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             wget ca-certificates gnupg lsb-release software-properties-common \
-            git cmake ninja-build python3 python-is-python3
+            git cmake ninja-build python3 python-is-python3 \
+            zlib1g-dev libzstd-dev
 
       - name: Install LLVM ${{ matrix.llvm }}
         run: |

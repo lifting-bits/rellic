@@ -95,6 +95,9 @@ jobs:
           echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
           echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
           echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
+          # Unset SDKROOT to prevent CMake from adding SDK include paths
+          # that interfere with Homebrew LLVM's bundled libc++
+          echo "SDKROOT=" >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4

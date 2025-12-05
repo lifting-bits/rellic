@@ -133,16 +133,14 @@ target_include_directories("${PROJECT_NAME}"
     $<INSTALL_INTERFACE:include>
 )
 
-# On macOS with Homebrew LLVM, the compiler already knows where its headers are.
-# Adding explicit -I/-isystem paths breaks libc++ header search order (#include_next fails).
-# On Linux/other platforms, we need to add the paths explicitly.
-if(NOT APPLE)
-  target_include_directories("${PROJECT_NAME}"
-    PUBLIC
-      ${LLVM_INCLUDE_DIRS}
-      ${CLANG_INCLUDE_DIRS}
-  )
-endif()
+# Add LLVM/Clang include directories
+# Note: On macOS with Homebrew LLVM 20, there was a build issue with libc++
+# headers when using SYSTEM includes. Using regular includes (-I) works.
+target_include_directories("${PROJECT_NAME}"
+  PUBLIC
+    ${LLVM_INCLUDE_DIRS}
+    ${CLANG_INCLUDE_DIRS}
+)
 
 if(RELLIC_ENABLE_INSTALL)
   include(GNUInstallDirs)

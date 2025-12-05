@@ -101,12 +101,9 @@ jobs:
 
       - name: Build dependencies
         run: |
-          # Homebrew LLVM uses its own libc++. To avoid conflicts with macOS SDK headers,
-          # we need to tell CMake not to add SDK include paths that interfere with libc++.
           cmake -G Ninja -S dependencies -B dependencies/build \
             -DUSE_EXTERNAL_LLVM=ON \
-            -DCMAKE_PREFIX_PATH="$LLVM_DIR/.." \
-            -DCMAKE_OSX_SYSROOT=""
+            -DCMAKE_PREFIX_PATH="$LLVM_DIR/.."
           cmake --build dependencies/build
 
       - name: Build rellic
@@ -114,8 +111,7 @@ jobs:
           cmake -G Ninja -B build \
             -DCMAKE_PREFIX_PATH="$LLVM_DIR/..;$PWD/dependencies/install" \
             -DCMAKE_INSTALL_PREFIX="$PWD/install" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_SYSROOT=""
+            -DCMAKE_BUILD_TYPE=Release
           cmake --build build
 
       - name: Install rellic

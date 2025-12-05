@@ -95,9 +95,12 @@ jobs:
           echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
           echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
           echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
-          # Unset SDKROOT to prevent CMake from adding SDK include paths
-          # that interfere with Homebrew LLVM's bundled libc++
-          echo "SDKROOT=" >> $GITHUB_ENV
+          # Homebrew LLVM bundles its own libc++. We need to ensure its include
+          # path comes before the macOS SDK headers to avoid #include_next failures.
+          # Using -nostdinc++ tells clang to not use implicit C++ stdlib paths,
+          # then we explicitly add the LLVM libc++ path.
+          LIBCXX_INCLUDE="$LLVM_PREFIX/include/c++/v1"
+          echo "CXXFLAGS=-nostdinc++ -isystem $LIBCXX_INCLUDE" >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4

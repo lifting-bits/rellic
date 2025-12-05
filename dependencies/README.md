@@ -7,26 +7,36 @@ This directory contains the superbuild configuration for Rellic's dependencies, 
 ### Linux
 
 ```sh
-# Install LLVM from apt.llvm.org (choose version 16, 17, 18, 19, or 20)
+# Install LLVM 20 from apt.llvm.org
 wget https://apt.llvm.org/llvm.sh
 chmod +x llvm.sh
-sudo ./llvm.sh 17  # Replace 17 with your desired version
+sudo ./llvm.sh 20
 
-sudo apt install llvm-17-dev clang-17 libclang-17-dev cmake ninja-build
+sudo apt install llvm-20-dev clang-20 libclang-20-dev cmake ninja-build zlib1g-dev libzstd-dev
 
 # Build dependencies
-cmake -G Ninja -S dependencies -B dependencies/build -DUSE_EXTERNAL_LLVM=ON
+cmake -G Ninja -S dependencies -B dependencies/build \
+    -DUSE_EXTERNAL_LLVM=ON \
+    -DCMAKE_PREFIX_PATH="$(llvm-config-20 --cmakedir)/.."
 cmake --build dependencies/build
 ```
 
 ### macOS
 
+> **Note:** Using Homebrew's pre-built LLVM on macOS has known ABI compatibility issues
+> that cause runtime crashes. We recommend building LLVM from source on macOS
+> (see "Full Superbuild" below). This builds LLVM with the same compiler used
+> for rellic, ensuring ABI compatibility.
+
+If you want to try Homebrew LLVM anyway (build may succeed but runtime crashes likely):
+
 ```sh
-# Install LLVM from Homebrew (choose version 16, 17, 18, 19, or 20)
-brew install llvm@17 ninja  # Replace 17 with your desired version
+brew install llvm@20 ninja
 
 # Build dependencies
-cmake -G Ninja -S dependencies -B dependencies/build -DUSE_EXTERNAL_LLVM=ON
+cmake -G Ninja -S dependencies -B dependencies/build \
+    -DUSE_EXTERNAL_LLVM=ON \
+    -DCMAKE_PREFIX_PATH="$(brew --prefix llvm@20)"
 cmake --build dependencies/build
 ```
 
@@ -38,34 +48,41 @@ After building dependencies, build rellic with:
 
 ```sh
 cmake -G Ninja -B build \
-    "-DCMAKE_PREFIX_PATH=$PWD/dependencies/install;$(llvm-config-17 --prefix)" \
-    "-DCMAKE_INSTALL_PREFIX=$PWD/install"
+    -DCMAKE_PREFIX_PATH="$PWD/dependencies/install;$(llvm-config-20 --cmakedir)/.." \
+    -DCMAKE_INSTALL_PREFIX="$PWD/install"
 cmake --build build
 cmake --install build
+ctest --test-dir build --output-on-failure
 ```
 
-### macOS
+### macOS (from source build)
+
+After using the full superbuild to build LLVM from source:
 
 ```sh
 cmake -G Ninja -B build \
-    "-DCMAKE_PREFIX_PATH=$PWD/dependencies/install;$(brew --prefix llvm@17)" \
-    "-DCMAKE_INSTALL_PREFIX=$PWD/install"
+    -DCMAKE_PREFIX_PATH="$PWD/dependencies/install" \
+    -DCMAKE_INSTALL_PREFIX="$PWD/install"
 cmake --build build
 cmake --install build
+ctest --test-dir build --output-on-failure
 ```
 
 ## Full Superbuild (including LLVM)
 
-If you want to build LLVM from source instead of using a system installation:
+If you want to build LLVM from source (recommended for macOS):
 
 ```sh
 cmake -G Ninja -S dependencies -B dependencies/build \
-    -DLLVM_URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/llvm-project-17.0.6.src.tar.xz" \
-    -DLLVM_SHA256="58a8818c60e6627064f312dbf46c02d9949956558340938b71cf731ad8bc0813"
+    -DCMAKE_INSTALL_PREFIX="$PWD/dependencies/install"
 cmake --build dependencies/build
 
-cmake -G Ninja -B build "-DCMAKE_PREFIX_PATH=$PWD/dependencies/install"
+cmake -G Ninja -B build \
+    -DCMAKE_PREFIX_PATH="$PWD/dependencies/install" \
+    -DCMAKE_INSTALL_PREFIX="$PWD/install"
 cmake --build build
+cmake --install build
+ctest --test-dir build --output-on-failure
 ```
 
 **Note:** Building LLVM from source takes significant time (30-60 minutes or more).
@@ -99,32 +116,8 @@ This superbuild builds the following dependencies:
 
 ## Supported LLVM Versions
 
-Rellic supports LLVM versions 16, 17, 18, 19, and 20. The compatibility layer in `include/rellic/BC/Compat.h` handles API differences automatically.
+Currently only **LLVM 20** is supported. The codebase uses LLVM 20-specific APIs.
 
-## Testing Multiple LLVM Versions
-
-To test rellic with different LLVM versions:
-
-```sh
-for VER in 16 17 18 19 20; do
-    # Clean previous builds
-    rm -rf dependencies/build build-llvm$VER
-
-    # Build dependencies
-    cmake -G Ninja -S dependencies -B dependencies/build \
-        -DUSE_EXTERNAL_LLVM=ON \
-        -DCMAKE_PREFIX_PATH=$(llvm-config-$VER --cmakedir)/..
-    cmake --build dependencies/build
-
-    # Build rellic
-    cmake -G Ninja -B build-llvm$VER \
-        -DCMAKE_PREFIX_PATH="$(llvm-config-$VER --cmakedir)/..;$PWD/dependencies/install"
-    cmake --build build-llvm$VER
-
-    # Run tests
-    ctest --test-dir build-llvm$VER
-done
-```
 
 ## Troubleshooting
 
@@ -135,14 +128,11 @@ sudo apt install ninja-build  # Linux
 brew install ninja  # macOS
 ```
 
-### LLVM not found on macOS
+### macOS runtime crashes
 
-If Homebrew LLVM is installed but not detected:
-
-```sh
-export CMAKE_PREFIX_PATH=$(brew --prefix llvm@17)
-cmake -G Ninja -S dependencies -B dependencies/build -DUSE_EXTERNAL_LLVM=ON
-```
+If the build succeeds but rellic crashes at runtime with SIGSEGV, this is due to
+ABI incompatibility between Homebrew's pre-built LLVM and the compiler used to build rellic.
+The solution is to build LLVM from source (see "Full Superbuild" above).
 
 ### Z3 build fails
 

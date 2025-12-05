@@ -136,10 +136,11 @@ target_include_directories("${PROJECT_NAME}"
 # Add LLVM/Clang include directories
 # Note: On macOS with Homebrew LLVM 20, there was a build issue with libc++
 # headers when using SYSTEM includes. Using regular includes (-I) works.
+# Use BUILD_INTERFACE to avoid CMake errors when LLVM is in a subdirectory.
 target_include_directories("${PROJECT_NAME}"
   PUBLIC
-    ${LLVM_INCLUDE_DIRS}
-    ${CLANG_INCLUDE_DIRS}
+    $<BUILD_INTERFACE:${LLVM_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${CLANG_INCLUDE_DIRS}>
 )
 
 if(RELLIC_ENABLE_INSTALL)

@@ -96,9 +96,10 @@ jobs:
           echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
           echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
           echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
-          # Pre-add Homebrew's libc++ include path to ensure it comes first.
-          # This prevents CMake-added SDK paths from interfering with #include_next.
-          echo "CXXFLAGS=-isystem $LLVM_PREFIX/include/c++/v1 -isystem $LLVM_PREFIX/include" >> $GITHUB_ENV
+          # Use -I (not -isystem) to add Homebrew's libc++ include path FIRST.
+          # -I paths are searched before -isystem paths, ensuring libc++ headers
+          # are found before any SDK headers that CMake might add.
+          echo "CXXFLAGS=-I$LLVM_PREFIX/include/c++/v1 -I$LLVM_PREFIX/include" >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4

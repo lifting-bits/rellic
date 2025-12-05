@@ -92,26 +92,34 @@ jobs:
         run: |
           brew install llvm@${{ matrix.llvm }} ninja
           LLVM_PREFIX=$(brew --prefix llvm@${{ matrix.llvm }})
-          # Use system AppleClang as compiler but link against Homebrew LLVM libraries.
-          # Using Homebrew's clang directly causes libc++ header conflicts with macOS SDK.
+          # Use Homebrew's clang which is ABI-compatible with Homebrew LLVM libraries.
+          echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
+          echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
           echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
+          # Pre-add Homebrew's libc++ include path to ensure it comes first.
+          # This prevents CMake-added SDK paths from interfering with #include_next.
+          echo "CXXFLAGS=-isystem $LLVM_PREFIX/include/c++/v1 -isystem $LLVM_PREFIX/include" >> $GITHUB_ENV
 
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Build dependencies
         run: |
+          # Disable SDK for dependencies to avoid path conflicts with Homebrew libc++
           cmake -G Ninja -S dependencies -B dependencies/build \
             -DUSE_EXTERNAL_LLVM=ON \
-            -DCMAKE_PREFIX_PATH="$LLVM_DIR/.."
+            -DCMAKE_PREFIX_PATH="$LLVM_DIR/.." \
+            -DCMAKE_OSX_SYSROOT=""
           cmake --build dependencies/build
 
       - name: Build rellic
         run: |
+          # Disable SDK for rellic build - Homebrew LLVM provides everything needed
           cmake -G Ninja -B build \
             -DCMAKE_PREFIX_PATH="$LLVM_DIR/..;$PWD/dependencies/install" \
             -DCMAKE_INSTALL_PREFIX="$PWD/install" \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_SYSROOT=""
           cmake --build build
 
       - name: Install rellic

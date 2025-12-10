@@ -128,11 +128,25 @@ sudo apt install ninja-build  # Linux
 brew install ninja  # macOS
 ```
 
-### macOS runtime crashes
+### macOS runtime crashes with Homebrew LLVM
 
-If the build succeeds but rellic crashes at runtime with SIGSEGV, this is due to
-ABI incompatibility between Homebrew's pre-built LLVM and the compiler used to build rellic.
-The solution is to build LLVM from source (see "Full Superbuild" above).
+If the build succeeds but rellic crashes at runtime with SIGSEGV in
+`llvm::AnalysisManager<llvm::Module>::getResultImpl`, this is due to how Homebrew
+builds LLVM as a **shared library** (`libLLVM.dylib`).
+
+The crash occurs because rellic registers custom analyses with LLVM's new pass manager.
+When LLVM is built as a shared library, the `AnalysisKey` addresses don't match across
+the shared library boundary, causing crashes when the pass manager tries to look up
+analyses.
+
+The solution is to build LLVM from source with static libraries (the default for our
+superbuild). See "Full Superbuild" above.
+
+**Technical details:** Homebrew builds LLVM with `LLVM_BUILD_LLVM_DYLIB=ON` and
+`LLVM_LINK_LLVM_DYLIB=ON`. This causes `AnalysisManager::getResultImpl` to be
+instantiated in libLLVM.dylib, but the `AnalysisKey` for rellic's `GenerateAST`
+pass is in the rellic binary. When the manager searches for the key, it doesn't
+find it because the key addresses differ between the dylib and the application.
 
 ### Z3 build fails
 

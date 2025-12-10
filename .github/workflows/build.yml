@@ -82,10 +82,6 @@ jobs:
   macos:
     name: macOS (LLVM ${{ matrix.llvm }})
     runs-on: macos-latest
-    # macOS build is experimental: Homebrew LLVM 20's bundled libc++ headers
-    # conflict with SDK headers that CMake adds via LLVM's CMake config.
-    # See: https://github.com/lifting-bits/rellic/issues/XXX
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -96,9 +92,6 @@ jobs:
         run: |
           brew install llvm@${{ matrix.llvm }} ninja
           LLVM_PREFIX=$(brew --prefix llvm@${{ matrix.llvm }})
-          # Use system AppleClang (which properly integrates with macOS SDK)
-          # but link against Homebrew LLVM libraries.
-          # Note: This may cause ABI issues at runtime, but the build succeeds.
           echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
 
       - name: Checkout
@@ -113,10 +106,16 @@ jobs:
 
       - name: Build rellic
         run: |
+          # Use RELLIC_FORCE_STATIC_LLVM to avoid runtime crashes with Homebrew LLVM.
+          # Homebrew builds LLVM as a shared library (libLLVM.dylib) which causes
+          # AnalysisKey address mismatches. This option patches Clang targets to
+          # use static LLVM libraries instead.
           cmake -G Ninja -B build \
             -DCMAKE_PREFIX_PATH="$LLVM_DIR/..;$PWD/dependencies/install" \
             -DCMAKE_INSTALL_PREFIX="$PWD/install" \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk \
+            -DRELLIC_FORCE_STATIC_LLVM=ON
           cmake --build build
 
       - name: Install rellic

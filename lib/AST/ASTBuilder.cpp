@@ -147,7 +147,7 @@ clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
   // Extend the literal value based on it's sign if we have a
   // mismatch between the bit width of the value and inferred type.
   auto type_size{ctx.getIntWidth(type)};
-  if (val.getBitWidth() != type_size && val.getMinSignedBits() < type_size) {
+  if (val.getBitWidth() != type_size && val.getSignificantBits() < type_size) {
     val = val.extOrTrunc(type_size);
   }
   // Clang does this check in the `clang::IntegerLiteral::Create`, but
@@ -159,21 +159,21 @@ clang::IntegerLiteral *ASTBuilder::CreateIntLit(llvm::APSInt val) {
 
 clang::CharacterLiteral *ASTBuilder::CreateCharLit(llvm::APInt val) {
   CHECK(val.getBitWidth() == 8U);
-  return new (ctx) clang::CharacterLiteral(
-      val.getLimitedValue(), clang::CharacterLiteral::CharacterKind::Ascii,
-      ctx.IntTy, clang::SourceLocation());
+  return new (ctx) clang::CharacterLiteral(val.getLimitedValue(),
+                                           clang::CharacterLiteralKind::Ascii,
+                                           ctx.IntTy, clang::SourceLocation());
 }
 
 clang::CharacterLiteral *ASTBuilder::CreateCharLit(unsigned val) {
-  return new (ctx) clang::CharacterLiteral(
-      val, clang::CharacterLiteral::CharacterKind::Ascii, ctx.IntTy,
-      clang::SourceLocation());
+  return new (ctx)
+      clang::CharacterLiteral(val, clang::CharacterLiteralKind::Ascii,
+                              ctx.IntTy, clang::SourceLocation());
 }
 
 clang::StringLiteral *ASTBuilder::CreateStrLit(std::string val) {
   auto type{ctx.getStringLiteralArrayType(ctx.CharTy, val.size())};
   return clang::StringLiteral::Create(
-      ctx, val, clang::StringLiteral::StringKind::Ordinary,
+      ctx, val, clang::StringLiteralKind::Ordinary,
       /*Pascal=*/false, type, clang::SourceLocation());
 }
 
@@ -199,13 +199,13 @@ clang::Expr *ASTBuilder::CreateFPLit(llvm::APFloat val) {
 
 clang::Expr *ASTBuilder::CreateNull() {
   auto type{ctx.UnsignedIntTy};
-  auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
+  auto val{llvm::APInt::getZero(ctx.getTypeSize(type))};
   auto lit{CreateIntLit(val)};
   return CreateCStyleCast(ctx.VoidPtrTy, lit);
 }
 
 clang::Expr *ASTBuilder::CreateUndefInteger(clang::QualType type) {
-  auto val{llvm::APInt::getNullValue(ctx.getTypeSize(type))};
+  auto val{llvm::APInt::getZero(ctx.getTypeSize(type))};
   auto lit{CreateIntLit(val)};
   return lit;
 }
@@ -253,15 +253,15 @@ clang::ParmVarDecl *ASTBuilder::CreateParamDecl(clang::DeclContext *decl_ctx,
 clang::RecordDecl *ASTBuilder::CreateStructDecl(clang::DeclContext *decl_ctx,
                                                 clang::IdentifierInfo *id,
                                                 clang::RecordDecl *prev_decl) {
-  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Struct,
-                                   decl_ctx, clang::SourceLocation(),
+  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::Struct, decl_ctx,
+                                   clang::SourceLocation(),
                                    clang::SourceLocation(), id, prev_decl);
 }
 
 clang::RecordDecl *ASTBuilder::CreateUnionDecl(clang::DeclContext *decl_ctx,
                                                clang::IdentifierInfo *id,
                                                clang::RecordDecl *prev_decl) {
-  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::TTK_Union, decl_ctx,
+  return clang::RecordDecl::Create(ctx, clang::TagTypeKind::Union, decl_ctx,
                                    clang::SourceLocation(),
                                    clang::SourceLocation(), id, prev_decl);
 }

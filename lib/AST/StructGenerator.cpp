@@ -119,7 +119,7 @@ static FieldInfo CreatePadding(clang::ASTContext& ast_ctx,
     auto padding_count{needed_padding / type_size};
     auto padding_arr_type{ast_ctx.getConstantArrayType(
         padding_type, llvm::APInt(64, padding_count), nullptr,
-        clang::ArrayType::ArraySizeModifier::Normal, 0)};
+        clang::ArraySizeModifier::Normal, 0)};
     return {name, padding_arr_type, 0};
   }
 }
@@ -146,8 +146,7 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
 
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto decl{ast.CreateStructDecl(tudecl, "temp" + std::to_string(count++))};
-  clang::AttributeCommonInfo info{clang::SourceLocation{}};
-  decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
+  decl->addAttr(clang::PackedAttr::Create(ast_ctx));
   for (auto& field : fields) {
     decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, field));
   }
@@ -217,8 +216,7 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   auto field_count{0U};
   std::vector<FieldInfo> fields{};
   if (!isUnion) {
-    clang::AttributeCommonInfo attrinfo{clang::SourceLocation{}};
-    decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
+    decl->addAttr(clang::PackedAttr::Create(ast_ctx));
   }
 
   std::unordered_set<std::string> visible_field_names;
@@ -226,9 +224,20 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
     auto curr_offset{isUnion ? 0 : GetStructSize(ast_ctx, ast, fields)};
     DLOG(INFO) << "Field " << elem.type->getName().str()
                << " offset: " << curr_offset << " in " << decl->getName().str();
-    CHECK_LE(curr_offset, elem.offset)
-        << "Field " << LLVMThingToString(elem.type)
-        << " cannot be correctly aligned";
+
+    // Skip fields that overlap with already-processed fields. This happens with
+    // C++20 [[no_unique_address]] members, which can share storage with other
+    // members. libc++ uses this extensively (e.g., __compressed_pair_padding).
+    // These fields don't contribute unique storage, so we skip them when
+    // reconstructing the physical struct layout.
+    // See: https://reviews.llvm.org/D101237
+    if (curr_offset > elem.offset) {
+      DLOG(INFO) << "Skipping overlapping field " << elem.type->getName().str()
+                 << " at offset " << elem.offset
+                 << " (current struct size: " << curr_offset << ")";
+      continue;
+    }
+
     if (curr_offset < elem.offset) {
       auto needed_padding{elem.offset - curr_offset};
       auto info{CreatePadding(ast_ctx, needed_padding, field_count)};
@@ -333,10 +342,10 @@ clang::QualType StructGenerator::BuildArray(llvm::DICompositeType* a) {
   VLOG(1) << "BuildArray: " << rellic::LLVMThingToString(a);
   auto base{BuildType(a->getBaseType())};
   auto subrange{llvm::cast<llvm::DISubrange>(a->getElements()[0])};
-  auto* ci = subrange->getCount().get<llvm::ConstantInt*>();
-  return ast_ctx.getConstantArrayType(
-      base, llvm::APInt(64, ci->getZExtValue()), nullptr,
-      clang::ArrayType::ArraySizeModifier::Normal, 0);
+  auto* ci = llvm::dyn_cast<llvm::ConstantInt*>(subrange->getCount());
+  return ast_ctx.getConstantArrayType(base, llvm::APInt(64, ci->getZExtValue()),
+                                      nullptr, clang::ArraySizeModifier::Normal,
+                                      0);
 }
 
 clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
@@ -608,7 +617,7 @@ std::vector<clang::Expr*> StructGenerator::GetAccessor(clang::Expr* base,
     auto idx{field->getFieldIndex()};
     auto type{field->getType().getDesugaredType(ast_ctx)};
     auto field_offset{layout.getFieldOffset(idx)};
-    auto field_size{field->isBitField() ? field->getBitWidthValue(ast_ctx)
+    auto field_size{field->isBitField() ? field->getBitWidthValue()
                                         : ast_ctx.getTypeSize(type)};
     if (offset >= field_offset &&
         offset + length <= field_offset + field_size) {

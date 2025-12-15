@@ -13,7 +13,9 @@
 #include <glog/logging.h>
 #include <llvm/ADT/DepthFirstIterator.h>
 #include <llvm/ADT/PostOrderIterator.h>
+#include <llvm/Analysis/CGSCCPassManager.h>
 #include <llvm/Analysis/CFG.h>
+#include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/RegionInfo.h>
 #include <llvm/IR/Instruction.h>
@@ -644,19 +646,33 @@ GenerateAST::Result GenerateAST::run(llvm::Function &func,
 }
 
 void GenerateAST::run(llvm::Module &module, DecompilationContext &dec_ctx) {
-  llvm::ModulePassManager mpm;
+  // Create analysis managers in the order required by LLVM
+  // (destroyed in reverse order due to inter-manager references)
+  llvm::LoopAnalysisManager lam;
+  llvm::FunctionAnalysisManager fam;
+  llvm::CGSCCAnalysisManager cgam;
   llvm::ModuleAnalysisManager mam;
+
+  // Create PassBuilder and register all standard analyses FIRST
   llvm::PassBuilder pb;
-  mam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
-  mpm.addPass(rellic::GenerateAST(dec_ctx));
   pb.registerModuleAnalyses(mam);
+  pb.registerCGSCCAnalyses(cgam);
+  pb.registerFunctionAnalyses(fam);
+  pb.registerLoopAnalyses(lam);
+  pb.crossRegisterProxies(lam, fam, cgam, mam);
+
+  // Now register our custom analysis
+  mam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
+  fam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
+
+  // Run module pass
+  llvm::ModulePassManager mpm;
+  mpm.addPass(rellic::GenerateAST(dec_ctx));
   mpm.run(module, mam);
 
+  // Run function passes
   llvm::FunctionPassManager fpm;
-  llvm::FunctionAnalysisManager fam;
-  fam.registerPass([&] { return rellic::GenerateAST(dec_ctx); });
   fpm.addPass(rellic::GenerateAST(dec_ctx));
-  pb.registerFunctionAnalyses(fam);
   for (auto &func : module.functions()) {
     fpm.run(func, fam);
   }

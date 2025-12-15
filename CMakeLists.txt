@@ -8,6 +8,7 @@
 
 cmake_minimum_required(VERSION 3.21)
 
+include("cmake/ccache.cmake")
 include("cmake/options.cmake")
 
 project(rellic)
@@ -46,13 +47,109 @@ endif(NOT DEFINED WIN32)
 # libraries
 #
 
+# Currently only LLVM 20 is supported (code uses LLVM 20 specific APIs)
+set(RELLIC_SUPPORTED_LLVM_VERSIONS 20)
+
+# gflags needs this to create the gflags::gflags target that glog expects
+set(GFLAGS_USE_TARGET_NAMESPACE ON)
 find_package(gflags CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
-find_package(Z3 4.8 CONFIG REQUIRED)
+find_package(Z3 CONFIG REQUIRED)
 find_package(doctest CONFIG REQUIRED)
 find_package(LLVM CONFIG REQUIRED)
+
+# Validate LLVM version
+if(NOT LLVM_VERSION_MAJOR IN_LIST RELLIC_SUPPORTED_LLVM_VERSIONS)
+    message(FATAL_ERROR
+        "LLVM ${LLVM_VERSION_MAJOR} is not supported. "
+        "Supported versions: ${RELLIC_SUPPORTED_LLVM_VERSIONS}")
+endif()
+
 llvm_map_components_to_libnames(llvm_libs support core irreader bitreader bitwriter)
+
+# Check if we need to force static LLVM linking (for Homebrew LLVM on macOS)
+# When LLVM is built with LLVM_LINK_LLVM_DYLIB=ON, Clang libraries link to libLLVM.dylib
+# which causes crashes due to AnalysisKey address mismatches across shared library boundaries
+option(RELLIC_FORCE_STATIC_LLVM "Force static LLVM linking even when dylib is available" OFF)
+
+if(LLVM_LINK_LLVM_DYLIB AND RELLIC_FORCE_STATIC_LLVM)
+    message(STATUS "LLVM built with dylib but RELLIC_FORCE_STATIC_LLVM is ON - will use static LLVM libraries")
+
+    # Get all static LLVM libraries using llvm-config
+    execute_process(
+        COMMAND "${LLVM_TOOLS_BINARY_DIR}/llvm-config" --link-static --libnames
+        OUTPUT_VARIABLE LLVM_STATIC_LIB_NAMES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    # Convert space-separated list to CMake list
+    string(REPLACE " " ";" LLVM_STATIC_LIB_NAMES_LIST "${LLVM_STATIC_LIB_NAMES}")
+
+    # Convert library names (libLLVMFoo.a) to target names (LLVMFoo)
+    set(LLVM_STATIC_TARGETS "")
+    foreach(lib ${LLVM_STATIC_LIB_NAMES_LIST})
+        # Extract target name: libLLVMFoo.a -> LLVMFoo
+        string(REGEX REPLACE "^lib(.+)\\.a$" "\\1" target_name "${lib}")
+        if(TARGET ${target_name})
+            list(APPEND LLVM_STATIC_TARGETS ${target_name})
+        endif()
+    endforeach()
+
+    set(RELLIC_LLVM_STATIC_TARGETS "${LLVM_STATIC_TARGETS}")
+endif()
+
 find_package(Clang CONFIG REQUIRED)
+
+# If using static LLVM, patch ALL Clang targets to not use LLVM dylib
+if(LLVM_LINK_LLVM_DYLIB AND RELLIC_FORCE_STATIC_LLVM AND RELLIC_LLVM_STATIC_TARGETS)
+    message(STATUS "Patching Clang targets to use static LLVM libraries")
+
+    # Get all Clang targets - we need to patch ALL of them
+    # These are all the Clang libraries that might reference LLVM
+    set(CLANG_TARGETS_TO_PATCH
+        clangBasic clangAPINotes clangLex clangParse clangAST
+        clangDynamicASTMatchers clangASTMatchers clangCrossTU clangSema
+        clangCodeGen clangAnalysis clangAnalysisFlowSensitive
+        clangAnalysisFlowSensitiveModels clangEdit clangExtractAPI
+        clangRewrite clangARCMigrate clangDriver clangSerialization
+        clangRewriteFrontend clangFrontend clangFrontendTool
+        clangToolingCore clangToolingInclusions clangToolingInclusionsStdlib
+        clangToolingRefactoring clangToolingASTDiff clangToolingSyntax
+        clangDependencyScanning clangTransformer clangTooling
+        clangDirectoryWatcher clangIndex clangIndexSerialization
+        clangInstallAPI clangStaticAnalyzerCore clangStaticAnalyzerCheckers
+        clangStaticAnalyzerFrontend clangFormat clangInterpreter clangSupport
+    )
+
+    foreach(clang_target ${CLANG_TARGETS_TO_PATCH})
+        if(TARGET ${clang_target})
+            # Get current interface link libraries
+            get_target_property(current_libs ${clang_target} INTERFACE_LINK_LIBRARIES)
+            if(current_libs)
+                # Check if LLVM is in the list (as exact match, not substring)
+                list(FIND current_libs "LLVM" llvm_index)
+                if(NOT llvm_index EQUAL -1)
+                    # Remove LLVM and add all static targets
+                    list(REMOVE_ITEM current_libs "LLVM")
+                    list(APPEND current_libs ${RELLIC_LLVM_STATIC_TARGETS})
+                    set_target_properties(${clang_target} PROPERTIES
+                        INTERFACE_LINK_LIBRARIES "${current_libs}"
+                    )
+                endif()
+            endif()
+        endif()
+    endforeach()
+
+    # Also patch the LLVM target itself to be an interface to static libs
+    # This handles any targets we might have missed
+    set_target_properties(LLVM PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${RELLIC_LLVM_STATIC_TARGETS}"
+    )
+endif()
+
+# Extract LLVM version for binary naming
+set(RELLIC_LLVM_VERSION "${LLVM_VERSION_MAJOR}")
+message(STATUS "Building rellic for LLVM ${RELLIC_LLVM_VERSION}")
 
 
 #
@@ -115,7 +212,8 @@ if (RELLIC_ENABLE_TESTING)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   message(STATUS "Python path for tests: \"${Python3_EXECUTABLE}\"")
 
-  if(DEFINED CMAKE_OSX_SYSROOT)
+  # Only pass sysroot to tests if it's a non-empty string
+  if(CMAKE_OSX_SYSROOT)
     set(RELLIC_TEST_ARGS "--cflags=-isysroot" "--cflags=${CMAKE_OSX_SYSROOT}")
   else()
     set(RELLIC_TEST_ARGS "")

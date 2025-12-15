@@ -1,0 +1,127 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (LLVM ${{ matrix.llvm }})
+    runs-on: ubuntu-22.04
+    container:
+      image: ubuntu:22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        llvm: ["20"]
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            wget ca-certificates gnupg lsb-release software-properties-common \
+            git cmake ninja-build python3 python-is-python3 \
+            zlib1g-dev libzstd-dev
+
+      - name: Install LLVM ${{ matrix.llvm }}
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          ./llvm.sh ${{ matrix.llvm }}
+          apt-get install -y --no-install-recommends \
+            llvm-${{ matrix.llvm }}-dev \
+            clang-${{ matrix.llvm }} \
+            libclang-${{ matrix.llvm }}-dev
+
+          echo "CC=clang-${{ matrix.llvm }}" >> $GITHUB_ENV
+          echo "CXX=clang++-${{ matrix.llvm }}" >> $GITHUB_ENV
+          echo "LLVM_DIR=$(llvm-config-${{ matrix.llvm }} --cmakedir)" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark workspace safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build dependencies
+        run: |
+          cmake -G Ninja -S dependencies -B dependencies/build \
+            -DUSE_EXTERNAL_LLVM=ON \
+            -DCMAKE_PREFIX_PATH="$LLVM_DIR/.."
+          cmake --build dependencies/build
+
+      - name: Build rellic
+        run: |
+          cmake -G Ninja -B build \
+            -DCMAKE_PREFIX_PATH="$LLVM_DIR/..;$PWD/dependencies/install" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/install" \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Install rellic
+        run: cmake --install build
+
+      - name: Test rellic
+        run: |
+          ./install/bin/rellic-decomp-${{ matrix.llvm }} --version || true
+          env CTEST_OUTPUT_ON_FAILURE=1 ctest --test-dir build
+
+      - name: Upload artifacts
+        if: matrix.llvm == '20'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rellic-linux-llvm${{ matrix.llvm }}
+          path: install/
+
+  macos:
+    name: macOS (LLVM ${{ matrix.llvm }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        llvm: ["20"]
+
+    steps:
+      - name: Install LLVM
+        run: |
+          brew install llvm@${{ matrix.llvm }} ninja
+          LLVM_PREFIX=$(brew --prefix llvm@${{ matrix.llvm }})
+          echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build dependencies
+        run: |
+          cmake -G Ninja -S dependencies -B dependencies/build \
+            -DUSE_EXTERNAL_LLVM=ON \
+            -DCMAKE_PREFIX_PATH="$LLVM_DIR/.."
+          cmake --build dependencies/build
+
+      - name: Build rellic
+        run: |
+          # Use RELLIC_FORCE_STATIC_LLVM to avoid runtime crashes with Homebrew LLVM.
+          # Homebrew builds LLVM as a shared library (libLLVM.dylib) which causes
+          # AnalysisKey address mismatches. This option patches Clang targets to
+          # use static LLVM libraries instead.
+          cmake -G Ninja -B build \
+            -DCMAKE_PREFIX_PATH="$LLVM_DIR/..;$PWD/dependencies/install" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/install" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk \
+            -DRELLIC_FORCE_STATIC_LLVM=ON
+          cmake --build build
+
+      - name: Install rellic
+        run: cmake --install build
+
+      - name: Test rellic
+        run: |
+          ./install/bin/rellic-decomp-${{ matrix.llvm }} --version || true
+          env CTEST_OUTPUT_ON_FAILURE=1 ctest --test-dir build

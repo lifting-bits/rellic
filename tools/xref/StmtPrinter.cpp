@@ -47,6 +47,7 @@
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringExtras.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/Compiler.h>
@@ -137,6 +138,8 @@ class StmtPrinter : public StmtVisitor<StmtPrinter> {
   void PrintOMPExecutableDirective(OMPExecutableDirective *S,
                                    bool ForceNoStmt = false);
   void PrintFPPragmas(CompoundStmt *S);
+  void PrintOpenACCClauseList(OpenACCConstructStmt *S);
+  void PrintOpenACCConstruct(OpenACCConstructStmt *S);
 
   void PrintExpr(Expr *E) {
     if (E)
@@ -194,60 +197,62 @@ void StmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
 }
 
 void StmtPrinter::PrintFPPragmas(CompoundStmt *S) {
-  if (!S->hasStoredFPFeatures())
-    return;
+  if (!S->hasStoredFPFeatures()) return;
   FPOptionsOverride FPO = S->getStoredFPFeatures();
   bool FEnvAccess = false;
   if (FPO.hasAllowFEnvAccessOverride()) {
     FEnvAccess = FPO.getAllowFEnvAccessOverride();
-    Indent() << "<span class=\"clang preprocessor\">#pragma</span> STDC FENV_ACCESS " << (FEnvAccess ? "ON" : "OFF")
-             << NL;
+    Indent()
+        << "<span class=\"clang preprocessor\">#pragma</span> STDC FENV_ACCESS "
+        << (FEnvAccess ? "ON" : "OFF") << NL;
   }
   if (FPO.hasSpecifiedExceptionModeOverride()) {
     LangOptions::FPExceptionModeKind EM =
         FPO.getSpecifiedExceptionModeOverride();
     if (!FEnvAccess || EM != LangOptions::FPE_Strict) {
-      Indent() << "<span class=\"clang preprocessor\">#pragma</span> clang fp exceptions(";
+      Indent() << "<span class=\"clang preprocessor\">#pragma</span> clang fp "
+                  "exceptions(";
       switch (FPO.getSpecifiedExceptionModeOverride()) {
-      default:
-        break;
-      case LangOptions::FPE_Ignore:
-        OS << "ignore";
-        break;
-      case LangOptions::FPE_MayTrap:
-        OS << "maytrap";
-        break;
-      case LangOptions::FPE_Strict:
-        OS << "strict";
-        break;
+        default:
+          break;
+        case LangOptions::FPE_Ignore:
+          OS << "ignore";
+          break;
+        case LangOptions::FPE_MayTrap:
+          OS << "maytrap";
+          break;
+        case LangOptions::FPE_Strict:
+          OS << "strict";
+          break;
       }
       OS << ")\n";
     }
   }
   if (FPO.hasConstRoundingModeOverride()) {
     LangOptions::RoundingMode RM = FPO.getConstRoundingModeOverride();
-    Indent() << "<span class=\"clang preprocessor\">#pragma</span> STDC FENV_ROUND ";
+    Indent()
+        << "<span class=\"clang preprocessor\">#pragma</span> STDC FENV_ROUND ";
     switch (RM) {
-    case llvm::RoundingMode::TowardZero:
-      OS << "FE_TOWARDZERO";
-      break;
-    case llvm::RoundingMode::NearestTiesToEven:
-      OS << "FE_TONEAREST";
-      break;
-    case llvm::RoundingMode::TowardPositive:
-      OS << "FE_UPWARD";
-      break;
-    case llvm::RoundingMode::TowardNegative:
-      OS << "FE_DOWNWARD";
-      break;
-    case llvm::RoundingMode::NearestTiesToAway:
-      OS << "FE_TONEARESTFROMZERO";
-      break;
-    case llvm::RoundingMode::Dynamic:
-      OS << "FE_DYNAMIC";
-      break;
-    default:
-      llvm_unreachable("Invalid rounding mode");
+      case llvm::RoundingMode::TowardZero:
+        OS << "FE_TOWARDZERO";
+        break;
+      case llvm::RoundingMode::NearestTiesToEven:
+        OS << "FE_TONEAREST";
+        break;
+      case llvm::RoundingMode::TowardPositive:
+        OS << "FE_UPWARD";
+        break;
+      case llvm::RoundingMode::TowardNegative:
+        OS << "FE_DOWNWARD";
+        break;
+      case llvm::RoundingMode::NearestTiesToAway:
+        OS << "FE_TONEARESTFROMZERO";
+        break;
+      case llvm::RoundingMode::Dynamic:
+        OS << "FE_DYNAMIC";
+        break;
+      default:
+        llvm_unreachable("Invalid rounding mode");
     }
     OS << NL;
   }
@@ -572,6 +577,10 @@ void StmtPrinter::VisitCapturedStmt(CapturedStmt *Node) {
   PrintStmt(Node->getCapturedDecl()->getBody());
 }
 
+void StmtPrinter::VisitSYCLKernelCallStmt(SYCLKernelCallStmt *Node) {
+  PrintStmt(Node->getOutlinedFunctionDecl()->getBody());
+}
+
 void StmtPrinter::VisitObjCAtTryStmt(ObjCAtTryStmt *Node) {
   Indent() << "<span class=\"clang keyword objective-c\">@try</span>";
   if (auto *TS = dyn_cast<CompoundStmt>(Node->getTryBody())) {
@@ -754,6 +763,17 @@ void StmtPrinter::VisitOMPUnrollDirective(OMPUnrollDirective *Node) {
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPReverseDirective(OMPReverseDirective *Node) {
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp reverse";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPInterchangeDirective(OMPInterchangeDirective *Node) {
+  Indent()
+      << "<span class=\"clang preprocessor\">#pragma</span> omp interchange";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPForDirective(OMPForDirective *Node) {
   Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp for";
   PrintOMPExecutableDirective(Node);
@@ -771,6 +791,11 @@ void StmtPrinter::VisitOMPSectionsDirective(OMPSectionsDirective *Node) {
 
 void StmtPrinter::VisitOMPSectionDirective(OMPSectionDirective *Node) {
   Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp section";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPScopeDirective(OMPScopeDirective *Node) {
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp scope";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -816,7 +841,8 @@ void StmtPrinter::VisitOMPParallelMasterDirective(
 
 void StmtPrinter::VisitOMPParallelMaskedDirective(
     OMPParallelMaskedDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp parallel masked";
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp parallel "
+              "masked";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -829,7 +855,8 @@ void StmtPrinter::VisitOMPParallelSectionsDirective(
 
 void StmtPrinter::VisitOMPMaskedTaskLoopDirective(
     OMPMaskedTaskLoopDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp masked taskloop";
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp masked "
+              "taskloop";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -850,6 +877,11 @@ void StmtPrinter::VisitOMPBarrierDirective(OMPBarrierDirective *Node) {
 
 void StmtPrinter::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *Node) {
   Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp taskwait";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPAssumeDirective(OMPAssumeDirective *Node) {
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp assume";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -988,43 +1020,50 @@ void StmtPrinter::VisitOMPParallelMasterTaskLoopSimdDirective(
 
 void StmtPrinter::VisitOMPMaskedTaskLoopSimdDirective(
     OMPMaskedTaskLoopSimdDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp masked taskloop simd";
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp masked "
+              "taskloop simd";
   PrintOMPExecutableDirective(Node);
 }
 
 void StmtPrinter::VisitOMPParallelMaskedTaskLoopDirective(
     OMPParallelMaskedTaskLoopDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp parallel masked taskloop";
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp parallel "
+              "masked taskloop";
   PrintOMPExecutableDirective(Node);
 }
 
 void StmtPrinter::VisitOMPParallelMaskedTaskLoopSimdDirective(
     OMPParallelMaskedTaskLoopSimdDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp parallel masked taskloop simd";
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp parallel "
+              "masked taskloop simd";
   PrintOMPExecutableDirective(Node);
 }
 
 void StmtPrinter::VisitOMPTeamsGenericLoopDirective(
     OMPTeamsGenericLoopDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp teams loop";
+  Indent()
+      << "<span class=\"clang preprocessor\">#pragma</span> omp teams loop";
   PrintOMPExecutableDirective(Node);
 }
 
 void StmtPrinter::VisitOMPTargetTeamsGenericLoopDirective(
     OMPTargetTeamsGenericLoopDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp target teams loop";
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp target "
+              "teams loop";
   PrintOMPExecutableDirective(Node);
 }
 
 void StmtPrinter::VisitOMPParallelGenericLoopDirective(
     OMPParallelGenericLoopDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp parallel loop";
+  Indent()
+      << "<span class=\"clang preprocessor\">#pragma</span> omp parallel loop";
   PrintOMPExecutableDirective(Node);
 }
 
 void StmtPrinter::VisitOMPTargetParallelGenericLoopDirective(
     OMPTargetParallelGenericLoopDirective *Node) {
-  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp target parallel loop";
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> omp target "
+              "parallel loop";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -1158,11 +1197,96 @@ void StmtPrinter::VisitOMPGenericLoopDirective(OMPGenericLoopDirective *Node) {
 }
 
 //===----------------------------------------------------------------------===//
+//  OpenACC construct printing methods
+//===----------------------------------------------------------------------===//
+void StmtPrinter::PrintOpenACCClauseList(OpenACCConstructStmt *S) {
+  if (!S->clauses().empty()) {
+    OS << ' ';
+    OpenACCClausePrinter Printer(OS, Policy);
+    Printer.VisitClauseList(S->clauses());
+  }
+}
+void StmtPrinter::PrintOpenACCConstruct(OpenACCConstructStmt *S) {
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> acc "
+           << S->getDirectiveKind();
+  PrintOpenACCClauseList(S);
+  OS << '\n';
+}
+void StmtPrinter::VisitOpenACCComputeConstruct(OpenACCComputeConstruct *S) {
+  PrintOpenACCConstruct(S);
+  PrintStmt(S->getStructuredBlock());
+}
+void StmtPrinter::VisitOpenACCLoopConstruct(OpenACCLoopConstruct *S) {
+  PrintOpenACCConstruct(S);
+  PrintStmt(S->getLoop());
+}
+
+void StmtPrinter::VisitOpenACCCombinedConstruct(OpenACCCombinedConstruct *S) {
+  PrintOpenACCConstruct(S);
+  PrintStmt(S->getLoop());
+}
+
+void StmtPrinter::VisitOpenACCDataConstruct(OpenACCDataConstruct *S) {
+  PrintOpenACCConstruct(S);
+  PrintStmt(S->getStructuredBlock());
+}
+void StmtPrinter::VisitOpenACCHostDataConstruct(OpenACCHostDataConstruct *S) {
+  PrintOpenACCConstruct(S);
+  PrintStmt(S->getStructuredBlock());
+}
+void StmtPrinter::VisitOpenACCEnterDataConstruct(OpenACCEnterDataConstruct *S) {
+  PrintOpenACCConstruct(S);
+}
+void StmtPrinter::VisitOpenACCExitDataConstruct(OpenACCExitDataConstruct *S) {
+  PrintOpenACCConstruct(S);
+}
+void StmtPrinter::VisitOpenACCInitConstruct(OpenACCInitConstruct *S) {
+  PrintOpenACCConstruct(S);
+}
+void StmtPrinter::VisitOpenACCShutdownConstruct(OpenACCShutdownConstruct *S) {
+  PrintOpenACCConstruct(S);
+}
+
+void StmtPrinter::VisitOpenACCSetConstruct(OpenACCSetConstruct *S) {
+  PrintOpenACCConstruct(S);
+}
+void StmtPrinter::VisitOpenACCUpdateConstruct(OpenACCUpdateConstruct *S) {
+  PrintOpenACCConstruct(S);
+}
+
+void StmtPrinter::VisitOpenACCWaitConstruct(OpenACCWaitConstruct *S) {
+  Indent() << "<span class=\"clang preprocessor\">#pragma</span> acc wait";
+  if (!S->getLParenLoc().isInvalid()) {
+    OS << "(";
+    if (S->hasDevNumExpr()) {
+      OS << "devnum: ";
+      S->getDevNumExpr()->printPretty(OS, nullptr, Policy);
+      OS << " : ";
+    }
+
+    if (S->hasQueuesTag()) OS << "queues: ";
+
+    llvm::interleaveComma(S->getQueueIdExprs(), OS, [&](const Expr *E) {
+      E->printPretty(OS, nullptr, Policy);
+    });
+
+    OS << ")";
+  }
+
+  PrintOpenACCClauseList(S);
+  OS << '\n';
+}
+
+//===----------------------------------------------------------------------===//
 //  Expr printing methods.
 //===----------------------------------------------------------------------===//
 
 void StmtPrinter::VisitSourceLocExpr(SourceLocExpr *Node) {
   OS << Node->getBuiltinStr() << "()";
+}
+
+void StmtPrinter::VisitEmbedExpr(EmbedExpr *Node) {
+  llvm::report_fatal_error("Not implemented");
 }
 
 void StmtPrinter::VisitConstantExpr(ConstantExpr *Node) {
@@ -1216,7 +1340,7 @@ void StmtPrinter::VisitUnresolvedLookupExpr(UnresolvedLookupExpr *Node) {
 static bool isImplicitSelf(const Expr *E) {
   if (const auto *DRE = dyn_cast<DeclRefExpr>(E)) {
     if (const auto *PD = dyn_cast<ImplicitParamDecl>(DRE->getDecl())) {
-      if (PD->getParameterKind() == ImplicitParamDecl::ObjCSelf &&
+      if (PD->getParameterKind() == ImplicitParamKind::ObjCSelf &&
           DRE->getBeginLoc().isInvalid())
         return true;
     }
@@ -1273,23 +1397,27 @@ void StmtPrinter::VisitPredefinedExpr(PredefinedExpr *Node) {
   OS << PredefinedExpr::getIdentKindName(Node->getIdentKind());
 }
 
+void StmtPrinter::VisitOpenACCAsteriskSizeExpr(OpenACCAsteriskSizeExpr *Node) {
+  OS << '*';
+}
+
 void StmtPrinter::VisitCharacterLiteral(CharacterLiteral *Node) {
   OS << "<span class=\"clang character-literal\">";
   unsigned value = Node->getValue();
 
   switch (Node->getKind()) {
-    case CharacterLiteral::Ascii:
+    case CharacterLiteralKind::Ascii:
       break;  // no prefix.
-    case CharacterLiteral::Wide:
+    case CharacterLiteralKind::Wide:
       OS << 'L';
       break;
-    case CharacterLiteral::UTF8:
+    case CharacterLiteralKind::UTF8:
       OS << "u8";
       break;
-    case CharacterLiteral::UTF16:
+    case CharacterLiteralKind::UTF16:
       OS << 'u';
       break;
-    case CharacterLiteral::UTF32:
+    case CharacterLiteralKind::UTF32:
       OS << 'U';
       break;
   }
@@ -1342,7 +1470,7 @@ void StmtPrinter::VisitCharacterLiteral(CharacterLiteral *Node) {
       // FIXME: multicharacter literals such as '\xFF\xFF\xFF\xFF'
       // are not correctly handled.
       if ((value & ~0xFFu) == ~0xFFu &&
-          Node->getKind() == CharacterLiteral::Ascii)
+          Node->getKind() == CharacterLiteralKind::Ascii)
         value &= 0xFFu;
       if (value < 256 && isPrintable((unsigned char)value))
         OS << "'" << (char)value << "'";
@@ -1377,10 +1505,11 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
     return;
   OS << "<span class=\"clang number integer-literal\">";
   bool isSigned = Node->getType()->isSignedIntegerType();
-  if (Node->getValue().getZExtValue() < 16) {
-    OS << toString(Node->getValue(), 10, isSigned);
-  } else {
-    OS << toString(Node->getValue(), 16, isSigned, /*formatAsCLiteral=*/true);
+  OS << toString(Node->getValue(), 10, isSigned);
+
+  if (isa<BitIntType>(Node->getType())) {
+    OS << (isSigned ? "wb" : "uwb");
+    return;
   }
 
   if (isa<BitIntType>(Node->getType())) {
@@ -1393,24 +1522,45 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
     default:
       llvm_unreachable("Unexpected type for integer literal!");
     case BuiltinType::Char_S:
-    case BuiltinType::Char_U:    OS << "i8"; break;
-    case BuiltinType::UChar:     OS << "Ui8"; break;
-    case BuiltinType::SChar:     OS << "i8"; break;
-    case BuiltinType::Short:     OS << "i16"; break;
-    case BuiltinType::UShort:    OS << "Ui16"; break;
-    case BuiltinType::Int:       break; // no suffix.
-    case BuiltinType::UInt:      OS << 'U'; break;
-    case BuiltinType::Long:      OS << 'L'; break;
-    case BuiltinType::ULong:     OS << "UL"; break;
-    case BuiltinType::LongLong:  OS << "LL"; break;
-    case BuiltinType::ULongLong: OS << "ULL"; break;
+    case BuiltinType::Char_U:
+      OS << "i8";
+      break;
+    case BuiltinType::UChar:
+      OS << "Ui8";
+      break;
+    case BuiltinType::SChar:
+      OS << "i8";
+      break;
+    case BuiltinType::Short:
+      OS << "i16";
+      break;
+    case BuiltinType::UShort:
+      OS << "Ui16";
+      break;
+    case BuiltinType::Int:
+      break;  // no suffix.
+    case BuiltinType::UInt:
+      OS << 'U';
+      break;
+    case BuiltinType::Long:
+      OS << 'L';
+      break;
+    case BuiltinType::ULong:
+      OS << "UL";
+      break;
+    case BuiltinType::LongLong:
+      OS << "LL";
+      break;
+    case BuiltinType::ULongLong:
+      OS << "ULL";
+      break;
     case BuiltinType::Int128:
-      break; // no suffix.
+      break;  // no suffix.
     case BuiltinType::UInt128:
-      break; // no suffix.
+      break;  // no suffix.
     case BuiltinType::WChar_S:
     case BuiltinType::WChar_U:
-      break; // no suffix
+      break;  // no suffix
   }
   OS << "</span>";
 }
@@ -1514,18 +1664,20 @@ void StmtPrinter::VisitImaginaryLiteral(ImaginaryLiteral *Node) {
 
 static void outputString(const StringLiteral *Str, raw_ostream &OS) {
   switch (Str->getKind()) {
-    case StringLiteral::Ordinary:
+    case StringLiteralKind::Unevaluated:
+    case StringLiteralKind::Ordinary:
+    case StringLiteralKind::Binary:
       break;  // no prefix.
-    case StringLiteral::Wide:
+    case StringLiteralKind::Wide:
       OS << 'L';
       break;
-    case StringLiteral::UTF8:
+    case StringLiteralKind::UTF8:
       OS << "u8";
       break;
-    case StringLiteral::UTF16:
+    case StringLiteralKind::UTF16:
       OS << 'u';
       break;
-    case StringLiteral::UTF32:
+    case StringLiteralKind::UTF32:
       OS << 'U';
       break;
   }
@@ -1538,7 +1690,7 @@ static void outputString(const StringLiteral *Str, raw_ostream &OS) {
         // FIXME: Convert UTF-8 back to codepoints before rendering.
         // Convert UTF-16 surrogate pairs back to codepoints before rendering.
         // Leave invalid surrogates alone; we'll use \x for those.
-        if (Str->getKind() == StringLiteral::UTF16 && I != N - 1 &&
+        if (Str->getKind() == StringLiteralKind::UTF16 && I != N - 1 &&
             Char >= 0xd800 && Char <= 0xdbff) {
           uint32_t Trail = Str->getCodeUnit(I + 1);
           if (Trail >= 0xdc00 && Trail <= 0xdfff) {
@@ -1550,7 +1702,7 @@ static void outputString(const StringLiteral *Str, raw_ostream &OS) {
           // If this is a wide string, output characters over 0xff using \x
           // escapes. Otherwise, this is a UTF-16 or UTF-32 string, and Char is
           // a codepoint: use \x escapes for invalid codepoints.
-          if (Str->getKind() == StringLiteral::Wide ||
+          if (Str->getKind() == StringLiteralKind::Wide ||
               (Char >= 0xd800 && Char <= 0xdfff) || Char >= 0x110000) {
             // FIXME: Is this the best way to print wchar_t?
             OS << "\\x";
@@ -1774,7 +1926,7 @@ void StmtPrinter::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *Node) {
   OS << "]";
 }
 
-void StmtPrinter::VisitOMPArraySectionExpr(OMPArraySectionExpr *Node) {
+void StmtPrinter::VisitArraySectionExpr(ArraySectionExpr *Node) {
   PrintExpr(Node->getBase());
   OS << "[";
   if (Node->getLowerBound()) PrintExpr(Node->getLowerBound());
@@ -1782,7 +1934,7 @@ void StmtPrinter::VisitOMPArraySectionExpr(OMPArraySectionExpr *Node) {
     OS << ":";
     if (Node->getLength()) PrintExpr(Node->getLength());
   }
-  if (Node->getColonLocSecond().isValid()) {
+  if (Node->isOMPArraySection() && Node->getColonLocSecond().isValid()) {
     OS << ":";
     if (Node->getStride()) PrintExpr(Node->getStride());
   }
@@ -2009,7 +2161,7 @@ void StmtPrinter::VisitDesignatedInitExpr(DesignatedInitExpr *Node) {
   for (const DesignatedInitExpr::Designator &D : Node->designators()) {
     if (D.isFieldDesignator()) {
       if (D.getDotLoc().isInvalid()) {
-        if (IdentifierInfo *II = D.getFieldName()) {
+        if (const IdentifierInfo *II = D.getFieldName()) {
           OS << II->getName() << ":";
           NeedsEquals = false;
         }
@@ -2086,7 +2238,7 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
   case AtomicExpr::AO##ID:              \
     Name = #ID "(";                     \
     break;
-#include <clang/Basic/Builtins.def>
+#include <clang/Basic/Builtins.inc>
   }
   OS << Name;
 
@@ -2268,7 +2420,8 @@ void StmtPrinter::VisitUserDefinedLiteral(UserDefinedLiteral *Node) {
           cast<FunctionDecl>(DRE->getDecl())->getTemplateSpecializationArgs();
       assert(Args);
 
-      if (Args->size() != 1 || Args->get(0).getKind() != TemplateArgument::Pack) {
+      if (Args->size() != 1 ||
+          Args->get(0).getKind() != TemplateArgument::Pack) {
         OS << "<span class=\"clang keyword\">operator</span>\"\""
            << Node->getUDSuffix()->getName();
         printTemplateArgumentList(OS, Args->asArray(), Policy);
@@ -2339,18 +2492,14 @@ void StmtPrinter::VisitCXXFunctionalCastExpr(CXXFunctionalCastExpr *Node) {
   bool Bare = Auto && Auto->isDeduced();
 
   // Parenthesize deduced casts.
-  if (Bare)
-    OS << '(';
+  if (Bare) OS << '(';
   TargetType.print(OS, Policy);
-  if (Bare)
-    OS << ')';
+  if (Bare) OS << ')';
 
   // No extra braces surrounding the inner construct.
-  if (!Node->isListInitialization())
-    OS << '(';
+  if (!Node->isListInitialization()) OS << '(';
   PrintExpr(Node->getSubExpr());
-  if (!Node->isListInitialization())
-    OS << ')';
+  if (!Node->isListInitialization()) OS << ')';
 }
 
 void StmtPrinter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *Node) {
@@ -2536,15 +2685,13 @@ void StmtPrinter::VisitCXXNewExpr(CXXNewExpr *E) {
   PrintType(E->getAllocatedType(), OS, Policy, TypeS);
   if (E->isParenTypeId()) OS << ")";
 
-  CXXNewExpr::InitializationStyle InitStyle = E->getInitializationStyle();
-  if (InitStyle != CXXNewExpr::NoInit) {
-    bool Bare = InitStyle == CXXNewExpr::CallInit &&
+  CXXNewInitializationStyle InitStyle = E->getInitializationStyle();
+  if (InitStyle != CXXNewInitializationStyle::None) {
+    bool Bare = InitStyle == CXXNewInitializationStyle::Parens &&
                 !isa<ParenListExpr>(E->getInitializer());
-    if (Bare)
-      OS << "(";
+    if (Bare) OS << "(";
     PrintExpr(E->getInitializer());
-    if (Bare)
-      OS << ")";
+    if (Bare) OS << ")";
   }
 }
 
@@ -2564,7 +2711,7 @@ void StmtPrinter::VisitCXXPseudoDestructorExpr(CXXPseudoDestructorExpr *E) {
   if (E->getQualifier()) E->getQualifier()->print(OS, Policy);
   OS << "~";
 
-  if (IdentifierInfo *II = E->getDestroyedTypeIdentifier())
+  if (const IdentifierInfo *II = E->getDestroyedTypeIdentifier())
     OS << II->getName();
   else
     PrintType(E->getDestroyedType(), OS, Policy);
@@ -2603,15 +2750,13 @@ void StmtPrinter::VisitExprWithCleanups(ExprWithCleanups *E) {
 void StmtPrinter::VisitCXXUnresolvedConstructExpr(
     CXXUnresolvedConstructExpr *Node) {
   PrintType(Node->getTypeAsWritten(), OS, Policy);
-  if (!Node->isListInitialization())
-    OS << '(';
+  if (!Node->isListInitialization()) OS << '(';
   for (auto Arg = Node->arg_begin(), ArgEnd = Node->arg_end(); Arg != ArgEnd;
        ++Arg) {
     if (Arg != Node->arg_begin()) OS << ", ";
     PrintExpr(*Arg);
   }
-  if (!Node->isListInitialization())
-    OS << ')';
+  if (!Node->isListInitialization()) OS << ')';
 }
 
 void StmtPrinter::VisitCXXDependentScopeMemberExpr(
@@ -2678,6 +2823,13 @@ void StmtPrinter::VisitPackExpansionExpr(PackExpansionExpr *E) {
 void StmtPrinter::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
   OS << "<span class=\"clang keyword\">sizeof</span>...(" << *E->getPack()
      << ")";
+}
+
+void StmtPrinter::VisitPackIndexingExpr(PackIndexingExpr *E) {
+  PrintExpr(E->getPackIdExpression());
+  OS << "...[";
+  PrintExpr(E->getIndexExpr());
+  OS << "]";
 }
 
 void StmtPrinter::VisitSubstNonTypeTemplateParmPackExpr(
@@ -2973,6 +3125,10 @@ void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {
   OS << ", ";
   PrintType(Node->getType(), OS, Policy);
   OS << ")";
+}
+
+void StmtPrinter::VisitHLSLOutArgExpr(HLSLOutArgExpr *Node) {
+  PrintExpr(Node->getArgLValue());
 }
 
 //===----------------------------------------------------------------------===//

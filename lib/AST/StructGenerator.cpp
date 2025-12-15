@@ -224,9 +224,20 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
     auto curr_offset{isUnion ? 0 : GetStructSize(ast_ctx, ast, fields)};
     DLOG(INFO) << "Field " << elem.type->getName().str()
                << " offset: " << curr_offset << " in " << decl->getName().str();
-    CHECK_LE(curr_offset, elem.offset)
-        << "Field " << LLVMThingToString(elem.type)
-        << " cannot be correctly aligned";
+
+    // Skip fields that overlap with already-processed fields. This happens with
+    // C++20 [[no_unique_address]] members, which can share storage with other
+    // members. libc++ uses this extensively (e.g., __compressed_pair_padding).
+    // These fields don't contribute unique storage, so we skip them when
+    // reconstructing the physical struct layout.
+    // See: https://reviews.llvm.org/D101237
+    if (curr_offset > elem.offset) {
+      DLOG(INFO) << "Skipping overlapping field " << elem.type->getName().str()
+                 << " at offset " << elem.offset
+                 << " (current struct size: " << curr_offset << ")";
+      continue;
+    }
+
     if (curr_offset < elem.offset) {
       auto needed_padding{elem.offset - curr_offset};
       auto info{CreatePadding(ast_ctx, needed_padding, field_count)};

@@ -663,7 +663,9 @@ clang::Expr *ExprGen::visitExtractValueInst(llvm::ExtractValueInst &inst) {
 
 clang::Expr *ExprGen::visitLoadInst(llvm::LoadInst &inst) {
   DLOG(INFO) << "visitLoadInst: " << LLVMThingToString(&inst);
-  auto ptr_type{ast_ctx.getPointerType(dec_ctx.GetQualType(inst.getType()))};
+  auto ptr_operand = inst.getPointerOperand();
+  auto ptr_type{ast_ctx.getPointerType(
+      dec_ctx.GetQualType(inst.getType(), ptr_operand))};
   auto cast{
       ast.CreateCStyleCast(ptr_type, CreateOperandExpr(inst.getOperandUse(0)))};
   return ast.CreateDeref(cast);
@@ -984,8 +986,9 @@ clang::Stmt *StmtGen::visitStoreInst(llvm::StoreInst &inst) {
   auto &value_opnd{inst.getOperandUse(0)};
   // Stores in LLVM IR correspond to value assignments in C
   // Get the operand we're assigning to
-  auto ptr_type{
-      ast_ctx.getPointerType(dec_ctx.GetQualType(value_opnd->getType()))};
+  auto ptr_operand = inst.getPointerOperand();
+  auto ptr_type{ast_ctx.getPointerType(
+      dec_ctx.GetQualType(value_opnd->getType(), ptr_operand))};
   auto lhs{ast.CreateCStyleCast(
       ptr_type, expr_gen.CreateOperandExpr(
                     inst.getOperandUse(inst.getPointerOperandIndex())))};
@@ -1174,7 +1177,7 @@ void IRToASTVisitor::VisitFunctionDecl(llvm::Function &func) {
       // storage for parameters e.g. a parameter named "foo" has a corresponding
       // local variable named "foo_addr").
       var = ast.CreateVarDecl(
-          fdecl, dec_ctx.GetQualType(alloca->getAllocatedType()), name);
+          fdecl, dec_ctx.GetQualType(alloca->getAllocatedType(), alloca), name);
       fdecl->addDecl(var);
     } else if (inst.hasNUsesOrMore(2) ||
                (inst.hasNUsesOrMore(1) && llvm::isa<llvm::CallInst>(inst)) ||

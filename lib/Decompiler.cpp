@@ -28,6 +28,7 @@
 #include "rellic/AST/GenerateAST.h"
 #include "rellic/AST/IRToASTVisitor.h"
 #include "rellic/AST/LocalDeclRenamer.h"
+#include "rellic/AST/PointerTypeInference.h"
 #include "rellic/AST/LoopRefine.h"
 #include "rellic/AST/MaterializeConds.h"
 #include "rellic/AST/NestedCondProp.h"
@@ -93,6 +94,10 @@ Result<DecompilationResult, DecompilationError> Decompile(
     for (auto& provider : options.additional_providers) {
       dec_ctx.type_provider->AddProvider(provider->create(dec_ctx));
     }
+
+    // Infer pointer types from usage and debug info
+    dec_ctx.pointer_analysis = std::make_unique<rellic::PointerTypeInferenceAnalysis>();
+    rellic::InferPointerTypes(*module, dic, *dec_ctx.pointer_analysis);
 
     rellic::GenerateAST::run(*module, dec_ctx);
     // TODO(surovic): Add llvm::Value* -> clang::Decl* map

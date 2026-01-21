@@ -409,7 +409,8 @@ unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
   return idx;
 }
 
-clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
+clang::QualType DecompilationContext::GetQualType(llvm::Type *type,
+                                                  llvm::Value *context_value) {
   DLOG(INFO) << "GetQualType: " << LLVMThingToString(type);
 
   clang::QualType result;
@@ -462,9 +463,22 @@ clang::QualType DecompilationContext::GetQualType(llvm::Type *type) {
 
     case llvm::Type::PointerTyID: {
       auto ptr_type{llvm::cast<llvm::PointerType>(type)};
-      // With opaque pointers, we can't get element type directly from the
-      // pointer; Use the context's void pointer type as the default
-      result = ast_ctx.VoidPtrTy;
+
+      // Try to get inferred pointee type
+      llvm::Type* pointee_type = nullptr;
+      if (context_value && pointer_analysis) {
+        pointee_type = pointer_analysis->GetPointeeType(context_value);
+      }
+
+      if (pointee_type) {
+        // Recursively convert pointee type to QualType
+        auto pointee_qtype = GetQualType(pointee_type, nullptr);
+        result = ast_ctx.getPointerType(pointee_qtype);
+        DLOG(INFO) << "Inferred pointer type: " << ClangThingToString(result);
+      } else {
+        // Fall back to void* (current behavior)
+        result = ast_ctx.VoidPtrTy;
+      }
     } break;
 
     case llvm::Type::ArrayTyID: {

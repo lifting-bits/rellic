@@ -35,6 +35,7 @@ set(AST_HEADERS
   "${include_dir}/AST/MaterializeConds.h"
   "${include_dir}/AST/NestedCondProp.h"
   "${include_dir}/AST/NestedScopeCombine.h"
+  "${include_dir}/AST/PointerTypeInference.h"
   "${include_dir}/AST/ReachBasedRefine.h"
   "${include_dir}/AST/StructFieldRenamer.h"
   "${include_dir}/AST/StructGenerator.h"
@@ -75,6 +76,7 @@ set(AST_SOURCES
   AST/MaterializeConds.cpp
   AST/NestedCondProp.cpp
   AST/NestedScopeCombine.cpp
+  AST/PointerTypeInference.cpp
   AST/Util.cpp
   AST/Z3CondSimplify.cpp
   AST/ReachBasedRefine.cpp

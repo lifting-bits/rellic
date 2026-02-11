@@ -46,6 +46,8 @@ endif(NOT DEFINED WIN32)
 # libraries
 #
 
+# gflags needs this to create the gflags::gflags target that glog expects
+set(GFLAGS_USE_TARGET_NAMESPACE ON)
 find_package(gflags CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(Z3 4.8 CONFIG REQUIRED)

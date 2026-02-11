@@ -20,7 +20,7 @@ target_link_libraries(${RELLIC_DECOMP}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags
+    gflags::gflags
 )
 
 set(RELLIC_DECOMP "${RELLIC_DECOMP}" PARENT_SCOPE)
@@ -39,7 +39,7 @@ target_link_libraries(${RELLIC_HEADERGEN}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags
+    gflags::gflags
 )
 
 set(RELLIC_HEADERGEN "${RELLIC_HEADERGEN}" PARENT_SCOPE)
@@ -72,7 +72,7 @@ target_link_libraries(${RELLIC_XREF}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags
+    gflags::gflags
 )
 
 set(RELLIC_XREF "${RELLIC_XREF}" PARENT_SCOPE)
@@ -106,7 +106,7 @@ target_link_libraries(${RELLIC_REPL}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags
+    gflags::gflags
     linenoise
 )
 
@@ -125,7 +125,7 @@ target_link_libraries(${RELLIC_DEC2HEX}
   PRIVATE
     "${PROJECT_NAME}_cxx_settings"
     "${PROJECT_NAME}"
-    gflags
+    gflags::gflags
 )
 
 set(RELLIC_DEC2HEX "${RELLIC_DEC2HEX}" PARENT_SCOPE)

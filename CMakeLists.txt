@@ -46,13 +46,21 @@ endif(NOT DEFINED WIN32)
 # libraries
 #
 
+# gflags needs this to create the gflags::gflags target that glog expects
+set(GFLAGS_USE_TARGET_NAMESPACE ON)
 find_package(gflags CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(Z3 4.8 CONFIG REQUIRED)
 find_package(doctest CONFIG REQUIRED)
-find_package(LLVM CONFIG REQUIRED)
+find_package(LLVM 20 CONFIG REQUIRED)
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 llvm_map_components_to_libnames(llvm_libs support core irreader bitreader bitwriter)
-find_package(Clang CONFIG REQUIRED)
+
+find_package(MLIR 20 CONFIG REQUIRED)
+message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
+
+find_package(Clang 20 CONFIG REQUIRED)
+message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
 
 
 #

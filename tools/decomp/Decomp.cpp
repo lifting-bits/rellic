@@ -34,15 +34,15 @@ DEFINE_bool(lower_switch, false,
 DECLARE_bool(version);
 
 namespace {
-static llvm::Optional<llvm::APInt> GetPCMetadata(llvm::Value* value) {
+static std::optional<llvm::APInt> GetPCMetadata(llvm::Value* value) {
   auto inst{llvm::dyn_cast<llvm::Instruction>(value)};
   if (!inst) {
-    return llvm::Optional<llvm::APInt>();
+    return std::nullopt;
   }
 
   auto pc{inst->getMetadata("pc")};
   if (!pc) {
-    return llvm::Optional<llvm::APInt>();
+    return std::nullopt;
   }
 
   auto& cop{pc->getOperand(0U)};

@@ -17,6 +17,7 @@
 #include <unordered_map>
 
 #include "rellic/AST/ASTBuilder.h"
+#include "rellic/AST/PointerTypeInference.h"
 #include "rellic/AST/TypeProvider.h"
 
 namespace rellic {
@@ -43,6 +44,7 @@ struct DecompilationContext {
   ASTBuilder ast;
 
   std::unique_ptr<TypeProviderCombiner> type_provider;
+  std::unique_ptr<PointerTypeInferenceAnalysis> pointer_analysis;
 
   StmtToIRMap stmt_provenance;
   ExprToUseMap use_provenance;
@@ -76,7 +78,8 @@ struct DecompilationContext {
   // Inserts an expression into z3_exprs and returns its index
   unsigned InsertZExpr(const z3::expr &e);
 
-  clang::QualType GetQualType(llvm::Type *type);
+  clang::QualType GetQualType(llvm::Type *type,
+                               llvm::Value *context_value = nullptr);
 };
 
 }  // namespace rellic

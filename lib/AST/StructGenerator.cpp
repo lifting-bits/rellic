@@ -119,7 +119,7 @@ static FieldInfo CreatePadding(clang::ASTContext& ast_ctx,
     auto padding_count{needed_padding / type_size};
     auto padding_arr_type{ast_ctx.getConstantArrayType(
         padding_type, llvm::APInt(64, padding_count), nullptr,
-        clang::ArrayType::ArraySizeModifier::Normal, 0)};
+        clang::ArraySizeModifier::Normal, 0)};
     return {name, padding_arr_type, 0};
   }
 }
@@ -146,7 +146,8 @@ static unsigned GetStructSize(clang::ASTContext& ast_ctx, ASTBuilder& ast,
 
   auto tudecl{ast_ctx.getTranslationUnitDecl()};
   auto decl{ast.CreateStructDecl(tudecl, "temp" + std::to_string(count++))};
-  clang::AttributeCommonInfo info{clang::SourceLocation{}};
+  clang::AttributeCommonInfo info{nullptr, clang::SourceLocation{},
+                                  clang::AttributeCommonInfo::Form::GNU()};
   decl->addAttr(clang::PackedAttr::Create(ast_ctx, info));
   for (auto& field : fields) {
     decl->addDecl(FieldInfoToFieldDecl(ast_ctx, ast, decl, field));
@@ -217,7 +218,9 @@ void StructGenerator::VisitFields(clang::RecordDecl* decl,
   auto field_count{0U};
   std::vector<FieldInfo> fields{};
   if (!isUnion) {
-    clang::AttributeCommonInfo attrinfo{clang::SourceLocation{}};
+    clang::AttributeCommonInfo attrinfo{
+        nullptr, clang::SourceLocation{},
+        clang::AttributeCommonInfo::Form::GNU()};
     decl->addAttr(clang::PackedAttr::Create(ast_ctx, attrinfo));
   }
 
@@ -333,10 +336,10 @@ clang::QualType StructGenerator::BuildArray(llvm::DICompositeType* a) {
   VLOG(1) << "BuildArray: " << rellic::LLVMThingToString(a);
   auto base{BuildType(a->getBaseType())};
   auto subrange{llvm::cast<llvm::DISubrange>(a->getElements()[0])};
-  auto* ci = subrange->getCount().get<llvm::ConstantInt*>();
-  return ast_ctx.getConstantArrayType(
-      base, llvm::APInt(64, ci->getZExtValue()), nullptr,
-      clang::ArrayType::ArraySizeModifier::Normal, 0);
+  auto* ci = llvm::dyn_cast<llvm::ConstantInt*>(subrange->getCount());
+  return ast_ctx.getConstantArrayType(base, llvm::APInt(64, ci->getZExtValue()),
+                                      nullptr, clang::ArraySizeModifier::Normal,
+                                      0);
 }
 
 clang::QualType StructGenerator::BuildDerived(llvm::DIDerivedType* d,
@@ -608,7 +611,7 @@ std::vector<clang::Expr*> StructGenerator::GetAccessor(clang::Expr* base,
     auto idx{field->getFieldIndex()};
     auto type{field->getType().getDesugaredType(ast_ctx)};
     auto field_offset{layout.getFieldOffset(idx)};
-    auto field_size{field->isBitField() ? field->getBitWidthValue(ast_ctx)
+    auto field_size{field->isBitField() ? field->getBitWidthValue()
                                         : ast_ctx.getTypeSize(type)};
     if (offset >= field_offset &&
         offset + length <= field_offset + field_size) {

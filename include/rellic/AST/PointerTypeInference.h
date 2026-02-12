@@ -27,7 +27,8 @@ class PointerTypeInferenceAnalysis {
     UNKNOWN = 0,
     PROPAGATION = 30,       // Propagated through PHI/Select
     DEBUG_INFO = 60,        // From DWARF debug metadata
-    USAGE_ANALYSIS = 100,   // From load/store/GEP usage (highest priority)
+    USAGE_ANALYSIS = 100,   // From load/store/GEP usage
+    CUSTOM_METADATA = 200,  // From rellic compilation metadata (highest priority)
   };
 
   PointerTypeInferenceAnalysis() = default;
@@ -48,6 +49,7 @@ class PointerTypeInferenceAnalysis {
   // Get statistics about inferences
   struct Statistics {
     size_t total_inferences{0};
+    size_t custom_metadata{0};
     size_t usage_based{0};
     size_t debug_info{0};
     size_t propagation{0};

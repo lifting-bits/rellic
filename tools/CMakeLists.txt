@@ -26,6 +26,25 @@ target_link_libraries(${RELLIC_DECOMP}
 set(RELLIC_DECOMP "${RELLIC_DECOMP}" PARENT_SCOPE)
 
 #
+# rellic-compile
+#
+
+set(RELLIC_COMPILE "${PROJECT_NAME}-compile")
+
+add_executable(${RELLIC_COMPILE}
+  "compile/Compile.cpp"
+)
+
+target_link_libraries(${RELLIC_COMPILE}
+  PRIVATE
+    "${PROJECT_NAME}_cxx_settings"
+    "${PROJECT_NAME}"
+    gflags::gflags
+)
+
+set(RELLIC_COMPILE "${RELLIC_COMPILE}" PARENT_SCOPE)
+
+#
 # rellic-headergen
 #
 
@@ -135,6 +154,7 @@ if(RELLIC_ENABLE_INSTALL)
   install(
     TARGETS
       ${RELLIC_DECOMP}
+      ${RELLIC_COMPILE}
       ${RELLIC_HEADERGEN}
       ${RELLIC_XREF}
       ${RELLIC_REPL}

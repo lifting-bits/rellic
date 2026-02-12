@@ -22,6 +22,7 @@ set(include_dir "${PROJECT_SOURCE_DIR}/include/${PROJECT_NAME}")
 
 set(AST_HEADERS
   "${include_dir}/AST/ASTBuilder.h"
+  "${include_dir}/AST/ASTTransformPipeline.h"
   "${include_dir}/AST/CXXToCDecl.h"
   "${include_dir}/AST/CondBasedRefine.h"
   "${include_dir}/AST/DeadStmtElim.h"
@@ -55,14 +56,20 @@ set(VERSION_HEADERS
   "${include_dir}/Version.h"
 )
 
+set(COMPILER_HEADERS
+  "${include_dir}/Compiler.h"
+)
+
 set(public_HEADERS
   ${AST_HEADERS}
   ${BC_HEADERS}
   ${VERSION_HEADERS}
+  ${COMPILER_HEADERS}
 )
 
 set(AST_SOURCES
   AST/ASTBuilder.cpp
+  AST/ASTTransformPipeline.cpp
   AST/CXXToCDecl.cpp
   AST/InferenceRule.cpp
   AST/DeadStmtElim.cpp
@@ -96,10 +103,11 @@ add_library("${PROJECT_NAME}" STATIC
   ${AST_SOURCES}
   ${BC_SOURCES}
 
+  Compiler.cpp
   Dec2Hex.cpp
   Decompiler.cpp
   Exception.cpp
-  
+
   "${POST_CONFIGURE_FILE}"  # Version.cpp
 )
 

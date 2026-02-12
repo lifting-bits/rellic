@@ -403,6 +403,23 @@ DecompilationContext::DecompilationContext(clang::ASTUnit &ast_unit)
       marker_expr(ast.CreateAdd(ast.CreateFalse(), ast.CreateFalse())),
       type_provider(std::make_unique<TypeProviderCombiner>(*this)) {}
 
+std::unique_ptr<DecompilationContext>
+DecompilationContext::CreateMinimal(clang::ASTUnit &ast_unit) {
+  // Create a new context using the normal constructor
+  auto ctx = std::make_unique<DecompilationContext>(ast_unit);
+
+  // The constructor already initializes:
+  // - ast_unit, ast_ctx, ast references
+  // - z3_ctx, z3_exprs (via member initializer)
+  // - marker_expr (via initialization)
+  // - type_provider
+
+  // All map members are default-initialized as empty, which is what we want
+  // for standalone AST transformation without LLVM IR
+
+  return ctx;
+}
+
 unsigned DecompilationContext::InsertZExpr(const z3::expr &e) {
   auto idx{z3_exprs.size()};
   z3_exprs.push_back(e);

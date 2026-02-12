@@ -6,6 +6,8 @@ set(RELLIC_UNITTEST ${PROJECT_NAME}-unittest)
 
 add_executable(${RELLIC_UNITTEST}
   AST/ASTBuilder.cpp
+  AST/ASTTransformPipeline.cpp
+  AST/CompilerTest.cpp
   AST/StructGenerator.cpp
   AST/Util.cpp
   UnitTest.cpp

@@ -78,6 +78,9 @@ bool rellic::PointerTypeInferenceAnalysis::RecordInference(llvm::Value* ptr_valu
     stats_.total_inferences++;
 
     switch (source) {
+      case TypeSource::CUSTOM_METADATA:
+        stats_.custom_metadata++;
+        break;
       case TypeSource::USAGE_ANALYSIS:
         stats_.usage_based++;
         break;
@@ -275,6 +278,80 @@ static llvm::Type* ExtractPointeeTypeFromDIType(
   return result;
 }
 
+// Pass 0: Custom Metadata Inference (Highest Priority)
+// Reads type metadata attached by rellic's compilation pipeline
+static void InferFromCustomMetadata(llvm::Module& module,
+                                    rellic::PointerTypeInferenceAnalysis& analysis) {
+  const llvm::StringRef metadata_kind = "rellic.pointee.type";
+  unsigned md_kind_id = module.getContext().getMDKindID(metadata_kind);
+
+  DLOG(INFO) << "Inferring types from custom metadata...";
+
+  for (auto& func : module) {
+    for (auto& bb : func) {
+      for (auto& inst : bb) {
+        // Check if this instruction has our custom metadata
+        if (auto* md = inst.getMetadata(md_kind_id)) {
+          // Metadata format: !{!"type_string", i64 size}
+          if (auto* tuple = llvm::dyn_cast<llvm::MDTuple>(md)) {
+            if (tuple->getNumOperands() >= 2) {
+              // Extract type string
+              if (auto* type_str_md = llvm::dyn_cast<llvm::MDString>(
+                      tuple->getOperand(0))) {
+                std::string type_str = type_str_md->getString().str();
+
+                // Try to reconstruct the LLVM type from the string
+                // For now, we'll do basic reconstruction
+                llvm::Type* pointee_type = nullptr;
+
+                // Handle basic integer types
+                if (type_str == "i8") {
+                  pointee_type = llvm::Type::getInt8Ty(module.getContext());
+                } else if (type_str == "i16") {
+                  pointee_type = llvm::Type::getInt16Ty(module.getContext());
+                } else if (type_str == "i32") {
+                  pointee_type = llvm::Type::getInt32Ty(module.getContext());
+                } else if (type_str == "i64") {
+                  pointee_type = llvm::Type::getInt64Ty(module.getContext());
+                }
+                // Handle float types
+                else if (type_str == "float") {
+                  pointee_type = llvm::Type::getFloatTy(module.getContext());
+                } else if (type_str == "double") {
+                  pointee_type = llvm::Type::getDoubleTy(module.getContext());
+                }
+                // Handle struct types - look up by name
+                else if (type_str.find("struct.") == 0 ||
+                         type_str.find("%struct.") == 0) {
+                  // Extract struct name
+                  std::string struct_name = type_str;
+                  if (struct_name[0] == '%') {
+                    struct_name = struct_name.substr(1);
+                  }
+                  pointee_type = llvm::StructType::getTypeByName(
+                      module.getContext(), struct_name);
+                }
+
+                // If we successfully reconstructed the type, record it
+                if (pointee_type) {
+                  bool recorded = analysis.RecordInference(
+                      &inst, pointee_type,
+                      rellic::PointerTypeInferenceAnalysis::TypeSource::CUSTOM_METADATA);
+                  if (recorded) {
+                    DLOG(INFO) << "  Inferred from metadata: "
+                               << rellic::LLVMThingToString(&inst) << " -> "
+                               << type_str;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 // Pass 1: Usage-Based Inference
 static void InferFromUsage(llvm::Module& module,
                            rellic::PointerTypeInferenceAnalysis& analysis) {
@@ -440,19 +517,23 @@ void rellic::InferPointerTypes(llvm::Module& module, rellic::DebugInfoCollector&
                                 rellic::PointerTypeInferenceAnalysis& analysis) {
   DLOG(INFO) << "Starting pointer type inference...";
 
-  // Pass 1: Usage-based inference (highest priority)
+  // Pass 0: Custom metadata (highest priority - 200)
+  InferFromCustomMetadata(module, analysis);
+
+  // Pass 1: Usage-based inference (priority 100)
   InferFromUsage(module, analysis);
 
-  // Pass 2: Debug information inference (medium priority)
+  // Pass 2: Debug information inference (priority 60)
   InferFromDebugInfo(module, dic, analysis);
 
-  // Pass 3: Propagation (lowest priority)
+  // Pass 3: Propagation (priority 30)
   PropagateTypes(module, analysis);
 
   // Log statistics
   auto stats = analysis.GetStatistics();
   DLOG(INFO) << "Pointer type inference complete:";
   DLOG(INFO) << "  Total inferences: " << stats.total_inferences;
+  DLOG(INFO) << "  From custom metadata: " << stats.custom_metadata;
   DLOG(INFO) << "  From usage: " << stats.usage_based;
   DLOG(INFO) << "  From debug info: " << stats.debug_info;
   DLOG(INFO) << "  From propagation: " << stats.propagation;

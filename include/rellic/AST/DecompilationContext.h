@@ -39,6 +39,12 @@ struct DecompilationContext {
 
   DecompilationContext(clang::ASTUnit &ast_unit);
 
+  // Factory method to create a minimal context for standalone AST transformation
+  // without LLVM IR. This creates an empty context suitable for running
+  // transformation passes on an existing AST.
+  static std::unique_ptr<DecompilationContext> CreateMinimal(
+      clang::ASTUnit &ast_unit);
+
   clang::ASTUnit &ast_unit;
   clang::ASTContext &ast_ctx;
   ASTBuilder ast;
